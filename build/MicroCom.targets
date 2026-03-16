@@ -1,0 +1,51 @@
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <ExcludeAssets>all</ExcludeAssets>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+    </ProjectReference>
+
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <ExcludeAssets>all</ExcludeAssets>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="GenerateAvaloniaNativeComInterop"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="ResolveReferences"
+          Inputs="@(AvnComIdl);$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\**\*.cs"
+          Outputs="%(AvnComIdl.OutputFile)">
+    <Message Importance="high" Text="Generating file %(AvnComIdl.OutputFile) from @(AvnComIdl)" />
+    <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\bin\$(Configuration)\net10.0\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.dll&quot; -i @(AvnComIdl) --cs %(AvnComIdl.OutputFile)"
+          LogStandardErrorAsError="true" />
+    <ItemGroup>
+      <Compile Remove="%(AvnComIdl.OutputFile)" />
+      <Compile Include="%(AvnComIdl.OutputFile)" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <UpToDateCheckInput Include="@(AvnComIdl)" />
+    <UpToDateCheckInput Include="$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\**\*.cs" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <_AvaloniaPatchComInterop>true</_AvaloniaPatchComInterop>
+  </PropertyGroup>
+
+  <!--
+<Target Name="PatchMicroComAssembly"
+        AfterTargets="CoreCompile">
+  <Message Importance="high" Text="Patching MicroCom assembly $(IntermediateOutputPath)$(AssemblyName).dll" />
+  <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher\bin\$(Configuration)\net10.0\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher.dll&quot; &quot;$(IntermediateOutputPath)$(AssemblyName).dll&quot;"
+        LogStandardErrorAsError="true" />
+</Target>
+-->
+
+</Project>

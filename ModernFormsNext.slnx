@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/bulid/">
+    <File Path="bulid/MicroCom.targets" />
+  </Folder>
+  <Folder Name="/Elementy rozwiązania/">
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ControlGallery/ControlGallery.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj" Id="026bee55-e552-4e0b-bcbc-908672afda4e" />
+    <Project Path="ModernFormsNext.WindowKit.Backend.Windows/ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+    <Project Path="ModernFormsNext.WindowKit.Backend/ModernFormsNext.WindowKit.Backend.csproj" />
+    <Project Path="ModernFormsNext.WindowKit/ModernFormsNext.WindowKit.csproj" />
+    <Project Path="ModernFormsNext/ModernFormsNext.csproj" />
+  </Folder>
+  <Project Path="ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator/ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.csproj" Id="26a85b84-2886-4295-8919-1310238d1243" />
+  <Project Path="ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher/ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher.csproj" Id="1023157f-ceac-4dd3-b889-7d9a889f7a59" />
+</Solution>

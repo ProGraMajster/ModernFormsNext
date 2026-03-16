@@ -1,0 +1,297 @@
+﻿using System;
+using System.Drawing;
+using ModernFormsNext.Renderers;
+using SkiaSharp;
+
+namespace ModernFormsNext
+{
+    /// <summary>
+    /// Represents a FormTitleBar control.
+    /// </summary>
+    public class FormTitleBar : Control
+    {
+        private readonly TitleBarButton minimize_button;
+        private readonly TitleBarButton maximize_button;
+        private readonly TitleBarButton close_button;
+        private readonly PictureBox form_image;
+
+        private bool show_image = true;
+
+        /// <summary>
+        /// Initializes a new instance of the FormTitleBar class.
+        /// </summary>
+        public FormTitleBar ()
+        {
+            Dock = DockStyle.Top;
+
+            SetControlBehavior (ControlBehaviors.InvalidateOnTextChanged);
+            SetControlBehavior (ControlBehaviors.Selectable, false);
+
+            minimize_button = Controls.AddImplicitControl (new TitleBarButton (TitleBarButton.TitleBarButtonGlyph.Minimize));
+            minimize_button.Click += (o, e) => {
+                var form_min = FindForm ();
+
+                if (form_min != null)
+                    form_min.WindowState = FormWindowState.Minimized;
+            };
+
+            maximize_button = Controls.AddImplicitControl (new TitleBarButton (TitleBarButton.TitleBarButtonGlyph.Maximize));
+            maximize_button.Click += (o, e) => {
+                ToggleMaximizeRestore ();
+            };
+
+            close_button = Controls.AddImplicitControl (new TitleBarButton (TitleBarButton.TitleBarButtonGlyph.Close));
+            close_button.Click += (o, e) => { FindForm ()?.Close (); };
+
+            form_image = Controls.AddImplicitControl (new PictureBox {
+                Width = DefaultSize.Height,
+                Dock = DockStyle.Left,
+                Visible = false,
+                SizeMode = PictureBoxSizeMode.CenterImage
+            });
+
+            form_image.Style.BackgroundColor = SKColors.Transparent;
+            form_image.SetControlBehavior (ControlBehaviors.ReceivesMouseEvents, false);
+        }
+
+        /// <summary>
+        /// Gets or sets whenther the Maximize button is shown.
+        /// </summary>
+        public bool AllowMaximize {
+            get => maximize_button.Visible;
+            set {
+                maximize_button.Visible = value;
+                UpdateMaximizeButtonGlyph ();
+                Invalidate ();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether the Minimize button is shown.
+        /// </summary>
+        public bool AllowMinimize {
+            get => minimize_button.Visible;
+            set {
+                minimize_button.Visible = value;
+                Invalidate ();
+            }
+        }
+
+        /// <inheritdoc/>
+        protected override Size DefaultSize => new Size (600, 34);
+
+        /// <inheritdoc/>
+        public new static ControlStyle DefaultStyle = new ControlStyle (Control.DefaultStyle,
+           (style) => style.BackgroundColor = Theme.AccentColor2);
+
+        /// <summary>
+        /// Gets or sets the image used as the upper-left icon of the titlebar.
+        /// </summary>
+        public SKBitmap? Image {
+            get => form_image.Image;
+            set {
+                if (form_image.Image != value) {
+                    form_image.Image = value;
+
+                    form_image.Visible = form_image.Image is not null && show_image;
+                    Invalidate ();
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Gets or sets whether double-clicking the title bar toggles maximize/restore.
+        /// </summary>
+        public bool AllowDoubleClickMaximize { get; set; } = true;
+
+        /// <inheritdoc/>
+        protected override void OnMouseDown (MouseEventArgs e)
+        {
+            base.OnMouseDown (e);
+
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            if (AllowDoubleClickMaximize && e.Clicks > 1)
+                return;
+
+            // We won't get a MouseUp from the system for this, so don't capture the mouse
+            Capture = false;
+            FindForm ()?.BeginMoveDrag ();
+        }
+
+
+        /// <summary>
+        /// Handles double-click on the title bar to toggle maximize/restore.
+        /// </summary>
+        /// <param name="e">The mouse event data.</param>
+        protected override void OnDoubleClick (MouseEventArgs e)
+        {
+            base.OnDoubleClick (e);
+
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            if (!AllowDoubleClickMaximize || !AllowMaximize)
+                return;
+
+            ToggleMaximizeRestore ();
+        }
+
+
+        /// <inheritdoc/>
+        protected override void OnPaint (PaintEventArgs e)
+        {
+            UpdateMaximizeButtonGlyph ();
+
+            base.OnPaint (e);
+
+            RenderManager.Render (this, e);
+        }
+
+        /// <inheritdoc/>
+        protected override void OnSizeChanged (EventArgs e)
+        {
+            base.OnSizeChanged (e);
+
+            // Keep our form image a square
+            form_image.Width = Height;
+
+            UpdateMaximizeButtonGlyph ();
+        }
+
+        /// <summary>
+        /// Specifies whether the Form's Image should be shown in the left corner.
+        /// </summary>
+        public bool ShowImage {
+            get => show_image;
+            set {
+                if (show_image != value) {
+                    show_image = value;
+                    form_image.Visible = value && form_image.Image is not null;
+                    Invalidate ();
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public override ControlStyle Style { get; } = new ControlStyle (DefaultStyle);
+
+        private void ToggleMaximizeRestore ()
+        {
+            var form = FindForm ();
+
+            if (form == null || !maximize_button.Visible)
+                return;
+
+            form.WindowState = form.WindowState == FormWindowState.Maximized
+                ? FormWindowState.Normal
+                : FormWindowState.Maximized;
+
+            UpdateMaximizeButtonGlyph ();
+        }
+
+        private void UpdateMaximizeButtonGlyph ()
+        {
+            var form = FindForm ();
+
+            if (form == null || !maximize_button.Visible) {
+                maximize_button.Glyph = TitleBarButton.TitleBarButtonGlyph.Maximize;
+                return;
+            }
+
+            maximize_button.Glyph = form.WindowState == FormWindowState.Maximized
+                ? TitleBarButton.TitleBarButtonGlyph.Restore
+                : TitleBarButton.TitleBarButtonGlyph.Maximize;
+        }
+
+        internal class TitleBarButton : Button
+        {
+            protected const int BUTTON_PADDING = 10;
+
+            private TitleBarButtonGlyph glyph;
+
+            /// <summary>
+            /// Gets or sets the glyph displayed by the button.
+            /// </summary>
+            public TitleBarButtonGlyph Glyph {
+                get => glyph;
+                set {
+                    if (glyph != value) {
+                        glyph = value;
+                        Invalidate ();
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Initializes a new instance of the TitleBarButton class.
+            /// </summary>
+            public TitleBarButton (TitleBarButtonGlyph glyph)
+            {
+                this.glyph = glyph;
+                Width = 46;
+                Dock = DockStyle.Right;
+
+                Style.BackgroundColor = SKColors.Transparent;
+                Style.Border.Width = 0;
+                StyleHover.Border.Width = 0;
+            }
+
+            /// <inheritdoc/>
+            protected override void OnPaint (PaintEventArgs e)
+            {
+                base.OnPaint (e);
+
+                if (IsHovering)
+                    e.Canvas.Clear (glyph == TitleBarButtonGlyph.Close ? Theme.WarningHighlightColor : Theme.AccentColor);
+
+                var glyph_bounds = glyph == TitleBarButtonGlyph.Minimize ?
+                    DrawingExtensions.CenterRectangle (ClientRectangle, e.LogicalToDeviceUnits (new Size (BUTTON_PADDING, 1))) :
+                    DrawingExtensions.CenterSquare (ClientRectangle, e.LogicalToDeviceUnits (BUTTON_PADDING));
+
+                switch (glyph) {
+                    case TitleBarButtonGlyph.Close:
+                        ControlPaint.DrawCloseGlyph (e, glyph_bounds);
+                        break;
+                    case TitleBarButtonGlyph.Minimize:
+                        ControlPaint.DrawMinimizeGlyph (e, glyph_bounds);
+                        break;
+                    case TitleBarButtonGlyph.Maximize:
+                        ControlPaint.DrawMaximizeGlyph (e, glyph_bounds);
+                        break;
+                    case TitleBarButtonGlyph.Restore:
+                        ControlPaint.DrawRestoreGlyph (e, glyph_bounds);
+                        break;
+                }
+            }
+
+            /// <summary>
+            /// Specifies which glyph is displayed by the title bar button.
+            /// </summary>
+            public enum TitleBarButtonGlyph
+            {
+                /// <summary>
+                /// Close glyph.
+                /// </summary>
+                Close,
+
+                /// <summary>
+                /// Minimize glyph.
+                /// </summary>
+                Minimize,
+
+                /// <summary>
+                /// Maximize glyph.
+                /// </summary>
+                Maximize,
+
+                /// <summary>
+                /// Restore glyph.
+                /// </summary>
+                Restore
+            }
+        }
+    }
+}
