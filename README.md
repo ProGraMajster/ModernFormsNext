@@ -3,7 +3,7 @@
 
 > ⚠️ Early-stage project. Use at your own risk.
 
-ModernFormsNext is a modern, code-first UI framework for .NET inspired by Modern.Forms and WinForms.
+ModernFormsNext is a modern, code-first UI framework for .NET inspired by [Modern.Forms](https://github.com/modern-forms/Modern.Forms) and WinForms.
 
 It focuses on performance, simplicity, and full control over UI without relying on XAML.
 
