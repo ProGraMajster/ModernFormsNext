@@ -38,10 +38,9 @@ It may contain:
 
 ## Getting Started
 
-Add your setup instructions here, for example:
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/<your-username>/ModernFormsNext.git
 cd ModernFormsNext
 ```
 
