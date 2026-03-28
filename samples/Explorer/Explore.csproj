@@ -7,10 +7,11 @@
     <StartupObject />
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\Modern.Forms\Modern.Forms.csproj" />
-  </ItemGroup>
-
+	<ItemGroup>
+		<ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+		<ProjectReference Include="..\..\ModernFormsNext\ModernFormsNext.csproj" />
+	</ItemGroup>
+	
   <ItemGroup>
     <None Update="Images\CD-Burn.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

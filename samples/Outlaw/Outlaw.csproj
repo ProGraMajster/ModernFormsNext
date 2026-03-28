@@ -8,7 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Modern.Forms\Modern.Forms.csproj" />
+    <ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+    <ProjectReference Include="..\..\ModernFormsNext\ModernFormsNext.csproj" />
   </ItemGroup>
 
   <ItemGroup>

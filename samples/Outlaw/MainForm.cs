@@ -1,5 +1,5 @@
 ﻿using System.Drawing;
-using Modern.Forms;
+using ContentAlignment = ModernFormsNext.ContentAlignment;
 
 namespace Outlaw
 {
@@ -30,10 +30,10 @@ namespace Outlaw
             var line3_bounds = new Rectangle (item.Bounds.Left + e.LogicalToDeviceUnits (12), line2_bounds.Bottom - e.LogicalToDeviceUnits (3), item.Bounds.Width - e.LogicalToDeviceUnits (16), e.LogicalToDeviceUnits (20));
             var date_bounds = new Rectangle (item.Bounds.Width - e.LogicalToDeviceUnits (80), item.Bounds.Top + e.LogicalToDeviceUnits (3), e.LogicalToDeviceUnits (74), e.LogicalToDeviceUnits (23));
 
-            e.Canvas.DrawText (item.Text, Theme.UIFont, e.LogicalToDeviceUnits (16), line1_bounds, Theme.ForegroundColor, Modern.Forms.ContentAlignment.MiddleLeft, maxLines: e.LogicalToDeviceUnits (1));
-            e.Canvas.DrawText (item.Subject, Theme.UIFont, e.LogicalToDeviceUnits (12), line2_bounds, CustomTheme.LighterGrayFont, Modern.Forms.ContentAlignment.MiddleLeft, maxLines: e.LogicalToDeviceUnits (1));
-            e.Canvas.DrawText (item.Body, Theme.UIFont, e.LogicalToDeviceUnits (12), line3_bounds, CustomTheme.LighterGrayFont, Modern.Forms.ContentAlignment.MiddleLeft, maxLines: e.LogicalToDeviceUnits (1));
-            e.Canvas.DrawText (FormatDateTime (item.ReceiveDate), Theme.UIFont, e.LogicalToDeviceUnits (11), date_bounds, CustomTheme.LighterGrayFont, Modern.Forms.ContentAlignment.MiddleRight, maxLines: e.LogicalToDeviceUnits (1));
+            e.Canvas.DrawText (item.Text, Theme.UIFont, e.LogicalToDeviceUnits (16), line1_bounds, Theme.ForegroundColor, ContentAlignment.MiddleLeft, maxLines: e.LogicalToDeviceUnits (1));
+            e.Canvas.DrawText (item.Subject, Theme.UIFont, e.LogicalToDeviceUnits (12), line2_bounds, CustomTheme.LighterGrayFont, ContentAlignment.MiddleLeft, maxLines: e.LogicalToDeviceUnits (1));
+            e.Canvas.DrawText (item.Body, Theme.UIFont, e.LogicalToDeviceUnits (12), line3_bounds, CustomTheme.LighterGrayFont, ContentAlignment.MiddleLeft, maxLines: e.LogicalToDeviceUnits (1));
+            e.Canvas.DrawText (FormatDateTime (item.ReceiveDate), Theme.UIFont, e.LogicalToDeviceUnits (11), date_bounds, CustomTheme.LighterGrayFont, ContentAlignment.MiddleRight, maxLines: e.LogicalToDeviceUnits (1));
 
             e.Canvas.DrawLine (item.Bounds.Left, item.Bounds.Bottom - e.LogicalToDeviceUnits (1), item.Bounds.Right, item.Bounds.Bottom - e.LogicalToDeviceUnits (1), Theme.ControlMidColor, e.LogicalToDeviceUnits (1));
         }

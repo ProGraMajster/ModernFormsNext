@@ -1,6 +1,6 @@
-﻿using System;
+﻿global using ModernFormsNext;
+using System;
 using System.Drawing;
-using Modern.Forms;
 
 namespace Explore
 {

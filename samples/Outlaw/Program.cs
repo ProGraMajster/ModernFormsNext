@@ -1,6 +1,5 @@
-﻿using System;
-using Modern.Forms;
-using Modern.Forms.Renderers;
+﻿global using ModernFormsNext;
+using System;
 using SkiaSharp;
 
 namespace Outlaw

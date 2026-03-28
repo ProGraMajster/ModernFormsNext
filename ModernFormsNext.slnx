@@ -2,11 +2,11 @@
   <Folder Name="/bulid/">
     <File Path="bulid/MicroCom.targets" />
   </Folder>
-  <Folder Name="/Elementy rozwiązania/">
-    <File Path="README.md" />
-  </Folder>
+  <Folder Name="/docs/" />
   <Folder Name="/samples/">
     <Project Path="samples/ControlGallery/ControlGallery.csproj" />
+<Project Path="samples/Explorer/Explore.csproj" />
+<Project Path="samples/Outlaw/Outlaw.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj" Id="026bee55-e552-4e0b-bcbc-908672afda4e" />
