@@ -50,8 +50,10 @@ If using source (recommended for now):
 ```xml
 <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
+    <ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
 </ItemGroup>
 ```
+
 ### 4. Create Main Form
 ```csharp
 using ModernFormsNext;

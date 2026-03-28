@@ -1,63 +1,91 @@
 # ModernFormsNext
 
-> **Early-stage project. Use at your own risk.**
+> ⚠️ Early-stage project. Use at your own risk.
 
-`ModernFormsNext` is an open-source UI framework for .NET that builds on the ideas behind `Modern.Forms` and evolves them further in a separate project direction.
+ModernFormsNext is a modern, code-first UI framework for .NET inspired by Modern.Forms and WinForms.
 
-The goal of `ModernFormsNext` is to provide a modern, code-first desktop UI framework that feels familiar to WinForms developers while allowing the project to grow with its own architecture, improvements, and platform integrations.
+It focuses on performance, simplicity, and full control over UI without relying on XAML.
 
-If you are looking for the original project that inspired this repository, see `Modern.Forms`.
+---
 
-## Goals
+## ✨ Features
 
-`ModernFormsNext` aims to be:
+- WinForms-like API (no XAML)
+- SkiaSharp-based rendering
+- High performance compared to MAUI
+- Fully code-driven UI
+- Extensible architecture
+- Custom controls support
 
-- Familiar for developers coming from WinForms
-- Focused on code-first UI instead of XAML-heavy workflows
-- Expandable with modern controls, rendering improvements, and platform-specific services
-- A solid base for fast desktop app development
-- A place to experiment with features and architectural changes that do not have to stay constrained by the original repository
+---
 
-## Current Status
+## 🚀 Getting Started
 
-This project is still actively evolving.
+### Requirements
 
-Some APIs, internal structure, rendering behavior, and platform abstractions may change over time. Expect ongoing refactors and improvements while the framework grows.
+- .NET 8 / .NET 10 (recommended)
+- Windows (currently best supported)
 
-## Project Direction
+---
 
-`ModernFormsNext` is a separate project and should be treated as its own codebase.
-
-It may contain:
-
-- code inspired by or adapted from `Modern.Forms`
-- custom fixes and extensions
-- architectural changes
-- new controls and platform features
-- experimental ideas that may not exist in the original project
-
-## Getting Started
-
+### Clone
 
 ```bash
 git clone https://github.com/<your-username>/ModernFormsNext.git
 cd ModernFormsNext
 ```
+## Bulid
+```bash
+dotnet build
+```
+## Run Sample
+```bash
+cd samples/ControlGallery
+dotnet run
+```
 
-Then document:
+## Basic Example
+```csharp
+using ModernFormsNext;
 
-- required .NET SDK version
-- how to build the solution
-- how to run sample apps
-- supported platforms
+class Program
+{
+    static void Main(string[] args)
+    {
+        Application.Run(new MainForm());
+    }
+}
 
+public class MainForm : Form
+{
+    public MainForm()
+    {
+        Text = "Hello ModernFormsNext";
+        Width = 800;
+        Height = 600;
+    }
+}
+```
 ## Repository Structure
 
 You can describe your solution here, for example:
 
 - `src/` - framework source code
 - `samples/` - sample applications
-- `docs/` - documentation
+- `docs/` - documentation and screenshots
+
+## 🧠 Project Direction
+
+ModernFormsNext is:
+- not just a fork
+- a separate evolution path
+- a place for experimentation and new ideas
+
+It may include:
+- architectural changes
+- performance improvements
+- new controls
+- platform-specific features
 
 ## Third-Party Code and Licensing
 
