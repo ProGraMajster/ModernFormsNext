@@ -249,7 +249,7 @@ namespace ModernFormsNext
             } else if (e is RawKeyEventArgs ke) {
                 switch (ke.Type) {
                     case RawKeyEventType.KeyDown:
-                        var kd_e = new KeyEventArgs(WindowKitExtensions.AddModifiers((Keys)ke.Key,ke.Modifiers));
+                        var kd_e = new KeyEventArgs(WindowKitExtensions.AddModifiers(WindowKitKeyMapper.ToFormsKey(ke.Key), ke.Modifiers));
                         OnKeyDown (kd_e);
 
                         if (kd_e.Handled)
@@ -258,10 +258,7 @@ namespace ModernFormsNext
                         adapter.RaiseKeyDown (kd_e);
                         break;
                     case RawKeyEventType.KeyUp:
-                        var ku_e = new KeyEventArgs(
-    WindowKitExtensions.AddModifiers(
-        (Keys)ke.Key,
-        ke.Modifiers));
+                        var ku_e = new KeyEventArgs(WindowKitExtensions.AddModifiers(WindowKitKeyMapper.ToFormsKey(ke.Key), ke.Modifiers));
 
                         OnKeyUp (ku_e);
 

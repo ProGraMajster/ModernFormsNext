@@ -15,7 +15,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private class ClipboardFormat
         {
-            public ushort Format { get; }
+            public ushort Format { get; }   
             public string Name { get; }
             public ushort[] Synthesized { get; }
 
