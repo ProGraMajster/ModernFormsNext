@@ -1,4 +1,5 @@
 # ModernFormsNext
+[![.NET](https://github.com/ProGraMajster/ModernFormsNext/actions/workflows/dotnet.yml/badge.svg)](https://github.com/ProGraMajster/ModernFormsNext/actions/workflows/dotnet.yml)
 
 > ⚠️ Early-stage project. Use at your own risk.
 
