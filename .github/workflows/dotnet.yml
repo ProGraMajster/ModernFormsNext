@@ -26,4 +26,4 @@ jobs:
         run: dotnet restore ModernFormsNext.slnx --force --no-cache
 
       - name: Build
-        run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal
+        run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
