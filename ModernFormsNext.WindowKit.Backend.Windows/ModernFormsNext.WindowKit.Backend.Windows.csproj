@@ -1,31 +1,68 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Nullable>enable</Nullable>
-	  <NoWarn>$(NoWarn);SYSLIB0011</NoWarn>
-	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<Nullable>enable</Nullable>
+		<NoWarn>$(NoWarn);SYSLIB0011</NoWarn>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<IsPackable>true</IsPackable>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageId>ModernFormsNext.WindowKit.Backend.Windows</PackageId>
+		<Version>0.1.0-preview.1</Version>
+		<Authors>ProGraMajster</Authors>
+		<Company>ModernFormsNext</Company>
+		<Product>ModernFormsNext.WindowKit.Backend.Windows</Product>
+		<Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+
+		<Description>Windows backend implementation for ModernFormsNext WindowKit.</Description>
+
+		<PackageTags>ui;windowing;desktop;framework;modernforms;windowkit;backend;windows</PackageTags>
+		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+		<NeutralLanguage>en</NeutralLanguage>
+	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
+		<None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+		<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
+
+		<!-- tymczasowo może zostać -->
+		<ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<AvnComIdl Include="..\win32.idl" OutputFile="Generated\Windows.Interop.Generated.cs" />
 	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.Drawing.Common" Version="10.0.5" />
-    <PackageReference Include="SkiaSharp" Version="3.119.2" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="System.Drawing.Common" Version="10.0.5" />
+		<PackageReference Include="SkiaSharp" Version="3.119.2" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Generated\" />
-  </ItemGroup>
+	<ItemGroup>
+		<Folder Include="Generated\" />
+	</ItemGroup>
 
-  <Import Project="..\build\MicroCom.targets" />
+	<Import Project="..\build\MicroCom.targets" />
+
 </Project>

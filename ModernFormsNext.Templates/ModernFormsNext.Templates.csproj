@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<PackageId>ModernFormsNext.Templates</PackageId>
+		<Version>0.1.0-preview.1</Version>
+		<Title>ModernFormsNext Templates</Title>
+		<Authors>ProGraMajster</Authors>
+		<Description>Project templates for ModernFormsNext.</Description>
+		<PackageTags>templates;dotnet-new;modernformsnext;ui;desktop</PackageTags>
+		<PackageType>Template</PackageType>
+		<IncludeContentInPack>true</IncludeContentInPack>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<NoWarn>$(NoWarn);NU5128</NoWarn>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Content Include="templates\**\*" Pack="true" PackagePath="content" />
+		<Compile Remove="templates\modernformsnext-app\MainForm.cs" />
+		<Compile Remove="templates\modernformsnext-app\Program.cs" />
+		<Content Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>

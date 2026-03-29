@@ -1,25 +1,58 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Nullable>enable</Nullable>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <NoWarn>$(NoWarn);CA1416</NoWarn>
-	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<Nullable>enable</Nullable>
+		<NoWarn>$(NoWarn);CA1416</NoWarn>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 
-  <ItemGroup>
-    <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
-  </ItemGroup>
+		<IsPackable>true</IsPackable>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.201" PrivateAssets="All" />
-    <PackageReference Include="SkiaSharp" Version="3.119.2" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.2" />
-    <PackageReference Include="System.Drawing.Common" Version="10.0.5" />
-  </ItemGroup>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageId>ModernFormsNext.WindowKit</PackageId>
+		<Version>0.1.0-preview.1</Version>
+		<Authors>ProGraMajster</Authors>
+		<Company>ModernFormsNext</Company>
+		<Product>ModernFormsNext.WindowKit</Product>
+		<Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+
+		<Description>Core windowing abstraction layer for ModernFormsNext.</Description>
+
+		<PackageTags>ui;windowing;desktop;framework;modernforms;windowkit</PackageTags>
+		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+		<NeutralLanguage>en</NeutralLanguage>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+		<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.201" PrivateAssets="All" />
+		<PackageReference Include="SkiaSharp" Version="3.119.2" />
+		<PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.2" />
+		<PackageReference Include="System.Drawing.Common" Version="10.0.5" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<Compile Remove="Avalonia.Mac\**\*.cs" />
@@ -31,4 +64,3 @@
 	</ItemGroup>
 
 </Project>
-    

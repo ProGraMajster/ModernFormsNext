@@ -1,11 +1,46 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Nullable>enable</Nullable>
-    <LangVersion>11</LangVersion>
-	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<IsPackable>true</IsPackable>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageId>ModernFormsNext.WindowKit.Backend</PackageId>
+		<Version>0.1.0-preview.1</Version>
+		<Authors>ProGraMajster</Authors>
+		<Company>ModernFormsNext</Company>
+		<Product>ModernFormsNext.WindowKit.Backend</Product>
+		<Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+
+		<Description>Base backend infrastructure for ModernFormsNext WindowKit.</Description>
+
+		<PackageTags>ui;windowing;desktop;framework;modernforms;windowkit;backend</PackageTags>
+		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+		<NeutralLanguage>en</NeutralLanguage>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+		<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+	</ItemGroup>
 
 </Project>

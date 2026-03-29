@@ -1,20 +1,65 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
-	  <AnalysisLevel>latest</AnalysisLevel>
-	  <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AnalysisLevel>latest</AnalysisLevel>
+		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+		<IsPackable>true</IsPackable>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		
 
-  <ItemGroup>
-    <PackageReference Include="Topten.RichTextKit" Version="0.4.167" />
-  </ItemGroup>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageId>ModernFormsNext</PackageId>
+		<Version>0.1.0-preview.1</Version>
+		<Authors>ProGraMajster</Authors>
+		<Company>ModernFormsNext</Company>
+		<Product>ModernFormsNext</Product>
+		<Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+		<Description>ModernFormsNext is a modern high-performance UI framework inspired by WinForms, powered by SkiaSharp. Designed for speed, flexibility and full control over rendering.</Description>
+		<PackageTags>ui;winforms;skia;desktop;framework;modernforms</PackageTags>
+		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<NeutralLanguage>en</NeutralLanguage>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
-  </ItemGroup>
+	<!-- Assets -->
+	<ItemGroup>
+		<None Include="icon.png" Pack="true" PackagePath="\" />
+		<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+	</ItemGroup>
+
+	<!-- External -->
+	<ItemGroup>
+		<PackageReference Include="Topten.RichTextKit" Version="0.4.167" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(Configuration)' != 'Release'">
+		<ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
+		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
+		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0'">
+		<PackageReference Include="ModernFormsNext.WindowKit" Version="0.1.0-preview.1" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="0.1.0-preview.1" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-windows'">
+		<PackageReference Include="ModernFormsNext.WindowKit" Version="0.1.0-preview.1" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="0.1.0-preview.1" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend.Windows" Version="0.1.0-preview.1" />
+	</ItemGroup>
 
 </Project>

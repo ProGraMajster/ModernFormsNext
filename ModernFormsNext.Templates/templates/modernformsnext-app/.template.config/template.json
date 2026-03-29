@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "ProGraMajster",
+  "classifications": [ "Desktop", "UI" ],
+  "identity": "ModernFormsNext.App",
+  "name": "ModernFormsNext App",
+  "shortName": "mfn-app",
+  "sourceName": "MyApp",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  }
+}

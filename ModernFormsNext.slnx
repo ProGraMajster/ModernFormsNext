@@ -4,9 +4,10 @@
   </Folder>
   <Folder Name="/docs/" />
   <Folder Name="/samples/">
+    <Project Path="samples/ModernFormsNext.DemoApp/ModernFormsNext.DemoApp.csproj" Id="443f0023-59f5-4347-9a5d-8a214ddd092a" />
     <Project Path="samples/ControlGallery/ControlGallery.csproj" />
-<Project Path="samples/Explorer/Explore.csproj" />
-<Project Path="samples/Outlaw/Outlaw.csproj" />
+    <Project Path="samples/Explorer/Explore.csproj" />
+    <Project Path="samples/Outlaw/Outlaw.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj" Id="026bee55-e552-4e0b-bcbc-908672afda4e" />
@@ -15,6 +16,7 @@
     <Project Path="ModernFormsNext.WindowKit/ModernFormsNext.WindowKit.csproj" />
     <Project Path="ModernFormsNext/ModernFormsNext.csproj" />
   </Folder>
+  <Project Path="ModernFormsNext.Templates/ModernFormsNext.Templates.csproj" Id="c4737b97-a1d2-4394-9fc4-134e0ee483ae" />
   <Project Path="ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator/ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.csproj" Id="26a85b84-2886-4295-8919-1310238d1243" />
   <Project Path="ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher/ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher.csproj" Id="1023157f-ceac-4dd3-b889-7d9a889f7a59" />
 </Solution>
