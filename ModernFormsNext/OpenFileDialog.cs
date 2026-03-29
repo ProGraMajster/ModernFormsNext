@@ -32,7 +32,7 @@ namespace ModernFormsNext
                     FileTypeFilter = filters
                 };
 
-                var result = await parent.OpenFilePickerAsync (options);
+                var result = await parent.OpenFilePickerAsync (options).ConfigureAwait(false);
 
                 FileNames.Clear ();
 

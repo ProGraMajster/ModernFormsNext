@@ -6,6 +6,7 @@
 	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
 	  <NoWarn>$(NoWarn);SYSLIB0011</NoWarn>
+	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
 	<ItemGroup>

@@ -207,7 +207,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Raised when the TextAlign property is changed.
         /// </summary>
-        public event EventHandler TextAlignChanged {
+        public event EventHandler? TextAlignChanged {
             add => Events.AddHandler (s_eventTextAlignChanged, value);
             remove => Events.RemoveHandler (s_eventTextAlignChanged, value);
         }

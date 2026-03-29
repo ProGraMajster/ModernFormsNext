@@ -91,8 +91,11 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         public override void Close ()
         {
-            Application.OpenForms.Remove (this);
             base.Close ();
+
+            // If close was cancelled by OnClosing, don't proceed with dialog cleanup
+            if (Application.OpenForms.Contains(this))
+                return;
 
             // If this was a dialog box we need to reactivate the parent
             if (dialog_parent is not null) {

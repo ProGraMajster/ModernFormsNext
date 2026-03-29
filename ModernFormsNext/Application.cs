@@ -67,7 +67,7 @@ namespace ModernFormsNext
             FrameworkBootstrap.EnsureInitialized();
 
             if (_mainLoopCancellationTokenSource != null)
-                throw new Exception("Run should only called once");
+                throw new InvalidOperationException("Run should only be called once");
 
             closable.Closed += (s, e) => Exit();
 
