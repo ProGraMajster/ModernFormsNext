@@ -288,6 +288,8 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         public override string ToString () => $"{base.ToString ()}, Checked: {Checked}";
 
+        bool IHaveTextAndImageAlign.Multiline => false;
+
         // Uncheck any other RadioButtons on the Parent
         private void UpdateSiblings ()
         {
