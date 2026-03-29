@@ -4,8 +4,33 @@ using SkiaSharp;
 
 namespace ModernFormsNext.Renderers
 {
+    /// <summary>
+    /// Provides rendering logic for the <see cref="ColorBox"/> control.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This renderer draws a 2D HSV color selection surface composed of:
+    /// <list type="bullet">
+    /// <item><description>Base hue color</description></item>
+    /// <item><description>White gradient (saturation)</description></item>
+    /// <item><description>Black gradient (value/brightness)</description></item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// It also renders a circular selector indicating the currently selected color.
+    /// </para>
+    /// </remarks>
     public class ColorBoxRenderer : Renderer<ColorBox>
     {
+        /// <summary>
+        /// Renders the <see cref="ColorBox"/> control.
+        /// </summary>
+        /// <param name="control">The control to render.</param>
+        /// <param name="e">The paint event data.</param>
+        /// <remarks>
+        /// The rendering process consists of multiple layered gradients:
+        /// base hue, saturation overlay, value overlay, and border.
+        /// </remarks>
         protected override void Render (ColorBox control, PaintEventArgs e)
         {
             var bounds = GetContentBounds (control, e);
@@ -24,11 +49,11 @@ namespace ModernFormsNext.Renderers
                 IsAntialias = true
             };
 
-            // base hue color
+            // Base hue layer
             huePaint.Color = ColorHelper.FromHsv (control.Hue, 1f, 1f);
             canvas.DrawRect (rect, huePaint);
 
-            // saturation gradient (white → transparent)
+            // Saturation gradient (white → transparent)
             whitePaint.Shader = SKShader.CreateLinearGradient (
                 new SKPoint (rect.Left, rect.Top),
                 new SKPoint (rect.Right, rect.Top),
@@ -42,7 +67,7 @@ namespace ModernFormsNext.Renderers
 
             canvas.DrawRect (rect, whitePaint);
 
-            // value gradient (transparent → black)
+            // Value gradient (transparent → black)
             blackPaint.Shader = SKShader.CreateLinearGradient (
                 new SKPoint (rect.Left, rect.Top),
                 new SKPoint (rect.Left, rect.Bottom),
@@ -56,11 +81,21 @@ namespace ModernFormsNext.Renderers
 
             canvas.DrawRect (rect, blackPaint);
 
+            // Border
             canvas.DrawRect (rect, border);
 
             DrawSelector (control, e, bounds);
         }
 
+        /// <summary>
+        /// Calculates the inner drawable area of the control excluding borders.
+        /// </summary>
+        /// <param name="control">The control instance.</param>
+        /// <param name="e">Optional paint event data.</param>
+        /// <returns>A rectangle representing the drawable content area.</returns>
+        /// <remarks>
+        /// The returned bounds account for DPI scaling via logical-to-device unit conversion.
+        /// </remarks>
         public Rectangle GetContentBounds (ColorBox control, PaintEventArgs? e)
         {
             int border = e?.LogicalToDeviceUnits (1) ?? control.LogicalToDeviceUnits (1);
@@ -73,6 +108,16 @@ namespace ModernFormsNext.Renderers
                 Math.Max (1, rect.Height - (border * 2)));
         }
 
+        /// <summary>
+        /// Draws the selection indicator showing the current saturation and value.
+        /// </summary>
+        /// <param name="control">The control containing the current color state.</param>
+        /// <param name="e">The paint event data.</param>
+        /// <param name="bounds">The drawable bounds.</param>
+        /// <remarks>
+        /// The selector is drawn as two concentric circles (black outer ring, white inner ring)
+        /// to ensure visibility against any background color.
+        /// </remarks>
         private void DrawSelector (ColorBox control, PaintEventArgs e, Rectangle bounds)
         {
             float x = bounds.Left + control.Saturation * Math.Max (1, bounds.Width - 1);
@@ -96,6 +141,11 @@ namespace ModernFormsNext.Renderers
             e.Canvas.DrawCircle (x, y, 8.5f, inner);
         }
 
+        /// <summary>
+        /// Converts a <see cref="Rectangle"/> to an <see cref="SKRect"/>.
+        /// </summary>
+        /// <param name="rect">The rectangle to convert.</param>
+        /// <returns>An equivalent <see cref="SKRect"/>.</returns>
         private static SKRect ToRect (Rectangle rect)
             => new SKRect (rect.Left, rect.Top, rect.Right, rect.Bottom);
     }

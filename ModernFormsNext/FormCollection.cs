@@ -2,12 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
-using ModernFormsNext;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Modern.Forms;
+namespace ModernFormsNext;
 
 /// <summary>
 ///  This is a read only collection of Forms exposed as a static property of the
