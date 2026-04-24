@@ -6,38 +6,36 @@ using ModernFormsNext.WindowKit.Threading;
 namespace ModernFormsNext
 {
     /// <summary>
-    /// Represents a timer that raises the <see cref="Tick"/> event
-    /// at user-defined intervals on the UI thread.
+    /// Implements a timer that raises an event at user-defined intervals.
+    /// This timer is intended for UI-related scenarios and raises its <see cref="Tick"/>
+    /// event on the UI thread.
     /// </summary>
-    [DefaultProperty (nameof (Interval))]
-    [DefaultEvent (nameof (Tick))]
-    [ToolboxItemFilter ("ModernFormsNext")]
+    /// <remarks>
+    /// Use this component when periodic work must be performed on the UI thread,
+    /// such as updating UI state, animations, or scheduling lightweight tasks.
+    ///
+    /// This timer uses <see cref="DispatcherTimer"/> internally and is therefore
+    /// integrated with the current UI dispatcher.
+    /// </remarks>
     public class Timer : Component
     {
-        private DispatcherTimer dispatcherTimer;
+        private DispatcherTimer? dispatcherTimer;
         private int interval = 100;
         private bool enabled;
-        private EventHandler onTimer;
+        private EventHandler? onTimer;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Timer"/> class.
         /// </summary>
-        public Timer ()
+        public Timer()
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Timer"/> class with the specified container.
+        /// Occurs when the specified timer interval has elapsed and the timer is enabled.
         /// </summary>
-        public Timer (IContainer container) : this ()
+        public event EventHandler Tick
         {
-            container?.Add (this);
-        }
-
-        /// <summary>
-        /// Occurs when the timer interval has elapsed.
-        /// </summary>
-        public event EventHandler Tick {
             add => onTimer += value;
             remove => onTimer -= value;
         }
@@ -45,80 +43,87 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets a value indicating whether the timer is running.
         /// </summary>
-        [DefaultValue (false)]
-        public bool Enabled {
+        [DefaultValue(false)]
+        public bool Enabled
+        {
             get => enabled;
-            set {
+            set
+            {
                 if (enabled == value)
                     return;
 
                 enabled = value;
 
                 if (enabled)
-                    StartTimer ();
+                    StartTimer();
                 else
-                    StopTimer ();
+                    StopTimer();
             }
         }
 
         /// <summary>
-        /// Gets or sets the interval between timer ticks in milliseconds.
+        /// Gets or sets the time, in milliseconds, between timer ticks.
         /// </summary>
-        [DefaultValue (100)]
-        public int Interval {
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when the value is less than 1.
+        /// </exception>
+        [DefaultValue(100)]
+        public int Interval
+        {
             get => interval;
-            set {
-                if (value < 1)
-                    throw new ArgumentOutOfRangeException (nameof (value));
+            set
+            {
+                ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+
+                if (interval == value)
+                    return;
 
                 interval = value;
 
-                if (dispatcherTimer != null) {
-                    dispatcherTimer.Interval = TimeSpan.FromMilliseconds (interval);
-                }
+                if (dispatcherTimer is not null)
+                    dispatcherTimer.Interval = TimeSpan.FromMilliseconds(interval);
             }
         }
 
         /// <summary>
         /// Starts the timer.
         /// </summary>
-        public void Start () => Enabled = true;
+        public void Start() => Enabled = true;
 
         /// <summary>
         /// Stops the timer.
         /// </summary>
-        public void Stop () => Enabled = false;
+        public void Stop() => Enabled = false;
 
         /// <summary>
         /// Raises the <see cref="Tick"/> event.
         /// </summary>
         /// <param name="e">An <see cref="EventArgs"/> that contains the event data.</param>
-        protected virtual void OnTick (EventArgs e)
+        protected virtual void OnTick(EventArgs e)
         {
-            onTimer?.Invoke (this, e);
+            onTimer?.Invoke(this, e);
         }
 
-        private void StartTimer ()
+        private void StartTimer()
         {
-            dispatcherTimer ??= new DispatcherTimer ();
-
-            dispatcherTimer.Interval = TimeSpan.FromMilliseconds (interval);
-            dispatcherTimer.Tick -= DispatcherTimer_Tick;
-            dispatcherTimer.Tick += DispatcherTimer_Tick;
-
-            dispatcherTimer.Start ();
-        }
-
-        private void StopTimer ()
-        {
-            if (dispatcherTimer != null) {
-                dispatcherTimer.Stop ();
+            if (dispatcherTimer is null)
+            {
+                dispatcherTimer = new DispatcherTimer();
+                dispatcherTimer.Tick += DispatcherTimer_Tick;
             }
+
+            dispatcherTimer.Interval = TimeSpan.FromMilliseconds(interval);
+            dispatcherTimer.Start();
         }
 
-        private void DispatcherTimer_Tick (object sender, EventArgs e)
+        private void StopTimer()
         {
-            OnTick (EventArgs.Empty);
+            dispatcherTimer?.Stop();
+        }
+
+        private void DispatcherTimer_Tick(object? sender, EventArgs e)
+        {
+            OnTick(EventArgs.Empty);
         }
 
         /// <summary>
@@ -127,27 +132,32 @@ namespace ModernFormsNext
         /// <param name="disposing">
         /// <see langword="true"/> to release managed resources; otherwise, <see langword="false"/>.
         /// </param>
-        protected override void Dispose (bool disposing)
+        protected override void Dispose(bool disposing)
         {
-            if (disposing) {
-                StopTimer ();
+            if (disposing)
+            {
+                enabled = false;
+                StopTimer();
 
-                if (dispatcherTimer != null) {
+                if (dispatcherTimer is not null)
+                {
                     dispatcherTimer.Tick -= DispatcherTimer_Tick;
                     dispatcherTimer = null;
                 }
+
+                onTimer = null;
             }
 
-            base.Dispose (disposing);
+            base.Dispose(disposing);
         }
 
         /// <summary>
         /// Returns a string that represents the current timer.
         /// </summary>
         /// <returns>A string containing the type name and interval.</returns>
-        public override string ToString ()
+        public override string ToString()
         {
-            return $"{base.ToString ()}, Interval: {Interval}";
+            return $"{base.ToString()}, Interval: {Interval}";
         }
     }
 }
