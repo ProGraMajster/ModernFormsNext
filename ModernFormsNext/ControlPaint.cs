@@ -111,24 +111,36 @@ namespace ModernFormsNext
         /// <summary>
         /// Draws a restore glyph, as seen on FormTitleBar when the window is maximized.
         /// </summary>
-        public static void DrawRestoreGlyph (PaintEventArgs e, Rectangle rectangle)
+        public static void DrawRestoreGlyph(PaintEventArgs e, Rectangle rectangle)
         {
-            var offset = e.LogicalToDeviceUnits (2);
+            var color = Theme.ForegroundColorOnAccent;
+            var offset = e.LogicalToDeviceUnits(2);
 
-            var back = new Rectangle (
+            var back = new Rectangle(
                 rectangle.X + offset,
                 rectangle.Y,
-                rectangle.Width - offset,
-                rectangle.Height - offset);
+                rectangle.Width - offset - 1,
+                rectangle.Height - offset - 1);
 
-            var front = new Rectangle (
+            var front = new Rectangle(
                 rectangle.X,
                 rectangle.Y + offset,
                 rectangle.Width - offset,
                 rectangle.Height - offset);
 
-            e.Canvas.DrawRectangle (back, Theme.ForegroundColorOnAccent);
-            e.Canvas.DrawRectangle (front, Theme.ForegroundColorOnAccent);
+            // Draw "front" "window"
+            e.Canvas.DrawRectangle(front, color);
+
+            // Draw "back" "window"
+            using var path = new SKPath();
+
+            path.MoveTo(back.Left, front.Top);
+            path.LineTo(back.Left, back.Top);
+            path.LineTo(back.Right, back.Top);
+            path.LineTo(back.Right, back.Bottom);
+            path.LineTo(front.Right, back.Bottom);
+
+            e.Canvas.DrawPath(path, color);
         }
 
 
