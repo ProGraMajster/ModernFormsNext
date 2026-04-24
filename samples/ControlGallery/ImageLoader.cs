@@ -1,14 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using SkiaSharp;
 
 namespace ControlGallery
 {
     public static class ImageLoader
     {
-        private static readonly Dictionary<string, SKBitmap> _cache = new Dictionary<string, SKBitmap> ();
+        private static readonly Dictionary<string, SKBitmap> _cache = [];   
         private static readonly string _defaultLocation = "Images";
 
         public static SKBitmap Get (string filename)
