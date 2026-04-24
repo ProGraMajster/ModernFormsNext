@@ -18,6 +18,7 @@ namespace ModernFormsNext.Renderers
             SetRenderer<ComboBox> (new ComboBoxRenderer ());
             SetRenderer<FormTitleBar> (new FormTitleBarRenderer ());
             SetRenderer<Label> (new LabelRenderer ());
+            SetRenderer<LinkLabel>(new LinkLabelRenderer());
             SetRenderer<ListBox> (new ListBoxRenderer ());
             SetRenderer<ListView> (new ListViewRenderer ());
             SetRenderer<Menu> (new MenuRenderer ());
