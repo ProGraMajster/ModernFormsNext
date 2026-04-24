@@ -21,6 +21,7 @@ public partial class Control
     private static readonly object s_doubleClickEvent = new object ();
     private static readonly object s_enabledChangedEvent = new object ();
     private static readonly object s_gotFocusEvent = new object ();
+    private static readonly object s_lostFocusEvent = new object();
     private static readonly object s_invalidatedEvent = new object ();
     private static readonly object s_keyDownEvent = new object ();
     private static readonly object s_keyPressEvent = new object ();
@@ -129,6 +130,15 @@ public partial class Control
     public event EventHandler<EventArgs<Rectangle>>? Invalidated {
         add => Events.AddHandler (s_invalidatedEvent, value);
         remove => Events.RemoveHandler (s_invalidatedEvent, value);
+    }
+
+    /// <summary>
+    /// Raised when the control loses focus.
+    /// </summary>
+    public event EventHandler? LostFocus
+    {
+        add => Events.AddHandler(s_lostFocusEvent, value);
+        remove => Events.RemoveHandler(s_lostFocusEvent, value);
     }
 
     /// <summary>

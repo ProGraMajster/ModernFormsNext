@@ -1008,7 +1008,10 @@ namespace ModernFormsNext
         /// <summary>
         /// Called when the control is deselected.
         /// </summary>
-        protected virtual void OnDeselected (EventArgs e) { }
+        protected virtual void OnDeselected(EventArgs e)
+        {
+            OnLostFocus(e);
+        }
 
         /// <summary>
         /// Raises the DoubleClick event.
@@ -1040,6 +1043,11 @@ namespace ModernFormsNext
         /// Raises the Invalidated event.
         /// </summary>
         protected virtual void OnInvalidated (EventArgs<Rectangle> e) => (Events[s_invalidatedEvent] as EventHandler<EventArgs<Rectangle>>)?.Invoke (this, e);
+
+        /// <summary>
+        /// Raises the LostFocus event.
+        /// </summary>
+        protected virtual void OnLostFocus(EventArgs e) => (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
 
         /// <summary>
         /// Raises the KeyDown event.

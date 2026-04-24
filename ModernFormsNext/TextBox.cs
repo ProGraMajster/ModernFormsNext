@@ -386,6 +386,11 @@ namespace ModernFormsNext
             set => document.SelectionStart = value;
         }
 
+        /// <summary>
+        /// Selects all text in the TextBox.
+        /// </summary>
+        public void SelectAll() => document.SelectAll();
+
         // Sets cursor to specified character index and scrolls TextBox to cursor.
         private void SetCursorToCharIndex (int index)
         {
