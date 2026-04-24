@@ -27,7 +27,7 @@ namespace ModernFormsNext
         private SKTypeface font = Theme.UIFont;
         private TextAlignment alignment = TextAlignment.Left;
         private SKColor placeholder_font_color = Theme.ForegroundDisabledColor;
-        private SKColor selection_color = new SKColor (153, 201, 239);
+        private SKColor selection_color = Theme.TextSelectionBackgroundColor;
 
         private static readonly string[] invalid_singleline_characters = new[] { "\r", "\n" };
 
