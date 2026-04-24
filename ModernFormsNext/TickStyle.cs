@@ -1,20 +1,8 @@
 ﻿namespace ModernFormsNext
 {
     /// <summary>
-    /// Specifies the position of tick marks on a TrackBar control.
+    /// Specifies where tick marks are drawn on a <see cref="TrackBar"/>.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This enumeration defines where tick marks are rendered relative to the track.
-    /// </para>
-    /// <para>
-    /// The meaning of <see cref="TopLeft"/> and <see cref="BottomRight"/> depends on the orientation:
-    /// <list type="bullet">
-    /// <item><description>Horizontal TrackBar → Top / Bottom</description></item>
-    /// <item><description>Vertical TrackBar → Left / Right</description></item>
-    /// </list>
-    /// </para>
-    /// </remarks>
     public enum TickStyle
     {
         /// <summary>
@@ -23,12 +11,14 @@
         None,
 
         /// <summary>
-        /// Tick marks are displayed on the top (horizontal) or left (vertical) side.
+        /// Tick marks are displayed on the top side of a horizontal <see cref="TrackBar"/>
+        /// or on the left side of a vertical <see cref="TrackBar"/>.
         /// </summary>
         TopLeft,
 
         /// <summary>
-        /// Tick marks are displayed on the bottom (horizontal) or right (vertical) side.
+        /// Tick marks are displayed on the bottom side of a horizontal <see cref="TrackBar"/>
+        /// or on the right side of a vertical <see cref="TrackBar"/>.
         /// </summary>
         BottomRight,
 

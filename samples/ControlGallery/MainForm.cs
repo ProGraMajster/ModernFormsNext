@@ -49,6 +49,7 @@ namespace ControlGallery
             tree.Items.Add ("TextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TitleBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ToolBar", ImageLoader.Get ("button.png"));
+            tree.Items.Add("TrackBar", ImageLoader.Get("button.png"));
             tree.Items.Add ("TreeView", ImageLoader.Get ("button.png"));
             tree.Items.Add("ColorDialog", ImageLoader.Get("button.png"));
             tree.Items.Add("DateTimePicker" , ImageLoader.Get("button.png"));
@@ -59,7 +60,6 @@ namespace ControlGallery
 
             Text = "Control Gallery";
             Image = ImageLoader.Get ("button.png");
-            this.TitleBar.AllowDoubleClickMaximize = true;
         }
 
         private void Tree_ItemSelected (object? sender, EventArgs<TreeViewItem> e)
@@ -144,6 +144,8 @@ namespace ControlGallery
                     return new TitleBarPanel ();
                 case "ToolBar":
                     return new ToolBarPanel ();
+                case "TrackBar":
+                    return new TrackBarPanel();
                 case "TreeView":
                     return new TreeViewPanel ();
                 case "ColorDialog":
