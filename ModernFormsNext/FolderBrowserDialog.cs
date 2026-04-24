@@ -32,7 +32,7 @@ namespace ModernFormsNext
                     Title = Title
                 };
 
-                var result = await parent.OpenFolderPickerAsync (options).ConfigureAwait(false);
+                var result = await parent.OpenFolderPickerAsync (options);
 
                 var paths = result.Select (f => f.GetFullPath ()).WhereNotNull ();
 

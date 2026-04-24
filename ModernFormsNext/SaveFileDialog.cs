@@ -31,7 +31,7 @@ namespace ModernFormsNext
                     FileTypeChoices = filters
                 };
 
-                var result = await parent.SaveFilePickerAsync (options).ConfigureAwait(false);
+                var result = await parent.SaveFilePickerAsync (options);
 
                 FileNames.Clear ();
 

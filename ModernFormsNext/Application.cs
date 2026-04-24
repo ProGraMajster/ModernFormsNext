@@ -146,6 +146,7 @@ namespace ModernFormsNext
         public static void Run(Form mainForm)
         {
             FrameworkBootstrap.EnsureInitialized();
+            AvaloniaSynchronizationContext.InstallIfNeeded();
 
             mainForm.Show();
             Run((ICloseable)mainForm);
@@ -177,6 +178,7 @@ namespace ModernFormsNext
             if (_mainLoopCancellationTokenSource != null)
                 throw new InvalidOperationException("Run should only be called once");
 
+            AvaloniaSynchronizationContext.InstallIfNeeded();
             closable.Closed += (s, e) => Exit();
 
             _mainLoopCancellationTokenSource = new CancellationTokenSource();
