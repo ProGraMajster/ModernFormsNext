@@ -87,8 +87,11 @@ namespace ModernFormsNext
             image_location = url;
 
             try {
-                if (url.Contains ("://"))
-                    Image = SKBitmap.Decode (await Client.GetStreamAsync (url));
+                if (url.Contains("://"))
+                {
+                    var bytes = await Client.GetByteArrayAsync(url);
+                    Image = SKBitmap.Decode(bytes);
+                }
                 else
                     Image = SKBitmap.Decode (url);
             } catch (Exception) {
