@@ -1,11 +1,22 @@
-﻿namespace ModernFormsNext.DemoApp
+﻿using ModernFormsNext;
+
+namespace ModernFormsNext.DemoApp;
+
+/// <summary>
+/// Provides the application entry point for the ModernFormsNext reference application.
+/// </summary>
+/// <remarks>
+/// This project represents the default application structure generated for users by the
+/// ModernFormsNext Visual Studio template. Keep it minimal, clean, and beginner-friendly.
+/// </remarks>
+internal static class Program
 {
-    internal class Program
+    /// <summary>
+    /// Starts the ModernFormsNext reference application.
+    /// </summary>
+    [STAThread]
+    private static void Main()
     {
-        static void Main(string[] args)
-        {
-            Console.WriteLine("Hello, World!");
-            Application.Run(new Form());
-        }
+        Application.Run(new MainForm());
     }
 }

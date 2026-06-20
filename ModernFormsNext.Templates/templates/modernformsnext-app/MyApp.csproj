@@ -5,10 +5,13 @@
 		<TargetFramework>net10.0-windows</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
+		<RootNamespace>MyApp</RootNamespace>
+		<AssemblyName>MyApp</AssemblyName>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="ModernFormsNext" Version="0.1.0-preview.1" />
+		<PackageReference Include="ModernFormsNext" Version="1.0.0" />
 	</ItemGroup>
 
 </Project>
