@@ -23,6 +23,7 @@ namespace ControlGallery
             tree.Items.Add ("CheckBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ComboBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Dialogs", ImageLoader.Get ("button.png"));
+            tree.Items.Add("DataGridView", ImageLoader.Get("button.png"));
             tree.Items.Add ("FileDialogs", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FlowLayoutPanel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FormPaint", ImageLoader.Get ("button.png"));
@@ -93,6 +94,8 @@ namespace ControlGallery
                     return new CheckBoxPanel ();
                 case "ComboBox":
                     return new ComboBoxPanel ();
+                case "DataGridView":
+                    return new DataGridViewPanel();
                 case "Dialogs":
                     return new DialogPanel ();
                 case "FileDialogs":
