@@ -116,15 +116,17 @@ namespace ModernFormsNext.WindowKit.Platform
         /// <param name="reason">The reason for the resize.</param>
         void Resize(Size clientSize, WindowResizeReason reason = WindowResizeReason.Application);
 
+        /// <summary>
+        /// Moves the top-level window to the specified screen position.
         /// </summary>
-        /// Sets the client size of the top level.
-        /// </summary>
+        /// <param name="point">The new top-left position in physical screen pixels.</param>
         void Move(PixelPoint point);
 
         /// <summary>
-        /// Minimum width of the window.
+        /// Sets the minimum and maximum client size constraints for the window.
         /// </summary>
-        /// 
+        /// <param name="minSize">The minimum client size in device-independent pixels.</param>
+        /// <param name="maxSize">The maximum client size in device-independent pixels.</param>
         void SetMinMaxSize(Size minSize, Size maxSize);
 
         /// <summary>

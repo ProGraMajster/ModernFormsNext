@@ -61,10 +61,27 @@ dotnet run
 
 ---
 
+## ModernFormsNext.DemoApp
+
+The template/reference application for the generated ModernFormsNext app experience.
+
+Use this sample to validate that the default application structure remains clean, minimal, beginner-friendly, and aligned with `ModernFormsNext.Templates`. Do not use it as a playground for random controls or visual regression experiments.
+
+### Run
+
+```bash
+cd samples/ModernFormsNext.DemoApp
+dotnet run
+```
+
+---
+
 ## Notes
 
 - Samples are the best way to learn ModernFormsNext
 - They reflect current framework capabilities
+- `ControlGallery` is the preferred place for control demos and visual/manual regression checks
+- `ModernFormsNext.DemoApp` represents the generated template application and should stay minimal
 - Some features may still be experimental
 
 ---

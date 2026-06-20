@@ -1,57 +1,78 @@
 # ModernFormsNext
+
 [![.NET](https://github.com/ProGraMajster/ModernFormsNext/actions/workflows/dotnet.yml/badge.svg)](https://github.com/ProGraMajster/ModernFormsNext/actions/workflows/dotnet.yml)
 
-> ⚠️ Early-stage project. Use at your own risk.
+> Early-stage project. Use at your own risk.
 
 ModernFormsNext is a modern, code-first UI framework for .NET inspired by [Modern.Forms](https://github.com/modern-forms/Modern.Forms) and WinForms.
 
 It focuses on performance, simplicity, and full control over UI without relying on XAML.
 
----
+ModernFormsNext is not WPF, MAUI, WinUI, Avalonia, Uno, Blazor, Electron, or XAML. Framework UI is rendered by ModernFormsNext controls, not by native WinForms controls.
 
-## ✨ Features
+## Features
 
-- WinForms-like API (no XAML)
+- WinForms-like API with no XAML
 - SkiaSharp-based rendering
-- High performance compared to MAUI
 - Fully code-driven UI
 - Extensible architecture
 - Custom controls support
+- Platform-neutral framework code with platform-specific backends
 
----
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Requirements
 
-- .NET 8 / .NET 10 (recommended)
-- Windows (currently best supported)
+- .NET SDK `10.0.201` as configured by `global.json`.
+- SDK roll-forward is enabled for the latest installed .NET 10 feature band.
+- Windows is currently the primary and best-supported runtime target.
 
----
+Use `ModernFormsNext.slnx` for solution-level restore and build commands.
 
 ### Clone
 
-```bash
+```powershell
 git clone https://github.com/<your-username>/ModernFormsNext.git
 cd ModernFormsNext
 ```
-## Bulid
-```bash
-dotnet build
-```
-## Run Sample
-```bash
-cd samples/ControlGallery
-dotnet run
+
+### Restore
+
+```powershell
+dotnet restore .\ModernFormsNext.slnx
 ```
 
-## Basic Example
+### Build
+
+```powershell
+dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
+```
+
+### Run ControlGallery
+
+`samples/ControlGallery` is the manual visual test app for controls, layout, rendering, focus, input, and theme behavior.
+
+```powershell
+dotnet run --project .\samples\ControlGallery\ControlGallery.csproj
+```
+
+### Run the Template Reference App
+
+`samples/ModernFormsNext.DemoApp` is the reference application for the Visual Studio extension/template experience. Keep it small, beginner-friendly, and representative of the generated application structure. Do not use it as a playground for random control experiments.
+
+```powershell
+dotnet run --project .\samples\ModernFormsNext.DemoApp\ModernFormsNext.DemoApp.csproj
+```
+
+## Basic Code-First Example
+
 ```csharp
 using ModernFormsNext;
 
-class Program
+internal static class Program
 {
-    static void Main(string[] args)
+    [STAThread]
+    private static void Main()
     {
         Application.Run(new MainForm());
     }
@@ -67,22 +88,32 @@ public class MainForm : Form
     }
 }
 ```
+
 ## Repository Structure
 
-You can describe your solution here, for example:
+- `ModernFormsNext/` - shared framework code: controls, forms, rendering, layout, input, themes, and dialogs.
+- `ModernFormsNext.WindowKit/` - platform-neutral windowing, dispatcher, input, storage, and service abstractions.
+- `ModernFormsNext.WindowKit.Backend/` - shared backend bootstrap and interop infrastructure.
+- `ModernFormsNext.WindowKit.Backend.Windows/` - Windows backend implementation and Win32 interop.
+- `ModernFormsNext.Templates/` - project templates for generated user applications.
+- `samples/ControlGallery/` - manual visual validation app for controls and rendering.
+- `samples/ModernFormsNext.DemoApp/` - reference/template application generated for users, not a control playground.
+- `docs/` - architecture, getting started, samples, and screenshots.
 
-- `src/` - framework source code
-- `samples/` - sample applications
-- `docs/` - documentation and screenshots
+## Templates and Packages
 
-## 🧠 Project Direction
+The repository contains preview package metadata and a `ModernFormsNext.Templates` template package project. For repository development, prefer project references and the solution commands above. For template validation, keep `ModernFormsNext.Templates` and `samples/ModernFormsNext.DemoApp` aligned so generated applications show the recommended startup pattern.
+
+## Project Direction
 
 ModernFormsNext is:
+
 - not just a fork
 - a separate evolution path
 - a place for experimentation and new ideas
 
 It may include:
+
 - architectural changes
 - performance improvements
 - new controls

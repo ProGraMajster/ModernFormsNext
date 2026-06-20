@@ -53,20 +53,20 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        ///  Gets the keyboard value for a <see cref='Forms.Control.KeyDown'/> or
-        /// <see cref='Forms.Control.KeyUp'/> event.
+        ///  Gets the keyboard value for a <see cref="Control.KeyDown"/> or
+        /// <see cref="Control.KeyUp"/> event.
         /// </summary>
         public int KeyValue => (int)(KeyData & Keys.KeyCode);
 
         /// <summary>
-        ///  Gets the key data for a <see cref='Forms.Control.KeyDown'/> or
-        /// <see cref='Forms.Control.KeyUp'/> event.
+        ///  Gets the key data for a <see cref="Control.KeyDown"/> or
+        /// <see cref="Control.KeyUp"/> event.
         /// </summary>
         public Keys KeyData { get; }
 
         /// <summary>
-        ///  Gets the modifier flags for a <see cref='Forms.Control.KeyDown'/> or
-        /// <see cref='Forms.Control.KeyUp'/> event.
+        ///  Gets the modifier flags for a <see cref="Control.KeyDown"/> or
+        /// <see cref="Control.KeyUp"/> event.
         ///  This indicates which modifier keys (CTRL, SHIFT, and/or ALT) were pressed.
         /// </summary>
         public Keys Modifiers => KeyData & Keys.Modifiers;
