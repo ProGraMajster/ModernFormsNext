@@ -6,6 +6,14 @@ using ModernFormsNext.WindowKit.Threading;
 
 namespace ModernFormsNext.WindowKit.Controls.Platform;
 
+/// <summary>
+/// Provides a managed dispatcher implementation that can drive a dispatcher loop without a native message pump.
+/// </summary>
+/// <remarks>
+/// Platform backends can use this implementation for tests, headless hosts, or platforms where
+/// input is supplied through <see cref="IManagedDispatcherInputProvider"/> rather than a Win32-style
+/// message loop. The dispatcher loop runs on the thread that creates this instance.
+/// </remarks>
 [Unstable]
 public class ManagedDispatcherImpl : IControlledDispatcherImpl
 {
@@ -17,18 +25,37 @@ public class ManagedDispatcherImpl : IControlledDispatcherImpl
     private TimeSpan? _nextTimer; 
     private readonly Thread _loopThread = Thread.CurrentThread;
 
+    /// <summary>
+    /// Supplies pending input events to <see cref="ManagedDispatcherImpl"/>.
+    /// </summary>
     public interface IManagedDispatcherInputProvider
     {
+        /// <summary>
+        /// Gets a value indicating whether an input event is waiting to be dispatched.
+        /// </summary>
         bool HasInput { get; }
+
+        /// <summary>
+        /// Dispatches the next queued input event.
+        /// </summary>
         void DispatchNextInputEvent();
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ManagedDispatcherImpl"/> class.
+    /// </summary>
+    /// <param name="inputProvider">
+    /// The optional input provider used to integrate platform input with the dispatcher loop.
+    /// </param>
     public ManagedDispatcherImpl(IManagedDispatcherInputProvider? inputProvider)
     {
         _inputProvider = inputProvider;
     }
 
+    /// <inheritdoc />
     public bool CurrentThreadIsLoopThread => _loopThread == Thread.CurrentThread;
+
+    /// <inheritdoc />
     public void Signal()
     {
         lock (_lock)
@@ -38,9 +65,16 @@ public class ManagedDispatcherImpl : IControlledDispatcherImpl
         }
     }
 
+    /// <inheritdoc />
     public event Action? Signaled;
+
+    /// <inheritdoc />
     public event Action? Timer;
+
+    /// <inheritdoc />
     public long Now => _clock.ElapsedMilliseconds;
+
+    /// <inheritdoc />
     public void UpdateTimer(long? dueTimeInMs)
     {
         lock (_lock)
@@ -53,9 +87,13 @@ public class ManagedDispatcherImpl : IControlledDispatcherImpl
         }
     }
 
+    /// <inheritdoc />
     public bool CanQueryPendingInput => _inputProvider != null;
+
+    /// <inheritdoc />
     public bool HasPendingInput => _inputProvider?.HasInput ?? false;
     
+    /// <inheritdoc />
     public void RunLoop(CancellationToken token)
     {
         CancellationTokenRegistration registration = default;

@@ -2,6 +2,13 @@
 
 namespace ModernFormsNext.WindowKit.Platform
 {
+    /// <summary>
+    /// Represents a locked framebuffer that can be written to by a renderer.
+    /// </summary>
+    /// <remarks>
+    /// The framebuffer remains valid until it is disposed. Callers must respect
+    /// <see cref="RowBytes"/>, <see cref="Format"/>, and <see cref="Dpi"/> when writing pixels.
+    /// </remarks>
     public interface ILockedFramebuffer : IDisposable
     {
         /// <summary>

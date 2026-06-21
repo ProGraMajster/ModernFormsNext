@@ -9,6 +9,10 @@ namespace ModernFormsNext.WindowKit.Platform.Storage;
 /// </summary>
 public sealed class FilePickerFileType
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FilePickerFileType"/> class.
+    /// </summary>
+    /// <param name="name">The display name shown by the picker for this file type.</param>
     public FilePickerFileType(string? name)
     {
         Name = name ?? string.Empty;

@@ -7,17 +7,31 @@ using ModernFormsNext.WindowKit.Compatibility;
 
 namespace ModernFormsNext.WindowKit.Platform.Storage.FileIO;
 
+/// <summary>
+/// Provides a base implementation of <see cref="IStorageProvider"/> for local file-system storage.
+/// </summary>
+/// <remarks>
+/// Derived platform backends supply picker UI, while this base class handles bookmark and
+/// local-path resolution through BCL file-system APIs.
+/// </remarks>
 public abstract class BclStorageProvider : IStorageProvider
 {
+    /// <inheritdoc />
     public abstract bool CanOpen { get; }
+    /// <inheritdoc />
     public abstract Task<IReadOnlyList<IStorageFile>> OpenFilePickerAsync(FilePickerOpenOptions options);
 
+    /// <inheritdoc />
     public abstract bool CanSave { get; }
+    /// <inheritdoc />
     public abstract Task<IStorageFile?> SaveFilePickerAsync(FilePickerSaveOptions options);
 
+    /// <inheritdoc />
     public abstract bool CanPickFolder { get; }
+    /// <inheritdoc />
     public abstract Task<IReadOnlyList<IStorageFolder>> OpenFolderPickerAsync(FolderPickerOpenOptions options);
 
+    /// <inheritdoc />
     public virtual Task<IStorageBookmarkFile?> OpenFileBookmarkAsync(string bookmark)
     {
         var file = new FileInfo(bookmark);
@@ -26,6 +40,7 @@ public abstract class BclStorageProvider : IStorageProvider
             : Task.FromResult<IStorageBookmarkFile?>(null);
     }
 
+    /// <inheritdoc />
     public virtual Task<IStorageBookmarkFolder?> OpenFolderBookmarkAsync(string bookmark)
     {
         var folder = new DirectoryInfo(bookmark);
@@ -34,6 +49,7 @@ public abstract class BclStorageProvider : IStorageProvider
             : Task.FromResult<IStorageBookmarkFolder?>(null);
 }
 
+    /// <inheritdoc />
     public virtual Task<IStorageFile?> TryGetFileFromPathAsync(Uri filePath)
     {
         if (filePath.IsAbsoluteUri)
@@ -48,6 +64,7 @@ public abstract class BclStorageProvider : IStorageProvider
         return Task.FromResult<IStorageFile?>(null);
     }
 
+    /// <inheritdoc />
     public virtual Task<IStorageFolder?> TryGetFolderFromPathAsync(Uri folderPath)
     {
         if (folderPath.IsAbsoluteUri)
@@ -62,6 +79,7 @@ public abstract class BclStorageProvider : IStorageProvider
         return Task.FromResult<IStorageFolder?>(null);
     }
 
+    /// <inheritdoc />
     public virtual Task<IStorageFolder?> TryGetWellKnownFolderAsync(WellKnownFolder wellKnownFolder)
     {
         // Note, this BCL API returns different values depending on the .NET version.
@@ -97,6 +115,10 @@ public abstract class BclStorageProvider : IStorageProvider
             Environment.GetFolderPath(folder, Environment.SpecialFolderOption.Create);
     }
 
+    /// <summary>
+    /// Gets the current user's Downloads folder when it can be resolved by the current platform.
+    /// </summary>
+    /// <returns>The Downloads folder path, or <see langword="null"/> when it cannot be resolved.</returns>
     // TODO, replace with https://github.com/dotnet/runtime/issues/70484 when implemented.
     // Normally we want to avoid platform specific code in the Avalonia.Base assembly.
     protected static string? GetDownloadsWellKnownFolder()

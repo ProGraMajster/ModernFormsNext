@@ -7,6 +7,12 @@ namespace ModernFormsNext.WindowKit.Platform.Storage;
 /// </summary>
 public class StorageItemProperties
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StorageItemProperties"/> class.
+    /// </summary>
+    /// <param name="size">The file size in bytes, or <see langword="null"/> when it is unavailable.</param>
+    /// <param name="dateCreated">The creation timestamp, or <see langword="null"/> when it is unavailable.</param>
+    /// <param name="dateModified">The last modification timestamp, or <see langword="null"/> when it is unavailable.</param>
     public StorageItemProperties(
         ulong? size = null,
         DateTimeOffset? dateCreated = null,

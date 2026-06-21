@@ -6,6 +6,14 @@ using ModernFormsNext.WindowKit.Metadata;
 
 namespace ModernFormsNext.WindowKit.Platform.Storage;
 
+/// <summary>
+/// Provides platform storage dialogs and file-system item resolution for a top-level window.
+/// </summary>
+/// <remarks>
+/// Implementations are backend-specific. Check <see cref="CanOpen"/>, <see cref="CanSave"/>,
+/// and <see cref="CanPickFolder"/> before showing picker UI, and expect individual calls to
+/// return <see langword="null"/> or an empty collection when the user cancels the operation.
+/// </remarks>
 [NotClientImplementable]
 public interface IStorageProvider
 {
@@ -17,6 +25,7 @@ public interface IStorageProvider
     /// <summary>
     /// Opens file picker dialog.
     /// </summary>
+    /// <param name="options">The picker title, starting folder, and file-type filters.</param>
     /// <returns>Array of selected <see cref="IStorageFile"/> or empty collection if user canceled the dialog.</returns>
     Task<IReadOnlyList<IStorageFile>> OpenFilePickerAsync(FilePickerOpenOptions options);
 
@@ -28,6 +37,7 @@ public interface IStorageProvider
     /// <summary>
     /// Opens save file picker dialog.
     /// </summary>
+    /// <param name="options">The suggested file name, starting folder, and file-type choices.</param>
     /// <returns>Saved <see cref="IStorageFile"/> or null if user canceled the dialog.</returns>
     Task<IStorageFile?> SaveFilePickerAsync(FilePickerSaveOptions options);
 
@@ -39,6 +49,7 @@ public interface IStorageProvider
     /// <summary>
     /// Opens folder picker dialog.
     /// </summary>
+    /// <param name="options">The picker title, starting folder, and multi-selection options.</param>
     /// <returns>Array of selected <see cref="IStorageFolder"/> or empty collection if user canceled the dialog.</returns>
     Task<IReadOnlyList<IStorageFolder>> OpenFolderPickerAsync(FolderPickerOpenOptions options);
 
