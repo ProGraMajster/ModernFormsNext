@@ -28,7 +28,7 @@ namespace ModernFormsNext
         internal bool shown;
 
         /// <summary>
-        /// Initializes a new instance of the Window class.
+        /// Initializes a new instance of the <see cref="WindowBase"/> class for the specified platform window implementation.
         /// </summary>
         internal WindowBase (IWindowBaseImpl window)
         {

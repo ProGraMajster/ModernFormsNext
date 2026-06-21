@@ -14,7 +14,7 @@ namespace ModernFormsNext
         private int current_value;
 
         /// <summary>
-        /// Initializes a new instance of the PictureBox class.
+        /// Initializes a new instance of the <see cref="ProgressBar"/> class.
         /// </summary>
         public ProgressBar ()
         {

@@ -20,7 +20,7 @@ namespace ModernFormsNext;
 public struct TableLayoutPanelCellPosition
 {
     /// <summary>
-    /// Initializes a new instance of the ComboBox class.
+    /// Initializes a new instance of the <see cref="TableLayoutPanelCellPosition"/> struct.
     /// </summary>
     public TableLayoutPanelCellPosition (int column, int row)
     {
