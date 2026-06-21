@@ -11,7 +11,9 @@ using System.Text;
 namespace ModernFormsNext.WindowKit.Utilities;
 #nullable enable
 
-// <summary>Provide a cached reusable instance of stringbuilder per thread.</summary>
+/// <summary>
+/// Provides a cached reusable <see cref="StringBuilder"/> instance per thread.
+/// </summary>
 public static class StringBuilderCache
 {
     // The value 360 was chosen in discussion with performance experts as a compromise between using

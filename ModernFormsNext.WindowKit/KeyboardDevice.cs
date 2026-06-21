@@ -7,12 +7,16 @@ using ModernFormsNext.WindowKit.Metadata;
 
 namespace ModernFormsNext.WindowKit.Input
 {
+    /// <summary>
+    /// Processes raw keyboard input for a top-level input root.
+    /// </summary>
     [PrivateApi]
     public class KeyboardDevice : IKeyboardDevice, INotifyPropertyChanged
     {
         //private IInputElement? _focusedElement;
         //private IInputRoot? _focusedRoot;
 
+        /// <inheritdoc />
         public event PropertyChangedEventHandler? PropertyChanged;
 
         //internal static KeyboardDevice? Instance => AvaloniaLocator.Current.GetService<IKeyboardDevice>() as KeyboardDevice;
@@ -167,11 +171,16 @@ namespace ModernFormsNext.WindowKit.Input
         //}
         //}
 
+        /// <summary>
+        /// Raises <see cref="PropertyChanged"/> for a keyboard device property.
+        /// </summary>
+        /// <param name="propertyName">The property name. The caller member name is used by default.</param>
         protected void RaisePropertyChanged([CallerMemberName] string propertyName = "")
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
+        /// <inheritdoc />
         public void ProcessRawEvent(RawInputEventArgs e)
         {
             if(e.Handled)

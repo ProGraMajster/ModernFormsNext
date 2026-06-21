@@ -5,6 +5,9 @@ using ModernFormsNext.WindowKit.Platform.Storage;
 
 namespace ModernFormsNext.WindowKit.Input
 {
+    /// <summary>
+    /// Provides convenience accessors for common <see cref="IDataObject"/> formats.
+    /// </summary>
     public static class DataObjectExtensions
     {
         /// <summary>
@@ -14,6 +17,7 @@ namespace ModernFormsNext.WindowKit.Input
         /// <returns>
         /// Collection of storage items - files or folders. If format isn't available, returns null.
         /// </returns>
+        /// <param name="dataObject">The data object to query.</param>
         public static IEnumerable<IStorageItem>? GetFiles(this IDataObject dataObject)
         {
             return dataObject.Get(DataFormats.Files) as IEnumerable<IStorageItem>;
@@ -26,6 +30,7 @@ namespace ModernFormsNext.WindowKit.Input
         /// <returns>
         /// Collection of file names. If format isn't available, returns null.
         /// </returns>
+        /// <param name="dataObject">The data object to query.</param>
         [System.Obsolete("Use GetFiles, this method is supported only on desktop platforms."), EditorBrowsable(EditorBrowsableState.Never)]
         public static IEnumerable<string>? GetFileNames(this IDataObject dataObject)
         {
@@ -43,6 +48,7 @@ namespace ModernFormsNext.WindowKit.Input
         /// <returns>
         /// A text string. If format isn't available, returns null.
         /// </returns>
+        /// <param name="dataObject">The data object to query.</param>
         public static string? GetText(this IDataObject dataObject)
         {
             return dataObject.Get(DataFormats.Text) as string;

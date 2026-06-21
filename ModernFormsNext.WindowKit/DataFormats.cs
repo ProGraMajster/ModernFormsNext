@@ -3,6 +3,9 @@ using System.ComponentModel;
 
 namespace ModernFormsNext.WindowKit.Input
 {
+    /// <summary>
+    /// Defines standard data format identifiers used by clipboard and drag/drop data objects.
+    /// </summary>
     public static class DataFormats
     {
         /// <summary>

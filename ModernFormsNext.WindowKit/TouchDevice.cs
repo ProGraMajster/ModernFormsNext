@@ -35,6 +35,7 @@ namespace ModernFormsNext.WindowKit.Input
             return rv;
         }
 
+        /// <inheritdoc />
         public void ProcessRawEvent(RawInputEventArgs ev)
         {
             if (ev.Handled || _disposed)
@@ -141,6 +142,7 @@ namespace ModernFormsNext.WindowKit.Input
 //            }
         }
 
+        /// <inheritdoc />
         public void Dispose()
         {
             if (_disposed)
@@ -152,6 +154,7 @@ namespace ModernFormsNext.WindowKit.Input
                 p.Dispose();
         }
 
+        /// <inheritdoc />
         public IPointer? TryGetPointer(RawPointerEventArgs ev)
         {
             return _pointers.TryGetValue(ev.RawPointerId, out var pointer)

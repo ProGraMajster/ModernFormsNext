@@ -4,6 +4,9 @@ using ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Input
 {
+    /// <summary>
+    /// Converts between ModernFormsNext keys and Windows virtual-key values.
+    /// </summary>
     public static class KeyInterop
     {
         private static readonly Dictionary<Key, int> s_virtualKeyFromKey = new Dictionary<Key, int>
@@ -421,6 +424,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Input
             return virtualKey;
         }
 
+        /// <summary>
+        /// Converts a Windows virtual-key value to a ModernFormsNext key.
+        /// </summary>
+        /// <param name="virtualKey">The Windows virtual-key value.</param>
+        /// <param name="keyData">The raw key data from the Windows message.</param>
+        /// <returns>The matching ModernFormsNext key, or <see cref="Key.None"/> when no mapping exists.</returns>
         public static Key KeyFromVirtualKey(int virtualKey, int keyData)
         {
             virtualKey = GetVirtualKey(virtualKey, keyData);
@@ -430,6 +439,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Input
             return result;
         }
 
+        /// <summary>
+        /// Converts a ModernFormsNext key to a Windows virtual-key value.
+        /// </summary>
+        /// <param name="key">The ModernFormsNext key to convert.</param>
+        /// <returns>The matching Windows virtual-key value, or <c>0</c> when no mapping exists.</returns>
         public static int VirtualKeyFromKey(Key key)
         {
             s_virtualKeyFromKey.TryGetValue(key, out var result);

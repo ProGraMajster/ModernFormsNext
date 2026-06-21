@@ -6,7 +6,7 @@ using ModernFormsNext.WindowKit.Utilities;
 namespace ModernFormsNext.WindowKit.Threading
 {
     /// <summary>
-    /// SynchronizationContext to be used on main thread
+    /// Provides the synchronization context installed on the dispatcher thread.
     /// </summary>
     public class AvaloniaSynchronizationContext : SynchronizationContext
     {
@@ -14,6 +14,9 @@ namespace ModernFormsNext.WindowKit.Threading
         private readonly NonPumpingLockHelper.IHelperImpl? _nonPumpingHelper =
             AvaloniaLocator.Current.GetService<NonPumpingLockHelper.IHelperImpl>();
         
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AvaloniaSynchronizationContext"/> class for the current thread.
+        /// </summary>
         public AvaloniaSynchronizationContext():  this(Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
         {
             
@@ -27,6 +30,10 @@ namespace ModernFormsNext.WindowKit.Threading
                 SetWaitNotificationRequired();
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AvaloniaSynchronizationContext"/> class.
+        /// </summary>
+        /// <param name="priority">The dispatcher priority used when posting callbacks.</param>
         public AvaloniaSynchronizationContext(DispatcherPriority priority)
         {
             Priority = priority;
@@ -65,6 +72,7 @@ namespace ModernFormsNext.WindowKit.Threading
                 Dispatcher.UIThread.InvokeAsync(() => d(state), DispatcherPriority.Send).GetAwaiter().GetResult();
         }
         
+        /// <inheritdoc />
 #if !NET6_0_OR_GREATER
         [PrePrepareMethod]
 #endif
@@ -78,6 +86,9 @@ namespace ModernFormsNext.WindowKit.Threading
             return base.Wait(waitHandles, waitAll, millisecondsTimeout);
         }
 
+        /// <summary>
+        /// Restores the previous synchronization context when disposed.
+        /// </summary>
         public record struct RestoreContext : IDisposable
         {
             private readonly SynchronizationContext? _oldContext;
@@ -89,6 +100,7 @@ namespace ModernFormsNext.WindowKit.Threading
                 _needRestore = true;
             }
             
+            /// <inheritdoc />
             public void Dispose()
             {
                 if (_needRestore)
@@ -99,6 +111,11 @@ namespace ModernFormsNext.WindowKit.Threading
             }
         }
 
+        /// <summary>
+        /// Ensures that the current synchronization context posts to the dispatcher at the requested priority.
+        /// </summary>
+        /// <param name="priority">The dispatcher priority to install for asynchronous continuations.</param>
+        /// <returns>A disposable context that restores the previous synchronization context.</returns>
         public static RestoreContext Ensure(DispatcherPriority priority)
         {
             if (Current is AvaloniaSynchronizationContext avaloniaContext 

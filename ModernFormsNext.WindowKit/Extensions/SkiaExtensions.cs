@@ -8,11 +8,16 @@ using SkiaSharp;
 
 namespace ModernFormsNext.WindowKit
 {
+    /// <summary>
+    /// Provides conversions from SkiaSharp image types to <see cref="Bitmap"/>.
+    /// </summary>
     public static class SkiaExtensions
     {
         /// <summary>
         /// Convers an SKImage to a Bitmap.
         /// </summary>
+        /// <param name="skiaImage">The SkiaSharp image to convert.</param>
+        /// <returns>The converted bitmap.</returns>
         public static Bitmap ToBitmap (this SKImage skiaImage)
         {
             // TODO: maybe keep the same color types where we can, instead of just going to the platform default
@@ -30,6 +35,8 @@ namespace ModernFormsNext.WindowKit
         /// <summary>
         /// Convers an SKBitmap to a Bitmap.
         /// </summary>
+        /// <param name="skiaBitmap">The SkiaSharp bitmap to convert.</param>
+        /// <returns>The converted bitmap.</returns>
         public static Bitmap ToBitmap (this SKBitmap skiaBitmap)
         {
             using (var image = SKImage.FromPixels (skiaBitmap.PeekPixels ()))

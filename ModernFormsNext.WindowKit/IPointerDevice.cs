@@ -3,6 +3,9 @@ using ModernFormsNext.WindowKit.Metadata;
 
 namespace ModernFormsNext.WindowKit.Input
 {
+    /// <summary>
+    /// Represents a backend pointer input device.
+    /// </summary>
     [PrivateApi]
     public interface IPointerDevice : IInputDevice
     {

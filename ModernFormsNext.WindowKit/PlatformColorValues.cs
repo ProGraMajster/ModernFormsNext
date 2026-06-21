@@ -8,7 +8,14 @@ namespace ModernFormsNext.WindowKit.Platform;
 /// </summary>
 public enum PlatformThemeVariant
 {
+    /// <summary>
+    /// The platform is using a light theme.
+    /// </summary>
     Light,
+
+    /// <summary>
+    /// The platform is using a dark theme.
+    /// </summary>
     Dark
 }
 
@@ -17,7 +24,14 @@ public enum PlatformThemeVariant
 /// </summary>
 public enum ColorContrastPreference
 {
+    /// <summary>
+    /// The platform has no explicit high-contrast preference.
+    /// </summary>
     NoPreference,
+
+    /// <summary>
+    /// The platform prefers high-contrast colors.
+    /// </summary>
     High
 }
 
@@ -62,6 +76,9 @@ public record PlatformColorValues
         init => _accentColor3 = value;
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PlatformColorValues"/> class with the default accent color.
+    /// </summary>
     public PlatformColorValues()
     {
         AccentColor1 = DefaultAccent;

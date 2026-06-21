@@ -6,21 +6,56 @@ using ModernFormsNext.WindowKit.Metadata;
 
 namespace ModernFormsNext.WindowKit.Controls.Primitives.PopupPositioning
 {
+    /// <summary>
+    /// Provides the platform information needed by <see cref="ManagedPopupPositioner"/>.
+    /// </summary>
     [PrivateApi]
     public interface IManagedPopupPositionerPopup
     {
+        /// <summary>
+        /// Gets the screens available to the popup.
+        /// </summary>
         IReadOnlyList<ManagedPopupPositionerScreenInfo> Screens { get; }
+
+        /// <summary>
+        /// Gets the parent top-level client area in screen coordinates.
+        /// </summary>
         Rect ParentClientAreaScreenGeometry { get; }
+
+        /// <summary>
+        /// Gets the scale factor used to convert logical popup coordinates to device coordinates.
+        /// </summary>
         double Scaling { get; }
+
+        /// <summary>
+        /// Moves and resizes the popup.
+        /// </summary>
+        /// <param name="devicePoint">The target popup position in device pixels.</param>
+        /// <param name="virtualSize">The target popup size in logical pixels.</param>
         void MoveAndResize(Point devicePoint, Size virtualSize);
     }
 
+    /// <summary>
+    /// Describes the bounds and working area of a screen used for managed popup placement.
+    /// </summary>
     [PrivateApi]
     public class ManagedPopupPositionerScreenInfo
     {
+        /// <summary>
+        /// Gets the full screen bounds in device coordinates.
+        /// </summary>
         public Rect Bounds { get; }
+
+        /// <summary>
+        /// Gets the usable screen working area in device coordinates.
+        /// </summary>
         public Rect WorkingArea { get; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ManagedPopupPositionerScreenInfo"/> class.
+        /// </summary>
+        /// <param name="bounds">The full screen bounds in device coordinates.</param>
+        /// <param name="workingArea">The usable screen working area in device coordinates.</param>
         public ManagedPopupPositionerScreenInfo(Rect bounds, Rect workingArea)
         {
             Bounds = bounds;
@@ -37,6 +72,10 @@ namespace ModernFormsNext.WindowKit.Controls.Primitives.PopupPositioning
     {
         private readonly IManagedPopupPositionerPopup _popup;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ManagedPopupPositioner"/> class.
+        /// </summary>
+        /// <param name="popup">The popup platform adapter to move and resize.</param>
         public ManagedPopupPositioner(IManagedPopupPositionerPopup popup)
         {
             _popup = popup;
@@ -81,6 +120,7 @@ namespace ModernFormsNext.WindowKit.Controls.Primitives.PopupPositioning
             return anchorPoint + new Point(x, y);
         }
 
+        /// <inheritdoc />
         public void Update(PopupPositionerParameters parameters)
         {
             var rect = Calculate(

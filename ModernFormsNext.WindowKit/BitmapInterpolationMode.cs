@@ -5,6 +5,9 @@
     /// </summary>
     public enum BitmapInterpolationMode : byte
     {
+        /// <summary>
+        /// Uses the backend default interpolation mode.
+        /// </summary>
         Unspecified,
 
         /// <summary>

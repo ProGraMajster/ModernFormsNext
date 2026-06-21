@@ -6,11 +6,25 @@ using System.Linq;
 
 namespace ModernFormsNext.WindowKit.Input
 {
+    /// <summary>
+    /// Represents a pointer tracked by the input system.
+    /// </summary>
     public partial class Pointer : IPointer, IDisposable
     {
         private static int s_NextFreePointerId = 1000;
+
+        /// <summary>
+        /// Gets the next framework-generated pointer identifier.
+        /// </summary>
+        /// <returns>A pointer identifier that has not been generated previously in this process.</returns>
         public static int GetNextFreeId() => s_NextFreePointerId++;
         
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Pointer"/> class.
+        /// </summary>
+        /// <param name="id">The unique pointer identifier.</param>
+        /// <param name="type">The pointer device type.</param>
+        /// <param name="isPrimary">A value indicating whether this is the primary pointer.</param>
         public Pointer(int id, PointerType type, bool isPrimary)
         {
             Id = id;
@@ -18,6 +32,7 @@ namespace ModernFormsNext.WindowKit.Input
             IsPrimary = isPrimary;
         }
 
+        /// <inheritdoc />
         public int Id { get; }
 
         //static IInputElement? FindCommonParent(IInputElement? control1, IInputElement? control2)
@@ -71,7 +86,10 @@ namespace ModernFormsNext.WindowKit.Input
 
         //public IInputElement? Captured { get; private set; }
             
+        /// <inheritdoc />
         public PointerType Type { get; }
+
+        /// <inheritdoc />
         public bool IsPrimary { get; }
 
         ///// <summary>
@@ -79,6 +97,7 @@ namespace ModernFormsNext.WindowKit.Input
         ///// </summary>
         //internal GestureRecognizer? CapturedGestureRecognizer { get; private set; }
 
+        /// <inheritdoc />
         public void Dispose()
         {
             //Capture(null);

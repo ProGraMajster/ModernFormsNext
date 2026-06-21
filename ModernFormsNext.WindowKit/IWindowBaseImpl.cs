@@ -4,6 +4,9 @@ using ModernFormsNext.WindowKit.Metadata;
 
 namespace ModernFormsNext.WindowKit.Platform
     {
+    /// <summary>
+    /// Defines platform window behavior shared by normal windows and popups.
+    /// </summary>
     [Unstable]
     public interface IWindowBaseImpl : ITopLevelImpl
     {

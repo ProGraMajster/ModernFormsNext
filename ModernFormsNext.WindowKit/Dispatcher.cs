@@ -38,7 +38,14 @@ public partial class Dispatcher : IDispatcher
             _backgroundProcessingImpl.ReadyForBackgroundProcessing += OnReadyForExplicitBackgroundProcessing;
     }
 
+    /// <summary>
+    /// Gets the dispatcher associated with the UI thread.
+    /// </summary>
     public static Dispatcher UIThread => s_uiThread ??= CreateUIThreadDispatcher();
+
+    /// <summary>
+    /// Gets a value indicating whether this dispatcher supports nested run loops.
+    /// </summary>
     public bool SupportsRunLoops => _controlledImpl != null;
 
     private static Dispatcher CreateUIThreadDispatcher()

@@ -132,6 +132,14 @@ namespace ModernFormsNext.WindowKit.Threading
         public static readonly DispatcherPriority MaxValue = Send;
 
         // Note: unlike ctor this one is validating
+        /// <summary>
+        /// Creates a dispatcher priority from its numeric value.
+        /// </summary>
+        /// <param name="value">The numeric priority value.</param>
+        /// <returns>The dispatcher priority represented by <paramref name="value"/>.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="value"/> is outside the valid priority range.
+        /// </exception>
         public static DispatcherPriority FromValue(int value)
         {
             if (value < MinValue.Value || value > MaxValue.Value)
@@ -139,8 +147,16 @@ namespace ModernFormsNext.WindowKit.Threading
             return new DispatcherPriority(value);
         }
 
+        /// <summary>
+        /// Converts a dispatcher priority to its numeric value.
+        /// </summary>
+        /// <param name="priority">The dispatcher priority to convert.</param>
         public static implicit operator int(DispatcherPriority priority) => priority.Value;
 
+        /// <summary>
+        /// Converts a numeric value to a dispatcher priority.
+        /// </summary>
+        /// <param name="value">The numeric priority value.</param>
         public static implicit operator DispatcherPriority(int value) => FromValue(value);
 
         /// <inheritdoc />
@@ -152,21 +168,45 @@ namespace ModernFormsNext.WindowKit.Threading
         /// <inheritdoc />
         public override int GetHashCode() => Value.GetHashCode();
 
+        /// <summary>
+        /// Determines whether two dispatcher priorities are equal.
+        /// </summary>
         public static bool operator ==(DispatcherPriority left, DispatcherPriority right) => left.Value == right.Value;
 
+        /// <summary>
+        /// Determines whether two dispatcher priorities are not equal.
+        /// </summary>
         public static bool operator !=(DispatcherPriority left, DispatcherPriority right) => left.Value != right.Value;
 
+        /// <summary>
+        /// Determines whether one dispatcher priority is lower than another.
+        /// </summary>
         public static bool operator <(DispatcherPriority left, DispatcherPriority right) => left.Value < right.Value;
 
+        /// <summary>
+        /// Determines whether one dispatcher priority is higher than another.
+        /// </summary>
         public static bool operator >(DispatcherPriority left, DispatcherPriority right) => left.Value > right.Value;
 
+        /// <summary>
+        /// Determines whether one dispatcher priority is lower than or equal to another.
+        /// </summary>
         public static bool operator <=(DispatcherPriority left, DispatcherPriority right) => left.Value <= right.Value;
 
+        /// <summary>
+        /// Determines whether one dispatcher priority is higher than or equal to another.
+        /// </summary>
         public static bool operator >=(DispatcherPriority left, DispatcherPriority right) => left.Value >= right.Value;
 
         /// <inheritdoc />
         public int CompareTo(DispatcherPriority other) => Value.CompareTo(other.Value);
 
+        /// <summary>
+        /// Validates that a dispatcher priority is within the supported range.
+        /// </summary>
+        /// <param name="priority">The dispatcher priority to validate.</param>
+        /// <param name="parameterName">The parameter name used when throwing an exception.</param>
+        /// <exception cref="ArgumentException">Thrown when <paramref name="priority"/> is invalid.</exception>
         public static void Validate(DispatcherPriority priority, string parameterName)
         {
             if (priority < Inactive || priority > MaxValue)
@@ -174,6 +214,10 @@ namespace ModernFormsNext.WindowKit.Threading
         }
         
 #pragma warning disable CS0618
+        /// <summary>
+        /// Returns the known priority name or numeric value.
+        /// </summary>
+        /// <returns>The dispatcher priority name when known; otherwise, its numeric value.</returns>
         public override string ToString()
         {
             if (this == Invalid)

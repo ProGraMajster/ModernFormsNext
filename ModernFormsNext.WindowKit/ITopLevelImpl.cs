@@ -112,6 +112,10 @@ namespace ModernFormsNext.WindowKit.Platform
         /// </summary>
         Action? LostFocus { get; set; }
         
+        /// <summary>
+        /// Creates a popup owned by this top-level window.
+        /// </summary>
+        /// <returns>The created popup implementation, or <see langword="null"/> when popups are not supported.</returns>
         IPopupImpl? CreatePopup();
 
         /// <summary>

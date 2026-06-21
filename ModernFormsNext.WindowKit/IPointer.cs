@@ -54,8 +54,19 @@ namespace ModernFormsNext.WindowKit.Input
     /// </summary>
     public enum PointerType
     {
+        /// <summary>
+        /// A mouse pointer.
+        /// </summary>
         Mouse,
+
+        /// <summary>
+        /// A touch contact pointer.
+        /// </summary>
         Touch,
+
+        /// <summary>
+        /// A pen or stylus pointer.
+        /// </summary>
         Pen
     }
 }

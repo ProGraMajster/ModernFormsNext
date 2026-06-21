@@ -2,6 +2,9 @@
 
 namespace ModernFormsNext.WindowKit.Input.Raw
 {
+    /// <summary>
+    /// Provides raw text input event data from a platform backend.
+    /// </summary>
     [PrivateApi]
     public partial class RawTextInputEventArgs : RawInputEventArgs
     {
@@ -15,6 +18,9 @@ namespace ModernFormsNext.WindowKit.Input.Raw
         //    Text = text;
         //}
 
+        /// <summary>
+        /// Gets the text reported by the platform text input event.
+        /// </summary>
         public string Text { get; }
     }
 }

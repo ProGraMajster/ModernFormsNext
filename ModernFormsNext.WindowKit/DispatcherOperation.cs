@@ -6,12 +6,38 @@ using System.Threading.Tasks;
 
 namespace ModernFormsNext.WindowKit.Threading;
 
+/// <summary>
+/// Represents a unit of work queued to a <see cref="Dispatcher"/>.
+/// </summary>
+/// <remarks>
+/// A dispatcher operation can be awaited, aborted while it is still pending, or waited on
+/// synchronously. Synchronous waits from the dispatcher thread are restricted to avoid
+/// deadlocking the UI loop.
+/// </remarks>
 public class DispatcherOperation
 {
+    /// <summary>
+    /// Indicates whether exceptions thrown by the callback should be rethrown on the dispatcher thread.
+    /// </summary>
     protected readonly bool ThrowOnUiThread;
+
+    /// <summary>
+    /// Gets the current lifecycle state of the operation.
+    /// </summary>
     public DispatcherOperationStatus Status { get; protected set; }
+
+    /// <summary>
+    /// Gets the dispatcher that owns this operation.
+    /// </summary>
     public Dispatcher Dispatcher { get; }
 
+    /// <summary>
+    /// Gets or sets the dispatcher priority for the operation.
+    /// </summary>
+    /// <remarks>
+    /// Changing the priority of a queued operation asks the owning dispatcher to reposition it
+    /// according to the new priority.
+    /// </remarks>
     public DispatcherPriority Priority
     {
         get => _priority;
@@ -24,7 +50,17 @@ public class DispatcherOperation
         }
     }
 
+    /// <summary>
+    /// Stores the delegate invoked when the operation runs.
+    /// </summary>
+    /// <remarks>
+    /// Derived operation types own the concrete delegate type and cast it during invocation.
+    /// </remarks>
     protected object? Callback;
+
+    /// <summary>
+    /// Stores the task completion source used to represent asynchronous completion.
+    /// </summary>
     protected object? TaskSource;
     
     internal DispatcherOperation? SequentialPrev { get; set; }
@@ -101,6 +137,13 @@ public class DispatcherOperation
         }
     }
     
+    /// <summary>
+    /// Attempts to abort the operation before it starts executing.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when the pending operation was aborted; otherwise,
+    /// <see langword="false"/> when it had already started, completed, or been aborted.
+    /// </returns>
     public bool Abort()
     {
         lock (Dispatcher.InstanceLock)
@@ -228,6 +271,10 @@ public class DispatcherOperation
         private Timer? _waitTimer;
     }
 
+    /// <summary>
+    /// Gets a task that completes when this operation completes or is aborted.
+    /// </summary>
+    /// <returns>The task representing the operation lifecycle.</returns>
     public Task GetTask() => GetTaskCore();
     
     /// <summary>
@@ -267,6 +314,13 @@ public class DispatcherOperation
         }
     }
     
+    /// <summary>
+    /// Invokes the queued callback and completes the operation task.
+    /// </summary>
+    /// <remarks>
+    /// Derived operation types override this method when the callback has a return value or a
+    /// different delegate shape.
+    /// </remarks>
     protected virtual void InvokeCore()
     {
         try
@@ -295,6 +349,9 @@ public class DispatcherOperation
 
     internal virtual object? GetResult() => null;
     
+    /// <summary>
+    /// Transitions the task backing this operation into the canceled state.
+    /// </summary>
     protected virtual void AbortTask() => (TaskSource as TaskCompletionSource<object?>)?.SetCanceled();
 
     private static CancellationToken CreateCancelledToken()
@@ -306,6 +363,10 @@ public class DispatcherOperation
 
     private static readonly Task s_abortedTask = Task.FromCanceled(CreateCancelledToken());
 
+    /// <summary>
+    /// Gets or creates the task that represents completion of this operation.
+    /// </summary>
+    /// <returns>The task representing operation completion.</returns>
     protected virtual Task GetTaskCore()
     {
         lock (Dispatcher.InstanceLock)
@@ -321,8 +382,18 @@ public class DispatcherOperation
     }
 }
 
+/// <summary>
+/// Represents a dispatcher operation that produces a result.
+/// </summary>
+/// <typeparam name="T">The operation result type.</typeparam>
 public class DispatcherOperation<T> : DispatcherOperation
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DispatcherOperation{T}"/> class.
+    /// </summary>
+    /// <param name="dispatcher">The dispatcher that owns the operation.</param>
+    /// <param name="priority">The dispatcher priority used to schedule the operation.</param>
+    /// <param name="callback">The callback invoked on the dispatcher thread.</param>
     public DispatcherOperation(Dispatcher dispatcher, DispatcherPriority priority, Func<T> callback) : base(dispatcher, priority, false)
     {
         TaskSource = new TaskCompletionSource<T>();
@@ -331,16 +402,27 @@ public class DispatcherOperation<T> : DispatcherOperation
 
     private TaskCompletionSource<T> TaskCompletionSource => (TaskCompletionSource<T>)TaskSource!;
 
+    /// <summary>
+    /// Returns an awaiter for awaiting the operation result.
+    /// </summary>
+    /// <returns>The task awaiter for the result task.</returns>
     public new TaskAwaiter<T> GetAwaiter() => GetTask().GetAwaiter();
 
+    /// <summary>
+    /// Gets the task that completes with this operation's result.
+    /// </summary>
+    /// <returns>The result task.</returns>
     public new Task<T> GetTask() => TaskCompletionSource!.Task;
 
+    /// <inheritdoc />
     protected override Task GetTaskCore() => GetTask();
 
+    /// <inheritdoc />
     protected override void AbortTask() => TaskCompletionSource.SetCanceled();
 
     internal override object? GetResult() => GetTask().Result;
 
+    /// <inheritdoc />
     protected override void InvokeCore()
     {
         try
@@ -362,6 +444,13 @@ public class DispatcherOperation<T> : DispatcherOperation
         }
     }
 
+    /// <summary>
+    /// Gets the result of the completed dispatcher operation.
+    /// </summary>
+    /// <remarks>
+    /// Reading this property from the dispatcher thread is allowed only after the operation has
+    /// completed. Non-UI threads can block until the result is available.
+    /// </remarks>
     public T Result
     {
         get
@@ -412,10 +501,28 @@ internal class SendOrPostCallbackDispatcherOperation : DispatcherOperation
     }
 }
 
+/// <summary>
+/// Identifies the lifecycle state of a <see cref="DispatcherOperation"/>.
+/// </summary>
 public enum DispatcherOperationStatus
 {
+    /// <summary>
+    /// The operation is queued and has not started executing.
+    /// </summary>
     Pending = 0,
+
+    /// <summary>
+    /// The operation was aborted before it completed.
+    /// </summary>
     Aborted = 1,
+
+    /// <summary>
+    /// The operation completed, either successfully or with a captured exception.
+    /// </summary>
     Completed = 2,
+
+    /// <summary>
+    /// The operation callback is currently executing.
+    /// </summary>
     Executing = 3,
 }

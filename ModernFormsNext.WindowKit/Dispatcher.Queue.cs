@@ -245,6 +245,11 @@ public partial class Dispatcher
         return notify;
     }
 
+    /// <summary>
+    /// Determines whether the dispatcher has queued jobs at or above the specified priority.
+    /// </summary>
+    /// <param name="priority">The minimum priority to check.</param>
+    /// <returns><see langword="true"/> when matching jobs are queued; otherwise, <see langword="false"/>.</returns>
     public bool HasJobsWithPriority(DispatcherPriority priority)
     {
         lock (InstanceLock)

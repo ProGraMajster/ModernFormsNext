@@ -20,6 +20,9 @@ public class DispatcherFrame
     {
     }
 
+    /// <summary>
+    /// Gets the dispatcher associated with this frame.
+    /// </summary>
     public Dispatcher Dispatcher { get; }
     
     /// <summary>

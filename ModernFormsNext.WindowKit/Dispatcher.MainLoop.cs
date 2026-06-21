@@ -155,6 +155,9 @@ public partial class Dispatcher
         ShutdownFinished?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Represents a scope in which dispatcher processing is temporarily disabled.
+    /// </summary>
     public record struct DispatcherProcessingDisabled : IDisposable
     {
         private readonly SynchronizationContext? _oldContext;
@@ -174,6 +177,9 @@ public partial class Dispatcher
             _restoreContext = true;
         }
         
+        /// <summary>
+        /// Restores dispatcher processing when the scope ends.
+        /// </summary>
         public void Dispose()
         {
             if(_dispatcher==null)

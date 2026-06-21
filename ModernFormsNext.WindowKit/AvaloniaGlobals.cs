@@ -8,6 +8,13 @@ using ModernFormsNext.WindowKit.Threading;
 
 namespace ModernFormsNext.WindowKit
 {
+    /// <summary>
+    /// Provides a process-wide registry for platform services used by WindowKit infrastructure.
+    /// </summary>
+    /// <remarks>
+    /// This compatibility service locator is used by backend-facing code to resolve services such
+    /// as runtime platform, dispatcher, cursor factory, and clipboard implementations.
+    /// </remarks>
     public static class AvaloniaGlobals
     {
         private static Dictionary<Type, object> services = new Dictionary<Type, object>();
@@ -26,6 +33,12 @@ namespace ModernFormsNext.WindowKit
                 throw new InvalidOperationException("Unrecognized Operating System");*/
         }
 
+        /// <summary>
+        /// Registers a platform service implementation.
+        /// </summary>
+        /// <typeparam name="T">The service contract type.</typeparam>
+        /// <param name="implementation">The service implementation to register.</param>
+        /// <returns>The registered implementation.</returns>
         public static T AddService<T>(T implementation) where T : class
         {
             services.Add(typeof(T), implementation);
@@ -33,6 +46,12 @@ namespace ModernFormsNext.WindowKit
             return implementation;
         }
 
+        /// <summary>
+        /// Gets a required platform service implementation.
+        /// </summary>
+        /// <typeparam name="T">The service contract type.</typeparam>
+        /// <returns>The registered service implementation.</returns>
+        /// <exception cref="ApplicationException">Thrown when no service is registered for <typeparamref name="T"/>.</exception>
         public static T GetRequiredService<T>() where T : class
         {
             if (services.TryGetValue(typeof(T), out var implementation))
@@ -41,6 +60,11 @@ namespace ModernFormsNext.WindowKit
             throw new ApplicationException($"Could not resolve service type {typeof(T)}");
         }
 
+        /// <summary>
+        /// Gets an optional platform service implementation.
+        /// </summary>
+        /// <typeparam name="T">The service contract type.</typeparam>
+        /// <returns>The registered service implementation, or <see langword="null"/> when it is not registered.</returns>
         public static T? GetService<T>() where T : class
         {
             if (services.TryGetValue(typeof(T), out var implementation))
@@ -81,15 +105,34 @@ namespace ModernFormsNext.WindowKit
         }*/
     }
 
+    /// <summary>
+    /// Provides compatibility access to the global WindowKit service locator.
+    /// </summary>
     public static class AvaloniaLocator
     {
+        /// <summary>
+        /// Gets the current compatibility locator instance.
+        /// </summary>
         public static AvaloniaInstance Current = new AvaloniaInstance();
 
+        /// <summary>
+        /// Provides typed accessors for services registered in <see cref="AvaloniaGlobals"/>.
+        /// </summary>
         public class AvaloniaInstance
         {
+            /// <summary>
+            /// Gets a required platform service implementation.
+            /// </summary>
+            /// <typeparam name="T">The service contract type.</typeparam>
+            /// <returns>The registered service implementation.</returns>
             public T GetRequiredService<T>() where T : class 
                 => AvaloniaGlobals.GetRequiredService<T>();
 
+            /// <summary>
+            /// Gets an optional platform service implementation.
+            /// </summary>
+            /// <typeparam name="T">The service contract type.</typeparam>
+            /// <returns>The registered service implementation, or <see langword="null"/> when it is not registered.</returns>
             public T? GetService<T>() where T : class 
                 => AvaloniaGlobals.GetService<T>();
         }

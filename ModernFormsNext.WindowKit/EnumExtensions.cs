@@ -8,7 +8,14 @@ namespace ModernFormsNext.WindowKit
     /// </summary>
     public static class EnumExtensions
     {
-            
+
+        /// <summary>
+        /// Determines whether all specified flags are present in an enum value.
+        /// </summary>
+        /// <typeparam name="T">The unmanaged enum type.</typeparam>
+        /// <param name="value">The enum value to inspect.</param>
+        /// <param name="flags">The flags that must be present.</param>
+        /// <returns><see langword="true"/> when all flags are present; otherwise, <see langword="false"/>.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe bool HasAllFlags<T>(this T value, T flags) where T : unmanaged, Enum
         {
@@ -40,6 +47,13 @@ namespace ModernFormsNext.WindowKit
                 throw new NotSupportedException("Enum with size of " + Unsafe.SizeOf<T>() + " are not supported");
         }
 
+        /// <summary>
+        /// Determines whether any specified flag is present in an enum value.
+        /// </summary>
+        /// <typeparam name="T">The unmanaged enum type.</typeparam>
+        /// <param name="value">The enum value to inspect.</param>
+        /// <param name="flags">The flags to test.</param>
+        /// <returns><see langword="true"/> when any flag is present; otherwise, <see langword="false"/>.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe bool HasAnyFlag<T>(this T value, T flags) where T : unmanaged, Enum
         {

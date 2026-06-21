@@ -144,11 +144,23 @@ namespace ModernFormsNext.WindowKit
             return new Size(size._width / scale, size._height / scale);
         }
 
+        /// <summary>
+        /// Adds two sizes component-wise.
+        /// </summary>
+        /// <param name="size">The first size.</param>
+        /// <param name="toAdd">The size to add.</param>
+        /// <returns>The summed size.</returns>
         public static Size operator +(Size size, Size toAdd)
         {
             return new Size(size._width + toAdd._width, size._height + toAdd._height);
         }
 
+        /// <summary>
+        /// Subtracts one size from another component-wise.
+        /// </summary>
+        /// <param name="size">The size to subtract from.</param>
+        /// <param name="toSubtract">The size to subtract.</param>
+        /// <returns>The difference size.</returns>
         public static Size operator -(Size size, Size toSubtract)
         {
             return new Size(size._width - toSubtract._width, size._height - toSubtract._height);

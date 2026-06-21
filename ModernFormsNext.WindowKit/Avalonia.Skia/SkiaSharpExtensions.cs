@@ -7,8 +7,19 @@ using SkiaSharp;
 
 namespace ModernFormsNext.WindowKit.Skia
 {
+    /// <summary>
+    /// Provides conversions between ModernFormsNext drawing primitives and SkiaSharp primitives.
+    /// </summary>
     public static class SkiaSharpExtensions
     {
+        /// <summary>
+        /// Converts a bitmap interpolation mode to a SkiaSharp filter quality value.
+        /// </summary>
+        /// <param name="interpolationMode">The interpolation mode to convert.</param>
+        /// <returns>The matching SkiaSharp filter quality.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="interpolationMode"/> is not recognized.
+        /// </exception>
         public static SKFilterQuality ToSKFilterQuality(this BitmapInterpolationMode interpolationMode)
         {
             switch (interpolationMode)
@@ -61,16 +72,31 @@ namespace ModernFormsNext.WindowKit.Skia
         //    }
         //}
 
+        /// <summary>
+        /// Converts a logical point to a SkiaSharp point.
+        /// </summary>
+        /// <param name="p">The point to convert.</param>
+        /// <returns>The converted SkiaSharp point.</returns>
         public static SKPoint ToSKPoint(this Point p)
         {
             return new SKPoint((float)p.X, (float)p.Y);
         }
         
+        /// <summary>
+        /// Converts a vector to a SkiaSharp point.
+        /// </summary>
+        /// <param name="p">The vector to convert.</param>
+        /// <returns>The converted SkiaSharp point.</returns>
         public static SKPoint ToSKPoint(this Vector p)
         {
             return new SKPoint((float)p.X, (float)p.Y);
         }
 
+        /// <summary>
+        /// Converts a logical rectangle to a SkiaSharp rectangle.
+        /// </summary>
+        /// <param name="r">The rectangle to convert.</param>
+        /// <returns>The converted SkiaSharp rectangle.</returns>
         public static SKRect ToSKRect(this Rect r)
         {
             return new SKRect((float)r.X, (float)r.Y, (float)r.Right, (float)r.Bottom);
@@ -91,6 +117,11 @@ namespace ModernFormsNext.WindowKit.Skia
         //    return result;
         //}
 
+        /// <summary>
+        /// Converts a SkiaSharp rectangle to a ModernFormsNext rectangle.
+        /// </summary>
+        /// <param name="r">The SkiaSharp rectangle to convert.</param>
+        /// <returns>The converted ModernFormsNext rectangle.</returns>
         public static Rect ToAvaloniaRect(this SKRect r)
         {
             return new Rect(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
@@ -119,6 +150,12 @@ namespace ModernFormsNext.WindowKit.Skia
         //    return new SKColor(c.R, c.G, c.B, c.A);
         //}
 
+        /// <summary>
+        /// Converts a ModernFormsNext pixel format to a SkiaSharp color type.
+        /// </summary>
+        /// <param name="fmt">The pixel format to convert.</param>
+        /// <returns>The matching SkiaSharp color type.</returns>
+        /// <exception cref="ArgumentException">Thrown when the pixel format is not supported by this conversion.</exception>
         public static SKColorType ToSkColorType(this PixelFormat fmt)
         {
             if (fmt == PixelFormat.Rgb565)
@@ -130,6 +167,11 @@ namespace ModernFormsNext.WindowKit.Skia
             throw new ArgumentException("Unknown pixel format: " + fmt);
         }
 
+        /// <summary>
+        /// Converts a SkiaSharp color type to a ModernFormsNext pixel format when supported.
+        /// </summary>
+        /// <param name="colorType">The SkiaSharp color type to convert.</param>
+        /// <returns>The matching pixel format, or <see langword="null"/> when no mapping exists.</returns>
         public static PixelFormat? ToAvalonia(this SKColorType colorType)
         {
             if (colorType == SKColorType.Rgb565)
@@ -141,6 +183,12 @@ namespace ModernFormsNext.WindowKit.Skia
             return null;
         }
 
+        /// <summary>
+        /// Converts a SkiaSharp color type to a ModernFormsNext pixel format.
+        /// </summary>
+        /// <param name="fmt">The SkiaSharp color type to convert.</param>
+        /// <returns>The matching pixel format.</returns>
+        /// <exception cref="ArgumentException">Thrown when the color type is not supported by this conversion.</exception>
         public static PixelFormat ToPixelFormat(this SKColorType fmt)
         {
             if (fmt == SKColorType.Rgb565)
@@ -152,6 +200,12 @@ namespace ModernFormsNext.WindowKit.Skia
             throw new ArgumentException("Unknown pixel format: " + fmt);
         }
 
+        /// <summary>
+        /// Converts an alpha format to a SkiaSharp alpha type.
+        /// </summary>
+        /// <param name="fmt">The alpha format to convert.</param>
+        /// <returns>The matching SkiaSharp alpha type.</returns>
+        /// <exception cref="ArgumentException">Thrown when the alpha format is not recognized.</exception>
         public static SKAlphaType ToSkAlphaType(this AlphaFormat fmt)
         {
             return fmt switch
@@ -219,6 +273,11 @@ namespace ModernFormsNext.WindowKit.Skia
         //}
 
         //[return: NotNullIfNotNull(nameof(src))]
+        /// <summary>
+        /// Creates a copy of a SkiaSharp path.
+        /// </summary>
+        /// <param name="src">The path to clone.</param>
+        /// <returns>A cloned path, or <see langword="null"/> when <paramref name="src"/> is <see langword="null"/>.</returns>
         public static SKPath? Clone(this SKPath? src)
         {
             return src != null ? new SKPath(src) : null;

@@ -26,11 +26,16 @@ namespace ModernFormsNext.WindowKit.Input
         private bool _disposed;
         private MouseButton _lastMouseDownButton;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MouseDevice"/> class.
+        /// </summary>
+        /// <param name="pointer">The pointer to use for mouse input, or <see langword="null"/> to create one.</param>
         public MouseDevice(Pointer? pointer = null)
         {
             _pointer = pointer ?? new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
         }
         
+        /// <inheritdoc />
         public void ProcessRawEvent(RawInputEventArgs e)
         {
             if (!e.Handled && e is RawPointerEventArgs margs)
@@ -288,12 +293,14 @@ namespace ModernFormsNext.WindowKit.Input
         //    return false;
         //}
 
+        /// <inheritdoc />
         public void Dispose()
         {
             _disposed = true;
             _pointer?.Dispose();
         }
         
+        /// <inheritdoc />
         public IPointer? TryGetPointer(RawPointerEventArgs ev)
         {
             return _pointer;

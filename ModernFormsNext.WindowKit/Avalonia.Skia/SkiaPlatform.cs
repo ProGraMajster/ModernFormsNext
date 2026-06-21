@@ -15,6 +15,10 @@ namespace ModernFormsNext.WindowKit.Skia
             Initialize(new SkiaOptions());
         }
 
+        /// <summary>
+        /// Initializes the Skia platform using the specified options.
+        /// </summary>
+        /// <param name="options">The Skia platform options.</param>
         public static void Initialize(SkiaOptions options)
         {
             //var renderInterface = new PlatformRenderInterface(options.MaxGpuResourceSizeBytes);

@@ -4,28 +4,114 @@ using ModernFormsNext.WindowKit.Metadata;
 
 namespace ModernFormsNext.WindowKit.Input.Raw
 {
+    /// <summary>
+    /// Identifies the kind of raw pointer event reported by a platform backend.
+    /// </summary>
     public enum RawPointerEventType
     {
+        /// <summary>
+        /// The pointer left the top-level window.
+        /// </summary>
         LeaveWindow,
+
+        /// <summary>
+        /// The left pointer button was pressed.
+        /// </summary>
         LeftButtonDown,
+
+        /// <summary>
+        /// The left pointer button was released.
+        /// </summary>
         LeftButtonUp,
+
+        /// <summary>
+        /// The right pointer button was pressed.
+        /// </summary>
         RightButtonDown,
+
+        /// <summary>
+        /// The right pointer button was released.
+        /// </summary>
         RightButtonUp,
+
+        /// <summary>
+        /// The middle pointer button was pressed.
+        /// </summary>
         MiddleButtonDown,
+
+        /// <summary>
+        /// The middle pointer button was released.
+        /// </summary>
         MiddleButtonUp,
+
+        /// <summary>
+        /// The first extended pointer button was pressed.
+        /// </summary>
         XButton1Down,
+
+        /// <summary>
+        /// The first extended pointer button was released.
+        /// </summary>
         XButton1Up,
+
+        /// <summary>
+        /// The second extended pointer button was pressed.
+        /// </summary>
         XButton2Down,
+
+        /// <summary>
+        /// The second extended pointer button was released.
+        /// </summary>
         XButton2Up,
+
+        /// <summary>
+        /// The pointer moved.
+        /// </summary>
         Move,
+
+        /// <summary>
+        /// The pointer wheel changed.
+        /// </summary>
         Wheel,
+
+        /// <summary>
+        /// The left button was pressed in the non-client area of a window.
+        /// </summary>
         NonClientLeftButtonDown,
+
+        /// <summary>
+        /// A touch contact began.
+        /// </summary>
         TouchBegin,
+
+        /// <summary>
+        /// A touch contact moved or changed.
+        /// </summary>
         TouchUpdate,
+
+        /// <summary>
+        /// A touch contact ended.
+        /// </summary>
         TouchEnd,
+
+        /// <summary>
+        /// A touch contact was canceled by the platform.
+        /// </summary>
         TouchCancel,
+
+        /// <summary>
+        /// A magnification gesture was reported.
+        /// </summary>
         Magnify,
+
+        /// <summary>
+        /// A rotation gesture was reported.
+        /// </summary>
         Rotate,
+
+        /// <summary>
+        /// A swipe gesture was reported.
+        /// </summary>
         Swipe
     }
 
@@ -126,6 +212,9 @@ namespace ModernFormsNext.WindowKit.Input.Raw
         //internal IInputElement? InputHitTestResult { get; set; }
     }
 
+    /// <summary>
+    /// Describes a raw pointer sample reported by a platform backend.
+    /// </summary>
     [PrivateApi]
     public record struct RawPointerPoint
     {
@@ -143,7 +232,9 @@ namespace ModernFormsNext.WindowKit.Input.Raw
         /// <inheritdoc cref="PointerPointProperties.YTilt" />
         public float YTilt { get; set; }
 
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="RawPointerPoint"/> struct with default pressure.
+        /// </summary>
         public RawPointerPoint()
         {
             this = default;

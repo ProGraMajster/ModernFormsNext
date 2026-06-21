@@ -168,8 +168,10 @@ namespace ModernFormsNext.WindowKit
                    MathUtilities.AreClose(_y, other._y);
         }
 
+        /// <inheritdoc />
         public override bool Equals(object? obj) => obj is Vector other && Equals(other);
 
+        /// <inheritdoc />
         public override int GetHashCode()
         {
             unchecked
@@ -178,11 +180,23 @@ namespace ModernFormsNext.WindowKit
             }
         }
 
+        /// <summary>
+        /// Determines whether two vectors are equal.
+        /// </summary>
+        /// <param name="left">The first vector.</param>
+        /// <param name="right">The second vector.</param>
+        /// <returns><see langword="true"/> when the vectors are equal; otherwise, <see langword="false"/>.</returns>
         public static bool operator ==(Vector left, Vector right)
         {
             return left.Equals(right);
         }
 
+        /// <summary>
+        /// Determines whether two vectors are not equal.
+        /// </summary>
+        /// <param name="left">The first vector.</param>
+        /// <param name="right">The second vector.</param>
+        /// <returns><see langword="true"/> when the vectors are not equal; otherwise, <see langword="false"/>.</returns>
         public static bool operator !=(Vector left, Vector right)
         {
             return !left.Equals(right);

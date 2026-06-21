@@ -250,6 +250,9 @@ namespace ModernFormsNext.WindowKit.Controls.Primitives.PopupPositioning
         /// </remarks>
         ResizeY = 16,
 
+        /// <summary>
+        /// Enables all supported constraint adjustments.
+        /// </summary>
         All = SlideX|SlideY|FlipX|FlipY|ResizeX|ResizeY
     }
 
