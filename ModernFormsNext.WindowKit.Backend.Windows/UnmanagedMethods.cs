@@ -1200,6 +1200,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT lpPoint);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr CreatePopupMenu();
+
         [DllImport("user32.dll")]
         public static extern uint GetDoubleClickTime();
 
@@ -1337,6 +1340,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "RegisterWindowMessageW", ExactSpelling = true)]
         public static extern uint RegisterWindowMessage(string lpString);
 
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "AppendMenuW", ExactSpelling = true)]
+        public static extern bool AppendMenu(IntPtr hMenu, MenuFlags uFlags, UIntPtr uIDNewItem, string? lpNewItem);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyMenu(IntPtr hMenu);
+
         [DllImport("user32.dll")]
         public static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
 
@@ -1414,6 +1423,16 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
 
         [DllImport("user32.dll")]
         public static extern bool TranslateMessage(ref MSG lpMsg);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern int TrackPopupMenu(
+            IntPtr hMenu,
+            TrackPopupMenuFlags uFlags,
+            int x,
+            int y,
+            int nReserved,
+            IntPtr hWnd,
+            IntPtr prcRect);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "UnregisterClassW", ExactSpelling = true)]
         public static extern bool UnregisterClass(string lpClassName, IntPtr hInstance);
@@ -2551,6 +2570,26 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         NOSOUND = 0x00000010,
         LARGE_ICON = 0x00000020,
         RESPECT_QUIET_TIME = 0x00000080
+    }
+
+    [Flags]
+    internal enum MenuFlags : uint
+    {
+        STRING = 0x00000000,
+        GRAYED = 0x00000001,
+        DISABLED = 0x00000002,
+        CHECKED = 0x00000008,
+        POPUP = 0x00000010,
+        SEPARATOR = 0x00000800
+    }
+
+    [Flags]
+    internal enum TrackPopupMenuFlags : uint
+    {
+        LEFTALIGN = 0x00000000,
+        TOPALIGN = 0x00000000,
+        RIGHTBUTTON = 0x00000002,
+        RETURNCMD = 0x00000100
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]

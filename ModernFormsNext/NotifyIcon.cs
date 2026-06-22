@@ -30,12 +30,22 @@ namespace ModernFormsNext
     /// The bitmap is copied into a native icon handle by the backend; the caller retains
     /// ownership of the <see cref="SKBitmap"/>.
     /// </para>
+    /// <para>
+    /// Assign <see cref="ContextMenu"/> to show a native tray menu when the user right-clicks
+    /// the notification area icon.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
+    /// var menu = new NotifyIconContextMenu();
+    /// menu.Items.Add("Open", (_, _) => mainForm.Show());
+    /// menu.Items.AddSeparator();
+    /// menu.Items.Add("Exit", (_, _) => Application.Exit());
+    ///
     /// var notifyIcon = new NotifyIcon
     /// {
     ///     Icon = SKBitmap.Decode("app-icon.png"),
+    ///     ContextMenu = menu,
     ///     Text = "ModernFormsNext app",
     ///     Visible = true
     /// };
@@ -47,6 +57,7 @@ namespace ModernFormsNext
     public class NotifyIcon : Component
     {
         private readonly IPlatformTrayIcon platform_icon;
+        private NotifyIconContextMenu? context_menu;
         private SKBitmap? icon;
         private string text = string.Empty;
         private bool disposed;
@@ -91,6 +102,23 @@ namespace ModernFormsNext
         /// Occurs when the user releases a mouse button over the notification area icon.
         /// </summary>
         public event EventHandler<MouseEventArgs>? MouseUp;
+
+        /// <summary>
+        /// Gets or sets the context menu displayed when the user right-clicks the notification
+        /// area icon.
+        /// </summary>
+        /// <remarks>
+        /// This property uses <see cref="NotifyIconContextMenu"/>, not <see cref="ContextMenu"/>,
+        /// because a tray icon is not a visual <see cref="Control"/> and has no parent
+        /// <see cref="Form"/> for the normal popup menu system.
+        /// </remarks>
+        public NotifyIconContextMenu? ContextMenu {
+            get => context_menu;
+            set {
+                ThrowIfDisposed ();
+                context_menu = value;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the image displayed in the operating system notification area.
@@ -291,6 +319,9 @@ namespace ModernFormsNext
 
             if (e.Button != MouseButton.None)
                 OnClick (args);
+
+            if (!disposed && e.Button == MouseButton.Right)
+                context_menu?.Show (platform_icon, e.ScreenLocation);
         }
 
         private void ThrowIfDisposed ()

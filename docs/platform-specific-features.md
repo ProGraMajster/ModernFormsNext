@@ -35,6 +35,30 @@ trayIcon.ShowBalloonTip(
     NotifyIconBalloonIcon.Info);
 ```
 
+### Tray Context Menu
+
+Use `NotifyIconContextMenu` for tray icons. Do not use the regular `ContextMenu` type here:
+regular context menus are controls hosted in ModernFormsNext popup windows, while tray icons
+are non-visual operating system objects.
+
+```csharp
+var menu = new NotifyIconContextMenu();
+
+menu.Items.Add("Open", (_, _) => mainForm.Show());
+
+var pauseItem = menu.Items.Add("Pause notifications");
+pauseItem.Checked = true;
+pauseItem.Click += (_, _) =>
+{
+    pauseItem.Checked = !pauseItem.Checked;
+};
+
+menu.Items.AddSeparator();
+menu.Items.Add("Exit", (_, _) => Application.Exit());
+
+trayIcon.ContextMenu = menu;
+```
+
 Important behavior:
 
 - Target `net10.0-windows` and include the Windows backend when using this component.
@@ -48,6 +72,8 @@ Important behavior:
   message window are removed.
 - `ShowBalloonTip` requires the icon to be visible. Modern Windows versions may ignore the
   requested timeout and apply system notification timing.
-- Context menu integration is not implemented yet. It needs a separate design because the
-  current `ContextMenu` API is tied to a `Control`/`Form` owner, while a tray icon is not a
-  visual control.
+- `NotifyIcon.ContextMenu` is shown by the backend as a native tray menu on right-click.
+- `NotifyIconMenuItem.Checked` only controls the check mark shown by the platform menu. It
+  does not toggle automatically when the user selects the item.
+- `NotifyIconMenuItem.Items` creates a native submenu. Disabled items and separators are
+  handled by the platform menu.

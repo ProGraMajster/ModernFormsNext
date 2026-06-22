@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -122,6 +123,40 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
         }
 
         /// <inheritdoc/>
+        public int ShowContextMenu (IReadOnlyList<PlatformTrayMenuItem> items, PixelPoint screenLocation)
+        {
+            ThrowIfDisposed ();
+            ArgumentNullException.ThrowIfNull (items);
+
+            if (items.Count == 0)
+                return 0;
+
+            var menu = CreateNativeMenu (items);
+
+            try {
+                SetForegroundWindow (hwnd);
+
+                var command = TrackPopupMenu (
+                    menu,
+                    TrackPopupMenuFlags.LEFTALIGN | TrackPopupMenuFlags.TOPALIGN |
+                    TrackPopupMenuFlags.RIGHTBUTTON | TrackPopupMenuFlags.RETURNCMD,
+                    screenLocation.X,
+                    screenLocation.Y,
+                    0,
+                    hwnd,
+                    IntPtr.Zero);
+
+                // The shell expects a benign message after a notification-area popup menu;
+                // without it, the menu can remain in a sticky state after dismissal.
+                PostMessage (hwnd, (uint)WindowsMessage.WM_NULL, IntPtr.Zero, IntPtr.Zero);
+
+                return command;
+            } finally {
+                DestroyMenu (menu);
+            }
+        }
+
+        /// <inheritdoc/>
         public void Dispose ()
         {
             if (disposed)
@@ -144,6 +179,75 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
                 return string.Empty;
 
             return value.Length <= maxLength ? value : value.Substring (0, maxLength);
+        }
+
+        private static void AppendNativeMenuItem (IntPtr menu, PlatformTrayMenuItem item)
+        {
+            if (item.Separator) {
+                AppendNativeMenuItem (menu, MenuFlags.SEPARATOR, UIntPtr.Zero, null, "append a tray context menu separator");
+                return;
+            }
+
+            var flags = CreateNativeMenuFlags (item);
+
+            if (item.Items.Count > 0) {
+                var submenu = CreateNativeMenu (item.Items);
+
+                try {
+                    AppendNativeMenuItem (menu, flags | MenuFlags.POPUP, ToUIntPtr (submenu), item.Text, "append a tray context submenu");
+                } catch {
+                    DestroyMenu (submenu);
+                    throw;
+                }
+
+                return;
+            }
+
+            AppendNativeMenuItem (menu, flags | MenuFlags.STRING, new UIntPtr ((uint)item.CommandId), item.Text, "append a tray context menu item");
+        }
+
+        private static void AppendNativeMenuItem (IntPtr menu, MenuFlags flags, UIntPtr id, string? text, string operation)
+        {
+            if (AppendMenu (menu, flags, id, text))
+                return;
+
+            var error = Marshal.GetLastWin32Error ();
+
+            if (error != 0)
+                throw new Win32Exception (error, $"Could not {operation}.");
+
+            throw new InvalidOperationException ($"Could not {operation}.");
+        }
+
+        private static IntPtr CreateNativeMenu (IReadOnlyList<PlatformTrayMenuItem> items)
+        {
+            var menu = CreatePopupMenu ();
+
+            if (menu == IntPtr.Zero)
+                throw new Win32Exception (Marshal.GetLastWin32Error (), "Could not create a tray context menu.");
+
+            try {
+                foreach (var item in items)
+                    AppendNativeMenuItem (menu, item);
+
+                return menu;
+            } catch {
+                DestroyMenu (menu);
+                throw;
+            }
+        }
+
+        private static MenuFlags CreateNativeMenuFlags (PlatformTrayMenuItem item)
+        {
+            var flags = MenuFlags.STRING;
+
+            if (!item.Enabled)
+                flags |= MenuFlags.DISABLED | MenuFlags.GRAYED;
+
+            if (item.Checked)
+                flags |= MenuFlags.CHECKED;
+
+            return flags;
         }
 
         private static IntPtr CreateMessageWindow (WndProc wndProc, IntPtr hinstance, string className)
@@ -227,6 +331,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
                 PlatformBalloonIcon.Error => NIIF.ERROR,
                 _ => NIIF.NONE
             };
+
+        private static UIntPtr ToUIntPtr (IntPtr value)
+        {
+            if (IntPtr.Size == 8)
+                return new UIntPtr ((ulong)value.ToInt64 ());
+
+            return new UIntPtr ((uint)value.ToInt32 ());
+        }
 
         private void AddShellIcon ()
         {

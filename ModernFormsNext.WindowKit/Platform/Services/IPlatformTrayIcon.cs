@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Metadata;
 using SkiaSharp;
@@ -63,6 +64,83 @@ namespace ModernFormsNext.WindowKit.Platform.Services
         /// <param name="text">The balloon body text.</param>
         /// <param name="icon">The balloon icon kind.</param>
         void ShowBalloonTip (int timeout, string title, string text, PlatformBalloonIcon icon);
+
+        /// <summary>
+        /// Shows a native context menu for the tray icon.
+        /// </summary>
+        /// <param name="items">The platform-neutral menu items to display.</param>
+        /// <param name="screenLocation">The screen pixel location where the menu should open.</param>
+        /// <returns>
+        /// The command identifier selected by the user, or <c>0</c> when the menu was dismissed
+        /// without choosing an item.
+        /// </returns>
+        int ShowContextMenu (IReadOnlyList<PlatformTrayMenuItem> items, PixelPoint screenLocation);
+    }
+
+    /// <summary>
+    /// Describes a single item in a backend-owned tray icon context menu.
+    /// </summary>
+    /// <remarks>
+    /// This type is a private backend contract. Application code should use
+    /// <c>NotifyIconContextMenu</c> and <c>NotifyIconMenuItem</c> instead.
+    /// </remarks>
+    [Unstable, PrivateApi]
+    public sealed class PlatformTrayMenuItem
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="PlatformTrayMenuItem"/> class.
+        /// </summary>
+        /// <param name="commandId">The command identifier returned when the item is selected.</param>
+        /// <param name="text">The text displayed by the platform menu.</param>
+        /// <param name="enabled">A value indicating whether the item can be selected.</param>
+        /// <param name="checked">A value indicating whether the item is checked.</param>
+        /// <param name="separator">A value indicating whether the item is a separator.</param>
+        /// <param name="items">Child items used to create a submenu.</param>
+        public PlatformTrayMenuItem (
+            int commandId,
+            string text,
+            bool enabled,
+            bool @checked,
+            bool separator,
+            IReadOnlyList<PlatformTrayMenuItem>? items = null)
+        {
+            CommandId = commandId;
+            Text = text ?? string.Empty;
+            Enabled = enabled;
+            Checked = @checked;
+            Separator = separator;
+            Items = items ?? Array.Empty<PlatformTrayMenuItem> ();
+        }
+
+        /// <summary>
+        /// Gets the command identifier returned when the item is selected.
+        /// </summary>
+        public int CommandId { get; }
+
+        /// <summary>
+        /// Gets the text displayed by the platform menu.
+        /// </summary>
+        public string Text { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the item can be selected.
+        /// </summary>
+        public bool Enabled { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the item is checked.
+        /// </summary>
+        public bool Checked { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the item is a separator.
+        /// </summary>
+        public bool Separator { get; }
+
+        /// <summary>
+        /// Gets the child items used to create a submenu.
+        /// </summary>
+        public IReadOnlyList<PlatformTrayMenuItem> Items { get; }
     }
 
     /// <summary>
