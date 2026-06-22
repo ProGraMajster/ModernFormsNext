@@ -17,6 +17,7 @@ namespace ModernFormsNext
         private int selection_anchor = -1;
         private int scroll_x = 0;
         private int scroll_y = 0;
+        private ContentAlignment text_align = ContentAlignment.MiddleLeft;
 
         /// <summary>
         /// Initializes a new instance of the TextBox class.
@@ -409,6 +410,39 @@ namespace ModernFormsNext
                     document.Text = value;
                     ScrollToCaret ();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets how text is horizontally aligned within the <see cref="TextBox"/>.
+        /// </summary>
+        /// <remarks>
+        /// The control uses the horizontal component of the <see cref="ContentAlignment"/>
+        /// value. For example, <see cref="ContentAlignment.TopCenter"/>,
+        /// <see cref="ContentAlignment.MiddleCenter"/>, and
+        /// <see cref="ContentAlignment.BottomCenter"/> all center the text.
+        ///
+        /// Changing this property recalculates the text layout, invalidates the control,
+        /// and scrolls the caret back into view. It does not change the text, selection,
+        /// or whether the control is single-line or multi-line.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var amount = new TextBox
+        /// {
+        ///     TextAlign = ContentAlignment.MiddleRight
+        /// };
+        /// </code>
+        /// </example>
+        public ContentAlignment TextAlign {
+            get => text_align;
+            set {
+                if (text_align == value)
+                    return;
+
+                text_align = value;
+                document.Alignment = TextMeasurer.GetTextAlign (value);
+                ScrollToCaret ();
             }
         }
 

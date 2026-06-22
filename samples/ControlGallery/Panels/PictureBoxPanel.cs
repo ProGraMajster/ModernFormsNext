@@ -34,10 +34,13 @@ namespace ControlGallery.Panels
             AddPictureBox (340, 340, PictureBoxSizeMode.Zoom, "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png2");
             AddPictureBox (340, 450, PictureBoxSizeMode.Zoom, null, ImageLoader.Get ("swatches.png"), false);
 
+            AddPictureBox (450, 10, PictureBoxSizeMode.StretchImage, "Images\\animated-test.gif");
+
             Controls.Add (new Label { Left = 10, Top = 5, Text = "Normal" });
             Controls.Add (new Label { Left = 120, Top = 5, Text = "CenterImage" });
             Controls.Add (new Label { Left = 230, Top = 5, Text = "StretchImage" });
             Controls.Add (new Label { Left = 340, Top = 5, Text = "Zoom" });
+            Controls.Add (new Label { Left = 450, Top = 5, Text = "Animated GIF" });
         }
 
         private void AddPictureBox (int left, int top, PictureBoxSizeMode mode, string? url = null, SKBitmap? image = null, bool enabled = true)

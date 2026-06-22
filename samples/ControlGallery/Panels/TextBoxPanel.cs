@@ -22,6 +22,10 @@ namespace ControlGallery.Panels
             var padded = Controls.Add (new TextBox { Text = "With Padding", Left = 200, Top = 10, Width = 150, Padding = new Padding (5) });
             padded.Style.ForegroundColor = SKColors.Red;
 
+            Controls.Add (new TextBox { Text = "Left aligned", Left = 380, Top = 10, Width = 160, TextAlign = ContentAlignment.MiddleLeft });
+            Controls.Add (new TextBox { Text = "Centered", Left = 380, Top = 50, Width = 160, TextAlign = ContentAlignment.MiddleCenter });
+            Controls.Add (new TextBox { Text = "Right aligned", Left = 380, Top = 90, Width = 160, TextAlign = ContentAlignment.MiddleRight });
+
             Controls.Add (new Adorner { Left = 304, Top = 196, Width = 10, Height = 10 });
         }
 

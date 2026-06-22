@@ -147,7 +147,10 @@ namespace ModernFormsNext
             if (cached_text_block != null)
                 return cached_text_block;
 
-            var max_size = multiline ? new Size (width, int.MaxValue) : TextMeasurer.MaxSize;
+            // Single-line text still needs the viewport width so Center/Right alignment
+            // has a real box to align within. TextMeasurer keeps long single-line text
+            // unwrapped when it does not fit, preserving horizontal scrolling behavior.
+            var max_size = new Size (width, int.MaxValue);
             var color = !Enabled ? Theme.ForegroundDisabledColor :
                         Text.HasValue () ? textbox.CurrentStyle.GetForegroundColor () : 
                                 placeholder_font_color;
