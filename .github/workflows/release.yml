@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -43,3 +44,19 @@ jobs:
             --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ProGraMajster
+
+      - name: Publish to NuGet
+        shell: pwsh
+        run: |
+          Get-ChildItem artifacts/packages -Filter *.nupkg | ForEach-Object {
+            dotnet nuget push $_.FullName `
+              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" `
+              --source "https://api.nuget.org/v3/index.json" `
+              --skip-duplicate
+          }
