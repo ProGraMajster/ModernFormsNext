@@ -1,10 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using ModernFormsNext.WindowKit.Platform.Services;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows
 {
-    internal class WindowsTrayManager
+    /// <summary>
+    /// Creates Windows notification area icons for the active process.
+    /// </summary>
+    internal sealed class WindowsTrayManager : IPlatformTrayManager
     {
+        /// <inheritdoc/>
+        public IPlatformTrayIcon CreateTrayIcon () => new WindowsTrayIcon ();
     }
 }

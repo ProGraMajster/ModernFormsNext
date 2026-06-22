@@ -129,3 +129,5 @@ The best way to understand the framework is by exploring the sample projects:
 - `ModernFormsNext.DemoApp`
 - `Explorer`
 - `Outlaw`
+
+For Windows-only and backend-provided APIs, see [Platform-Specific Features](platform-specific-features.md).

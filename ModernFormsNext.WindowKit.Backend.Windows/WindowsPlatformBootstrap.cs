@@ -3,6 +3,7 @@ using ModernFormsNext.WindowKit.Backend.Windows.Win32;
 using ModernFormsNext.WindowKit.Controls.Platform;
 using ModernFormsNext.WindowKit.Input.Platform;
 using ModernFormsNext.WindowKit.Platform;
+using ModernFormsNext.WindowKit.Platform.Services;
 using ModernFormsNext.WindowKit.Threading;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows;
@@ -34,6 +35,7 @@ public static class WindowsPlatformBootstrap
             AvaloniaGlobals.AddService<IDispatcherImpl>(Win32Platform.Instance._dispatcher);
             AvaloniaGlobals.AddService<ICursorFactory>(CursorFactory.Instance);
             AvaloniaGlobals.AddService<IClipboard>(new ClipboardImpl());
+            AvaloniaGlobals.AddService<IPlatformTrayManager>(new WindowsTrayManager());
 
             initialized = true;
         }

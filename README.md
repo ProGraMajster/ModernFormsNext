@@ -98,7 +98,7 @@ public class MainForm : Form
 - `ModernFormsNext.Templates/` - project templates for generated user applications.
 - `samples/ControlGallery/` - manual visual validation app for controls and rendering.
 - `samples/ModernFormsNext.DemoApp/` - reference/template application generated for users, not a control playground.
-- `docs/` - architecture, getting started, samples, and screenshots.
+- `docs/` - architecture, getting started, platform-specific features, samples, and screenshots.
 
 ## Templates and Packages
 

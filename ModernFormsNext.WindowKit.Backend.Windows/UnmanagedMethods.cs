@@ -1436,7 +1436,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
             GCW_ATOM = -32
         }
 
-        [DllImport("shell32", CharSet = CharSet.Auto)]
+        [DllImport("shell32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern int Shell_NotifyIcon(NIM dwMessage, NOTIFYICONDATA lpData);
 
         [DllImport("user32.dll", EntryPoint = "SetClassLongPtrW", ExactSpelling = true)]
