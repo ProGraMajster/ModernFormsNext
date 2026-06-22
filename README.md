@@ -102,7 +102,7 @@ public class MainForm : Form
 
 ## Templates and Packages
 
-The repository contains preview package metadata and a `ModernFormsNext.Templates` template package project. For repository development, prefer project references and the solution commands above. For template validation, keep `ModernFormsNext.Templates` and `samples/ModernFormsNext.DemoApp` aligned so generated applications show the recommended startup pattern.
+The repository contains NuGet package metadata and a `ModernFormsNext.Templates` template package project. For repository development, prefer project references and the solution commands above. For template validation, keep `ModernFormsNext.Templates` and `samples/ModernFormsNext.DemoApp` aligned so generated applications show the recommended startup pattern.
 
 ## Project Direction
 

@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    # GitHub Release is created only after a version tag is pushed, not after ordinary pushes to master.
     tags:
       - "v*.*.*"
 

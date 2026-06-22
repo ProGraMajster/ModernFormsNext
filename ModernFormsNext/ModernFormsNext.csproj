@@ -14,7 +14,7 @@
 
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageId>ModernFormsNext</PackageId>
-		<Version>1.1.0</Version>
+		<Version>$(ModernFormsNextPackageVersion)</Version>
 		<Authors>ProGraMajster</Authors>
 		<Company>ModernFormsNext</Company>
 		<Product>ModernFormsNext</Product>
@@ -63,14 +63,14 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0'">
-		<PackageReference Include="ModernFormsNext.WindowKit" Version="1.0.0" />
-		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="1.0.0" />
+		<PackageReference Include="ModernFormsNext.WindowKit" Version="$(ModernFormsNextPackageVersion)" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="$(ModernFormsNextPackageVersion)" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-windows'">
-		<PackageReference Include="ModernFormsNext.WindowKit" Version="1.0.0" />
-		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="1.0.0" />
-		<PackageReference Include="ModernFormsNext.WindowKit.Backend.Windows" Version="1.0.0" />
+		<PackageReference Include="ModernFormsNext.WindowKit" Version="$(ModernFormsNextPackageVersion)" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="$(ModernFormsNextPackageVersion)" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend.Windows" Version="$(ModernFormsNextPackageVersion)" />
 	</ItemGroup>-->
 
 </Project>

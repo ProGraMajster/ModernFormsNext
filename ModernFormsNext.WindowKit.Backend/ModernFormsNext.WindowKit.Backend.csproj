@@ -13,7 +13,7 @@
 
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageId>ModernFormsNext.WindowKit.Backend</PackageId>
-		<Version>1.1.0</Version>
+		<Version>$(ModernFormsNextPackageVersion)</Version>
 		<Authors>ProGraMajster</Authors>
 		<Company>ModernFormsNext</Company>
 		<Product>ModernFormsNext.WindowKit.Backend</Product>

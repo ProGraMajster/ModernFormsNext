@@ -52,7 +52,7 @@ The repository contains a template package project in `ModernFormsNext.Templates
 dotnet new mfn-app -n MyApp
 ```
 
-The generated project uses a code-first startup flow and references the preview `ModernFormsNext` package.
+The generated project uses a code-first startup flow and references the current `ModernFormsNext` package version.
 
 ### Option 2: Create a Project Manually
 
@@ -75,11 +75,11 @@ For source development inside this repository, use a project reference:
 </ItemGroup>
 ```
 
-For packaged preview usage, reference the package version produced by this repository:
+For packaged usage, reference the package version produced by this repository:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="ModernFormsNext" Version="0.1.0-preview.1" />
+    <PackageReference Include="ModernFormsNext" Version="1.2.0" />
 </ItemGroup>
 ```
 
