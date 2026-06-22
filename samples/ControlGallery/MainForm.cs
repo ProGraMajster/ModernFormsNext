@@ -36,6 +36,7 @@ namespace ControlGallery
             tree.Items.Add ("Menu", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MessageBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NavigationPane", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("NotifyIcon", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Panel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("PictureBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ProgressBar", ImageLoader.Get ("button.png"));
@@ -120,6 +121,8 @@ namespace ControlGallery
                     return new MessageBoxPanel ();
                 case "NavigationPane":
                     return new NavigationPanePanel ();
+                case "NotifyIcon":
+                    return new NotifyIconPanel ();
                 case "Panel":
                     return new PanelPanel ();
                 case "PictureBox":
