@@ -45,21 +45,32 @@
 		<PackageReference Include="Topten.RichTextKit" Version="0.4.167" />
 	</ItemGroup>
 
-	<ItemGroup Condition="'$(Configuration)' != 'Release'">
+	<!-- Internal projects -->
+	<ItemGroup>
+		<ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
+		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+	</ItemGroup>
+
+	<!-- 
+	<ItemGroup Condition="'$(Configuration)' != 'Release'"> 
 		<ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
 		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
 		<ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0'">
-		<PackageReference Include="ModernFormsNext.WindowKit" Version="0.1.0-preview.1" />
-		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="0.1.0-preview.1" />
+		<PackageReference Include="ModernFormsNext.WindowKit" Version="1.0.0" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="1.0.0" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(Configuration)' == 'Release' and '$(TargetFramework)' == 'net10.0-windows'">
-		<PackageReference Include="ModernFormsNext.WindowKit" Version="0.1.0-preview.1" />
-		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="0.1.0-preview.1" />
-		<PackageReference Include="ModernFormsNext.WindowKit.Backend.Windows" Version="0.1.0-preview.1" />
-	</ItemGroup>
+		<PackageReference Include="ModernFormsNext.WindowKit" Version="1.0.0" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend" Version="1.0.0" />
+		<PackageReference Include="ModernFormsNext.WindowKit.Backend.Windows" Version="1.0.0" />
+	</ItemGroup>-->
 
 </Project>
