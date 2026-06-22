@@ -25,6 +25,9 @@ namespace ControlGallery.Panels
             Controls.Add (new TextBox { Text = "Left aligned", Left = 380, Top = 10, Width = 160, TextAlign = ContentAlignment.MiddleLeft });
             Controls.Add (new TextBox { Text = "Centered", Left = 380, Top = 50, Width = 160, TextAlign = ContentAlignment.MiddleCenter });
             Controls.Add (new TextBox { Text = "Right aligned", Left = 380, Top = 90, Width = 160, TextAlign = ContentAlignment.MiddleRight });
+            Controls.Add (new TextBox { Text = "Top", Left = 560, Top = 10, Width = 150, Height = 56, TextAlign = ContentAlignment.TopLeft });
+            Controls.Add (new TextBox { Text = "Middle", Left = 560, Top = 80, Width = 150, Height = 56, TextAlign = ContentAlignment.MiddleLeft });
+            Controls.Add (new TextBox { Text = "Bottom", Left = 560, Top = 150, Width = 150, Height = 56, TextAlign = ContentAlignment.BottomLeft });
 
             Controls.Add (new Adorner { Left = 304, Top = 196, Width = 10, Height = 10 });
         }

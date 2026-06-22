@@ -414,13 +414,16 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets how text is horizontally aligned within the <see cref="TextBox"/>.
+        /// Gets or sets how text is aligned within the <see cref="TextBox"/>.
         /// </summary>
         /// <remarks>
-        /// The control uses the horizontal component of the <see cref="ContentAlignment"/>
-        /// value. For example, <see cref="ContentAlignment.TopCenter"/>,
-        /// <see cref="ContentAlignment.MiddleCenter"/>, and
-        /// <see cref="ContentAlignment.BottomCenter"/> all center the text.
+        /// The horizontal component of the <see cref="ContentAlignment"/> value controls
+        /// left, center, or right alignment. The vertical component controls whether the
+        /// visible text block is placed at the top, middle, or bottom of the padded
+        /// client area when the text is shorter than the available height.
+        ///
+        /// If multiline text is taller than the viewport, the text remains top-anchored
+        /// and the vertical scroll position determines which lines are visible.
         ///
         /// Changing this property recalculates the text layout, invalidates the control,
         /// and scrolls the caret back into view. It does not change the text, selection,
@@ -446,8 +449,42 @@ namespace ModernFormsNext
             }
         }
 
-        // Where the text starts, taking scrolling into account
-        internal Point TextOrigin => new Point (PaddedClientRectangle.Location.X - scroll_x, PaddedClientRectangle.Location.Y - scroll_y);
+        // Where the text starts, taking scrolling and vertical alignment into account.
+        internal Point TextOrigin => GetTextOrigin (document.GetTextBlock ());
+
+        internal Point GetTextOrigin (TextBlock block)
+        {
+            var y = PaddedClientRectangle.Y;
+            var text_height = GetTextBlockHeight (block);
+            var extra_height = PaddedClientRectangle.Height - text_height;
+
+            if (extra_height > 0) {
+                switch (text_align) {
+                    case ContentAlignment.MiddleLeft:
+                    case ContentAlignment.MiddleCenter:
+                    case ContentAlignment.MiddleRight:
+                        y += extra_height / 2;
+                        break;
+                    case ContentAlignment.BottomLeft:
+                    case ContentAlignment.BottomCenter:
+                    case ContentAlignment.BottomRight:
+                        y += extra_height;
+                        break;
+                }
+            }
+
+            return new Point (PaddedClientRectangle.X - scroll_x, y - scroll_y);
+        }
+
+        private int GetTextBlockHeight (TextBlock block)
+        {
+            var measured_height = (int)Math.Ceiling (block.MeasuredHeight);
+
+            if (measured_height > 0)
+                return measured_height;
+
+            return CurrentFontSize + 2;
+        }
 
         // The virtual bounds of what is currently shown to the user.
         private Rectangle TextViewport => new Rectangle (new Point (PaddedClientRectangle.Location.X + scroll_x, PaddedClientRectangle.Location.Y + scroll_y), PaddedClientRectangle.Size);

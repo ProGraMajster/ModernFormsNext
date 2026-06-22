@@ -21,15 +21,16 @@ namespace ModernFormsNext.Renderers
             var block = GetTextBlock (control);
 
             UpdateScrollBars (control, block);
+            var text_origin = control.GetTextOrigin (block);
 
             e.Canvas.Save ();
             e.Canvas.Clip (control.PaddedClientRectangle);
 
             if (text.Length > 0)
-                e.Canvas.DrawTextBlock (block, GetTextOrigin (control), GetTextSelection (control));
+                e.Canvas.DrawTextBlock (block, text_origin, GetTextSelection (control));
 
             if (control.Selected) {
-                var caret = TextMeasurer.GetCursorLocation (block, GetTextOrigin (control), GetCursorIndex (control), GetCurrentFontSize (control));
+                var caret = TextMeasurer.GetCursorLocation (block, text_origin, GetCursorIndex (control), GetCurrentFontSize (control));
                 e.Canvas.DrawRectangle (caret, Theme.ForegroundColor);
             }
 
@@ -57,7 +58,7 @@ namespace ModernFormsNext.Renderers
         protected Point GetTextOrigin (TextBox control) => control.TextOrigin;
 
         /// <summary>
-        /// Gets the TextBox's text seleection.
+        /// Gets the TextBox's text selection.
         /// </summary>
         protected TextSelection GetTextSelection (TextBox control) => control.document.GetTextSelection ();
 
