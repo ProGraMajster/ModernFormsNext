@@ -40,6 +40,11 @@
 		<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
 	</ItemGroup>
 
+	<!-- BindingNavigator still depends on WinForms ToolStrip concepts and needs a ModernFormsNext-native port. -->
+	<ItemGroup>
+		<Compile Remove="DataBinding\BindingNavigator.cs" />
+	</ItemGroup>
+
 	<!-- External -->
 	<ItemGroup>
 		<PackageReference Include="Topten.RichTextKit" Version="0.4.167" />

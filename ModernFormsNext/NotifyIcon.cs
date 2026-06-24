@@ -45,6 +45,8 @@ namespace ModernFormsNext
     /// var notifyIcon = new NotifyIcon
     /// {
     ///     Icon = SKBitmap.Decode("app-icon.png"),
+    ///     ActivationWindow = mainForm,
+    ///     ActivationBehavior = NotifyIconActivationBehavior.ShowWindow,
     ///     ContextMenu = menu,
     ///     Text = "ModernFormsNext app",
     ///     Visible = true
@@ -57,6 +59,8 @@ namespace ModernFormsNext
     public class NotifyIcon : Component
     {
         private readonly IPlatformTrayIcon platform_icon;
+        private NotifyIconActivationBehavior activation_behavior;
+        private Form? activation_window;
         private NotifyIconContextMenu? context_menu;
         private SKBitmap? icon;
         private string text = string.Empty;
@@ -102,6 +106,48 @@ namespace ModernFormsNext
         /// Occurs when the user releases a mouse button over the notification area icon.
         /// </summary>
         public event EventHandler<MouseEventArgs>? MouseUp;
+
+        /// <summary>
+        /// Gets or sets how the notification area icon activates <see cref="ActivationWindow"/>
+        /// when the user left-clicks the icon.
+        /// </summary>
+        /// <remarks>
+        /// The activation behavior runs after the <see cref="Click"/> event is raised. It is ignored
+        /// when <see cref="ActivationWindow"/> is <see langword="null"/> or when the click came from
+        /// any mouse button other than the left button. The Windows backend is currently the primary
+        /// backend that provides notification area icon support.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// notifyIcon.ActivationWindow = mainForm;
+        /// notifyIcon.ActivationBehavior = NotifyIconActivationBehavior.ToggleWindow;
+        /// </code>
+        /// </example>
+        [DefaultValue (NotifyIconActivationBehavior.None)]
+        public NotifyIconActivationBehavior ActivationBehavior {
+            get => activation_behavior;
+            set {
+                ThrowIfDisposed ();
+                activation_behavior = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the form affected by <see cref="ActivationBehavior"/>.
+        /// </summary>
+        /// <remarks>
+        /// The notify icon does not own this form and does not dispose it. Assign this property when
+        /// a tray icon should restore or toggle a main application window after it has been hidden to
+        /// the notification area.
+        /// </remarks>
+        [DefaultValue (null)]
+        public Form? ActivationWindow {
+            get => activation_window;
+            set {
+                ThrowIfDisposed ();
+                activation_window = value;
+            }
+        }
 
         /// <summary>
         /// Gets or sets the context menu displayed when the user right-clicks the notification
@@ -256,6 +302,41 @@ namespace ModernFormsNext
         /// <param name="e">The mouse event data.</param>
         protected virtual void OnMouseUp (MouseEventArgs e) => MouseUp?.Invoke (this, e);
 
+        private void ApplyActivationBehavior (MouseEventArgs e)
+        {
+            if (activation_behavior == NotifyIconActivationBehavior.None
+                || activation_window is null
+                || e.Button != MouseButtons.Left)
+            {
+                return;
+            }
+
+            if (activation_behavior == NotifyIconActivationBehavior.ToggleWindow
+                && activation_window.Visible
+                && activation_window.WindowState != FormWindowState.Minimized)
+            {
+                activation_window.Hide ();
+                return;
+            }
+
+            ShowRestoreAndActivate (activation_window);
+        }
+
+        private static void ShowRestoreAndActivate (Form form)
+        {
+            if (form.WindowState == FormWindowState.Minimized)
+            {
+                form.WindowState = FormWindowState.Normal;
+            }
+
+            if (!form.Visible)
+            {
+                form.Show ();
+            }
+
+            form.window.Activate ();
+        }
+
         private static IPlatformTrayIcon CreatePlatformIcon ()
         {
             FrameworkBootstrap.EnsureInitialized ();
@@ -318,7 +399,10 @@ namespace ModernFormsNext
             OnMouseUp (args);
 
             if (e.Button != MouseButton.None)
+            {
                 OnClick (args);
+                ApplyActivationBehavior (args);
+            }
 
             if (!disposed && e.Button == MouseButton.Right)
                 context_menu?.Show (platform_icon, e.ScreenLocation);
