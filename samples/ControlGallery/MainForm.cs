@@ -25,6 +25,7 @@ namespace ControlGallery
             tree.Items.Add ("Dialogs", ImageLoader.Get ("button.png"));
             tree.Items.Add("DataGridView", ImageLoader.Get("button.png"));
             tree.Items.Add ("FileDialogs", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("FontDialog", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FlowLayoutPanel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FormPaint", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FormShortcuts", ImageLoader.Get ("button.png"));
@@ -101,6 +102,8 @@ namespace ControlGallery
                     return new DialogPanel ();
                 case "FileDialogs":
                     return new FileDialogPanel ();
+                case "FontDialog":
+                    return new FontDialogPanel ();
                 case "FlowLayoutPanel":
                     return new FlowLayoutPanelPanel ();
                 case "FormShortcuts":
