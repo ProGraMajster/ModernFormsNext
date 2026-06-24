@@ -35,6 +35,28 @@ trayIcon.ShowBalloonTip(
     NotifyIconBalloonIcon.Info);
 ```
 
+### Activation Window
+
+Assign `ActivationWindow` when a tray icon should restore or toggle a normal application
+window after the user left-clicks the icon. `ActivationBehavior` controls what happens
+after the `Click` event has been raised.
+
+```csharp
+using var trayIcon = new NotifyIcon
+{
+    Icon = SKBitmap.Decode("app-icon.png"),
+    ActivationWindow = mainForm,
+    ActivationBehavior = NotifyIconActivationBehavior.ToggleWindow,
+    Text = "ModernFormsNext app",
+    Visible = true
+};
+```
+
+`NotifyIconActivationBehavior.ShowWindow` shows the assigned form when it is hidden,
+restores it when it is minimized, and activates it. `ToggleWindow` hides the form when
+it is visible and not minimized; otherwise it uses the same show, restore, and activate
+behavior.
+
 ### Tray Context Menu
 
 Use `NotifyIconContextMenu` for tray icons. Do not use the regular `ContextMenu` type here:
@@ -72,6 +94,9 @@ Important behavior:
   message window are removed.
 - `ShowBalloonTip` requires the icon to be visible. Modern Windows versions may ignore the
   requested timeout and apply system notification timing.
+- `ActivationBehavior` runs only for left-click activation and only when
+  `ActivationWindow` is assigned. The `Click` event is raised before the automatic window
+  activation behavior runs.
 - `NotifyIcon.ContextMenu` is shown by the backend as a native tray menu on right-click.
 - `NotifyIconMenuItem.Checked` only controls the check mark shown by the platform menu. It
   does not toggle automatically when the user selects the item.

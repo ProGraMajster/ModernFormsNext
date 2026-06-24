@@ -114,7 +114,7 @@ Example:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ModernFormsNext" Version="1.2.0" />
+  <PackageReference Include="ModernFormsNext" Version="1.3.0" />
 </ItemGroup>
 ```
 
@@ -144,7 +144,7 @@ Make sure the referenced ModernFormsNext package version exists on NuGet.org.
 Example:
 
 ```xml
-<PackageReference Include="ModernFormsNext" Version="1.2.0" />
+<PackageReference Include="ModernFormsNext" Version="1.3.0" />
 ```
 
 ### The generated project starts as a console application

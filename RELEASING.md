@@ -2,7 +2,7 @@
 
 This repository creates GitHub Releases from version tags, not from ordinary pushes to `master`.
 
-The regular `.NET` workflow validates pushes and pull requests to `master`. The `Release` workflow in `.github/workflows/release.yml` runs only after a Git tag matching `v*.*.*` is pushed, for example `v1.2.0`.
+The regular `.NET` workflow validates pushes and pull requests to `master`. The `Release` workflow in `.github/workflows/release.yml` runs only after a Git tag matching `v*.*.*` is pushed, for example `v1.3.0`.
 
 The current `Release` workflow also publishes `.nupkg` packages to NuGet after creating the GitHub Release. Pushing a release tag is therefore both the GitHub Release trigger and the NuGet publish trigger.
 
@@ -11,13 +11,13 @@ The current `Release` workflow also publishes `.nupkg` packages to NuGet after c
 NuGet package versions use SemVer without a `v` prefix:
 
 ```xml
-<ModernFormsNextPackageVersion>1.2.0</ModernFormsNextPackageVersion>
+<ModernFormsNextPackageVersion>1.3.0</ModernFormsNextPackageVersion>
 ```
 
 GitHub tags use the same version with a `v` prefix:
 
 ```text
-v1.2.0
+v1.3.0
 ```
 
 Do not put the `v` prefix in `.csproj`, `Directory.Build.props`, template package references, or NuGet metadata. The `v` prefix belongs only to the Git tag.

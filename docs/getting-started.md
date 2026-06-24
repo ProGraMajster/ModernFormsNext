@@ -79,7 +79,7 @@ For packaged usage, reference the package version produced by this repository:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="ModernFormsNext" Version="1.2.0" />
+    <PackageReference Include="ModernFormsNext" Version="1.3.0" />
 </ItemGroup>
 ```
 
@@ -131,3 +131,6 @@ The best way to understand the framework is by exploring the sample projects:
 - `Outlaw`
 
 For Windows-only and backend-provided APIs, see [Platform-Specific Features](platform-specific-features.md).
+
+For WinForms-like property binding, `BindingSource`, and binding conversion behavior, see
+[Data Binding](data-binding.md).

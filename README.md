@@ -15,6 +15,8 @@ ModernFormsNext is not WPF, MAUI, WinUI, Avalonia, Uno, Blazor, Electron, or XAM
 - WinForms-like API with no XAML
 - SkiaSharp-based rendering
 - Fully code-driven UI
+- WinForms-like data binding primitives
+- Notification area icon support through backend services
 - Extensible architecture
 - Custom controls support
 - Platform-neutral framework code with platform-specific backends
@@ -98,7 +100,15 @@ public class MainForm : Form
 - `ModernFormsNext.Templates/` - project templates for generated user applications.
 - `samples/ControlGallery/` - manual visual validation app for controls and rendering.
 - `samples/ModernFormsNext.DemoApp/` - reference/template application generated for users, not a control playground.
-- `docs/` - architecture, getting started, platform-specific features, samples, and screenshots.
+- `docs/` - architecture, getting started, data binding, platform-specific features, samples, and screenshots.
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [Data Binding](docs/data-binding.md)
+- [Platform-Specific Features](docs/platform-specific-features.md)
+- [Samples](docs/samples.md)
+- [Architecture](docs/architecture.md)
 
 ## Templates and Packages
 
