@@ -11,6 +11,13 @@ using System.Text;
 
 namespace ModernFormsNext.DataBinding
 {
+    /// <summary>
+    ///  Converts <see cref="Binding"/> instances to design-time serialization descriptors.
+    /// </summary>
+    /// <remarks>
+    ///  ModernFormsNext keeps this converter for compatibility with component-model binding
+    ///  patterns. It does not use binary formatter serialization.
+    /// </remarks>
     public class ListBindingConverter : TypeConverter
     {
         private static Type[]? s_ctorTypes;  // the list of type of our ctor parameters.

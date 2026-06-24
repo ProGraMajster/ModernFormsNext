@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace ModernFormsNext.WindowKit
 {
     /// <summary>
-    /// Determines system decorations (title bar, border, etc) for a <see cref="Window"/>
+    /// Determines system decorations, such as title bar and border, for a platform window.
     /// </summary>
     public enum SystemDecorations
     {

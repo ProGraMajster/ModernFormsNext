@@ -7,7 +7,7 @@ namespace ModernFormsNext.WindowKit.Input.Raw
     /// A raw input event.
     /// </summary>
     /// <remarks>
-    /// Raw input events are sent from the windowing subsystem to the <see cref="InputManager"/>
+    /// Raw input events are sent from the windowing subsystem to the platform input pipeline
     /// for processing: this gives an application the opportunity to pre-process the event. After
     /// pre-processing they are consumed by the relevant <see cref="Device"/> and turned into
     /// standard Avalonia events.
@@ -42,9 +42,8 @@ namespace ModernFormsNext.WindowKit.Input.Raw
         /// Gets or sets a value indicating whether the event was handled.
         /// </summary>
         /// <remarks>
-        /// If an event is not marked handled after processing via the
-        /// <see cref="InputManager"/>, then it will be passed on to the underlying OS for
-        /// handling.
+        /// If an event is not marked handled after platform input processing, then it will
+        /// be passed on to the underlying OS for handling.
         /// </remarks>
         public bool Handled { get; set; }
 

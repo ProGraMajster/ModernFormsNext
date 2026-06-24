@@ -15,15 +15,30 @@ namespace ModernFormsNext.DataBinding
     {
         private readonly IBindableComponent _control;
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="ControlBindingsCollection"/> class.
+        /// </summary>
+        /// <param name="control">The component that owns the collection.</param>
         public ControlBindingsCollection(IBindableComponent control)
         {
             _control = control;
         }
 
+        /// <summary>
+        ///  Gets the bindable component that owns this collection.
+        /// </summary>
         public IBindableComponent BindableComponent => _control;
 
+        /// <summary>
+        ///  Gets the owning component as a <see cref="Control"/>, when it is a control.
+        /// </summary>
         public Control? Control => _control as Control;
 
+        /// <summary>
+        ///  Gets the binding associated with the specified component property name.
+        /// </summary>
+        /// <param name="propertyName">The property name to find.</param>
+        /// <returns>The matching binding, or <see langword="null"/> when no binding exists.</returns>
         public Binding? this[string propertyName]
         {
             get
@@ -67,6 +82,14 @@ namespace ModernFormsNext.DataBinding
                 formatString: string.Empty,
                 formatInfo: null);
 
+        /// <summary>
+        ///  Creates a binding with optional formatting and adds it to the collection.
+        /// </summary>
+        /// <param name="propertyName">The component property to bind.</param>
+        /// <param name="dataSource">The data source object, list, or binding source.</param>
+        /// <param name="dataMember">The source member to bind to.</param>
+        /// <param name="formattingEnabled">Whether format and parse conversion behavior is enabled.</param>
+        /// <returns>The binding added to the collection.</returns>
         public Binding Add(
             string propertyName,
             object dataSource,
@@ -82,6 +105,16 @@ namespace ModernFormsNext.DataBinding
                     formatString: string.Empty,
                     formatInfo: null);
 
+        /// <summary>
+        ///  Creates a binding with optional formatting and a data source update mode, then
+        ///  adds it to the collection.
+        /// </summary>
+        /// <param name="propertyName">The component property to bind.</param>
+        /// <param name="dataSource">The data source object, list, or binding source.</param>
+        /// <param name="dataMember">The source member to bind to.</param>
+        /// <param name="formattingEnabled">Whether format and parse conversion behavior is enabled.</param>
+        /// <param name="updateMode">When component changes are written back to the data source.</param>
+        /// <returns>The binding added to the collection.</returns>
         public Binding Add(
             string propertyName,
             object dataSource,
@@ -98,6 +131,17 @@ namespace ModernFormsNext.DataBinding
                     formatString: string.Empty,
                     formatInfo: null);
 
+        /// <summary>
+        ///  Creates a binding with optional formatting, a data source update mode, and a null
+        ///  display value, then adds it to the collection.
+        /// </summary>
+        /// <param name="propertyName">The component property to bind.</param>
+        /// <param name="dataSource">The data source object, list, or binding source.</param>
+        /// <param name="dataMember">The source member to bind to.</param>
+        /// <param name="formattingEnabled">Whether format and parse conversion behavior is enabled.</param>
+        /// <param name="updateMode">When component changes are written back to the data source.</param>
+        /// <param name="nullValue">The value displayed when the source value is null.</param>
+        /// <returns>The binding added to the collection.</returns>
         public Binding Add(
             string propertyName,
             object dataSource,
@@ -115,6 +159,18 @@ namespace ModernFormsNext.DataBinding
                     formatString: string.Empty,
                     formatInfo: null);
 
+        /// <summary>
+        ///  Creates a binding with optional formatting, a data source update mode, a null
+        ///  display value, and a format string, then adds it to the collection.
+        /// </summary>
+        /// <param name="propertyName">The component property to bind.</param>
+        /// <param name="dataSource">The data source object, list, or binding source.</param>
+        /// <param name="dataMember">The source member to bind to.</param>
+        /// <param name="formattingEnabled">Whether format and parse conversion behavior is enabled.</param>
+        /// <param name="updateMode">When component changes are written back to the data source.</param>
+        /// <param name="nullValue">The value displayed when the source value is null.</param>
+        /// <param name="formatString">The format string used when formatting data source values.</param>
+        /// <returns>The binding added to the collection.</returns>
         public Binding Add(
             string propertyName,
             object dataSource,
@@ -133,6 +189,19 @@ namespace ModernFormsNext.DataBinding
                     formatString,
                     formatInfo: null);
 
+        /// <summary>
+        ///  Creates a binding with the full formatting and update configuration, then adds it
+        ///  to the collection.
+        /// </summary>
+        /// <param name="propertyName">The component property to bind.</param>
+        /// <param name="dataSource">The data source object, list, or binding source.</param>
+        /// <param name="dataMember">The source member to bind to.</param>
+        /// <param name="formattingEnabled">Whether format and parse conversion behavior is enabled.</param>
+        /// <param name="updateMode">When component changes are written back to the data source.</param>
+        /// <param name="nullValue">The value displayed when the source value is null.</param>
+        /// <param name="formatString">The format string used when formatting data source values.</param>
+        /// <param name="formatInfo">The format provider used for culture-aware formatting.</param>
+        /// <returns>The binding added to the collection.</returns>
         public Binding Add(
             string propertyName,
             object dataSource,
@@ -207,6 +276,9 @@ namespace ModernFormsNext.DataBinding
         /// </summary>
         public new void Clear() => base.Clear();
 
+        /// <summary>
+        ///  Removes all bindings and detaches them from the owning component.
+        /// </summary>
         protected override void ClearCore()
         {
             int numLinks = Count;
@@ -219,6 +291,9 @@ namespace ModernFormsNext.DataBinding
             base.ClearCore();
         }
 
+        /// <summary>
+        ///  Gets or sets the update mode used by overloads that do not specify one explicitly.
+        /// </summary>
         public DataSourceUpdateMode DefaultDataSourceUpdateMode { get; set; } = DataSourceUpdateMode.OnValidation;
 
         /// <summary>
@@ -236,6 +311,10 @@ namespace ModernFormsNext.DataBinding
         /// </summary>
         public new void RemoveAt(int index) => base.RemoveAt(index);
 
+        /// <summary>
+        ///  Removes a binding and detaches it from the owning component.
+        /// </summary>
+        /// <param name="dataBinding">The binding to remove.</param>
         protected override void RemoveCore(Binding dataBinding)
         {
             ArgumentNullException.ThrowIfNull(dataBinding);

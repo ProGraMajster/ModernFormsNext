@@ -223,13 +223,24 @@ namespace ModernFormsNext.WindowKit.Input.Raw
         /// </summary>
         public Point Position { get; set; }
 
-        /// <inheritdoc cref="PointerPointProperties.Twist" />
+        /// <summary>
+        /// Gets the pointer twist value reported by the platform.
+        /// </summary>
         public float Twist { get; set; }
-        /// <inheritdoc cref="PointerPointProperties.Pressure" />
+
+        /// <summary>
+        /// Gets the normalized pointer pressure value reported by the platform.
+        /// </summary>
         public float Pressure { get; set; }
-        /// <inheritdoc cref="PointerPointProperties.XTilt" />
+
+        /// <summary>
+        /// Gets the horizontal pointer tilt value reported by the platform.
+        /// </summary>
         public float XTilt { get; set; }
-        /// <inheritdoc cref="PointerPointProperties.YTilt" />
+
+        /// <summary>
+        /// Gets the vertical pointer tilt value reported by the platform.
+        /// </summary>
         public float YTilt { get; set; }
 
         /// <summary>

@@ -1,7 +1,7 @@
 ﻿namespace ModernFormsNext.WindowKit.Controls
 {
     /// <summary>
-    /// Defines the minimized/maximized state of a <see cref="Window"/>.
+    /// Defines the minimized, maximized, or fullscreen state of a platform window.
     /// </summary>
     public enum WindowState
     {

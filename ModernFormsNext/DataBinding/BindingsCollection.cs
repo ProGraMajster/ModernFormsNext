@@ -21,6 +21,9 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Gets the number of bindings in the collection.
+        /// </summary>
         public override int Count => _list.Count;
 
         /// <summary>
@@ -33,6 +36,10 @@ namespace ModernFormsNext.DataBinding
         /// </summary>
         public Binding this[int index] => _list[index]!;
 
+        /// <summary>
+        ///  Adds a binding to the collection and raises collection change events.
+        /// </summary>
+        /// <param name="binding">The binding to add.</param>
         protected internal void Add(Binding binding)
         {
             CollectionChangeEventArgs eventArgs = new(CollectionChangeAction.Add, binding);
@@ -70,6 +77,9 @@ namespace ModernFormsNext.DataBinding
             remove => _onCollectionChanged -= value;
         }
 
+        /// <summary>
+        ///  Removes all bindings from the collection and raises collection change events.
+        /// </summary>
         protected internal void Clear()
         {
             CollectionChangeEventArgs eventArgs = new(CollectionChangeAction.Refresh, null);
@@ -99,6 +109,10 @@ namespace ModernFormsNext.DataBinding
             _onCollectionChanged?.Invoke(this, ccevent);
         }
 
+        /// <summary>
+        ///  Removes a binding from the collection and raises collection change events.
+        /// </summary>
+        /// <param name="binding">The binding to remove.</param>
         protected internal void Remove(Binding binding)
         {
             CollectionChangeEventArgs eventArgs = new(CollectionChangeAction.Remove, binding);
@@ -107,6 +121,10 @@ namespace ModernFormsNext.DataBinding
             OnCollectionChanged(eventArgs);
         }
 
+        /// <summary>
+        ///  Removes the binding at the specified index.
+        /// </summary>
+        /// <param name="index">The zero-based binding index.</param>
         protected internal void RemoveAt(int index) => Remove(this[index]);
 
         /// <summary>
@@ -114,6 +132,10 @@ namespace ModernFormsNext.DataBinding
         /// </summary>
         protected virtual void RemoveCore(Binding dataBinding) => _list.Remove(dataBinding);
 
+        /// <summary>
+        ///  Gets whether the collection contains bindings that should be serialized.
+        /// </summary>
+        /// <returns><see langword="true"/> when the collection contains at least one binding.</returns>
         protected internal bool ShouldSerializeMyAll() => Count > 0;
     }
 }

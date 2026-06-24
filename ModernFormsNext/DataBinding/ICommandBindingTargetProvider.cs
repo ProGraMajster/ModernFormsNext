@@ -75,10 +75,8 @@ namespace ModernFormsNext.DataBinding
         /// </summary>
         /// <remarks>
         ///  <para>
-        ///   As an example, a <see cref="Button"/> should call this method inside the method which
-        ///   also raises the <see cref="Control.Click"/> Event of that Button, which
-        ///   would be the <see cref="Button.OnClick(EventArgs)"/> OnClick method.
-        ///   See <see cref="ButtonBase"/> for an example implementation.
+        ///   As an example, a <see cref="Button"/> should call this method from the same
+        ///   activation path that raises <see cref="Control.Click"/>.
         ///  </para>
         /// </remarks>
         /// <param name="commandComponent"></param>

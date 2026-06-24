@@ -426,7 +426,7 @@ namespace ModernFormsNext.WindowKit.Controls.Primitives.PopupPositioning
     }
 
     /// <summary>
-    /// Positions an <see cref="IPopupHost"/>.
+    /// Positions a platform popup host.
     /// </summary>
     /// <remarks>
     /// <see cref="IPopupPositioner"/> is an abstraction of the wayland xdg_positioner spec.
@@ -439,7 +439,7 @@ namespace ModernFormsNext.WindowKit.Controls.Primitives.PopupPositioning
     public interface IPopupPositioner
     {
         /// <summary>
-        /// Updates the position of the associated <see cref="IPopupHost"/> according to the
+        /// Updates the position of the associated platform popup host according to the
         /// specified parameters.
         /// </summary>
         /// <param name="parameters">The positioning parameters.</param>

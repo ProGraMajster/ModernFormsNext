@@ -6,13 +6,23 @@ using System.Text;
 namespace ModernFormsNext.DataBinding
 {
     /// <summary>
-    ///  Provides information about a Binding Completed event.
+    ///  Provides information about a completed binding operation.
     /// </summary>
+    /// <remarks>
+    ///  Instances are passed to <see cref="Binding.BindingComplete"/> and
+    ///  <see cref="BindingSource.BindingComplete"/> after a data push or pull finishes.
+    /// </remarks>
     public class BindingCompleteEventArgs : CancelEventArgs
     {
         /// <summary>
-        ///  Constructor for BindingCompleteEventArgs.
+        ///  Initializes a new instance of the <see cref="BindingCompleteEventArgs"/> class.
         /// </summary>
+        /// <param name="binding">The binding that completed, or <see langword="null"/> when not available.</param>
+        /// <param name="state">The final state of the binding operation.</param>
+        /// <param name="context">The direction or context of the binding operation.</param>
+        /// <param name="errorText">The binding or data error text, if one was reported.</param>
+        /// <param name="exception">The exception raised by the binding operation, if any.</param>
+        /// <param name="cancel">The initial cancellation state for the operation.</param>
         public BindingCompleteEventArgs(
             Binding? binding,
             BindingCompleteState state,
@@ -30,8 +40,14 @@ namespace ModernFormsNext.DataBinding
         }
 
         /// <summary>
-        ///  Constructor for BindingCompleteEventArgs.
+        ///  Initializes a new instance of the <see cref="BindingCompleteEventArgs"/> class
+        ///  with cancellation enabled.
         /// </summary>
+        /// <param name="binding">The binding that completed, or <see langword="null"/> when not available.</param>
+        /// <param name="state">The final state of the binding operation.</param>
+        /// <param name="context">The direction or context of the binding operation.</param>
+        /// <param name="errorText">The binding or data error text, if one was reported.</param>
+        /// <param name="exception">The exception raised by the binding operation, if any.</param>
         public BindingCompleteEventArgs(
             Binding? binding,
             BindingCompleteState state,
@@ -43,8 +59,13 @@ namespace ModernFormsNext.DataBinding
         }
 
         /// <summary>
-        ///  Constructor for BindingCompleteEventArgs.
+        ///  Initializes a new instance of the <see cref="BindingCompleteEventArgs"/> class
+        ///  with error text.
         /// </summary>
+        /// <param name="binding">The binding that completed, or <see langword="null"/> when not available.</param>
+        /// <param name="state">The final state of the binding operation.</param>
+        /// <param name="context">The direction or context of the binding operation.</param>
+        /// <param name="errorText">The binding or data error text, if one was reported.</param>
         public BindingCompleteEventArgs(
             Binding? binding,
             BindingCompleteState state,
@@ -55,8 +76,12 @@ namespace ModernFormsNext.DataBinding
         }
 
         /// <summary>
-        ///  Constructor for BindingCompleteEventArgs.
+        ///  Initializes a new instance of the <see cref="BindingCompleteEventArgs"/> class
+        ///  for a successful operation.
         /// </summary>
+        /// <param name="binding">The binding that completed, or <see langword="null"/> when not available.</param>
+        /// <param name="state">The final state of the binding operation.</param>
+        /// <param name="context">The direction or context of the binding operation.</param>
         public BindingCompleteEventArgs(
             Binding? binding,
             BindingCompleteState state,
@@ -65,14 +90,29 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Gets the binding that completed, or <see langword="null"/> when not available.
+        /// </summary>
         public Binding? Binding { get; }
 
+        /// <summary>
+        ///  Gets the final state of the binding operation.
+        /// </summary>
         public BindingCompleteState BindingCompleteState { get; }
 
+        /// <summary>
+        ///  Gets the direction or context of the binding operation.
+        /// </summary>
         public BindingCompleteContext BindingCompleteContext { get; }
 
+        /// <summary>
+        ///  Gets the binding or data error text, or an empty string when no error was reported.
+        /// </summary>
         public string ErrorText { get; }
 
+        /// <summary>
+        ///  Gets the exception raised by the binding operation, if any.
+        /// </summary>
         public Exception? Exception { get; }
     }
 }

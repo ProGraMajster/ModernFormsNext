@@ -7,6 +7,13 @@ using System.Text;
 
 namespace ModernFormsNext.DataBinding
 {
+    /// <summary>
+    ///  Manages bindings for a single object or single object property.
+    /// </summary>
+    /// <remarks>
+    ///  Unlike <see cref="CurrencyManager"/>, this manager does not navigate a list. Its
+    ///  <see cref="Position"/> is always zero and <see cref="Count"/> is always one.
+    /// </remarks>
     public class PropertyManager : BindingManagerBase
     {
         private object? _dataSource;
@@ -43,6 +50,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="PropertyManager"/> class.
+        /// </summary>
         public PropertyManager()
         {
         }
@@ -69,6 +79,9 @@ namespace ModernFormsNext.DataBinding
             return $"{TypeDescriptor.GetClassName(_dataSource!)}.{_propName}";
         }
 
+        /// <summary>
+        ///  Suspends binding and commits pending component data to the current object.
+        /// </summary>
         public override void SuspendBinding()
         {
             EndCurrentEdit();
@@ -140,6 +153,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Updates every binding owned by this manager after its binding state changes.
+        /// </summary>
         protected override void UpdateIsBinding()
         {
             for (int i = 0; i < Bindings.Count; i++)

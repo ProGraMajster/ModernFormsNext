@@ -10,12 +10,28 @@ using System.Text;
 
 namespace ModernFormsNext.DataBinding
 {
+    /// <summary>
+    ///  Provides helper methods for resolving list objects, list names, item properties, and item types.
+    /// </summary>
+    /// <remarks>
+    ///  These helpers are used by binding managers and <see cref="BindingSource"/> to support
+    ///  <see cref="IList"/>, <see cref="IListSource"/>, <see cref="ITypedList"/>, arrays,
+    ///  enumerable sources, and single-object binding scenarios.
+    /// </remarks>
     public static class ListBindingHelper
     {
         private static Attribute[]? s_browsableAttribute;
 
         private static Attribute[] BrowsableAttributeList => s_browsableAttribute ??= [new BrowsableAttribute(true)];
 
+        /// <summary>
+        ///  Gets the effective list represented by the supplied object.
+        /// </summary>
+        /// <param name="list">The source object or <see cref="IListSource"/> to inspect.</param>
+        /// <returns>
+        ///  The list returned by <see cref="IListSource.GetList"/> when <paramref name="list"/>
+        ///  implements <see cref="IListSource"/>; otherwise, the original value.
+        /// </returns>
         public static object? GetList(object? list)
         {
             if (list is IListSource listSource)
@@ -28,6 +44,15 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets a list or related value from a data source and data member path.
+        /// </summary>
+        /// <param name="dataSource">The source object, list, or binding source.</param>
+        /// <param name="dataMember">The related property name to resolve.</param>
+        /// <returns>The resolved list or value, or <see langword="null"/> when no current item exists.</returns>
+        /// <exception cref="ArgumentException">
+        ///  Thrown when <paramref name="dataMember"/> does not exist on the data source item type.
+        /// </exception>
         public static object? GetList(object? dataSource, string? dataMember)
         {
             //
@@ -75,6 +100,12 @@ namespace ModernFormsNext.DataBinding
             return (currentItem is null) ? null : dmProp.GetValue(currentItem);
         }
 
+        /// <summary>
+        ///  Gets a display name for a list or related list path.
+        /// </summary>
+        /// <param name="list">The list, list type, or typed list to describe.</param>
+        /// <param name="listAccessors">Optional property descriptors for a related list path.</param>
+        /// <returns>The resolved list name, or an empty string when no list is available.</returns>
         public static string GetListName(object? list, PropertyDescriptor[]? listAccessors)
         {
             if (list is null)
@@ -116,6 +147,11 @@ namespace ModernFormsNext.DataBinding
             return name;
         }
 
+        /// <summary>
+        ///  Gets the property descriptors for items in a list or for a single object.
+        /// </summary>
+        /// <param name="list">The list, list type, enumerable, typed list, or object to inspect.</param>
+        /// <returns>The property descriptors for the resolved item type.</returns>
         public static PropertyDescriptorCollection GetListItemProperties(object? list)
         {
             PropertyDescriptorCollection pdc;
@@ -149,6 +185,12 @@ namespace ModernFormsNext.DataBinding
             return pdc;
         }
 
+        /// <summary>
+        ///  Gets the property descriptors for items reached through a related list path.
+        /// </summary>
+        /// <param name="list">The list, list type, enumerable, typed list, or object to inspect.</param>
+        /// <param name="listAccessors">The property descriptors that describe the related list path.</param>
+        /// <returns>The property descriptors for the resolved item type.</returns>
         public static PropertyDescriptorCollection GetListItemProperties(object? list, PropertyDescriptor[]? listAccessors)
         {
             if (listAccessors is null || listAccessors.Length == 0)
@@ -174,6 +216,14 @@ namespace ModernFormsNext.DataBinding
             return GetListItemPropertiesByInstance(target, listAccessors, 0);
         }
 
+        /// <summary>
+        ///  Gets the property descriptors for items reached from a data source member and
+        ///  optional related list path.
+        /// </summary>
+        /// <param name="dataSource">The source object, list, or typed list to inspect.</param>
+        /// <param name="dataMember">The data member to resolve before applying <paramref name="listAccessors"/>.</param>
+        /// <param name="listAccessors">Optional property descriptors for a related list path.</param>
+        /// <returns>The property descriptors for the resolved item type.</returns>
         public static PropertyDescriptorCollection GetListItemProperties(object? dataSource, string? dataMember, PropertyDescriptor[]? listAccessors)
         {
             dataSource = GetList(dataSource);
@@ -200,6 +250,11 @@ namespace ModernFormsNext.DataBinding
             return GetListItemProperties(dataSource, listAccessors);
         }
 
+        /// <summary>
+        ///  Gets the item type represented by a list, list type, enumerable, typed list, or object.
+        /// </summary>
+        /// <param name="list">The value to inspect.</param>
+        /// <returns>The resolved item type, or <see langword="null"/> when <paramref name="list"/> is null.</returns>
         [return: NotNullIfNotNull(nameof(list))]
         public static Type? GetListItemType(object? list)
         {
@@ -273,6 +328,12 @@ namespace ModernFormsNext.DataBinding
             return instancedObject;
         }
 
+        /// <summary>
+        ///  Gets the item type represented by a data source and optional data member.
+        /// </summary>
+        /// <param name="dataSource">The source object, list, or typed list to inspect.</param>
+        /// <param name="dataMember">The data member whose value should be treated as the list.</param>
+        /// <returns>The resolved item type, or <see cref="object"/> when it cannot be determined.</returns>
         public static Type GetListItemType(object? dataSource, string? dataMember)
         {
             // No data source

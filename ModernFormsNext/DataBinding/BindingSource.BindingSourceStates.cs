@@ -4,6 +4,9 @@ using System.Text;
 
 namespace ModernFormsNext.DataBinding
 {
+    /// <summary>
+    ///  Provides a bindable view over an object, list, or related data member.
+    /// </summary>
     public partial class BindingSource
     {
         [Flags]

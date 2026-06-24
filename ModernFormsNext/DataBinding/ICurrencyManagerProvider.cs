@@ -6,6 +6,9 @@ using System.Text;
 
 namespace ModernFormsNext.DataBinding
 {
+    /// <summary>
+    ///  Provides access to currency managers for a data source and its related members.
+    /// </summary>
     [SRDescription(nameof(SR.ICurrencyManagerProviderDescr))]
     public interface ICurrencyManagerProvider
     {

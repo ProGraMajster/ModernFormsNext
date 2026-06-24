@@ -21,6 +21,13 @@ namespace ModernFormsNext.DataBinding
         // flags enum field to hold private bool fields
         private CurrencyManagerStates _state;
 
+        /// <summary>
+        ///  Stores the zero-based position of the current item in the managed list.
+        /// </summary>
+        /// <remarks>
+        ///  This field is protected for WinForms-like compatibility. Derived classes should
+        ///  prefer using <see cref="Position"/> so validation and events are preserved.
+        /// </remarks>
         protected int listposition = -1;
 
         private int _lastGoodKnownRow = -1;
@@ -46,6 +53,9 @@ namespace ModernFormsNext.DataBinding
             remove => _onItemChanged -= value;
         }
 
+        /// <summary>
+        ///  Occurs when the underlying list changes.
+        /// </summary>
         public event ListChangedEventHandler? ListChanged
         {
             add => _onListChanged += value;
@@ -274,6 +284,12 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Adds a new item to the managed list and moves the current position to it.
+        /// </summary>
+        /// <exception cref="NotSupportedException">
+        ///  Thrown when the underlying list does not implement <see cref="IBindingList"/>.
+        /// </exception>
         public override void AddNew()
         {
             if (_list is IBindingList ibl)
@@ -461,6 +477,10 @@ namespace ModernFormsNext.DataBinding
             return success;
         }
 
+        /// <summary>
+        ///  Removes the item at the specified index from the managed list.
+        /// </summary>
+        /// <param name="index">The zero-based index of the item to remove.</param>
         public override void RemoveAt(int index) => _list.RemoveAt(index);
 
         /// <summary>
@@ -822,6 +842,9 @@ namespace ModernFormsNext.DataBinding
             Debug.Assert(_lastGoodKnownRow == -1 || listposition == _lastGoodKnownRow, "how did they get out of sync?");
         }
 
+        /// <summary>
+        ///  Occurs when the property metadata for the managed list changes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         public event EventHandler? MetaDataChanged
         {
@@ -878,11 +901,19 @@ namespace ModernFormsNext.DataBinding
 
         // this method should only be called when the currency manager receives the ListChangedType.ItemChanged event
         // and when the index of the ListChangedEventArgs == the position in the currency manager
+        /// <summary>
+        ///  Raises the <see cref="BindingManagerBase.CurrentItemChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected internal override void OnCurrentItemChanged(EventArgs e)
         {
             _onCurrentItemChangedHandler?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="ItemChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnItemChanged(ItemChangedEventArgs e)
         {
             // It is possible that CurrencyManager_PushData will change the position
@@ -917,11 +948,19 @@ namespace ModernFormsNext.DataBinding
         }
 
         // Exists in Everett
+        /// <summary>
+        ///  Raises the <see cref="MetaDataChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected internal void OnMetaDataChanged(EventArgs e)
         {
             _onMetaDataChangedHandler?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="BindingManagerBase.PositionChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnPositionChanged(EventArgs e)
         {
             try
@@ -1005,6 +1044,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Updates whether the manager currently has a valid bound current item.
+        /// </summary>
         protected override void UpdateIsBinding()
         {
             UpdateIsBinding(true);

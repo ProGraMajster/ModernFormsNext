@@ -52,6 +52,9 @@ namespace ModernFormsNext.DataBinding
         ///  Initializes a new instance of the <see cref="Binding"/> class
         ///  that binds a property on the owning control to a property on a data source.
         /// </summary>
+        /// <param name="propertyName">The name of the bindable component property to update.</param>
+        /// <param name="dataSource">The data source object, list, or <see cref="BindingSource"/>.</param>
+        /// <param name="dataMember">The property or list member path on the data source.</param>
         public Binding(string propertyName, object? dataSource, string? dataMember)
             : this(
                   propertyName,
@@ -65,6 +68,17 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="Binding"/> class with optional
+        ///  formatting support.
+        /// </summary>
+        /// <param name="propertyName">The name of the bindable component property to update.</param>
+        /// <param name="dataSource">The data source object, list, or <see cref="BindingSource"/>.</param>
+        /// <param name="dataMember">The property or list member path on the data source.</param>
+        /// <param name="formattingEnabled">
+        ///  <see langword="true"/> to enable format and parse conversion behavior; otherwise,
+        ///  <see langword="false"/>.
+        /// </param>
         public Binding(
             string propertyName,
             object? dataSource,
@@ -82,6 +96,18 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="Binding"/> class with optional
+        ///  formatting support and a data source update mode.
+        /// </summary>
+        /// <param name="propertyName">The name of the bindable component property to update.</param>
+        /// <param name="dataSource">The data source object, list, or <see cref="BindingSource"/>.</param>
+        /// <param name="dataMember">The property or list member path on the data source.</param>
+        /// <param name="formattingEnabled">
+        ///  <see langword="true"/> to enable format and parse conversion behavior; otherwise,
+        ///  <see langword="false"/>.
+        /// </param>
+        /// <param name="dataSourceUpdateMode">When component changes are written back to the data source.</param>
         public Binding(
             string propertyName,
             object? dataSource,
@@ -100,6 +126,19 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="Binding"/> class with optional
+        ///  formatting support, a data source update mode, and a display value for null data.
+        /// </summary>
+        /// <param name="propertyName">The name of the bindable component property to update.</param>
+        /// <param name="dataSource">The data source object, list, or <see cref="BindingSource"/>.</param>
+        /// <param name="dataMember">The property or list member path on the data source.</param>
+        /// <param name="formattingEnabled">
+        ///  <see langword="true"/> to enable format and parse conversion behavior; otherwise,
+        ///  <see langword="false"/>.
+        /// </param>
+        /// <param name="dataSourceUpdateMode">When component changes are written back to the data source.</param>
+        /// <param name="nullValue">The value displayed by the component when the data source value is null.</param>
         public Binding(
             string propertyName,
             object? dataSource,
@@ -119,6 +158,20 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="Binding"/> class with optional
+        ///  formatting support, a data source update mode, a null display value, and a format string.
+        /// </summary>
+        /// <param name="propertyName">The name of the bindable component property to update.</param>
+        /// <param name="dataSource">The data source object, list, or <see cref="BindingSource"/>.</param>
+        /// <param name="dataMember">The property or list member path on the data source.</param>
+        /// <param name="formattingEnabled">
+        ///  <see langword="true"/> to enable format and parse conversion behavior; otherwise,
+        ///  <see langword="false"/>.
+        /// </param>
+        /// <param name="dataSourceUpdateMode">When component changes are written back to the data source.</param>
+        /// <param name="nullValue">The value displayed by the component when the data source value is null.</param>
+        /// <param name="formatString">The format string used when the data source value supports formatting.</param>
         public Binding(
             string propertyName,
             object? dataSource,
@@ -139,6 +192,21 @@ namespace ModernFormsNext.DataBinding
         {
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="Binding"/> class with the full
+        ///  formatting and update configuration.
+        /// </summary>
+        /// <param name="propertyName">The name of the bindable component property to update.</param>
+        /// <param name="dataSource">The data source object, list, or <see cref="BindingSource"/>.</param>
+        /// <param name="dataMember">The property or list member path on the data source.</param>
+        /// <param name="formattingEnabled">
+        ///  <see langword="true"/> to enable format and parse conversion behavior; otherwise,
+        ///  <see langword="false"/>.
+        /// </param>
+        /// <param name="dataSourceUpdateMode">When component changes are written back to the data source.</param>
+        /// <param name="nullValue">The value displayed by the component when the data source value is null.</param>
+        /// <param name="formatString">The format string used when the data source value supports formatting.</param>
+        /// <param name="formatInfo">The culture or format provider used during conversion.</param>
         public Binding(
             string propertyName,
             object? dataSource,
@@ -163,8 +231,14 @@ namespace ModernFormsNext.DataBinding
             CheckBinding();
         }
 
+        /// <summary>
+        ///  Gets the object, list, or binding source that supplies the data for this binding.
+        /// </summary>
         public object? DataSource { get; }
 
+        /// <summary>
+        ///  Gets the parsed data member path used to locate the bound value.
+        /// </summary>
         public BindingMemberInfo BindingMemberInfo { get; }
 
         /// <summary>
@@ -237,7 +311,7 @@ namespace ModernFormsNext.DataBinding
         public bool IsBinding { get; private set; }
 
         /// <summary>
-        ///  Gets the <see cref="Forms.BindingManagerBase"/> of this binding that
+        ///  Gets the <see cref="BindingManagerBase"/> of this binding that
         ///  allows enumeration of a set of bindings.
         /// </summary>
         public BindingManagerBase? BindingManagerBase
@@ -271,24 +345,46 @@ namespace ModernFormsNext.DataBinding
         [DefaultValue("")]
         public string PropertyName { get; } = string.Empty;
 
+        /// <summary>
+        ///  Occurs when a data push or pull operation for this binding completes.
+        /// </summary>
+        /// <remarks>
+        ///  Handlers may inspect <see cref="BindingCompleteEventArgs.BindingCompleteState"/> and
+        ///  set <see cref="System.ComponentModel.CancelEventArgs.Cancel"/> to cancel the current
+        ///  binding operation.
+        /// </remarks>
         public event BindingCompleteEventHandler? BindingComplete
         {
             add => _onComplete += value;
             remove => _onComplete -= value;
         }
 
+        /// <summary>
+        ///  Occurs when a formatted component value is being parsed before it is written to
+        ///  the data source.
+        /// </summary>
         public event ConvertEventHandler? Parse
         {
             add => _onParse += value;
             remove => _onParse -= value;
         }
 
+        /// <summary>
+        ///  Occurs when a data source value is being formatted before it is assigned to
+        ///  the bound component property.
+        /// </summary>
         public event ConvertEventHandler? Format
         {
             add => _onFormat += value;
             remove => _onFormat -= value;
         }
 
+        /// <summary>
+        ///  Gets or sets a value indicating whether format and parse conversion behavior is enabled.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value on an active binding refreshes the component from the data source.
+        /// </remarks>
         [DefaultValue(false)]
         public bool FormattingEnabled
         {
@@ -310,6 +406,12 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets the format provider used when converting values for this binding.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value on an active binding refreshes the component from the data source.
+        /// </remarks>
         [DefaultValue(null)]
         public IFormatProvider? FormatInfo
         {
@@ -327,6 +429,12 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets the format string used when formatting data source values for display.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value on an active binding refreshes the component from the data source.
+        /// </remarks>
         public string FormatString
         {
             get => _formatString;
@@ -345,6 +453,13 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets the value displayed by the component when the data source value is null.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value on an active binding refreshes the component when the current data
+        ///  source value represents null.
+        /// </remarks>
         public object? NullValue
         {
             get => _nullValue;
@@ -365,6 +480,13 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets the value written to the data source when the component value represents null.
+        /// </summary>
+        /// <remarks>
+        ///  The default is <see langword="null"/> for nullable value types and <see cref="DBNull.Value"/>
+        ///  for non-nullable types.
+        /// </remarks>
         public object? DataSourceNullValue
         {
             get => _dsNullValue;
@@ -406,6 +528,12 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets when the bound component property is refreshed from the data source.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value on an active binding refreshes the component from the data source.
+        /// </remarks>
         [DefaultValue(ControlUpdateMode.OnPropertyChanged)]
         public ControlUpdateMode ControlUpdateMode
         {
@@ -425,6 +553,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets when changes to the bound component property are written back to the data source.
+        /// </summary>
         [DefaultValue(DataSourceUpdateMode.OnValidation)]
         public DataSourceUpdateMode DataSourceUpdateMode { get; set; } = DataSourceUpdateMode.OnValidation;
 
@@ -621,6 +752,10 @@ namespace ModernFormsNext.DataBinding
             return new BindingCompleteEventArgs(this, state, context, errorText, ex, cancel);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="BindingComplete"/> event.
+        /// </summary>
+        /// <param name="e">The event data for the completed binding operation.</param>
         protected virtual void OnBindingComplete(BindingCompleteEventArgs e)
         {
             if (!_state.HasFlag(BindingStates.InOnBindingComplete))
@@ -645,6 +780,10 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Raises the <see cref="Parse"/> event.
+        /// </summary>
+        /// <param name="cevent">The conversion event data.</param>
         protected virtual void OnParse(ConvertEventArgs cevent)
         {
             _onParse?.Invoke(this, cevent);
@@ -658,6 +797,10 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Raises the <see cref="Format"/> event.
+        /// </summary>
+        /// <param name="cevent">The conversion event data.</param>
         protected virtual void OnFormat(ConvertEventArgs cevent)
         {
             _onFormat?.Invoke(this, cevent);

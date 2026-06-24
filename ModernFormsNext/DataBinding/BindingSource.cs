@@ -11,6 +11,15 @@ using System.Text;
 
 namespace ModernFormsNext.DataBinding
 {
+    /// <summary>
+    ///  Provides a bindable view over an object, list, or related data member.
+    /// </summary>
+    /// <remarks>
+    ///  <see cref="BindingSource"/> centralizes current-item navigation, change notification,
+    ///  list mutation, sorting, filtering, and currency manager access for ModernFormsNext data
+    ///  binding. The implementation follows familiar WinForms binding semantics while remaining
+    ///  independent of native Windows Forms controls.
+    /// </remarks>
     [DefaultProperty(nameof(DataSource))]
     [DefaultEvent(nameof(CurrentChanged))]
     [ComplexBindingProperties(nameof(DataSource), nameof(DataMember))]
@@ -63,11 +72,20 @@ namespace ModernFormsNext.DataBinding
         // State data
         private int _addNewPos = -1;
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="BindingSource"/> class.
+        /// </summary>
         public BindingSource()
             : this(dataSource: null, dataMember: string.Empty)
         {
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="BindingSource"/> class for the specified
+        ///  data source and data member.
+        /// </summary>
+        /// <param name="dataSource">The data source object, list, type, or binding source.</param>
+        /// <param name="dataMember">The related member on <paramref name="dataSource"/> to bind to.</param>
         public BindingSource(object? dataSource, string dataMember)
             : base()
         {
@@ -95,6 +113,11 @@ namespace ModernFormsNext.DataBinding
             WireDataSource();
         }
 
+        /// <summary>
+        ///  Initializes a new instance of the <see cref="BindingSource"/> class and adds it to
+        ///  the specified component container.
+        /// </summary>
+        /// <param name="container">The container that owns this component.</param>
         public BindingSource(IContainer container)
             : this()
         {
@@ -133,12 +156,20 @@ namespace ModernFormsNext.DataBinding
             return !List.IsReadOnly && !List.IsFixedSize && (!checkConstructor || _itemConstructor is not null);
         }
 
+        /// <summary>
+        ///  Gets the currency manager that coordinates the current item for this binding source.
+        /// </summary>
         [Browsable(false)]
         public virtual CurrencyManager? CurrencyManager
         {
             get => ((ICurrencyManagerProvider)this).GetRelatedCurrencyManager(dataMember: null);
         }
 
+        /// <summary>
+        ///  Gets the currency manager for this binding source or one of its related data members.
+        /// </summary>
+        /// <param name="dataMember">The related data member, or <see langword="null"/> for the main manager.</param>
+        /// <returns>The matching currency manager, or <see langword="null"/> when the member path is not supported.</returns>
         public virtual CurrencyManager? GetRelatedCurrencyManager(string? dataMember)
         {
             // Make sure inner list has been set up! We do this here so that
@@ -186,9 +217,18 @@ namespace ModernFormsNext.DataBinding
             return bs;
         }
 
+        /// <summary>
+        ///  Gets the current item in the bound list.
+        /// </summary>
         [Browsable(false)]
         public object? Current => _currencyManager.Count > 0 ? _currencyManager.Current : null;
 
+        /// <summary>
+        ///  Gets or sets the related data member within <see cref="DataSource"/> that supplies the list.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value resets the inner list and raises <see cref="DataMemberChanged"/>.
+        /// </remarks>
         [SRCategory(nameof(SR.CatData))]
         [DefaultValue("")]
         [RefreshProperties(RefreshProperties.Repaint)]
@@ -210,6 +250,13 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets the object, list, type, or binding source that supplies data.
+        /// </summary>
+        /// <remarks>
+        ///  Changing this value rewires source events, resets the inner list, and raises
+        ///  <see cref="DataSourceChanged"/>.
+        /// </remarks>
         [SRCategory(nameof(SR.CatData))]
         [DefaultValue(null)]
         [RefreshProperties(RefreshProperties.Repaint)]
@@ -341,9 +388,18 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets a value indicating whether binding is currently suspended.
+        /// </summary>
         [Browsable(false)]
         public bool IsBindingSuspended => _currencyManager.IsBindingSuspended;
 
+        /// <summary>
+        ///  Gets the effective list exposed by this binding source.
+        /// </summary>
+        /// <remarks>
+        ///  Accessing this property may complete deferred initialization and reset the inner list.
+        /// </remarks>
         [Browsable(false)]
         public IList List
         {
@@ -354,6 +410,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets the zero-based position of the current item.
+        /// </summary>
         [DefaultValue(-1)]
         [Browsable(false)]
         public int Position
@@ -371,10 +430,21 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Gets or sets a value indicating whether this binding source raises
+        ///  <see cref="ListChanged"/> notifications.
+        /// </summary>
         [DefaultValue(true)]
         [Browsable(false)]
         public bool RaiseListChangedEvents { get; set; } = true;
 
+        /// <summary>
+        ///  Gets or sets the sort expression applied to the underlying list.
+        /// </summary>
+        /// <remarks>
+        ///  The sort expression is delegated to lists that support <see cref="IBindingList"/>
+        ///  or <see cref="IBindingListView"/> sorting.
+        /// </remarks>
         [SRCategory(nameof(SR.CatData))]
         [DefaultValue(null)]
         [SRDescription(nameof(SR.BindingSourceSortDescr))]
@@ -388,6 +458,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Occurs when the binding source needs a new item and listeners may provide one.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceAddingNewEventHandlerDescr))]
         public event AddingNewEventHandler? AddingNew
@@ -396,6 +469,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventAddingNew, value);
         }
 
+        /// <summary>
+        ///  Occurs when a binding operation associated with this source completes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceBindingCompleteEventHandlerDescr))]
         public event BindingCompleteEventHandler? BindingComplete
@@ -404,6 +480,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventBindingComplete, value);
         }
 
+        /// <summary>
+        ///  Occurs when a binding manager reports a data transfer error.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceDataErrorEventHandlerDescr))]
         public event BindingManagerDataErrorEventHandler? DataError
@@ -412,6 +491,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventDataError, value);
         }
 
+        /// <summary>
+        ///  Occurs after <see cref="DataSource"/> changes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceDataSourceChangedEventHandlerDescr))]
         public event EventHandler? DataSourceChanged
@@ -420,6 +502,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventDataSourceChanged, value);
         }
 
+        /// <summary>
+        ///  Occurs after <see cref="DataMember"/> changes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceDataMemberChangedEventHandlerDescr))]
         public event EventHandler? DataMemberChanged
@@ -428,6 +513,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventDataMemberChanged, value);
         }
 
+        /// <summary>
+        ///  Occurs when the current item changes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceCurrentChangedEventHandlerDescr))]
         public event EventHandler? CurrentChanged
@@ -436,6 +524,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventCurrentChanged, value);
         }
 
+        /// <summary>
+        ///  Occurs when the current item raises a property change notification.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceCurrentItemChangedEventHandlerDescr))]
         public event EventHandler? CurrentItemChanged
@@ -444,6 +535,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventCurrentItemChanged, value);
         }
 
+        /// <summary>
+        ///  Occurs when the underlying list changes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourceListChangedEventHandlerDescr))]
         public event ListChangedEventHandler? ListChanged
@@ -452,6 +546,9 @@ namespace ModernFormsNext.DataBinding
             remove => Events.RemoveHandler(s_eventListChanged, value);
         }
 
+        /// <summary>
+        ///  Occurs when <see cref="Position"/> changes.
+        /// </summary>
         [SRCategory(nameof(SR.CatData))]
         [SRDescription(nameof(SR.BindingSourcePositionChangedEventHandlerDescr))]
         public event EventHandler? PositionChanged
@@ -480,6 +577,9 @@ namespace ModernFormsNext.DataBinding
             return sb.ToString(0, sb.Length - 1);
         }
 
+        /// <summary>
+        ///  Cancels the pending edit on the current item, when the current item supports editing.
+        /// </summary>
         public void CancelEdit() => _currencyManager.CancelCurrentEdit();
 
         // Walks the BindingSource::DataSource chain until
@@ -609,6 +709,9 @@ namespace ModernFormsNext.DataBinding
             base.Dispose(disposing);
         }
 
+        /// <summary>
+        ///  Commits the pending edit on the current item, when the current item supports editing.
+        /// </summary>
         public void EndEdit()
         {
             if (_state.HasFlag(BindingSourceStates.EndingEdit))
@@ -766,12 +869,24 @@ namespace ModernFormsNext.DataBinding
             OnListChanged(new ListChangedEventArgs(ListChangedType.ItemChanged, index));
         }
 
+        /// <summary>
+        ///  Moves to the first item in the list.
+        /// </summary>
         public void MoveFirst() => Position = 0;
 
+        /// <summary>
+        ///  Moves to the last item in the list.
+        /// </summary>
         public void MoveLast() => Position = Count - 1;
 
+        /// <summary>
+        ///  Moves to the next item in the list.
+        /// </summary>
         public void MoveNext() => Position++;
 
+        /// <summary>
+        ///  Moves to the previous item in the list.
+        /// </summary>
         public void MovePrevious() => Position--;
 
         /// <remarks>
@@ -788,18 +903,30 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Raises the <see cref="AddingNew"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnAddingNew(AddingNewEventArgs e)
         {
             AddingNewEventHandler? eh = (AddingNewEventHandler?)Events[s_eventAddingNew];
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="BindingComplete"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnBindingComplete(BindingCompleteEventArgs e)
         {
             BindingCompleteEventHandler? eh = (BindingCompleteEventHandler?)Events[s_eventBindingComplete];
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="CurrentChanged"/> event and rewires current-item change handlers.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnCurrentChanged(EventArgs e)
         {
             // Unhook change events for old current item (recorded by
@@ -813,30 +940,50 @@ namespace ModernFormsNext.DataBinding
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="CurrentItemChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnCurrentItemChanged(EventArgs e)
         {
             EventHandler? eh = (EventHandler?)Events[s_eventCurrentItemChanged];
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="DataError"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnDataError(BindingManagerDataErrorEventArgs e)
         {
             BindingManagerDataErrorEventHandler? eh = Events[s_eventDataError] as BindingManagerDataErrorEventHandler;
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="DataMemberChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnDataMemberChanged(EventArgs e)
         {
             EventHandler? eh = Events[s_eventDataMemberChanged] as EventHandler;
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="DataSourceChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnDataSourceChanged(EventArgs e)
         {
             EventHandler? eh = Events[s_eventDataSourceChanged] as EventHandler;
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="ListChanged"/> event when notifications are enabled.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnListChanged(ListChangedEventArgs e)
         {
             // Sometimes we are required to suppress ListChanged events
@@ -849,6 +996,10 @@ namespace ModernFormsNext.DataBinding
             eh?.Invoke(this, e);
         }
 
+        /// <summary>
+        ///  Raises the <see cref="PositionChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
         protected virtual void OnPositionChanged(EventArgs e)
         {
             EventHandler? eh = (EventHandler?)Events[s_eventPositionChanged];
@@ -1010,6 +1161,12 @@ namespace ModernFormsNext.DataBinding
             return new ListSortDescriptionCollection(sorts);
         }
 
+        /// <summary>
+        ///  Removes the current item from the list.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">
+        ///  Thrown when removing items is not allowed or there is no current item.
+        /// </exception>
         public void RemoveCurrent()
         {
             if (!((IBindingList)this).AllowRemove)
@@ -1025,6 +1182,10 @@ namespace ModernFormsNext.DataBinding
             RemoveAt(Position);
         }
 
+        /// <summary>
+        ///  Resets the explicit <see cref="AllowNew"/> value so the underlying list decides
+        ///  whether new items are allowed.
+        /// </summary>
         [EditorBrowsable(EditorBrowsableState.Advanced)]
         public virtual void ResetAllowNew()
         {
@@ -1032,6 +1193,12 @@ namespace ModernFormsNext.DataBinding
             _state.ChangeFlags(BindingSourceStates.AllowNewSetValue, true);
         }
 
+        /// <summary>
+        ///  Raises list change notifications to refresh bound components.
+        /// </summary>
+        /// <param name="metadataChanged">
+        ///  <see langword="true"/> to also report that the item property metadata changed.
+        /// </param>
         public void ResetBindings(bool metadataChanged)
         {
             if (metadataChanged)
@@ -1042,17 +1209,31 @@ namespace ModernFormsNext.DataBinding
             OnListChanged(new ListChangedEventArgs(ListChangedType.Reset, -1));
         }
 
+        /// <summary>
+        ///  Raises a list change notification for the current item.
+        /// </summary>
         public void ResetCurrentItem()
         {
             OnListChanged(new ListChangedEventArgs(ListChangedType.ItemChanged, Position));
         }
 
+        /// <summary>
+        ///  Raises a list change notification for a specific item.
+        /// </summary>
+        /// <param name="itemIndex">The zero-based index of the item that changed.</param>
         public void ResetItem(int itemIndex)
         {
             OnListChanged(new ListChangedEventArgs(ListChangedType.ItemChanged, itemIndex));
         }
 
+        /// <summary>
+        ///  Resumes data binding for controls bound through this source.
+        /// </summary>
         public void ResumeBinding() => _currencyManager.ResumeBinding();
+
+        /// <summary>
+        ///  Suspends data binding for controls bound through this source.
+        /// </summary>
         public void SuspendBinding() => _currencyManager.SuspendBinding();
 
         /// <summary>
@@ -1418,10 +1599,13 @@ namespace ModernFormsNext.DataBinding
             eh?.Invoke(this, EventArgs.Empty);
         }
 
+        /// <inheritdoc/>
         public virtual IEnumerator GetEnumerator() => List.GetEnumerator();
 
+        /// <inheritdoc/>
         public virtual void CopyTo(Array arr, int index) => List.CopyTo(arr, index);
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual int Count
         {
@@ -1450,12 +1634,15 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool IsSynchronized => List.IsSynchronized;
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual object SyncRoot => List.SyncRoot;
 
+        /// <inheritdoc/>
         public virtual int Add(object? value)
         {
             int position;
@@ -1484,6 +1671,7 @@ namespace ModernFormsNext.DataBinding
             return position;
         }
 
+        /// <inheritdoc/>
         public virtual void Clear()
         {
             UnhookItemChangedEventsForOldCurrent();
@@ -1491,16 +1679,20 @@ namespace ModernFormsNext.DataBinding
             OnSimpleListChanged(ListChangedType.Reset, -1);
         }
 
+        /// <inheritdoc/>
         public virtual bool Contains(object? value) => List.Contains(value);
 
+        /// <inheritdoc/>
         public virtual int IndexOf(object? value) => List.IndexOf(value);
 
+        /// <inheritdoc/>
         public virtual void Insert(int index, object? value)
         {
             List.Insert(index, value);
             OnSimpleListChanged(ListChangedType.ItemAdded, index);
         }
 
+        /// <inheritdoc/>
         public virtual void Remove(object? value)
         {
             int index = ((IList)this).IndexOf(value);
@@ -1511,6 +1703,7 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <inheritdoc/>
         public virtual void RemoveAt(int index)
         {
             // Virtual, need to call for compat.
@@ -1519,6 +1712,7 @@ namespace ModernFormsNext.DataBinding
             OnSimpleListChanged(ListChangedType.ItemDeleted, index);
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual object? this[int index]
         {
@@ -1534,15 +1728,19 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool IsFixedSize => List.IsFixedSize;
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool IsReadOnly => List.IsReadOnly;
 
+        /// <inheritdoc/>
         public virtual string GetListName(PropertyDescriptor[]? listAccessors) =>
             ListBindingHelper.GetListName(List, listAccessors);
 
+        /// <inheritdoc/>
         public virtual PropertyDescriptorCollection GetItemProperties(PropertyDescriptor[]? listAccessors)
         {
             object? ds = ListBindingHelper.GetList(_dataSource);
@@ -1557,6 +1755,10 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Adds a new item to the list and makes it the current item.
+        /// </summary>
+        /// <returns>The item that was added.</returns>
         public virtual object? AddNew()
         {
             // Throw if adding new items has been disabled
@@ -1631,12 +1833,16 @@ namespace ModernFormsNext.DataBinding
             return addNewItem;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool AllowEdit
         {
             get => _state.HasFlag(BindingSourceStates.IsBindingList) ? ((IBindingList)List).AllowEdit : !List.IsReadOnly;
         }
 
+        /// <summary>
+        ///  Gets or sets a value indicating whether new items can be added to the list.
+        /// </summary>
         [SRCategory(nameof(SR.CatBehavior))]
         [SRDescription(nameof(SR.BindingSourceAllowNewDescr)),]
         public virtual bool AllowNew
@@ -1667,33 +1873,39 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool AllowRemove
         {
             get => _state.HasFlag(BindingSourceStates.IsBindingList) ? ((IBindingList)List).AllowRemove : !List.IsReadOnly && !List.IsFixedSize;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool SupportsChangeNotification => true;
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool SupportsSearching
         {
             get => _state.HasFlag(BindingSourceStates.IsBindingList) && ((IBindingList)List).SupportsSearching;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool SupportsSorting
         {
             get => _state.HasFlag(BindingSourceStates.IsBindingList) && ((IBindingList)List).SupportsSorting;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool IsSorted
         {
             get => _state.HasFlag(BindingSourceStates.IsBindingList) && ((IBindingList)List).IsSorted;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public virtual PropertyDescriptor? SortProperty
@@ -1701,6 +1913,7 @@ namespace ModernFormsNext.DataBinding
             get => _state.HasFlag(BindingSourceStates.IsBindingList) ? ((IBindingList)List).SortProperty : null;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public virtual ListSortDirection SortDirection
@@ -1718,6 +1931,7 @@ namespace ModernFormsNext.DataBinding
             ((IBindingList)List).AddIndex(property);
         }
 
+        /// <inheritdoc/>
         [EditorBrowsable(EditorBrowsableState.Never)]
         public virtual void ApplySort(PropertyDescriptor property, ListSortDirection sort)
         {
@@ -1729,6 +1943,7 @@ namespace ModernFormsNext.DataBinding
             ((IBindingList)List).ApplySort(property, sort);
         }
 
+        /// <inheritdoc/>
         public virtual int Find(PropertyDescriptor prop, object key)
         {
             if (!_state.HasFlag(BindingSourceStates.IsBindingList))
@@ -1749,6 +1964,7 @@ namespace ModernFormsNext.DataBinding
             ((IBindingList)List).RemoveIndex(prop);
         }
 
+        /// <inheritdoc/>
         public virtual void RemoveSort()
         {
             _sort = null;
@@ -1759,6 +1975,7 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <inheritdoc/>
         [EditorBrowsable(EditorBrowsableState.Never)]
         public virtual void ApplySort(ListSortDescriptionCollection sorts)
         {
@@ -1770,6 +1987,7 @@ namespace ModernFormsNext.DataBinding
             iblv.ApplySort(sorts);
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         [EditorBrowsable(EditorBrowsableState.Never)]
         public virtual ListSortDescriptionCollection SortDescriptions
@@ -1779,6 +1997,13 @@ namespace ModernFormsNext.DataBinding
                 : new ListSortDescriptionCollection();
         }
 
+        /// <summary>
+        ///  Gets or sets the filter expression applied to the underlying list.
+        /// </summary>
+        /// <remarks>
+        ///  Filtering is delegated to lists that implement <see cref="IBindingListView"/> and
+        ///  support filtering.
+        /// </remarks>
         [SRCategory(nameof(SR.CatData))]
         [DefaultValue(null)]
         [SRDescription(nameof(SR.BindingSourceFilterDescr))]
@@ -1794,6 +2019,9 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <summary>
+        ///  Clears the current filter from this source and the underlying list when supported.
+        /// </summary>
         public virtual void RemoveFilter()
         {
             _filter = null;
@@ -1804,12 +2032,14 @@ namespace ModernFormsNext.DataBinding
             }
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool SupportsAdvancedSorting
         {
             get => List is IBindingListView iblv && iblv.SupportsAdvancedSorting;
         }
 
+        /// <inheritdoc/>
         [Browsable(false)]
         public virtual bool SupportsFiltering
         {

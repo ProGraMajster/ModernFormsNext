@@ -4,7 +4,7 @@
 namespace ModernFormsNext.WindowKit.Controls
 {
     /// <summary>
-    /// Describes the reason for a <see cref="WindowBase.Resized"/> event.
+    /// Describes the reason for a window resized event.
     /// </summary>
     public enum WindowResizeReason
     {
@@ -21,8 +21,7 @@ namespace ModernFormsNext.WindowKit.Controls
 
         /// <summary>
         /// The resize was initiated by the application, for example by setting one of the sizing-
-        /// related properties on <see cref="Window"/> such as <see cref="Layoutable.Width"/> or
-        /// <see cref="Layoutable.Height"/>.
+        /// related properties such as width or height.
         /// </summary>
         Application,
 
@@ -38,7 +37,7 @@ namespace ModernFormsNext.WindowKit.Controls
     }
 
     /// <summary>
-    /// Provides data for the <see cref="WindowBase.Resized"/> event.
+    /// Provides data for a window resized event.
     /// </summary>
     public class WindowResizedEventArgs : EventArgs
     {
