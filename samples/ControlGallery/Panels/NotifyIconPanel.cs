@@ -72,18 +72,26 @@ namespace ControlGallery.Panels
             });
             dispose_button.Click += (sender, e) => DisposeTrayIcon ();
 
-            Controls.Add (new Label {
-                Text = "Right-click the notification area icon to test its native menu.",
+            var hide_form_button = Controls.Add (new Button {
+                Text = "Hide Form To Tray",
                 Left = 10,
-                Top = 175,
-                Width = 460,
+                Top = 165,
+                Width = 150
+            });
+            hide_form_button.Click += (sender, e) => HideFormToTray ();
+
+            Controls.Add (new Label {
+                Text = "Left-click the notification area icon to restore this form. Right-click it to test its native menu.",
+                Left = 10,
+                Top = 205,
+                Width = 700,
                 Height = 25
             });
 
             status_label = Controls.Add (new Label {
                 Text = "Tray icon is not running.",
                 Left = 10,
-                Top = 210,
+                Top = 240,
                 Width = 600,
                 Height = 60,
                 Multiline = true
@@ -159,6 +167,8 @@ namespace ControlGallery.Panels
             tray_icon_bitmap = CreateTrayIconBitmap ();
             context_menu = CreateContextMenu ();
             notify_icon = new NotifyIcon {
+                ActivationBehavior = NotifyIconActivationBehavior.ShowWindow,
+                ActivationWindow = FindForm (),
                 Icon = tray_icon_bitmap,
                 ContextMenu = context_menu,
                 Text = "ControlGallery NotifyIcon",
@@ -170,7 +180,7 @@ namespace ControlGallery.Panels
             notify_icon.MouseDown += (sender, e) => SetStatus ($"MouseDown: {e.Button}.");
             notify_icon.MouseUp += (sender, e) => SetStatus ($"MouseUp: {e.Button}.");
 
-            SetStatus ("Tray icon created. Right-click it to open the native tray menu.");
+            SetStatus ("Tray icon created. Left-click it to activate this form; right-click it to open the native tray menu.");
         }
 
         private void DisposeTrayIcon ()
@@ -209,6 +219,20 @@ namespace ControlGallery.Panels
 
             notify_icon.Visible = false;
             SetStatus ("Tray icon hidden.");
+        }
+
+        private void HideFormToTray ()
+        {
+            if (!IsWindowsTrayAvailable ())
+                return;
+
+            if (!EnsureTrayIcon ())
+                return;
+
+            notify_icon.ActivationWindow = FindForm ();
+            notify_icon.ActivationBehavior = NotifyIconActivationBehavior.ShowWindow;
+            SetStatus ("Form hidden. Left-click the notification area icon to restore it.");
+            FindForm ()?.Hide ();
         }
 
         private void SetStatus (string message)
