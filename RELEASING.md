@@ -11,13 +11,13 @@ The current `Release` workflow also publishes `.nupkg` packages to NuGet after c
 NuGet package versions use SemVer without a `v` prefix:
 
 ```xml
-<ModernFormsNextPackageVersion>1.3.0</ModernFormsNextPackageVersion>
+<ModernFormsNextPackageVersion>1.4.0</ModernFormsNextPackageVersion>
 ```
 
 GitHub tags use the same version with a `v` prefix:
 
 ```text
-v1.3.0
+v1.4.0
 ```
 
 Do not put the `v` prefix in `.csproj`, `Directory.Build.props`, template package references, or NuGet metadata. The `v` prefix belongs only to the Git tag.
