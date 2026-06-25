@@ -405,13 +405,22 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
                 var signature = returnType + "::" + name + "::" + string.Join("::", args);
                 if (_existing.Add(signature))
                 {
+                    var parameterTypes = new[] { "void*" }.Concat(args).Concat(new[] { returnType });
+                    var parameterNames = new[] { "thisObj" }
+                        .Concat(Enumerable.Range(0, args.Count).Select(i => "arg" + i));
+                    var functionPointerType = "delegate* unmanaged[Stdcall]<" + string.Join(", ", parameterTypes) + ">";
+                    var invocation = "((" + functionPointerType + ")methodPtr)(" + string.Join(", ", parameterNames) + ")";
+                    var callStatement = returnType == "void"
+                        ? invocation + ";"
+                        : "return " + invocation + ";";
+
                     Class = Class.AddMembers(MethodDeclaration(ParseTypeName(returnType), name)
                         .AddModifiers(SyntaxKind.StaticKeyword, SyntaxKind.UnsafeKeyword, SyntaxKind.PublicKeyword)
                         .AddParameterListParameters(Parameter(Identifier("thisObj")).WithType(ParseTypeName("void*")))
                         .AddParameterListParameters(args.Select((x, i) =>
                             Parameter(Identifier("arg" + i)).WithType(ParseTypeName(x))).ToArray())
                         .AddParameterListParameters(Parameter(Identifier("methodPtr")).WithType(ParseTypeName("void*")))
-                        .WithBody(Block(ExpressionStatement(ThrowExpression(ParseExpression("null"))))));
+                        .WithBody(Block(ParseStatement(callStatement))));
                 }
 
                 return ParseExpression("LocalInterop." + name);

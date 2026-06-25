@@ -6,8 +6,10 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
     /// Provides low-level interop call helpers for invoking native function pointers.
     /// </summary>
     /// <remarks>
-    /// These methods are expected to be replaced or patched at runtime (e.g., via IL rewriting)
-    /// to perform actual unmanaged calls using the stdcall convention.
+    /// These helpers are used by the base <see cref="IUnknown"/> proxy implementation.
+    /// Generated MicroCom proxies emit matching helper methods for their own interface-specific
+    /// signatures. The calls use unmanaged function pointers directly so the runtime does not
+    /// depend on a post-build IL patching step before COM proxies can be used.
     /// </remarks>
     unsafe class LocalInterop
     {
@@ -16,7 +18,7 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         /// </summary>
         public static unsafe void CalliStdCallvoid(void* thisObject, void* methodPtr)
         {
-            throw null;
+            ((delegate* unmanaged[Stdcall]<void*, void>)methodPtr)(thisObject);
         }
 
         /// <summary>
@@ -24,7 +26,7 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         /// </summary>
         public static unsafe int CalliStdCallint(void* thisObject, Guid* guid, IntPtr* ppv, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, Guid*, IntPtr*, int>)methodPtr)(thisObject, guid, ppv);
         }
     }
 }

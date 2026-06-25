@@ -55,9 +55,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com
     internal unsafe partial interface IShellItemArray : ModernFormsNext.WindowKit.Backend.MicroCom.IUnknown
     {
         void* BindToHandler(void* pbc, System.Guid* bhid, System.Guid* riid);
-        void* GetPropertyStore(ushort flags, System.Guid* riid);
+        void* GetPropertyStore(uint flags, System.Guid* riid);
         void* GetPropertyDescriptionList(void* keyType, System.Guid* riid);
-        ushort GetAttributes(int AttribFlags, ushort sfgaoMask);
+        uint GetAttributes(int AttribFlags, uint sfgaoMask);
         int Count { get; }
 
         IShellItem GetItemAt(int dwIndex);
@@ -71,9 +71,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com
 
     internal unsafe partial interface IFileDialog : IModalWindow
     {
-        void SetFileTypes(ushort cFileTypes, void* rgFilterSpec);
-        void SetFileTypeIndex(ushort iFileType);
-        ushort FileTypeIndex { get; }
+        void SetFileTypes(uint cFileTypes, void* rgFilterSpec);
+        void SetFileTypeIndex(uint iFileType);
+        uint FileTypeIndex { get; }
 
         int Advise(void* pfde);
         void Unadvise(int dwCookie);
@@ -380,7 +380,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
             return ppvOut;
         }
 
-        public void* GetPropertyStore(ushort flags, System.Guid* riid)
+        public void* GetPropertyStore(uint flags, System.Guid* riid)
         {
             int __result;
             void* ppv = default;
@@ -400,10 +400,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
             return ppv;
         }
 
-        public ushort GetAttributes(int AttribFlags, ushort sfgaoMask)
+        public uint GetAttributes(int AttribFlags, uint sfgaoMask)
         {
             int __result;
-            ushort psfgaoAttribs = default;
+            uint psfgaoAttribs = default;
             __result = (int)LocalInterop.CalliStdCallint(PPV, AttribFlags, sfgaoMask, &psfgaoAttribs, (*PPV)[base.VTableSize + 3]);
             if (__result != 0)
                 throw new System.Runtime.InteropServices.COMException("GetAttributes failed", __result);
@@ -486,8 +486,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
         }
 
         [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
-        delegate int GetPropertyStoreDelegate(IntPtr @this, ushort flags, System.Guid* riid, void** ppv);
-        static int GetPropertyStore(IntPtr @this, ushort flags, System.Guid* riid, void** ppv)
+        delegate int GetPropertyStoreDelegate(IntPtr @this, uint flags, System.Guid* riid, void** ppv);
+        static int GetPropertyStore(IntPtr @this, uint flags, System.Guid* riid, void** ppv)
         {
             IShellItemArray __target = null;
             try
@@ -542,8 +542,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
         }
 
         [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
-        delegate int GetAttributesDelegate(IntPtr @this, int AttribFlags, ushort sfgaoMask, ushort* psfgaoAttribs);
-        static int GetAttributes(IntPtr @this, int AttribFlags, ushort sfgaoMask, ushort* psfgaoAttribs)
+        delegate int GetAttributesDelegate(IntPtr @this, int AttribFlags, uint sfgaoMask, uint* psfgaoAttribs);
+        static int GetAttributes(IntPtr @this, int AttribFlags, uint sfgaoMask, uint* psfgaoAttribs)
         {
             IShellItemArray __target = null;
             try
@@ -722,7 +722,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
 
     unsafe internal partial class __MicroComIFileDialogProxy : __MicroComIModalWindowProxy, IFileDialog
     {
-        public void SetFileTypes(ushort cFileTypes, void* rgFilterSpec)
+        public void SetFileTypes(uint cFileTypes, void* rgFilterSpec)
         {
             int __result;
             __result = (int)LocalInterop.CalliStdCallint(PPV, cFileTypes, rgFilterSpec, (*PPV)[base.VTableSize + 0]);
@@ -730,7 +730,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
                 throw new System.Runtime.InteropServices.COMException("SetFileTypes failed", __result);
         }
 
-        public void SetFileTypeIndex(ushort iFileType)
+        public void SetFileTypeIndex(uint iFileType)
         {
             int __result;
             __result = (int)LocalInterop.CalliStdCallint(PPV, iFileType, (*PPV)[base.VTableSize + 1]);
@@ -738,12 +738,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
                 throw new System.Runtime.InteropServices.COMException("SetFileTypeIndex failed", __result);
         }
 
-        public ushort FileTypeIndex
+        public uint FileTypeIndex
         {
             get
             {
                 int __result;
-                ushort piFileType = default;
+                uint piFileType = default;
                 __result = (int)LocalInterop.CalliStdCallint(PPV, &piFileType, (*PPV)[base.VTableSize + 2]);
                 if (__result != 0)
                     throw new System.Runtime.InteropServices.COMException("GetFileTypeIndex failed", __result);
@@ -953,8 +953,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
     unsafe class __MicroComIFileDialogVTable : __MicroComIModalWindowVTable
     {
         [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
-        delegate int SetFileTypesDelegate(IntPtr @this, ushort cFileTypes, void* rgFilterSpec);
-        static int SetFileTypes(IntPtr @this, ushort cFileTypes, void* rgFilterSpec)
+        delegate int SetFileTypesDelegate(IntPtr @this, uint cFileTypes, void* rgFilterSpec);
+        static int SetFileTypes(IntPtr @this, uint cFileTypes, void* rgFilterSpec)
         {
             IFileDialog __target = null;
             try
@@ -978,8 +978,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
         }
 
         [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
-        delegate int SetFileTypeIndexDelegate(IntPtr @this, ushort iFileType);
-        static int SetFileTypeIndex(IntPtr @this, ushort iFileType)
+        delegate int SetFileTypeIndexDelegate(IntPtr @this, uint iFileType);
+        static int SetFileTypeIndex(IntPtr @this, uint iFileType)
         {
             IFileDialog __target = null;
             try
@@ -1003,8 +1003,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
         }
 
         [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
-        delegate int GetFileTypeIndexDelegate(IntPtr @this, ushort* piFileType);
-        static int GetFileTypeIndex(IntPtr @this, ushort* piFileType)
+        delegate int GetFileTypeIndexDelegate(IntPtr @this, uint* piFileType);
+        static int GetFileTypeIndex(IntPtr @this, uint* piFileType)
         {
             IFileDialog __target = null;
             try
@@ -2420,132 +2420,127 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32Com.Impl
     {
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, void* arg1, void* arg2, void* arg3, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, void*, void*, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2, arg3);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, int>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, uint arg0, void* arg1, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, uint, void*, int>)methodPtr)(thisObj, arg0, arg1);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, uint arg1, void* arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, uint, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
 
-        static unsafe public int CalliStdCallint(void* thisObj, ushort arg0, void* arg1, void* arg2, void* methodPtr)
+        static unsafe public int CalliStdCallint(void* thisObj, uint arg0, void* arg1, void* arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, uint, void*, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, void* arg1, void* arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, void*, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
 
-        static unsafe public int CalliStdCallint(void* thisObj, int arg0, ushort arg1, void* arg2, void* methodPtr)
+        static unsafe public int CalliStdCallint(void* thisObj, int arg0, uint arg1, void* arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, int, uint, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, int arg0, void* arg1, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, int, void*, int>)methodPtr)(thisObj, arg0, arg1);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, IntPtr arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, IntPtr, int>)methodPtr)(thisObj, arg0);
         }
 
-        static unsafe public int CalliStdCallint(void* thisObj, ushort arg0, void* arg1, void* methodPtr)
+        static unsafe public int CalliStdCallint(void* thisObj, uint arg0, void* methodPtr)
         {
-            throw null;
-        }
-
-        static unsafe public int CalliStdCallint(void* thisObj, ushort arg0, void* methodPtr)
-        {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, uint, int>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, void* arg1, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, void*, int>)methodPtr)(thisObj, arg0, arg1);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, int arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, int, int>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, FILEOPENDIALOGOPTIONS arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, FILEOPENDIALOGOPTIONS, int>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, int arg1, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, int, int>)methodPtr)(thisObj, arg0, arg1);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, int>)methodPtr)(thisObj);
         }
 
         static unsafe public uint CalliStdCalluint(void* thisObj, uint arg0, void* arg1, void* arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, uint, void*, void*, uint>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
 
         static unsafe public uint CalliStdCalluint(void* thisObj, uint arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, uint, uint>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public uint CalliStdCalluint(void* thisObj, void* arg0, void* arg1, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, void*, uint>)methodPtr)(thisObj, arg0, arg1);
         }
 
         static unsafe public uint CalliStdCalluint(void* thisObj, void* arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, uint>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public uint CalliStdCalluint(void* thisObj, void* arg0, void* arg1, int arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, void*, int, uint>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, int arg1, void* arg2, void* arg3, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, int, void*, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2, arg3);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, int arg0, int arg1, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, int, int, int>)methodPtr)(thisObj, arg0, arg1);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, DropEffect arg0, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, DropEffect, int>)methodPtr)(thisObj, arg0);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, void* arg0, int arg1, ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop.UnmanagedMethods.POINT arg2, void* arg3, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, void*, int, ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop.UnmanagedMethods.POINT, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2, arg3);
         }
 
         static unsafe public int CalliStdCallint(void* thisObj, int arg0, ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop.UnmanagedMethods.POINT arg1, void* arg2, void* methodPtr)
         {
-            throw null;
+            return ((delegate* unmanaged[Stdcall]<void*, int, ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop.UnmanagedMethods.POINT, void*, int>)methodPtr)(thisObj, arg0, arg1, arg2);
         }
     }
 }

@@ -6,6 +6,7 @@ using ModernFormsNext.WindowKit.Platform.Storage;
 using ModernFormsNext.WindowKit.Platform.Storage.FileIO;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 {
@@ -58,7 +59,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             return files.Select(f => new BclStorageFile(new FileInfo(f))).FirstOrDefault();
         }
 
-        private unsafe Task<IEnumerable<string>> ShowFilePicker(
+        private Task<IEnumerable<string>> ShowFilePicker(
             bool isOpenFile,
             bool openFolder,
             bool allowMultiple,
@@ -69,15 +70,82 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             string? defaultExtension,
             IReadOnlyList<FilePickerFileType>? filters)
         {
-            return Task.Run(() =>
+            return RunStaDialogAsync(() => ShowFilePickerCore(
+                isOpenFile,
+                openFolder,
+                allowMultiple,
+                showOverwritePrompt,
+                title,
+                suggestedFileName,
+                folder,
+                defaultExtension,
+                filters));
+        }
+
+        private static Task<T> RunStaDialogAsync<T>(Func<T> action)
+        {
+            var taskSource = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            // Windows Common Item Dialogs expect an STA thread with OLE initialized.
+            // A regular ThreadPool worker can be MTA and makes COM failures depend on caller context.
+            var thread = new Thread(() =>
             {
-                IEnumerable<string> result = Array.Empty<string>();
+                var oleInitialized = false;
                 try
                 {
-                    var clsid = isOpenFile ? UnmanagedMethods.ShellIds.OpenFileDialog : UnmanagedMethods.ShellIds.SaveFileDialog;
-                    var iid = UnmanagedMethods.ShellIds.IFileDialog;
-                    var frm = UnmanagedMethods.CreateInstance<IFileDialog>(ref clsid, ref iid);
+                    var oleResult = UnmanagedMethods.OleInitialize(IntPtr.Zero);
+                    if (oleResult is not UnmanagedMethods.HRESULT.S_OK and not UnmanagedMethods.HRESULT.S_FALSE)
+                    {
+                        throw new COMException("OleInitialize failed.", unchecked((int)(uint)oleResult));
+                    }
 
+                    oleInitialized = true;
+                    taskSource.SetResult(action());
+                }
+                catch (Exception ex)
+                {
+                    taskSource.SetException(ex);
+                }
+                finally
+                {
+                    if (oleInitialized)
+                    {
+                        UnmanagedMethods.OleUninitialize();
+                    }
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "ModernFormsNext Win32 file dialog"
+            };
+
+#pragma warning disable CA1416 // Win32StorageProvider is only constructed by the Windows backend.
+            thread.SetApartmentState(ApartmentState.STA);
+#pragma warning restore CA1416
+            thread.Start();
+
+            return taskSource.Task;
+        }
+
+        private unsafe IEnumerable<string> ShowFilePickerCore(
+            bool isOpenFile,
+            bool openFolder,
+            bool allowMultiple,
+            bool? showOverwritePrompt,
+            string? title,
+            string? suggestedFileName,
+            IStorageFolder? folder,
+            string? defaultExtension,
+            IReadOnlyList<FilePickerFileType>? filters)
+        {
+            IEnumerable<string> result = Array.Empty<string>();
+            try
+            {
+                var clsid = isOpenFile ? UnmanagedMethods.ShellIds.OpenFileDialog : UnmanagedMethods.ShellIds.SaveFileDialog;
+                var iid = UnmanagedMethods.ShellIds.IFileDialog;
+                var frm = UnmanagedMethods.CreateInstance<IFileDialog>(ref clsid, ref iid);
+                try
+                {
                     var options = frm.Options;
                     options |= DefaultDialogOptions;
                     if (openFolder)
@@ -119,13 +187,18 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                     if (!openFolder)
                     {
-                        fixed (void* pFilters = FiltersToPointer(filters, out var count))
+                        var filtersPointer = FiltersToPointer(filters, out var count, out var filterStringPointers);
+                        try
                         {
-                            frm.SetFileTypes((ushort)count, pFilters);
+                            frm.SetFileTypes((uint)count, (void*)filtersPointer);
                             if (count > 0)
                             {
-                                frm.SetFileTypeIndex(0);
+                                frm.SetFileTypeIndex(1);
                             }
+                        }
+                        finally
+                        {
+                            FreeFiltersPointer(filtersPointer, filterStringPointers);
                         }
                     }
 
@@ -135,7 +208,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         if (UnmanagedMethods.SHCreateItemFromParsingName(folderPath, IntPtr.Zero, ref riid, out var directoryShellItem)
                             == (uint)UnmanagedMethods.HRESULT.S_OK)
                         {
-                            var proxy = MicroComRuntime.CreateProxyFor<IShellItem>(directoryShellItem, true);
+                            using var proxy = MicroComRuntime.CreateProxyFor<IShellItem>(directoryShellItem, true);
                             frm.SetFolder(proxy);
                             frm.SetDefaultFolder(proxy);
                         }
@@ -155,13 +228,13 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     if (allowMultiple)
                     {
                         using var fileOpenDialog = frm.QueryInterface<IFileOpenDialog>();
-                        var shellItemArray = fileOpenDialog.Results;
+                        using var shellItemArray = fileOpenDialog.Results;
                         var count = shellItemArray.Count;
 
                         var results = new List<string>();
                         for (int i = 0; i < count; i++)
                         {
-                            var shellItem = shellItemArray.GetItemAt(i);
+                            using var shellItem = shellItemArray.GetItemAt(i);
                             if (GetAbsoluteFilePath(shellItem) is { } selected)
                             {
                                 results.Add(selected);
@@ -170,20 +243,27 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                         result = results;
                     }
-                    else if (frm.Result is { } shellItem
-                        && GetAbsoluteFilePath(shellItem) is { } singleResult)
+                    else
                     {
-                        result = new[] { singleResult };
+                        using var shellItem = frm.Result;
+                        if (shellItem is not null && GetAbsoluteFilePath(shellItem) is { } singleResult)
+                        {
+                            result = new[] { singleResult };
+                        }
                     }
 
                     return result;
                 }
-                catch (COMException ex)
+                finally
                 {
-                    var message = new Win32Exception(ex.HResult).Message;
-                    throw new COMException(message, ex);
+                    frm.Dispose();
                 }
-            });
+            }
+            catch (COMException ex)
+            {
+                var message = new Win32Exception(ex.HResult).Message;
+                throw new COMException(message, ex.HResult);
+            }
         }
 
 
@@ -204,7 +284,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             return default;
         }
 
-        private static byte[] FiltersToPointer(IReadOnlyList<FilePickerFileType>? filters, out int length)
+        private static IntPtr FiltersToPointer(
+            IReadOnlyList<FilePickerFileType>? filters,
+            out int length,
+            out List<IntPtr> filterStringPointers)
         {
             if (filters == null || filters.Count == 0)
             {
@@ -214,37 +297,68 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 };
             }
 
-            var size = Marshal.SizeOf<UnmanagedMethods.COMDLG_FILTERSPEC>();
-            var resultArr = new byte[size * filters.Count];
+            var size = Marshal.SizeOf<NativeFilterSpec>();
+            var result = Marshal.AllocCoTaskMem(size * filters.Count);
+            filterStringPointers = new List<IntPtr>(filters.Count * 2);
 
-            for (int i = 0; i < filters.Count; i++)
+            try
             {
-                var filter = filters[i];
-                if (filter.Patterns is null || !filter.Patterns.Any())
+                for (int i = 0; i < filters.Count; i++)
                 {
-                    continue;
-                }
+                    var filter = filters[i];
+                    var namePointer = Marshal.StringToCoTaskMemUni(filter.Name);
+                    filterStringPointers.Add(namePointer);
 
-                var filterPtr = Marshal.AllocHGlobal(size);
-                try
-                {
-                    var filterStr = new UnmanagedMethods.COMDLG_FILTERSPEC
+                    var patternPointer = Marshal.StringToCoTaskMemUni(GetFilterPattern(filter));
+                    filterStringPointers.Add(patternPointer);
+
+                    var native = new NativeFilterSpec
                     {
-                        pszName = filter.Name,
-                        pszSpec = string.Join(";", filter.Patterns)
+                        pszName = namePointer,
+                        pszSpec = patternPointer
                     };
 
-                    Marshal.StructureToPtr(filterStr, filterPtr, false);
-                    Marshal.Copy(filterPtr, resultArr, i * size, size);
+                    Marshal.StructureToPtr(native, IntPtr.Add(result, i * size), false);
                 }
-                finally
-                {
-                    Marshal.FreeHGlobal(filterPtr);
-                }
+            }
+            catch
+            {
+                FreeFiltersPointer(result, filterStringPointers);
+                throw;
             }
 
             length = filters.Count;
-            return resultArr;
+            return result;
+        }
+
+        private static string GetFilterPattern(FilePickerFileType filter)
+        {
+            return filter.Patterns is { Count: > 0 }
+                ? string.Join(";", filter.Patterns)
+                : "*.*";
+        }
+
+        private static void FreeFiltersPointer(IntPtr filtersPointer, List<IntPtr> filterStringPointers)
+        {
+            foreach (var filterStringPointer in filterStringPointers)
+            {
+                if (filterStringPointer != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(filterStringPointer);
+                }
+            }
+
+            if (filtersPointer != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(filtersPointer);
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeFilterSpec
+        {
+            public IntPtr pszName;
+            public IntPtr pszSpec;
         }
     }
 }

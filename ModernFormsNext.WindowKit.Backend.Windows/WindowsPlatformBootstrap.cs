@@ -1,5 +1,6 @@
 ﻿using ModernFormsNext.WindowKit;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32;
+using ModernFormsNext.WindowKit.Backend.Windows.Win32Com;
 using ModernFormsNext.WindowKit.Controls.Platform;
 using ModernFormsNext.WindowKit.Input.Platform;
 using ModernFormsNext.WindowKit.Platform;
@@ -30,6 +31,7 @@ public static class WindowsPlatformBootstrap
                 return;
 
             Win32Platform.Initialize();
+            Win32ComRegistration.Initialize();
 
             AvaloniaGlobals.AddService<IWindowingPlatform>(Win32Platform.Instance);
             AvaloniaGlobals.AddService<IDispatcherImpl>(Win32Platform.Instance._dispatcher);

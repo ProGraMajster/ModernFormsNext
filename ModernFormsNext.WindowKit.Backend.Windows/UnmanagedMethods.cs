@@ -1684,6 +1684,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         [DllImport("ole32.dll", EntryPoint = "OleInitialize")]
         public static extern HRESULT OleInitialize(IntPtr val);
 
+        [DllImport("ole32.dll", EntryPoint = "OleUninitialize")]
+        public static extern void OleUninitialize();
+
         [DllImport("ole32.dll", CharSet = CharSet.Auto, ExactSpelling = true)]
         internal static extern void ReleaseStgMedium(ref STGMEDIUM medium);
 
