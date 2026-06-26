@@ -3,6 +3,7 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Reflection;
+using ModernFormsNext.Accessibility;
 
 namespace ModernFormsNext
 {
@@ -648,7 +649,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the CellValueChanged event.
         /// </summary>
-        protected virtual void OnCellValueChanged(DataGridViewCellEditEventArgs e) => CellValueChanged?.Invoke(this, e);
+        protected virtual void OnCellValueChanged(DataGridViewCellEditEventArgs e)
+        {
+            CellValueChanged?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.ValueChange);
+        }
 
         /// <summary>
         /// Handles a column header click for sorting.
@@ -1220,7 +1225,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the SelectionChanged event.
         /// </summary>
-        protected virtual void OnSelectionChanged(EventArgs e) => SelectionChanged?.Invoke(this, e);
+        protected virtual void OnSelectionChanged(EventArgs e)
+        {
+            SelectionChanged?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.Selection);
+        }
 
         /// <summary>
         /// Raised when the selection changes.

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -106,6 +107,7 @@ namespace ModernFormsNext
                 if (current_value != value) {
                     current_value = value;
                     Invalidate ();
+                    NotifyAccessibilityClients (AccessibleEvents.ValueChange);
                 }
             }
         }

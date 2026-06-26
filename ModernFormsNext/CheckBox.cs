@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Specialized;
 using System.Drawing;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Layout;
 using ModernFormsNext.Renderers;
 using SkiaSharp;
@@ -236,7 +237,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the CheckStateChanged event.
         /// </summary>
-        protected virtual void OnCheckStateChanged (EventArgs e) => CheckStateChanged?.Invoke (this, e);
+        protected virtual void OnCheckStateChanged (EventArgs e)
+        {
+            CheckStateChanged?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.StateChange);
+            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+        }
 
         /// <inheritdoc/>
         protected override void OnClick (MouseEventArgs e)

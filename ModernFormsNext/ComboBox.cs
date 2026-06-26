@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -124,12 +125,20 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the DropDownClosed event.
         /// </summary>
-        protected virtual void OnDropDownClosed (EventArgs e) => DropDownClosed?.Invoke (this, e);
+        protected virtual void OnDropDownClosed (EventArgs e)
+        {
+            DropDownClosed?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.StateChange);
+        }
 
         /// <summary>
         /// Raises the DropDownOpened event.
         /// </summary>
-        protected virtual void OnDropDownOpened (EventArgs e) => DropDownOpened?.Invoke (this, e);
+        protected virtual void OnDropDownOpened (EventArgs e)
+        {
+            DropDownOpened?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.StateChange);
+        }
 
         /// <inheritdoc/>
         protected override void OnKeyUp (KeyEventArgs e)
@@ -171,7 +180,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the SelectedIndexChanged event.
         /// </summary>
-        protected virtual void OnSelectedIndexChanged (EventArgs e) => SelectedIndexChanged?.Invoke (this, e);
+        protected virtual void OnSelectedIndexChanged (EventArgs e)
+        {
+            SelectedIndexChanged?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.Selection);
+            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+        }
 
         /// <summary>
         /// Gets or sets the index of the currently selected item.  Returns -1 if no item is selected.

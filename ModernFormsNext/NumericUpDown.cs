@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Globalization;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -412,10 +413,12 @@ namespace ModernFormsNext
             if (UpButtonBounds.Contains (e.Location)) {
                 upButtonPressed = true;
                 downButtonPressed = false;
+                NotifyAccessibilityClients (AccessibleEvents.StateChange);
                 Invalidate ();
             } else if (DownButtonBounds.Contains (e.Location)) {
                 downButtonPressed = true;
                 upButtonPressed = false;
+                NotifyAccessibilityClients (AccessibleEvents.StateChange);
                 Invalidate ();
             }
         }
@@ -436,6 +439,9 @@ namespace ModernFormsNext
 
             upButtonPressed = false;
             downButtonPressed = false;
+
+            if (doUp || doDown)
+                NotifyAccessibilityClients (AccessibleEvents.StateChange);
 
             Invalidate ();
 
@@ -511,6 +517,7 @@ namespace ModernFormsNext
         protected virtual void OnValueChanged (EventArgs e)
         {
             ValueChanged?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
         }
 
         /// <summary>

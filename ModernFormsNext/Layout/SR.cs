@@ -14,9 +14,13 @@ internal class SR
 
     internal static string CatItems => "Items";
 
+    internal static string CatPropertyChanged => "Property Changed";
+
     internal static string BindableComponentBindingContextChangedDescr => "Event raised when the binding context changes.";
 
     internal static string BindingComponentBindingContextDescr => "The binding context used to resolve data-binding managers for this component.";
+
+    internal static string BindingNotSupported => "Data binding is not supported in this build of ModernFormsNext.";
 
     internal static string collectionChangedEventDescr => "Event raised after the collection changes.";
 
@@ -32,7 +36,33 @@ internal class SR
 
     internal static string ControlNotChild => "'child' is not a child control of this parent.";
 
+    internal static string ControlBindingContextDescr => "The binding context used to resolve data-binding managers for this control.";
+
+    internal static string ControlOnBindingContextChangedDescr => "Event raised when the control binding context changes.";
+
+    internal static string ControlOnHelpDescr => "Event raised when contextual help is requested for the control.";
+
+    internal static string ControlOnQueryAccessibilityHelpDescr => "Event raised when accessibility help metadata is requested for the control.";
+
+    internal static string ControlTagDescr => "User-defined data associated with the component.";
+
+    internal static string DescriptionHelpProvider => "Provides contextual help metadata for controls.";
+
     internal static string FindKeyMayNotBeEmptyOrNull => "Key specified was either empty or null.";
+
+    internal static string HelpInvalidURL => "The help URL '{0}' could not be resolved.";
+
+    internal static string HelpProviderHelpKeywordDescr => "The help keyword associated with the extended control.";
+
+    internal static string HelpProviderHelpNamespaceDescr => "The help namespace, file, or URL used by this provider.";
+
+    internal static string HelpProviderHelpStringDescr => "The contextual help string associated with the extended control.";
+
+    internal static string HelpProviderNavigatorDescr => "The help navigation mode used for the extended control.";
+
+    internal static string HelpProviderShowHelpDescr => "Determines whether help is displayed for the extended control.";
+
+    internal static string HelpUnableToLaunch => "The help target '{0}' could not be opened by the operating system.";
 
     internal static string IndexOutOfRange => "Index {0} is out of range.";
 

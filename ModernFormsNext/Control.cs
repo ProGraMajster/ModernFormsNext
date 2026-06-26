@@ -1,17 +1,20 @@
-﻿using System;
+﻿using ModernFormsNext.Accessibility;
+using ModernFormsNext.DataBinding;
+using ModernFormsNext.Help;
+using ModernFormsNext.Layout;
+using SkiaSharp;
+using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
-using ModernFormsNext.Layout;
-using SkiaSharp;
 
 namespace ModernFormsNext
 {
     /// <summary>
     /// Represents the base class for all Controls.
     /// </summary>
-    public partial class Control : Component, ILayoutable, IArrangedElement, IDisposable
+    public partial class Control : Component, ILayoutable, IArrangedElement, IBindableComponent, IDisposable
     {
         // Control instance members
         //
@@ -117,6 +120,37 @@ namespace ModernFormsNext
         }
 
         /// <summary>
+        /// Raises the <see cref="BindingContextChanged"/> event and propagates the new context
+        /// to child controls.
+        /// </summary>
+        /// <param name="e">The event data.</param>
+        protected virtual void OnBindingContextChanged(EventArgs e)
+        {
+            if (Properties.ContainsKey(s_bindingsProperty))
+            {
+                if (!Binding.IsSupported)
+                {
+                    throw new NotSupportedException(SR.BindingNotSupported);
+                }
+
+                UpdateBindings();
+            }
+
+            if (Events[s_bindingContextEvent] is EventHandler eh)
+            {
+                eh(this, e);
+            }
+
+            if (Controls is { } children)
+            {
+                for (int i = 0; i < children.Count; i++)
+                {
+                    children[i].OnParentBindingContextChanged(e);
+                }
+            }
+        }
+
+        /// <summary>
         /// Gets the unscaled bottom location of the control.
         /// </summary>
         public int Bottom => _y + _height;
@@ -174,6 +208,8 @@ namespace ModernFormsNext
                 return true;
             }
         }
+
+        internal virtual bool CanAccessProperties => true;
 
         /// <summary>
         /// Gets or sets a value indicating the control is currently getting system mouse events.
@@ -348,6 +384,31 @@ namespace ModernFormsNext
                     Properties.SetObject (s_cursorProperty, value);
                     OnCursorChanged (EventArgs.Empty);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Gets the collection of data bindings for this control.
+        /// </summary>
+        /// <remarks>
+        /// This WinForms-compatible surface is only available when the ModernFormsNext data-binding
+        /// feature is enabled. The collection is created lazily and is bound to this control.
+        /// </remarks>
+        public ControlBindingsCollection DataBindings
+        {
+            get
+            {
+                if (!Binding.IsSupported)
+                {
+                    throw new NotSupportedException(SR.BindingNotSupported);
+                }
+
+                if (!Properties.TryGetValue(s_bindingsProperty, out ControlBindingsCollection? bindings))
+                {
+                    bindings = Properties.AddValue(s_bindingsProperty, new ControlBindingsCollection(this));
+                }
+
+                return bindings;
             }
         }
 
@@ -801,6 +862,32 @@ namespace ModernFormsNext
             set => SetBounds (_x, _y, _width, value, BoundsSpecified.Height);
         }
 
+
+        /// <summary>
+        /// Raises the <see cref="HelpRequested"/> event and bubbles the request to the parent
+        /// control when it is not handled.
+        /// </summary>
+        /// <param name="hevent">The event data for the help request.</param>
+        protected virtual void OnHelpRequested(HelpEventArgs hevent)
+        {
+            ArgumentNullException.ThrowIfNull(hevent);
+
+            var parentInternal = Parent;
+            HelpEventHandler? handler = (HelpEventHandler?)Events[s_helpRequestedEvent];
+
+            if (handler is not null)
+            {
+                handler(this, hevent);
+
+                // Mark the event as handled so that the event isn't raised for the
+                // control's parent.
+                hevent.Handled = true;
+            }
+
+            if (!hevent.Handled)
+                parentInternal?.OnHelpRequested(hevent);
+        }
+
         /// <summary>
         /// Hide this control from the user.
         /// </summary>
@@ -1026,6 +1113,7 @@ namespace ModernFormsNext
             Invalidate ();
 
             (Events[s_enabledChangedEvent] as EventHandler)?.Invoke (this, e);
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
 
             // PERFNOTE: This is more efficient than using Foreach.  Foreach
             // forces the creation of an array subset enum each time we enumerate
@@ -1037,7 +1125,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the GotFocus event.
         /// </summary>
-        protected virtual void OnGotFocus (EventArgs e) => (Events[s_gotFocusEvent] as EventHandler)?.Invoke (this, e);
+        protected virtual void OnGotFocus (EventArgs e)
+        {
+            (Events[s_gotFocusEvent] as EventHandler)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.Focus);
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+        }
 
         /// <summary>
         /// Raises the Invalidated event.
@@ -1047,7 +1140,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the LostFocus event.
         /// </summary>
-        protected virtual void OnLostFocus(EventArgs e) => (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
+        protected virtual void OnLostFocus(EventArgs e)
+        {
+            (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+        }
 
         /// <summary>
         /// Raises the KeyDown event.
@@ -1067,7 +1164,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the LocationChanged event.
         /// </summary>
-        protected virtual void OnLocationChanged (EventArgs e) => (Events[s_locationChangedEvent] as EventHandler)?.Invoke (this, e);
+        protected virtual void OnLocationChanged (EventArgs e)
+        {
+            (Events[s_locationChangedEvent] as EventHandler)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.LocationChange);
+        }
 
         /// <summary>
         /// Raises the MarginChanged event.
@@ -1213,7 +1314,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Called when the Parent property is changed.
         /// </summary>
-        protected virtual void OnParentChanged (EventArgs e) => (Events[s_parentEvent] as EventHandler)?.Invoke (this, e);
+        protected virtual void OnParentChanged (EventArgs e)
+        {
+            (Events[s_parentEvent] as EventHandler)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.ParentChange);
+        }
 
         /// <summary>
         /// Called when the Parent's Enabled property is changed.
@@ -1232,6 +1337,22 @@ namespace ModernFormsNext
         {
             if (Visible)
                 OnVisibleChanged (e);
+        }
+
+        /// <summary>
+        /// Called when the parent's binding context changes.
+        /// </summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>
+        /// Controls that do not own an explicit binding manager inherit the parent context and
+        /// raise <see cref="BindingContextChanged"/> from this method.
+        /// </remarks>
+        protected virtual void OnParentBindingContextChanged(EventArgs e)
+        {
+            if (!Properties.ContainsKey(s_bindingManagerProperty))
+            {
+                OnBindingContextChanged(e);
+            }
         }
 
         /// <summary>
@@ -1265,6 +1386,7 @@ namespace ModernFormsNext
             OnResize (EventArgs.Empty);
 
             (Events[s_sizeChangedEvent] as EventHandler)?.Invoke (this, e);
+            NotifyAccessibilityClients(AccessibleEvents.LocationChange);
         }
 
         /// <summary>
@@ -1280,7 +1402,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the TextChanged event.
         /// </summary>
-        protected virtual void OnTextChanged (EventArgs e) => (Events[s_textChangedEvent] as EventHandler)?.Invoke (this, e);
+        protected virtual void OnTextChanged (EventArgs e)
+        {
+            (Events[s_textChangedEvent] as EventHandler)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.NameChange);
+            NotifyAccessibilityClients(AccessibleEvents.ValueChange);
+        }
 
         /// <summary>
         /// Called when the theme changes.
@@ -1298,6 +1425,8 @@ namespace ModernFormsNext
             CreateControl ();
 
             (Events[s_visibleChangedEvent] as EventHandler)?.Invoke (this, e);
+            NotifyAccessibilityClients(Visible ? AccessibleEvents.Show : AccessibleEvents.Hide);
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
 
             foreach (var c in Controls.GetAllControls ())
                 c.OnParentVisibleChanged (e);
@@ -1948,6 +2077,51 @@ namespace ModernFormsNext
             return new MouseEventArgs (e.Button, e.Clicks, e.Location.X - control.ScaledLeft, e.Location.Y - control.ScaledTop, e.Delta, e.Location.X, e.Location.Y, e.Modifiers);
         }
 
+
+        internal BindingContext? BindingContextInternal
+        {
+            get
+            {
+                // See if we have locally overridden the binding manager.
+                if (Properties.TryGetValue(s_bindingManagerProperty, out BindingContext? context))
+                {
+                    return context;
+                }
+
+                // Otherwise, see if the parent has one for us.
+                if (parent is not null && parent.CanAccessProperties)
+                {
+                    return parent.BindingContext;
+                }
+
+                // Otherwise, we have no binding manager available.
+                return null;
+            }
+            set
+            {
+                BindingContext? oldContext = Properties.AddOrRemoveValue(s_bindingManagerProperty, value);
+
+                if (oldContext != value)
+                {
+                    // The property change will wire up the bindings.
+                    OnBindingContextChanged(EventArgs.Empty);
+                }
+            }
+        }
+
+        /// <summary>
+        ///  Updates the binding manager bindings when the binding property changes.
+        ///  We have the code here, rather than in PropertyChanged, so we don't pull
+        ///  in the data assembly if it's not used.
+        /// </summary>
+        private void UpdateBindings()
+        {
+            for (int i = 0; i < DataBindings.Count; i++)
+            {
+                BindingContext.UpdateBinding(BindingContext, DataBindings[i]);
+            }
+        }
+
         /// <summary>
         /// Gets or sets whether the control is displayed to the user.
         /// </summary>
@@ -1968,6 +2142,7 @@ namespace ModernFormsNext
             get => _width;
             set => SetBounds (_x, _y, value, _height, BoundsSpecified.Width);
         }
+
 
         #region IDisposable Support
         private bool disposedValue = false; // To detect redundant calls

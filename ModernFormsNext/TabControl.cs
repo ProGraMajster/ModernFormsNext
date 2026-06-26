@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 using SkiaSharp;
 
@@ -256,7 +257,11 @@ namespace ModernFormsNext
         /// Raises the <see cref="SelectedIndexChanged"/> event.
         /// </summary>
         protected virtual void OnSelectedIndexChanged(EventArgs e)
-            => SelectedIndexChanged?.Invoke(this, e);
+        {
+            SelectedIndexChanged?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.Selection);
+            NotifyAccessibilityClients(AccessibleEvents.ValueChange);
+        }
 
         /// <inheritdoc/>
         protected override void OnPaint(PaintEventArgs e)

@@ -2,6 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using ModernFormsNext.Accessibility;
+using ModernFormsNext.DataBinding;
+using ModernFormsNext.Help;
+using ModernFormsNext.Layout;
 using System;
 using System.Drawing;
 
@@ -44,12 +48,42 @@ public partial class Control
     private static readonly object s_textChangedEvent = new object ();
     private static readonly object s_visibleChangedEvent = new object ();
 
+    private static readonly object s_helpRequestedEvent = new();
+    private static readonly object s_queryAccessibilityHelpEvent = new();
+    private static readonly object s_bindingContextEvent = new();
+
     /// <summary>
     /// Raised when the AutoSize property is changed.
     /// </summary>
     public event EventHandler? AutoSizeChanged {
         add => Events.AddHandler (s_autoSizeChangedEvent, value);
         remove => Events.RemoveHandler (s_autoSizeChangedEvent, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the binding context used to resolve data-binding managers for this control.
+    /// </summary>
+    /// <remarks>
+    /// When set to <see langword="null"/>, the control inherits the nearest parent binding
+    /// context. Changing the value raises <see cref="BindingContextChanged"/> and propagates to
+    /// child controls.
+    /// </remarks>
+    [SRDescription(nameof(SR.ControlBindingContextDescr))]
+    public virtual BindingContext? BindingContext
+    {
+        get => BindingContextInternal;
+        set => BindingContextInternal = value;
+    }
+
+    /// <summary>
+    /// Occurs when the effective <see cref="BindingContext"/> changes.
+    /// </summary>
+    [SRCategory(nameof(SR.CatPropertyChanged))]
+    [SRDescription(nameof(SR.ControlOnBindingContextChangedDescr))]
+    public event EventHandler? BindingContextChanged
+    {
+        add => Events.AddHandler(s_bindingContextEvent, value);
+        remove => Events.RemoveHandler(s_bindingContextEvent, value);
     }
 
     /// <summary>
@@ -299,5 +333,36 @@ public partial class Control
     public event EventHandler? VisibleChanged {
         add => Events.AddHandler (s_visibleChangedEvent, value);
         remove => Events.RemoveHandler (s_visibleChangedEvent, value);
+    }
+
+    /// <summary>
+    /// Occurs when the user or framework requests contextual help for this control.
+    /// </summary>
+    /// <remarks>
+    /// The event bubbles to the parent control when it is not handled. This mirrors the familiar
+    /// WinForms help-provider flow while keeping the actual help UI platform-neutral.
+    /// </remarks>
+    [SRCategory(nameof(SR.CatBehavior))]
+    [SRDescription(nameof(SR.ControlOnHelpDescr))]
+    public event HelpEventHandler? HelpRequested
+    {
+        add => Events.AddHandler(s_helpRequestedEvent, value);
+        remove => Events.RemoveHandler(s_helpRequestedEvent, value);
+    }
+
+    /// <summary>
+    /// Occurs when the control's accessible object requests help metadata.
+    /// </summary>
+    /// <remarks>
+    /// Handle this event to provide help text, a help namespace, or a help keyword to
+    /// assistive technologies. <see cref="Help.HelpProvider"/> subscribes to this event
+    /// for controls that it extends.
+    /// </remarks>
+    [SRCategory(nameof(SR.CatBehavior))]
+    [SRDescription(nameof(SR.ControlOnQueryAccessibilityHelpDescr))]
+    public event QueryAccessibilityHelpEventHandler? QueryAccessibilityHelp
+    {
+        add => Events.AddHandler(s_queryAccessibilityHelpEvent, value);
+        remove => Events.RemoveHandler(s_queryAccessibilityHelpEvent, value);
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -515,6 +516,7 @@ namespace ModernFormsNext
             if (thumb_bounds.Contains(e.Location))
             {
                 thumb_pressed = true;
+                NotifyAccessibilityClients(AccessibleEvents.StateChange);
 
                 drag_offset_from_thumb_origin = Orientation == Orientation.Horizontal
                     ? Math.Max(0, Math.Min(thumb_bounds.Width, e.X - thumb_bounds.X))
@@ -570,6 +572,7 @@ namespace ModernFormsNext
             if (thumb_pressed)
             {
                 thumb_pressed = false;
+                NotifyAccessibilityClients(AccessibleEvents.StateChange);
                 Invalidate();
             }
         }
@@ -626,7 +629,11 @@ namespace ModernFormsNext
         /// Raises the <see cref="ValueChanged"/> event.
         /// </summary>
         /// <param name="e">The event data.</param>
-        protected virtual void OnValueChanged(EventArgs e) => ValueChanged?.Invoke(this, e);
+        protected virtual void OnValueChanged(EventArgs e)
+        {
+            ValueChanged?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.ValueChange);
+        }
 
         private void SetValueCore(int value, bool raiseScroll)
         {

@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -566,19 +567,31 @@ namespace ModernFormsNext
         /// Raises the <see cref="ValueChanged"/> event.
         /// </summary>
         /// <param name="e">The event data.</param>
-        protected virtual void OnValueChanged (EventArgs e) => ValueChanged?.Invoke (this, e);
+        protected virtual void OnValueChanged (EventArgs e)
+        {
+            ValueChanged?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+        }
 
         /// <summary>
         /// Raises the <see cref="DropDown"/> event.
         /// </summary>
         /// <param name="e">The event data.</param>
-        protected virtual void OnDropDown (EventArgs e) => DropDown?.Invoke (this, e);
+        protected virtual void OnDropDown (EventArgs e)
+        {
+            DropDown?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.StateChange);
+        }
 
         /// <summary>
         /// Raises the <see cref="CloseUp"/> event.
         /// </summary>
         /// <param name="e">The event data.</param>
-        protected virtual void OnCloseUp (EventArgs e) => CloseUp?.Invoke (this, e);
+        protected virtual void OnCloseUp (EventArgs e)
+        {
+            CloseUp?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.StateChange);
+        }
 
         /// <summary>
         /// Raises the <see cref="FormatChanged"/> event.

@@ -3,9 +3,11 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
+using System.Globalization;
 
 namespace ModernFormsNext.Layout;
 
@@ -42,6 +44,11 @@ internal partial class PropertyStore
         GetObject (key, out var found);
         return found;
     }
+
+    /// <summary>
+    /// Determines whether the specified key currently stores either an integer or object value.
+    /// </summary>
+    public bool ContainsKey(int key) => ContainsInteger(key) || ContainsObject(key);
 
     /// <summary>
     ///  Creates a new key for this property store. This is NOT
@@ -562,6 +569,137 @@ internal partial class PropertyStore
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Removes any value stored for the specified key.
+    /// </summary>
+    public void RemoveValue(int key)
+    {
+        RemoveInteger(key);
+        RemoveObject(key);
+    }
+
+    /// <summary>
+    /// Gets a strongly typed value from the store, or the supplied default when the key is missing.
+    /// </summary>
+    public T? GetValueOrDefault<T>(int key, T? defaultValue = default)
+    {
+        if (TryGetValue(key, out T? value))
+            return value;
+
+        return defaultValue;
+    }
+
+    /// <summary>
+    /// Attempts to retrieve a strongly typed value from the store.
+    /// </summary>
+    public bool TryGetValue<T>(int key, [MaybeNullWhen(false)] out T value)
+    {
+        Type targetType = typeof(T);
+
+        if (targetType.IsEnum)
+        {
+            int integerValue = GetInteger(key, out bool found);
+            value = found ? (T)Enum.ToObject(targetType, integerValue) : default;
+            return found;
+        }
+
+        if (targetType == typeof(int))
+        {
+            int integerValue = GetInteger(key, out bool found);
+            value = found ? (T)(object)integerValue : default;
+            return found;
+        }
+
+        if (targetType == typeof(Color))
+        {
+            Color color = GetColor(key, out bool found);
+            value = found ? (T)(object)color : default;
+            return found;
+        }
+
+        if (targetType == typeof(Padding))
+        {
+            Padding padding = GetPadding(key, out bool found);
+            value = found ? (T)(object)padding : default;
+            return found;
+        }
+
+        if (targetType == typeof(Rectangle))
+        {
+            Rectangle rectangle = GetRectangle(key, out bool found);
+            value = found ? (T)(object)rectangle : default;
+            return found;
+        }
+
+        if (targetType == typeof(Size))
+        {
+            Size size = GetSize(key, out bool found);
+            value = found ? (T)(object)size : default;
+            return found;
+        }
+
+        object? storedObject = GetObject(key, out bool objectFound);
+        if (objectFound && (storedObject is null || storedObject is T))
+        {
+            value = (T?)storedObject!;
+            return true;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Stores a strongly typed value and returns it for convenient lazy initialization call sites.
+    /// </summary>
+    public T AddValue<T>(int key, T value)
+    {
+        switch (value)
+        {
+            case null:
+                SetObject(key, null);
+                break;
+            case int integerValue:
+                SetInteger(key, integerValue);
+                break;
+            case Enum enumValue:
+                SetInteger(key, Convert.ToInt32(enumValue, CultureInfo.InvariantCulture));
+                break;
+            case Color color:
+                SetColor(key, color);
+                break;
+            case Padding padding:
+                SetPadding(key, padding);
+                break;
+            case Rectangle rectangle:
+                SetRectangle(key, rectangle);
+                break;
+            case Size size:
+                SetSize(key, size);
+                break;
+            default:
+                SetObject(key, value);
+                break;
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// Stores a value when it differs from the default value, or removes the key when it matches.
+    /// </summary>
+    public T? AddOrRemoveValue<T>(int key, T? value, T? defaultValue = default)
+    {
+        T? oldValue = GetValueOrDefault(key, defaultValue);
+
+        if (EqualityComparer<T?>.Default.Equals(value, defaultValue))
+            RemoveValue(key);
+        else
+            AddValue(key, value!);
+
+        return oldValue;
     }
 
     public void SetColor (int key, Color value)

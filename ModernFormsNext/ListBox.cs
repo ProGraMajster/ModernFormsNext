@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -411,7 +412,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the SelectedIndexChanged event.
         /// </summary>
-        protected virtual void OnSelectedIndexChanged (EventArgs e) => SelectedIndexChanged?.Invoke (this, e);
+        protected virtual void OnSelectedIndexChanged (EventArgs e)
+        {
+            SelectedIndexChanged?.Invoke (this, e);
+            NotifyAccessibilityClients (SelectionMode == SelectionMode.One ? AccessibleEvents.Selection : AccessibleEvents.SelectionWithin);
+            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+        }
 
         /// <summary>
         /// Gets the scaled height each item occupies.

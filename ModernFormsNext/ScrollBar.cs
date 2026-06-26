@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
@@ -248,7 +249,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the ValueChanged event.
         /// </summary>
-        protected virtual void OnValueChanged (EventArgs e) => ValueChanged?.Invoke (this, e);
+        protected virtual void OnValueChanged (EventArgs e)
+        {
+            ValueChanged?.Invoke (this, e);
+            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+        }
 
         /// <inheritdoc/>
         protected override void OnVisibleChanged (EventArgs e)
