@@ -413,6 +413,46 @@ namespace ModernFormsNext
         }
 
         /// <summary>
+        /// Gets or sets the font used to render text in this control.
+        /// </summary>
+        /// <remarks>
+        /// This property stores the full ModernFormsNext font description, including
+        /// <see cref="FontStyle.Bold"/>, <see cref="FontStyle.Italic"/>,
+        /// <see cref="FontStyle.Underline"/>, and <see cref="FontStyle.Strikeout"/>. Changing
+        /// the value invalidates the control and requests layout when <see cref="AutoSize"/> is
+        /// enabled because text metrics may change.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var dialog = new FontDialog();
+        /// if (await dialog.ShowDialog(form) == DialogResult.OK)
+        /// {
+        ///     label.Font = dialog.Font;
+        /// }
+        /// </code>
+        /// </example>
+        [SRCategory(nameof(SR.CatAppearance))]
+        [SRDescription(nameof(SR.ControlFontDescr))]
+        public virtual Font Font
+        {
+            get
+            {
+                return new Font(Style.GetFont().FamilyName, Style.GetFontSize(), Style.GetFontStyle());
+            }
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+
+                if (Font.Equals(value))
+                    return;
+
+                Style.TextFont = value;
+                Style.FontSize = Math.Max(1, (int)Math.Round(value.SizeInPoints));
+                OnFontChanged(EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
         /// Gets the default cursor.
         /// </summary>
         protected virtual Cursor DefaultCursor => Cursor.Default;
@@ -1120,6 +1160,18 @@ namespace ModernFormsNext
             if (Properties.GetObject (s_controlsCollectionProperty) is ControlCollection collection)
                 for (var i = 0; i < collection.Count; i++)
                     collection[i].OnParentEnabledChanged (e);
+        }
+
+        /// <summary>
+        /// Raises the <see cref="FontChanged"/> event.
+        /// </summary>
+        /// <param name="e">The event data.</param>
+        protected virtual void OnFontChanged(EventArgs e)
+        {
+            LayoutTransaction.DoLayoutIf(AutoSize, Parent, this, PropertyNames.Font);
+            Invalidate();
+
+            (Events[s_fontChangedEvent] as EventHandler)?.Invoke(this, e);
         }
 
         /// <summary>

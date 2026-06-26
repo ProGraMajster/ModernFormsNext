@@ -18,9 +18,9 @@ namespace ModernFormsNext
     /// backend uses the native Win32 font common dialog.
     /// </para>
     /// <para>
-    /// The selected <see cref="Font"/> is portable ModernFormsNext data. Assign
-    /// <see cref="Font.ToTypeface"/> to <see cref="ControlStyle.Font"/> and round
-    /// <see cref="Font.SizeInPoints"/> when applying the result to controls.
+    /// The selected <see cref="Font"/> is portable ModernFormsNext data. Assign it to
+    /// <see cref="Control.Font"/> or <see cref="ControlStyle.TextFont"/> to preserve the full
+    /// style, including underline and strikeout effects.
     /// </para>
     /// </remarks>
     /// <example>
@@ -34,16 +34,13 @@ namespace ModernFormsNext
     ///
     /// dialog.Apply += (_, _) =>
     /// {
-    ///     label.Style.Font = dialog.Font.ToTypeface();
-    ///     label.Style.FontSize = (int)Math.Round(dialog.Font.SizeInPoints);
+    ///     label.Font = dialog.Font;
     ///     label.Style.ForegroundColor = dialog.Color;
-    ///     label.Invalidate();
     /// };
     ///
     /// if (await dialog.ShowDialog(this) == DialogResult.OK)
     /// {
-    ///     label.Style.Font = dialog.Font.ToTypeface();
-    ///     label.Style.FontSize = (int)Math.Round(dialog.Font.SizeInPoints);
+    ///     label.Font = dialog.Font;
     ///     label.Style.ForegroundColor = dialog.Color;
     /// }
     /// </code>

@@ -37,7 +37,7 @@ internal class PropertyNames
     //public const string FlatStyle = "FlatStyle";
     public const string FlowBreak = "FlowBreak";
     public const string FlowDirection = "FlowDirection";
-    //public const string Font = "Font";
+    public const string Font = "Font";
     public const string GlyphAlign = "GlyphAlign";
     //public const string GripStyle = "GripStyle";
     public const string GrowStyle = "GrowStyle";

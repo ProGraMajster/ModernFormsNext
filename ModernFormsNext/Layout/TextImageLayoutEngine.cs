@@ -265,6 +265,6 @@ internal static class TextImageLayoutEngine
         if (control.Text is null)
             return SKSize.Empty;
 
-        return TextMeasurer.MeasureText (control.Text, control.Style.GetFont (), control.LogicalToDeviceUnits (control.Style.GetFontSize ()));
+        return TextMeasurer.MeasureText (control.Text, control.Style.GetFont (), control.LogicalToDeviceUnits (control.Style.GetFontSize ()), new Size(1000, 1000), control.Style.GetFontStyle ());
     }
 }

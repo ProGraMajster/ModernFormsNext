@@ -194,6 +194,13 @@ namespace ModernFormsNext
         }
 
         /// <inheritdoc/>
+        protected override void OnFontChanged(EventArgs e)
+        {
+            document.InvalidateTextBlock();
+            base.OnFontChanged(e);
+        }
+
+        /// <inheritdoc/>
         protected override void OnKeyDown (KeyEventArgs e)
         {
             base.OnKeyDown (e);

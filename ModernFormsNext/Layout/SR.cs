@@ -38,7 +38,11 @@ internal class SR
 
     internal static string ControlBindingContextDescr => "The binding context used to resolve data-binding managers for this control.";
 
+    internal static string ControlFontDescr => "The font used to render text in the control.";
+
     internal static string ControlOnBindingContextChangedDescr => "Event raised when the control binding context changes.";
+
+    internal static string ControlOnFontChangedDescr => "Event raised when the control font changes.";
 
     internal static string ControlOnHelpDescr => "Event raised when contextual help is requested for the control.";
 

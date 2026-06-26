@@ -11,7 +11,7 @@ namespace ModernFormsNext
     /// </summary>
     public static class TextMeasurer
     {
-        internal static TextBlock CreateTextBlock (string text, SKTypeface font, int fontSize, Size maxSize, TextAlignment alignment = TextAlignment.Auto, SKColor color = new SKColor (), int? maxLines = null, bool ellipsis = false)
+        internal static TextBlock CreateTextBlock (string text, SKTypeface font, int fontSize, Size maxSize, TextAlignment alignment = TextAlignment.Auto, SKColor color = new SKColor (), int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular)
         {
             if (maxLines == 1) {
                 text = text.Replace ("\n\r", "»");
@@ -31,7 +31,10 @@ namespace ModernFormsNext
                 FontFamily = font.FamilyName,
                 FontSize = fontSize,
                 TextColor = color,
-                FontWeight = font.FontWeight
+                FontWeight = fontStyle.HasFlag(FontStyle.Bold) ? (int)SKFontStyleWeight.Bold : font.FontWeight,
+                FontItalic = fontStyle.HasFlag(FontStyle.Italic) || font.FontSlant is SKFontStyleSlant.Italic or SKFontStyleSlant.Oblique,
+                Underline = fontStyle.HasFlag(FontStyle.Underline) ? UnderlineStyle.Solid : UnderlineStyle.None,
+                StrikeThrough = fontStyle.HasFlag(FontStyle.Strikeout) ? StrikeThroughStyle.Solid : StrikeThroughStyle.None
             };
 
             tb.AddText (text, styleNormal);
@@ -213,7 +216,7 @@ namespace ModernFormsNext
         /// Measures the specified text using font characteristics from the provided control.
         /// </summary>
         public static SKSize MeasureText (string text, Control control, Size maxSize)
-            => MeasureText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), maxSize);
+            => MeasureText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), maxSize, control.CurrentStyle.GetFontStyle());
 
         /// <summary>
         /// Measures the specified text using the provided font characteristics.
@@ -224,12 +227,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Measures the specified text using the provided font characteristics.
         /// </summary>
-        public static SKSize MeasureText (string text, SKTypeface font, int fontSize, Size maxSize)
+        public static SKSize MeasureText (string text, SKTypeface font, int fontSize, Size maxSize, FontStyle fontStyle = FontStyle.Regular)
         {
             if (!text.HasValue ())
                 return SKSize.Empty;
 
-            var tb = CreateTextBlock (text, font, fontSize, maxSize);
+            var tb = CreateTextBlock (text, font, fontSize, maxSize, fontStyle: fontStyle);
 
             return new SKSize (tb.MeasuredWidth, tb.MeasuredHeight);
         }

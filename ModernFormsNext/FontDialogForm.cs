@@ -369,8 +369,7 @@ namespace ModernFormsNext
             colorPreview.Style.BackgroundColor = SelectedColor;
             colorPreview.Invalidate();
 
-            previewLabel.Style.Font = SelectedFont.ToTypeface();
-            previewLabel.Style.FontSize = (int)Math.Round(SelectedFont.SizeInPoints);
+            previewLabel.Font = SelectedFont;
             previewLabel.Style.ForegroundColor = SelectedColor;
             previewLabel.Invalidate();
         }

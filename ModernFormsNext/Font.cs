@@ -23,8 +23,7 @@ namespace ModernFormsNext
     /// <code>
     /// var font = new Font("Segoe UI", 12, FontStyle.Bold | FontStyle.Italic);
     ///
-    /// label.Style.Font = font.ToTypeface();
-    /// label.Style.FontSize = (int)Math.Round(font.SizeInPoints);
+    /// label.Font = font;
     /// </code>
     /// </example>
     public sealed class Font : IEquatable<Font>
@@ -126,8 +125,9 @@ namespace ModernFormsNext
         /// <remarks>
         /// <see cref="FontStyle.Underline"/> and <see cref="FontStyle.Strikeout"/> are not part
         /// of SkiaSharp typeface selection and are therefore not represented in the returned
-        /// <see cref="SKTypeface"/>. Controls that support those text effects must handle them
-        /// separately.
+        /// <see cref="SKTypeface"/>. Use <see cref="Control.Font"/> or
+        /// <see cref="ControlStyle.TextFont"/> when applying a ModernFormsNext font to controls
+        /// that should render those text effects.
         /// </remarks>
         public SKTypeface ToTypeface()
         {

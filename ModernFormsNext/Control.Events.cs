@@ -24,6 +24,7 @@ public partial class Control
     private static readonly object s_dockChangedEvent = new object ();
     private static readonly object s_doubleClickEvent = new object ();
     private static readonly object s_enabledChangedEvent = new object ();
+    private static readonly object s_fontChangedEvent = new object();
     private static readonly object s_gotFocusEvent = new object ();
     private static readonly object s_lostFocusEvent = new object();
     private static readonly object s_invalidatedEvent = new object ();
@@ -148,6 +149,21 @@ public partial class Control
     public event EventHandler? EnabledChanged {
         add => Events.AddHandler (s_enabledChangedEvent, value);
         remove => Events.RemoveHandler (s_enabledChangedEvent, value);
+    }
+
+    /// <summary>
+    /// Occurs when the <see cref="Control.Font"/> property changes.
+    /// </summary>
+    /// <remarks>
+    /// Font changes can affect preferred size and text rendering. Controls that use automatic
+    /// sizing request layout when this event is raised.
+    /// </remarks>
+    [SRCategory(nameof(SR.CatPropertyChanged))]
+    [SRDescription(nameof(SR.ControlOnFontChangedDescr))]
+    public event EventHandler? FontChanged
+    {
+        add => Events.AddHandler(s_fontChangedEvent, value);
+        remove => Events.RemoveHandler(s_fontChangedEvent, value);
     }
 
     /// <summary>

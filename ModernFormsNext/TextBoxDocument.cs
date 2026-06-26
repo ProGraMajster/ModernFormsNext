@@ -155,7 +155,7 @@ namespace ModernFormsNext
                         Text.HasValue () ? textbox.CurrentStyle.GetForegroundColor () : 
                                 placeholder_font_color;
 
-            return cached_text_block = TextMeasurer.CreateTextBlock (DisplayText, font, textbox.CurrentFontSize, max_size, alignment, color, MaxLines);
+            return cached_text_block = TextMeasurer.CreateTextBlock(DisplayText, textbox.CurrentStyle.GetFont(), textbox.CurrentFontSize, max_size, alignment, color, MaxLines, fontStyle: textbox.CurrentStyle.GetFontStyle());
         }
 
         public bool InsertText (string str)
@@ -183,6 +183,11 @@ namespace ModernFormsNext
         public void Invalidate ()
         {
             textbox.Invalidate ();
+        }
+
+        internal void InvalidateTextBlock()
+        {
+            cached_text_block = null;
         }
 
         public bool IsMultiline {

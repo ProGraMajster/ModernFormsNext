@@ -97,8 +97,7 @@ namespace ControlGallery.Panels
 
         private void ApplySelection(string source = "Initial")
         {
-            previewLabel.Style.Font = selectedFont.ToTypeface();
-            previewLabel.Style.FontSize = (int)Math.Round(selectedFont.SizeInPoints);
+            previewLabel.Font = selectedFont;
             previewLabel.Style.ForegroundColor = selectedColor;
             previewLabel.Invalidate();
 

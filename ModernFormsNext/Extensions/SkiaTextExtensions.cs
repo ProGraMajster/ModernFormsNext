@@ -16,17 +16,17 @@ namespace ModernFormsNext
         /// Draws a string of text.
         /// </summary>
         public static void DrawText (this SKCanvas canvas, string text, Rectangle bounds, Control control, ContentAlignment alignment, int selectionStart = -1, int selectionEnd = -1, SKColor? selectionColor = null, int? maxLines = null, bool ellipsis = false)
-            => canvas.DrawText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), bounds, control.Enabled ? control.CurrentStyle.GetForegroundColor () : Theme.ForegroundDisabledColor, alignment, selectionStart, selectionEnd, selectionColor, maxLines, ellipsis);
+            => canvas.DrawText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), bounds, control.Enabled ? control.CurrentStyle.GetForegroundColor () : Theme.ForegroundDisabledColor, alignment, selectionStart, selectionEnd, selectionColor, maxLines, ellipsis, control.CurrentStyle.GetFontStyle());
 
         /// <summary>
         /// Draws a string of text.
         /// </summary>
-        public static void DrawText (this SKCanvas canvas, string text, SKTypeface font, int fontSize, Rectangle bounds, SKColor color, ContentAlignment alignment, int selectionStart = -1, int selectionEnd = -1, SKColor? selectionColor = null, int? maxLines = null, bool ellipsis = false)
+        public static void DrawText (this SKCanvas canvas, string text, SKTypeface font, int fontSize, Rectangle bounds, SKColor color, ContentAlignment alignment, int selectionStart = -1, int selectionEnd = -1, SKColor? selectionColor = null, int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular)
         {
             if (string.IsNullOrWhiteSpace (text))
                 return;
 
-            var tb = TextMeasurer.CreateTextBlock (text, font, fontSize, bounds.Size, TextMeasurer.GetTextAlign (alignment), color, maxLines, ellipsis);
+            var tb = TextMeasurer.CreateTextBlock (text, font, fontSize, bounds.Size, TextMeasurer.GetTextAlign (alignment), color, maxLines, ellipsis, fontStyle);
             var location = bounds.Location;
             var vertical = TextMeasurer.GetVerticalAlign (alignment);
 
@@ -69,6 +69,6 @@ namespace ModernFormsNext
         /// Draws a single line of text.
         /// </summary>
         public static void DrawTextLine (this SKCanvas canvas, string text, Rectangle bounds, Control control, ContentAlignment alignment, bool ellipsis = false)
-            => canvas.DrawText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), bounds, control.Enabled ? control.CurrentStyle.GetForegroundColor () : Theme.ForegroundDisabledColor, alignment, maxLines: 1, ellipsis: ellipsis);
+            => canvas.DrawText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), bounds, control.Enabled ? control.CurrentStyle.GetForegroundColor () : Theme.ForegroundDisabledColor, alignment, maxLines: 1, ellipsis: ellipsis, fontStyle: control.CurrentStyle.GetFontStyle());
     }
 }
