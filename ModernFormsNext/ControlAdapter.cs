@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using ModernFormsNext.Accessibility;
+using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Platform;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 using SkiaSharp;
 
 namespace ModernFormsNext
 {
-    internal class ControlAdapter : ScrollableControl
+    internal class ControlAdapter : ScrollableControl, IInputRoot, IPlatformAccessibilityHost
     {
         private Control? selected_control;
 
@@ -30,6 +33,9 @@ namespace ModernFormsNext
         }
 
         public WindowBase ParentForm { get; }
+
+        /// <inheritdoc/>
+        public IPlatformAccessibleObject? AccessibilityRoot => PlatformAccessibleObjectAdapter.From(AccessibilityObject);
 
         protected override void OnPaint (PaintEventArgs e)
         {

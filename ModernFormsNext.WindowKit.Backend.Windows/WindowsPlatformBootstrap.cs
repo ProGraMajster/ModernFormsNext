@@ -37,6 +37,7 @@ public static class WindowsPlatformBootstrap
             AvaloniaGlobals.AddService<IDispatcherImpl>(Win32Platform.Instance._dispatcher);
             AvaloniaGlobals.AddService<ICursorFactory>(CursorFactory.Instance);
             AvaloniaGlobals.AddService<IClipboard>(new ClipboardImpl());
+            AvaloniaGlobals.AddService<IPlatformAccessibilityService>(new WindowsAccessibilityService());
             AvaloniaGlobals.AddService<IPlatformFontDialogService>(new WindowsFontDialogService());
             AvaloniaGlobals.AddService<IPlatformTrayManager>(new WindowsTrayManager());
 

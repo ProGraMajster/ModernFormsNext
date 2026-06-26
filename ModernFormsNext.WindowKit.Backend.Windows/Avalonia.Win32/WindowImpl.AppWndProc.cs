@@ -8,6 +8,7 @@ using ModernFormsNext.WindowKit.Controls;
 using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Input.Raw;
 using ModernFormsNext.WindowKit.Platform;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 using ModernFormsNext.WindowKit.Threading;
 //using ModernFormsNext.WindowKit.Backend.Windows.Win32.Automation;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32.Input;
@@ -26,7 +27,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         protected virtual unsafe IntPtr AppWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
             const double wheelDelta = 120.0;
-            const long uiaRootObjectId = -25;
             uint timestamp = unchecked((uint)GetMessageTime());
             RawInputEventArgs? e = null;
             var shouldTakeFocus = false;
@@ -113,6 +113,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                         //Window doesn't exist anymore
                         _hwnd = IntPtr.Zero;
+                        _msaaAccessibilityObject = null;
                         //Remove root reference to this class, so unmanaged delegate can be collected
                         s_instances.Remove(this);
 
@@ -749,14 +750,15 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 //        return IntPtr.Zero;
                 //    }
-                //case WindowsMessage.WM_GETOBJECT:
-                //    if ((long)lParam == uiaRootObjectId && UiaCoreTypesApi.IsNetComInteropAvailable && _owner is Control control)
-                //    {
-                //        var peer = ControlAutomationPeer.CreatePeerForElement(control);
-                //        var node = AutomationNode.GetOrCreate(peer);
-                //        return UiaCoreProviderApi.UiaReturnRawElementProvider(_hwnd, wParam, lParam, node);
-                //    }
-                //    break;
+                case WindowsMessage.WM_GETOBJECT:
+                    {
+                        const int objIdClient = unchecked((int)0xFFFFFFFC);
+
+                        if (ToInt32(lParam) == objIdClient)
+                            return GetMsaaAccessibilityObject(wParam);
+
+                        break;
+                    }
             }
 
 #if USE_MANAGED_DRAG
@@ -794,6 +796,18 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             }
 
             return DefWindowProc(hWnd, msg, wParam, lParam);
+        }
+
+        private IntPtr GetMsaaAccessibilityObject(IntPtr wParam)
+        {
+            if (_owner is not IPlatformAccessibilityHost host || host.AccessibilityRoot is not { } root)
+                return IntPtr.Zero;
+
+            if (_msaaAccessibilityObject is null || !ReferenceEquals(_msaaAccessibilityObject.PlatformObject, root))
+                _msaaAccessibilityObject = WindowsMsaaAccessibleObject.CreateRoot(root);
+
+            var interfaceId = WindowsMsaaAccessibleObject.InterfaceId;
+            return LresultFromObject(ref interfaceId, wParam, _msaaAccessibilityObject);
         }
 
         //private Lazy<IReadOnlyList<RawPointerPoint>?>? CreateLazyIntermediatePoints(POINTER_INFO info)

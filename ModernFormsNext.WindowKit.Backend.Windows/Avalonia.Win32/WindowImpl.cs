@@ -12,6 +12,7 @@ using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Input.Platform;
 using ModernFormsNext.WindowKit.Input.Raw;
 using ModernFormsNext.WindowKit.Platform;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 using ModernFormsNext.WindowKit.Platform.Storage;
 using static ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop.UnmanagedMethods;
 
@@ -65,6 +66,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         //private readonly Win32NativeControlHost _nativeControlHost;
         private readonly IStorageProvider _storageProvider;
+        private WindowsMsaaAccessibleObject? _msaaAccessibilityObject;
         private WndProc _wndProcDelegate;
         private string? _className;
         private IntPtr _hwnd;
@@ -336,6 +338,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             if (featureType == typeof(IStorageProvider))
             {
                 return _storageProvider;
+            }
+
+            if (featureType == typeof(IPlatformAccessibilityHost))
+            {
+                return _owner as IPlatformAccessibilityHost;
             }
 
             if (featureType == typeof(IClipboard))

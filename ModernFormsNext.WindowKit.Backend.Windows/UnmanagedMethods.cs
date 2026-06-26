@@ -1520,6 +1520,15 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         public static extern bool CloseClipboard();
 
         [DllImport("user32.dll")]
+        public static extern void NotifyWinEvent(uint eventId, IntPtr hwnd, int idObject, int idChild);
+
+        [DllImport("oleacc.dll")]
+        public static extern IntPtr LresultFromObject(
+            ref Guid riid,
+            IntPtr wParam,
+            [MarshalAs(UnmanagedType.IUnknown)] object accessibleObject);
+
+        [DllImport("user32.dll")]
         public static extern bool EmptyClipboard();
 
         [DllImport("user32.dll")]

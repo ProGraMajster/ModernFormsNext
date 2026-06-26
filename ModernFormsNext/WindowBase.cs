@@ -34,6 +34,7 @@ namespace ModernFormsNext
         {
             this.window = window;
             adapter = new ControlAdapter (this);
+            window.SetInputRoot(adapter);
 
             window.Input = OnInput;
             window.Paint = DoPaint;
