@@ -40,7 +40,7 @@ namespace ModernFormsNext
             if (!document.IsTextSelected)
                 return;
 
-            var text = document.SelectedText;
+            var text = GetSelectedTextForClipboard ();
             AsyncHelper.RunSync (() => ModernFormsNext.WindowKit.AvaloniaGlobals.GetRequiredService<IClipboard> ().SetTextAsync (text));
         }
 
@@ -55,10 +55,10 @@ namespace ModernFormsNext
             if (!document.IsTextSelected)
                 return;
 
-            var text = document.SelectedText;
+            var text = GetSelectedTextForClipboard ();
             AsyncHelper.RunSync (() => ModernFormsNext.WindowKit.AvaloniaGlobals.GetRequiredService<IClipboard> ().SetTextAsync (text));
 
-            document.DeleteSelection ();
+            DeleteSelectedText ();
         }
 
         /// <inheritdoc/>
@@ -92,6 +92,32 @@ namespace ModernFormsNext
             return document.GetCharIndexFromPosition (location.X - TextOrigin.X, location.Y - TextOrigin.Y).ClosestCodePointIndex;
         }
 
+        /// <summary>
+        /// Deletes text from the control.
+        /// </summary>
+        /// <param name="forward">
+        /// <see langword="true"/> to delete the character after the caret; <see langword="false"/> to delete the character before the caret.
+        /// </param>
+        /// <param name="wholeWord">
+        /// <see langword="true"/> when the caller requested word-based deletion. The base <see cref="TextBox"/> currently treats this as character deletion.
+        /// </param>
+        /// <returns><see langword="true"/> when text was removed; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// Derived text controls override this method when they need to keep an internal document model synchronized with keyboard deletion.
+        /// Implementations should invalidate rendering when the displayed text changes.
+        /// </remarks>
+        protected virtual bool DeleteText (bool forward, bool wholeWord) => document.DeleteText (forward, wholeWord);
+
+        /// <summary>
+        /// Deletes the selected text from the control.
+        /// </summary>
+        /// <returns><see langword="true"/> when selected text was removed; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// This method is used by keyboard editing and clipboard cut operations. Derived controls should override it when deleting selected text
+        /// requires additional validation or model updates.
+        /// </remarks>
+        protected virtual bool DeleteSelectedText () => document.DeleteSelection ();
+
         // Handles key down events.
         private bool HandleKeyDown (KeyEventArgs e)
         {
@@ -118,10 +144,10 @@ namespace ModernFormsNext
                         need_refresh = document.MoveCursor (ArrowDirection.Down, e.Shift, e.Control, false);
                         return true;
                     case Keys.Delete:
-                        need_refresh = document.DeleteText (true, e.Control);
+                        need_refresh = DeleteText (true, e.Control);
                         return true;
                     case Keys.Back:
-                        need_refresh = document.DeleteText (false, e.Control);
+                        need_refresh = DeleteText (false, e.Control);
                         return true;
                     case Keys.C:
                         if (e.Control)
@@ -148,6 +174,68 @@ namespace ModernFormsNext
             } finally {
                 if (need_refresh)
                     ScrollToCaret ();
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Gets the text that should be placed on the clipboard for the current selection.
+        /// </summary>
+        /// <returns>The text to copy, or an empty string when there is no active selection.</returns>
+        /// <remarks>
+        /// The base implementation returns the visible selected text. Masking and formatting controls can override this method to preserve
+        /// WinForms-compatible clipboard formatting.
+        /// </remarks>
+        protected virtual string GetSelectedTextForClipboard () => document.SelectedText;
+
+        /// <summary>
+        /// Inserts text at the current caret position.
+        /// </summary>
+        /// <param name="text">The text to insert.</param>
+        /// <returns><see langword="true"/> when the document changed; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// Derived controls override this method to validate or transform user input before it reaches the text document. Implementations should
+        /// keep the caret valid and invalidate rendering when displayed text changes.
+        /// </remarks>
+        protected virtual bool InsertText (string text) => document.InsertText (text);
+
+        /// <summary>
+        /// Processes a key-down event after the public <see cref="Control.KeyDown"/> event has been raised.
+        /// </summary>
+        /// <param name="e">The key event data.</param>
+        /// <returns><see langword="true"/> when the key was handled by the text editing model; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// Override this method instead of <see cref="OnKeyDown"/> when a derived text control wants to reuse the normal event order while
+        /// replacing the editing behavior.
+        /// </remarks>
+        protected virtual bool ProcessTextBoxKeyDown (KeyEventArgs e) => HandleKeyDown (e);
+
+        /// <summary>
+        /// Processes a key-press event after the public <see cref="Control.KeyPress"/> event has been raised.
+        /// </summary>
+        /// <param name="e">The key-press event data.</param>
+        /// <returns><see langword="true"/> when text was inserted; otherwise, <see langword="false"/>.</returns>
+        /// <remarks>
+        /// The base implementation inserts printable text and new lines for multiline text boxes. Derived controls can override this method to
+        /// enforce custom input rules while preserving rendering and caret behavior.
+        /// </remarks>
+        protected virtual bool ProcessTextBoxKeyPress (KeyPressEventArgs e)
+        {
+            // Enter = 13
+            if (e.KeyChar == 13 && MultiLine) {
+                if (InsertText ("\n")) {
+                    ScrollToCaret ();
+                    return true;
+                }
+            }
+
+            // Printable characters (except backspace)
+            if (e.KeyChar >= 32 && e.KeyChar != 127) {
+                if (InsertText (e.Text)) {
+                    ScrollToCaret ();
+                    return true;
+                }
             }
 
             return false;
@@ -205,7 +293,7 @@ namespace ModernFormsNext
         {
             base.OnKeyDown (e);
 
-            e.Handled = HandleKeyDown (e);
+            e.Handled = ProcessTextBoxKeyDown (e);
         }
 
         /// <inheritdoc/>
@@ -213,17 +301,7 @@ namespace ModernFormsNext
         {
             base.OnKeyPress (e);
 
-            // Enter = 13
-            if (e.KeyChar == 13 && MultiLine) {
-                if (document.InsertText ("\n"))
-                    ScrollToCaret ();
-            }
-
-            // Printable characters (except backspace)
-            if (e.KeyChar >= 32 && e.KeyChar != 127) {
-                if (document.InsertText (e.Text))
-                    ScrollToCaret ();
-            }
+            ProcessTextBoxKeyPress (e);
         }
 
         /// <inheritdoc/>
@@ -329,7 +407,7 @@ namespace ModernFormsNext
 
             var text = AsyncHelper.RunSync (() => ModernFormsNext.WindowKit.AvaloniaGlobals.GetRequiredService<IClipboard> ().GetTextAsync ());
 
-            if (!string.IsNullOrEmpty (text) && document.InsertText (text))
+            if (!string.IsNullOrEmpty (text) && InsertText (text))
                     ScrollToCaret ();
         }
 

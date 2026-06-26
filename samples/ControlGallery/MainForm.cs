@@ -35,6 +35,7 @@ namespace ControlGallery
             tree.Items.Add ("ListBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ListView", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Menu", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("MaskedTextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MessageBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NavigationPane", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NotifyIcon", ImageLoader.Get ("button.png"));
@@ -120,6 +121,8 @@ namespace ControlGallery
                     return new ListViewPanel ();
                 case "Menu":
                     return new MenuPanel ();
+                case "MaskedTextBox":
+                    return new MaskedTextBoxPanel ();
                 case "MessageBox":
                     return new MessageBoxPanel ();
                 case "NavigationPane":

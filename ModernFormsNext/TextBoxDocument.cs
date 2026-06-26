@@ -205,7 +205,7 @@ namespace ModernFormsNext
 
         public int MaxLength {
             get => max_length == int.MaxValue ? 0 : max_length;
-            set => max_length = max_length == 0 ? int.MaxValue : max_length;
+            set => max_length = value == 0 ? int.MaxValue : value;
         }
 
         private int? MaxLines => multiline ? (int?)null : 1;

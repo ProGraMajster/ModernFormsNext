@@ -12,7 +12,7 @@ namespace ModernFormsNext.Renderers
         /// <inheritdoc/>
         protected override void Render (TextBox control, PaintEventArgs e)
         {
-            var text = control.Text.Length > 0 ? control.Text : control.Placeholder;
+            var text = control.document.DisplayText;
 
             // Bail early if we don't need to draw anything
             if (text.Length == 0 && !control.Selected)
