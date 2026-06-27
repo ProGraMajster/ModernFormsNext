@@ -19,6 +19,18 @@ public class ImageList : Component
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="ImageList"/> class and adds it to the specified container.
+    /// </summary>
+    /// <param name="container">The component container that owns the image list.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="container"/> is <see langword="null"/>.</exception>
+    public ImageList (IContainer container) : this ()
+    {
+        ArgumentNullException.ThrowIfNull (container);
+
+        container.Add (this);
+    }
+
+    /// <summary>
     /// Gets the collection of images in the ImageList.
     /// </summary>
     public ImageCollection Images { get; }

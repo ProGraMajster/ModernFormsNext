@@ -83,6 +83,21 @@ namespace ModernFormsNext
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="NotifyIcon"/> class and adds it to the specified container.
+        /// </summary>
+        /// <param name="container">The component container that owns the notify icon.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="container"/> is <see langword="null"/>.</exception>
+        /// <exception cref="PlatformNotSupportedException">
+        /// Thrown when the active backend does not provide tray icon support.
+        /// </exception>
+        public NotifyIcon (IContainer container) : this ()
+        {
+            ArgumentNullException.ThrowIfNull (container);
+
+            container.Add (this);
+        }
+
+        /// <summary>
         /// Occurs when the user clicks the notification area icon.
         /// </summary>
         public event EventHandler<MouseEventArgs>? Click;

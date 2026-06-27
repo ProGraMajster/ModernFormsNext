@@ -24,8 +24,8 @@
 
 	<ItemGroup>
 		<Content Include="templates\**\*" Pack="true" PackagePath="content" />
-		<Compile Remove="templates\modernformsnext-app\MainForm.cs" />
-		<Compile Remove="templates\modernformsnext-app\Program.cs" />
+		<!-- Template source files are packaged as content and must not be compiled into the template package assembly. -->
+		<Compile Remove="templates\**\*.cs" />
 		<Content Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 

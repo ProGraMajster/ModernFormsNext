@@ -32,6 +32,18 @@ namespace ModernFormsNext
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="Timer"/> class and adds it to the specified container.
+        /// </summary>
+        /// <param name="container">The component container that owns the timer.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="container"/> is <see langword="null"/>.</exception>
+        public Timer(IContainer container) : this()
+        {
+            ArgumentNullException.ThrowIfNull(container);
+
+            container.Add(this);
+        }
+
+        /// <summary>
         /// Occurs when the specified timer interval has elapsed and the timer is enabled.
         /// </summary>
         public event EventHandler Tick
