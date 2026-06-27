@@ -63,6 +63,9 @@ Published packages:
 - Local `dotnet test` completed successfully.
 - Local ControlGallery smoke run completed successfully.
 - Local ModernFormsNext.DemoApp smoke run completed successfully.
+- GitHub `.NET` workflow completed successfully for the release commit.
+- GitHub `Release` workflow completed successfully for tag `v1.6.0`.
+- NuGet public indexes show version `1.6.0` for all published ModernFormsNext packages.
 
 ## [1.5.0] - 2026-06-26
 
