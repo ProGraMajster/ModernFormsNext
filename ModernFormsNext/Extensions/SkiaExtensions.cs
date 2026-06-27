@@ -74,7 +74,7 @@ namespace ModernFormsNext
             canvas.Clear (style.GetBackgroundColor ());
         }
 
-        private static void RenderLinearGradient (SKCanvas canvas, SKRect bounds, LinearGradientBrush brush)
+        private static void RenderLinearGradient (SKCanvas canvas, SKRect bounds, LinearGradientBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             if (brush.GradientStops.Count == 0)
                 return;
@@ -82,7 +82,8 @@ namespace ModernFormsNext
             if (brush.GradientStops.Count == 1) {
                 using var singlePaint = new SKPaint {
                     Color = brush.GradientStops[0].Color,
-                    IsAntialias = true
+                    IsAntialias = true,
+                    BlendMode = blendMode
                 };
 
                 canvas.DrawRect (bounds, singlePaint);
@@ -113,13 +114,14 @@ namespace ModernFormsNext
 
             using var paint = new SKPaint {
                 Shader = shader,
-                IsAntialias = true
+                IsAntialias = true,
+                BlendMode = blendMode
             };
 
             canvas.DrawRect (bounds, paint);
         }
 
-        private static void RenderRadialGradient (SKCanvas canvas, SKRect bounds, RadialGradientBrush brush)
+        private static void RenderRadialGradient (SKCanvas canvas, SKRect bounds, RadialGradientBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             if (brush.GradientStops.Count == 0)
                 return;
@@ -127,7 +129,8 @@ namespace ModernFormsNext
             if (brush.GradientStops.Count == 1) {
                 using var singlePaint = new SKPaint {
                     Color = brush.GradientStops[0].Color,
-                    IsAntialias = true
+                    IsAntialias = true,
+                    BlendMode = blendMode
                 };
 
                 canvas.DrawRect (bounds, singlePaint);
@@ -154,13 +157,14 @@ namespace ModernFormsNext
 
             using var paint = new SKPaint {
                 Shader = shader,
-                IsAntialias = true
+                IsAntialias = true,
+                BlendMode = blendMode
             };
 
             canvas.DrawRect (bounds, paint);
         }
 
-        private static void RenderSweepGradient (SKCanvas canvas, SKRect bounds, SweepGradientBrush brush)
+        private static void RenderSweepGradient (SKCanvas canvas, SKRect bounds, SweepGradientBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             if (brush.GradientStops.Count == 0)
                 return;
@@ -168,7 +172,8 @@ namespace ModernFormsNext
             if (brush.GradientStops.Count == 1) {
                 using var singlePaint = new SKPaint {
                     Color = brush.GradientStops[0].Color,
-                    IsAntialias = true
+                    IsAntialias = true,
+                    BlendMode = blendMode
                 };
 
                 canvas.DrawRect (bounds, singlePaint);
@@ -196,13 +201,14 @@ namespace ModernFormsNext
 
             using var paint = new SKPaint {
                 Shader = shader,
-                IsAntialias = true
+                IsAntialias = true,
+                BlendMode = blendMode
             };
 
             canvas.DrawRect (bounds, paint);
         }
 
-        private static void RenderGlassBackground (SKCanvas canvas, SKRect bounds, GlassBrush brush)
+        private static void RenderGlassBackground (SKCanvas canvas, SKRect bounds, GlassBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             // Base translucent fill with a very subtle vertical depth gradient
             using (var shader = SKShader.CreateLinearGradient (
@@ -213,7 +219,8 @@ namespace ModernFormsNext
                 SKShaderTileMode.Clamp))
             using (var paint = new SKPaint {
                 Shader = shader,
-                IsAntialias = true
+                IsAntialias = true,
+                BlendMode = blendMode
             }) {
                 canvas.DrawRect (bounds, paint);
             }
@@ -234,7 +241,8 @@ namespace ModernFormsNext
 
                 using var highlightPaint = new SKPaint {
                     Shader = highlightShader,
-                    IsAntialias = true
+                    IsAntialias = true,
+                    BlendMode = blendMode
                 };
 
                 canvas.DrawRect (
@@ -247,7 +255,8 @@ namespace ModernFormsNext
                 Color = brush.BorderColor,
                 IsStroke = true,
                 StrokeWidth = 1f,
-                IsAntialias = true
+                IsAntialias = true,
+                BlendMode = blendMode
             }) {
                 canvas.DrawRect (
                     bounds.Left + 0.5f,
@@ -263,7 +272,8 @@ namespace ModernFormsNext
                     Color = new SKColor (255, 255, 255, 20),
                     IsStroke = true,
                     StrokeWidth = 1f,
-                    IsAntialias = true
+                    IsAntialias = true,
+                    BlendMode = blendMode
                 };
 
                 canvas.DrawRect (
@@ -275,12 +285,13 @@ namespace ModernFormsNext
             }
         }
 
-        internal static void RenderBrushBackground (SKCanvas canvas, SKRect bounds, Drawing.Brush? brush, SKColor fallbackColor)
+        internal static void RenderBrushBackground (SKCanvas canvas, SKRect bounds, Drawing.Brush? brush, SKColor fallbackColor, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             if (brush is null) {
                 using var fallbackPaint = new SKPaint {
                     Color = fallbackColor,
-                    IsAntialias = true
+                    IsAntialias = true,
+                    BlendMode = blendMode
                 };
 
                 canvas.DrawRect (bounds, fallbackPaint);
@@ -289,23 +300,23 @@ namespace ModernFormsNext
 
             switch (brush) {
                 case SolidColorBrush solid:
-                    using (var paint = new SKPaint { Color = solid.Color, IsAntialias = true })
+                    using (var paint = new SKPaint { Color = solid.Color, IsAntialias = true, BlendMode = blendMode })
                         canvas.DrawRect (bounds, paint);
                     break;
 
                 case LinearGradientBrush linear:
-                    RenderLinearGradient (canvas, bounds, linear);
+                    RenderLinearGradient (canvas, bounds, linear, blendMode);
                     break;
 
                 case RadialGradientBrush radial:
-                    RenderRadialGradient (canvas, bounds, radial);
+                    RenderRadialGradient (canvas, bounds, radial, blendMode);
                     break;
                 case SweepGradientBrush sweep:
-                    RenderSweepGradient (canvas, bounds, sweep);
+                    RenderSweepGradient (canvas, bounds, sweep, blendMode);
                     break;
 
                 case GlassBrush glass:
-                    RenderGlassBackground (canvas, bounds, glass);
+                    RenderGlassBackground (canvas, bounds, glass, blendMode);
                     break;
             }
         }

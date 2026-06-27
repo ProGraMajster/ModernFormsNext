@@ -132,7 +132,7 @@ namespace ModernFormsNext.Renderers
 
         private static void DrawCaptionText(GroupBox control, PaintEventArgs e, Rectangle captionBounds)
         {
-            e.Canvas.DrawText(
+            e.Canvas.DrawTextCore(
                 control.Text,
                 control.CurrentStyle.GetFont(),
                 e.LogicalToDeviceUnits(control.EffectiveCaptionFontSize),
@@ -141,7 +141,8 @@ namespace ModernFormsNext.Renderers
                 ContentAlignment.TopLeft,
                 maxLines: 1,
                 ellipsis: true,
-                fontStyle: control.CurrentStyle.GetFontStyle());
+                fontStyle: control.CurrentStyle.GetFontStyle(),
+                brush: control.EffectiveCaptionForegroundBrush);
         }
 
         private static void DrawFrame(GroupBox control, SKCanvas canvas, Rectangle bounds, int boxTop, float borderWidth, PaintEventArgs e)

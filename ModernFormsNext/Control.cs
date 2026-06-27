@@ -168,6 +168,28 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the brush used to paint the control background.
         /// </summary>
+        /// <value>
+        /// A solid, gradient, sweep, radial, or glass brush used to paint the background, or
+        /// <see langword="null"/> to use the background color from <see cref="CurrentStyle"/>.
+        /// </value>
+        /// <remarks>
+        /// This property is available to all controls that use the standard background painting
+        /// pipeline. Changing it invalidates the control and does not affect layout.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var brush = new ModernFormsNext.Drawing.LinearGradientBrush
+        /// {
+        ///     StartPoint = new SKPoint(0, 0),
+        ///     EndPoint = new SKPoint(1, 1)
+        /// };
+        ///
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.White, 0));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor, 1));
+        ///
+        /// label.BackgroundBrush = brush;
+        /// </code>
+        /// </example>
         public ModernFormsNext.Drawing.Brush? BackgroundBrush {
             get => backgroundBrush;
             set {
@@ -175,6 +197,50 @@ namespace ModernFormsNext
                     return;
 
                 backgroundBrush = value;
+                Invalidate ();
+            }
+        }
+
+        private ModernFormsNext.Drawing.Brush? textBrush;
+
+        /// <summary>
+        /// Gets or sets the brush used to paint control text.
+        /// </summary>
+        /// <value>
+        /// A solid, gradient, sweep, radial, or glass brush used to paint text, or
+        /// <see langword="null"/> to use the foreground color from <see cref="CurrentStyle"/>.
+        /// </value>
+        /// <remarks>
+        /// The brush is clipped to the rendered text shape. It is used by controls and renderers
+        /// that draw text through the shared ModernFormsNext text pipeline, including
+        /// <see cref="Label"/>, <see cref="Button"/>, <see cref="CheckBox"/>,
+        /// <see cref="RadioButton"/>, <see cref="ComboBox"/>, <see cref="ListBox"/>, and
+        /// <see cref="StatusBar"/>. Specialized owner-drawn item renderers may ignore this value
+        /// until they are updated. Disabled controls render text with
+        /// <see cref="Theme.ForegroundDisabledColor"/> and ignore this brush.
+        /// Changing this property invalidates the control and does not affect layout.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var brush = new ModernFormsNext.Drawing.LinearGradientBrush
+        /// {
+        ///     StartPoint = new SKPoint(0, 0),
+        ///     EndPoint = new SKPoint(1, 0)
+        /// };
+        ///
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor, 0));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor2, 1));
+        ///
+        /// label.TextBrush = brush;
+        /// </code>
+        /// </example>
+        public ModernFormsNext.Drawing.Brush? TextBrush {
+            get => textBrush;
+            set {
+                if (textBrush == value)
+                    return;
+
+                textBrush = value;
                 Invalidate ();
             }
         }

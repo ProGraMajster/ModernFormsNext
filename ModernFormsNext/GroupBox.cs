@@ -463,6 +463,12 @@ namespace ModernFormsNext
             => Enabled ? CaptionForegroundColor ?? CurrentStyle.GetForegroundColor() : Theme.ForegroundDisabledColor;
 
         /// <summary>
+        /// Gets the effective caption foreground brush used by the renderer.
+        /// </summary>
+        internal ModernFormsNext.Drawing.Brush? EffectiveCaptionForegroundBrush
+            => Enabled && CaptionForegroundColor is null ? TextBrush : null;
+
+        /// <summary>
         /// Gets the brush used by the renderer for the framed content background.
         /// </summary>
         internal ModernFormsNext.Drawing.Brush? EffectiveContentBackgroundBrush

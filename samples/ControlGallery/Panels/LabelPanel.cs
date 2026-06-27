@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ModernFormsNext;
 using SkiaSharp;
+using MfnDrawing = ModernFormsNext.Drawing;
 
 namespace ControlGallery.Panels
 {
@@ -62,6 +63,50 @@ namespace ControlGallery.Panels
             Controls.Add (new Label { Text = "This text is too long to fit on two lines", Left = 160, Top = 190, Height = 45, Multiline = true });
             Controls.Add (new Label { Text = "This text is too long to fit on two lines", Left = 160, Top = 250, Height = 45, Multiline = true, AutoEllipsis = true });
             Controls.Add(new Label { Text = "Line 1\nLine 2\nLine 3", Left = 310, Top = 190, Height = 60, Width = 100, Multiline = true });
+
+            var textGradient = new MfnDrawing.LinearGradientBrush {
+                StartPoint = new SKPoint (0, 0),
+                EndPoint = new SKPoint (1, 0)
+            };
+
+            textGradient.GradientStops.Add (new MfnDrawing.GradientStop (Theme.AccentColor, 0f));
+            textGradient.GradientStops.Add (new MfnDrawing.GradientStop (new SKColor (216, 59, 1), 0.55f));
+            textGradient.GradientStops.Add (new MfnDrawing.GradientStop (Theme.AccentColor2, 1f));
+
+            Controls.Add (new Label {
+                Text = "Gradient text",
+                Left = 310,
+                Top = 270,
+                Height = 35,
+                Width = 150,
+                TextAlign = ContentAlignment.MiddleLeft,
+                TextBrush = textGradient
+            });
+
+            var backgroundGradient = new MfnDrawing.LinearGradientBrush {
+                StartPoint = new SKPoint (0, 0),
+                EndPoint = new SKPoint (1, 1)
+            };
+
+            backgroundGradient.GradientStops.Add (new MfnDrawing.GradientStop (new SKColor (255, 255, 255), 0f));
+            backgroundGradient.GradientStops.Add (new MfnDrawing.GradientStop (new SKColor (225, 242, 255), 0.55f));
+            backgroundGradient.GradientStops.Add (new MfnDrawing.GradientStop (new SKColor (255, 235, 214), 1f));
+
+            var gradientBackgroundLabel = new Label {
+                Text = "Gradient background",
+                Left = 160,
+                Top = 310,
+                Height = 35,
+                Width = 190,
+                Padding = new Padding (6),
+                TextAlign = ContentAlignment.MiddleLeft,
+                BackgroundBrush = backgroundGradient
+            };
+
+            gradientBackgroundLabel.Style.Border.Width = 1;
+            gradientBackgroundLabel.Style.Border.Color = Theme.BorderLowColor;
+
+            Controls.Add (gradientBackgroundLabel);
 
             Controls.Add (new Label { Text = "Image", Image = image1, Left = 10, Top = 310, Height = 35, ImageAlign = ContentAlignment.MiddleLeft, TextAlign = ContentAlignment.MiddleCenter });
             Controls.Add (new Label { Text = "Image", Image = image1, Left = 10, Top = 350, Height = 35, Enabled = false });
