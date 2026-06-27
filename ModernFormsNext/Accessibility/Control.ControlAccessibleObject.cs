@@ -244,6 +244,7 @@ public partial class Control
                 DateTimePicker dateTimePicker when !dateTimePicker.ShowUpDown => dateTimePicker.IsDropDownOpen ? "Close" : "Open",
                 LinkLabel => "Open",
                 RadioButton => "Select",
+                Switch @switch => @switch.IsToggled ? "Turn off" : "Turn on",
                 _ => null
             };
 
@@ -276,6 +277,7 @@ public partial class Control
                 RadioButton => AccessibleRole.RadioButton,
                 ScrollBar => AccessibleRole.ScrollBar,
                 StatusBar => AccessibleRole.StatusBar,
+                Switch => AccessibleRole.CheckButton,
                 TabControl => AccessibleRole.PageTabList,
                 TextBox => AccessibleRole.Text,
                 TrackBar => AccessibleRole.Slider,
@@ -303,6 +305,18 @@ public partial class Control
 
                 if (radioButton.Checked)
                     state |= AccessibleStates.Checked;
+            }
+            else if (owner is Switch @switch)
+            {
+                state |= AccessibleStates.Selectable;
+
+                if (@switch.ThumbPressed)
+                    state |= AccessibleStates.Pressed;
+
+                if (@switch.Value > 0)
+                    state |= AccessibleStates.Checked;
+                else if (@switch.Mode == SwitchMode.ThreeState && @switch.Value == 0)
+                    state |= AccessibleStates.Mixed;
             }
             else if (owner is ComboBox comboBox)
             {
@@ -377,6 +391,7 @@ public partial class Control
                 TabControl tabControl => tabControl.SelectedTabPage?.Text,
                 TextBox textBox => textBox.PasswordCharacter.HasValue ? string.Empty : textBox.Text,
                 TrackBar trackBar => trackBar.Value.ToString(CultureInfo.CurrentCulture),
+                Switch @switch => @switch.Value.ToString(CultureInfo.CurrentCulture),
                 _ => null
             };
 

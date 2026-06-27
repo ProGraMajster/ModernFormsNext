@@ -50,6 +50,7 @@ namespace ControlGallery
             tree.Items.Add ("ScrollBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("SplitContainer", ImageLoader.Get ("button.png"));
             tree.Items.Add ("StatusBar", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Switch", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TabControl", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TableLayoutPanel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TabStrip", ImageLoader.Get ("button.png"));
@@ -153,6 +154,8 @@ namespace ControlGallery
                     return new SplitContainerPanel ();
                 case "StatusBar":
                     return new StatusBarPanel ();
+                case "Switch":
+                    return new SwitchPanel ();
                 case "TabControl":
                     return new TabControlPanel ();
                 case "TableLayoutPanel":
