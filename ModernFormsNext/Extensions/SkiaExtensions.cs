@@ -275,7 +275,7 @@ namespace ModernFormsNext
             }
         }
 
-        private static void RenderBrushBackground (SKCanvas canvas, SKRect bounds, Drawing.Brush? brush, SKColor fallbackColor)
+        internal static void RenderBrushBackground (SKCanvas canvas, SKRect bounds, Drawing.Brush? brush, SKColor fallbackColor)
         {
             if (brush is null) {
                 using var fallbackPaint = new SKPaint {

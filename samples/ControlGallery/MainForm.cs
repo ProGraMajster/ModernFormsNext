@@ -29,6 +29,7 @@ namespace ControlGallery
             tree.Items.Add ("FlowLayoutPanel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FormPaint", ImageLoader.Get ("button.png"));
             tree.Items.Add ("FormShortcuts", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("GroupBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ImageList", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Label", ImageLoader.Get ("button.png"));
             tree.Items.Add("LinkLabel", ImageLoader.Get("button.png"));
@@ -110,6 +111,8 @@ namespace ControlGallery
                     return new FlowLayoutPanelPanel ();
                 case "FormShortcuts":
                     return new FormShortcutsPanel (this);
+                case "GroupBox":
+                    return new GroupBoxPanel ();
                 case "ImageList":
                     return new ImageListPanel ();
                 case "Label":

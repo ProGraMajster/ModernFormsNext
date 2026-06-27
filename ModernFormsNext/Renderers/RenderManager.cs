@@ -18,6 +18,7 @@ namespace ModernFormsNext.Renderers
             SetRenderer<ComboBox> (new ComboBoxRenderer ());
             SetRenderer<DataGridView>(new DataGridViewRenderer());
             SetRenderer<FormTitleBar> (new FormTitleBarRenderer ());
+            SetRenderer<GroupBox> (new GroupBoxRenderer ());
             SetRenderer<Label> (new LabelRenderer ());
             SetRenderer<LinkLabel>(new LinkLabelRenderer());
             SetRenderer<ListBox> (new ListBoxRenderer ());
