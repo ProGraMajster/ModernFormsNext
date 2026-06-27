@@ -39,6 +39,7 @@ public static class WindowsPlatformBootstrap
             AvaloniaGlobals.AddService<IClipboard>(new ClipboardImpl());
             AvaloniaGlobals.AddService<IPlatformAccessibilityService>(new WindowsAccessibilityService());
             AvaloniaGlobals.AddService<IPlatformFontDialogService>(new WindowsFontDialogService());
+            AvaloniaGlobals.AddService<IPlatformPrintDialogService>(new WindowsPrintDialogService());
             AvaloniaGlobals.AddService<IPlatformTrayManager>(new WindowsTrayManager());
 
             initialized = true;

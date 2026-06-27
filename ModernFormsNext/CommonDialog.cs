@@ -35,9 +35,9 @@ namespace ModernFormsNext
         /// Occurs when the user requests help from a platform dialog.
         /// </summary>
         /// <remarks>
-        /// Backend support varies by platform. The Windows font dialog raises this event when
-        /// <see cref="FontDialog.ShowHelp"/> is enabled and the native dialog reports a help
-        /// command.
+        /// Backend support varies by platform. Windows-backed font and printing dialogs raise
+        /// this event when their <c>ShowHelp</c> option is enabled and the native dialog reports
+        /// a help command.
         /// </remarks>
         public event EventHandler? HelpRequest;
 
