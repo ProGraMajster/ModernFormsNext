@@ -188,6 +188,9 @@ namespace ModernFormsNext.Renderers
 
         private static TransitionSpec GetTransition(Switch control)
         {
+            if (control.TryGetVisualTransition(out var fromValue, out var toValue, out var progress))
+                return new TransitionSpec(fromValue, toValue, progress);
+
             var position = control.VisualPosition;
 
             if (control.Mode == SwitchMode.ThreeState) {

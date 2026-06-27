@@ -51,6 +51,11 @@ namespace ModernFormsNext
         private SwitchActivationMode activationMode;
         private int currentValue;
         private float visualPosition;
+        private bool visualTransitionActive;
+        private int visualTransitionFromValue;
+        private int visualTransitionToValue;
+        private float visualTransitionStartPosition;
+        private float visualTransitionEndPosition;
         private bool autoToggle = true;
         private bool allowDragging = true;
         private bool updateValueWhileDragging;
@@ -785,6 +790,34 @@ namespace ModernFormsNext
         /// </summary>
         internal float VisualPosition => visualPosition;
 
+        /// <summary>
+        /// Gets the value-to-value visual transition that should drive animated color blending.
+        /// </summary>
+        /// <remarks>
+        /// Three-position switches can animate directly from -1 to 1. This transition keeps
+        /// renderer colors tied to the logical value change instead of deriving them from the
+        /// thumb position, which would otherwise pass through the neutral color at the center.
+        /// </remarks>
+        internal bool TryGetVisualTransition(out int fromValue, out int toValue, out float progress)
+        {
+            if (!visualTransitionActive) {
+                fromValue = currentValue;
+                toValue = currentValue;
+                progress = 1f;
+                return false;
+            }
+
+            var distance = visualTransitionEndPosition - visualTransitionStartPosition;
+
+            fromValue = visualTransitionFromValue;
+            toValue = visualTransitionToValue;
+            progress = Math.Abs(distance) < 0.0001f
+                ? 1f
+                : Math.Clamp((visualPosition - visualTransitionStartPosition) / distance, 0f, 1f);
+
+            return true;
+        }
+
         private SwitchRenderer GetRenderer()
             => RenderManager.GetRenderer<SwitchRenderer>()
                 ?? throw new InvalidOperationException("No SwitchRenderer has been registered.");
@@ -835,22 +868,70 @@ namespace ModernFormsNext
             return value > 0 ? 1f : 0f;
         }
 
+        private int GetNearestValueFromVisualPosition(float position)
+        {
+            position = Math.Clamp(position, 0f, 1f);
+
+            if (Mode == SwitchMode.ThreeState) {
+                if (position < 1f / 3f)
+                    return -1;
+
+                if (position > 2f / 3f)
+                    return 1;
+
+                return 0;
+            }
+
+            return position >= 0.5f ? 1 : 0;
+        }
+
+        private void BeginVisualTransition(int fromValue, int toValue, float startPosition, float endPosition)
+        {
+            visualTransitionFromValue = CoerceValue(fromValue);
+            visualTransitionToValue = CoerceValue(toValue);
+            visualTransitionStartPosition = Math.Clamp(startPosition, 0f, 1f);
+            visualTransitionEndPosition = Math.Clamp(endPosition, 0f, 1f);
+            visualTransitionActive =
+                visualTransitionFromValue != visualTransitionToValue &&
+                Math.Abs(visualTransitionEndPosition - visualTransitionStartPosition) >= 0.0001f;
+        }
+
+        private void ClearVisualTransition()
+        {
+            visualTransitionActive = false;
+            visualTransitionFromValue = currentValue;
+            visualTransitionToValue = currentValue;
+            visualTransitionStartPosition = visualPosition;
+            visualTransitionEndPosition = visualPosition;
+        }
+
         private void SetVisualPosition(float position)
         {
             visualPosition = Math.Clamp(position, 0f, 1f);
+
+            if (visualTransitionActive && Math.Abs(visualPosition - visualTransitionEndPosition) < 0.0001f)
+                visualTransitionActive = false;
+
             Invalidate();
         }
 
-        private void AnimateVisualToValue(int value, bool animateChange)
+        private void AnimateVisualToValue(int value, bool animateChange, int? transitionFromValue = null)
         {
             var target = GetTargetPosition(value);
             var effectiveDuration = GetEffectiveAnimationDuration();
 
-            if (!animateChange || effectiveDuration == 0) {
+            if (!animateChange || effectiveDuration == 0 || Math.Abs(visualPosition - target) < 0.0001f) {
                 AnimationManager.Cancel(this, VisualPositionAnimationKey);
+                ClearVisualTransition();
                 SetVisualPosition(target);
                 return;
             }
+
+            BeginVisualTransition(
+                transitionFromValue ?? GetNearestValueFromVisualPosition(visualPosition),
+                value,
+                visualPosition,
+                target);
 
             var animation = new Animation(
                 this,
@@ -940,7 +1021,7 @@ namespace ModernFormsNext
             var oldIsToggled = IsToggled;
             currentValue = value;
 
-            AnimateVisualToValue(currentValue, animateChange);
+            AnimateVisualToValue(currentValue, animateChange, oldValue);
 
             if (!raiseEvents)
                 return;
@@ -1078,7 +1159,12 @@ namespace ModernFormsNext
             if (!dragging && distance < DragThreshold)
                 return;
 
-            dragging = true;
+            if (!dragging) {
+                dragging = true;
+                AnimationManager.Cancel(this, VisualPositionAnimationKey);
+                ClearVisualTransition();
+            }
+
             var renderer = GetRenderer();
             var dragPosition = renderer.PositionToVisualPosition(this, e.Location);
             SetVisualPosition(dragPosition);
