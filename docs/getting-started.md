@@ -79,7 +79,7 @@ For packaged usage, reference the package version produced by this repository:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="ModernFormsNext" Version="1.4.0" />
+    <PackageReference Include="ModernFormsNext" Version="1.6.0" />
 </ItemGroup>
 ```
 
