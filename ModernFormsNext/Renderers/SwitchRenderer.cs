@@ -220,9 +220,9 @@ namespace ModernFormsNext.Renderers
 
             var fill = value switch
             {
-                -1 => new FillSpec(control.NegativeThumbColor ?? Theme.ControlVeryHighColor, control.NegativeThumbBrush),
-                1 => new FillSpec(control.OnThumbColor ?? Theme.ControlVeryHighColor, control.OnThumbBrush),
-                _ => new FillSpec(control.OffThumbColor ?? Theme.ControlVeryHighColor, control.OffThumbBrush)
+                -1 => new FillSpec(control.NegativeThumbColor ?? control.ThumbColor ?? Theme.ControlVeryHighColor, control.NegativeThumbBrush ?? control.ThumbBrush),
+                1 => new FillSpec(control.OnThumbColor ?? control.ThumbColor ?? Theme.ControlVeryHighColor, control.OnThumbBrush ?? control.ThumbBrush),
+                _ => new FillSpec(control.OffThumbColor ?? control.ThumbColor ?? Theme.ControlVeryHighColor, control.OffThumbBrush ?? control.ThumbBrush)
             };
 
             if (fill.Brush is not null)
@@ -239,31 +239,35 @@ namespace ModernFormsNext.Renderers
 
         private static void DrawTransitionFill(SKCanvas canvas, SKRect bounds, float radius, FillSpec from, FillSpec to, float progress)
         {
-            using var path = new SKPath();
-            path.AddRoundRect(bounds, radius, radius);
-
-            canvas.Save();
-            canvas.ClipPath(path, SKClipOperation.Intersect, true);
-
             if (from.Brush is null && to.Brush is null) {
-                SkiaExtensions.RenderBrushBackground(canvas, bounds, null, Blend(from.Color, to.Color, progress));
+                DrawRoundedFill(canvas, bounds, radius, Blend(from.Color, to.Color, progress), 1f);
             } else {
-                DrawFillLayer(canvas, bounds, from, 1f);
-                DrawFillLayer(canvas, bounds, to, progress);
+                DrawFillLayer(canvas, bounds, radius, from, 1f);
+                DrawFillLayer(canvas, bounds, radius, to, progress);
             }
-
-            canvas.Restore();
         }
 
-        private static void DrawFillLayer(SKCanvas canvas, SKRect bounds, FillSpec fill, float opacity)
+        private static void DrawFillLayer(SKCanvas canvas, SKRect bounds, float radius, FillSpec fill, float opacity)
         {
             opacity = Math.Clamp(opacity, 0f, 1f);
 
             if (opacity <= 0f)
                 return;
 
+            if (fill.Brush is null) {
+                DrawRoundedFill(canvas, bounds, radius, fill.Color, opacity);
+                return;
+            }
+
+            using var path = new SKPath();
+            path.AddRoundRect(bounds, radius, radius);
+
+            canvas.Save();
+            canvas.ClipPath(path, SKClipOperation.Intersect, true);
+
             if (opacity >= 0.999f) {
                 SkiaExtensions.RenderBrushBackground(canvas, bounds, fill.Brush, fill.Color);
+                canvas.Restore();
                 return;
             }
 
@@ -275,6 +279,25 @@ namespace ModernFormsNext.Renderers
             canvas.SaveLayer(bounds, opacityPaint);
             SkiaExtensions.RenderBrushBackground(canvas, bounds, fill.Brush, fill.Color);
             canvas.Restore();
+            canvas.Restore();
+        }
+
+        private static void DrawRoundedFill(SKCanvas canvas, SKRect bounds, float radius, SKColor color, float opacity)
+        {
+            opacity = Math.Clamp(opacity, 0f, 1f);
+
+            if (opacity <= 0f)
+                return;
+
+            var alpha = (byte)Math.Round(color.Alpha * opacity);
+
+            using var paint = new SKPaint {
+                Color = WithAlpha(color, alpha),
+                IsAntialias = true,
+                IsStroke = false
+            };
+
+            canvas.DrawRoundRect(bounds, radius, radius, paint);
         }
 
         private static void DrawRoundedBorder(SKCanvas canvas, SKRect bounds, float radius, SKColor color, float width)
@@ -286,7 +309,9 @@ namespace ModernFormsNext.Renderers
                 Color = color,
                 IsAntialias = true,
                 IsStroke = true,
-                StrokeWidth = width
+                StrokeWidth = width,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round
             };
 
             var half = width / 2f;
@@ -295,8 +320,9 @@ namespace ModernFormsNext.Renderers
                 bounds.Top + half,
                 bounds.Right - half,
                 bounds.Bottom - half);
+            var borderRadius = Math.Max(0f, radius - half);
 
-            canvas.DrawRoundRect(borderBounds, radius, radius, paint);
+            canvas.DrawRoundRect(borderBounds, borderRadius, borderRadius, paint);
         }
 
         private static void DrawTrack(Switch control, SKCanvas canvas, Rectangle trackBounds, PaintEventArgs e)

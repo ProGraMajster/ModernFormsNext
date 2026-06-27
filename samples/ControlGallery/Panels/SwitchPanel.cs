@@ -56,8 +56,10 @@ namespace ControlGallery.Panels
                 OnTrackColor = new SKColor(255, 188, 66),
                 OffIconColor = new SKColor(211, 221, 255),
                 OnIconColor = new SKColor(80, 48, 0),
+                ThumbColor = new SKColor(82, 88, 100),
                 ThumbBorderColor = new SKColor(255, 255, 255, 180),
                 ThumbBorderWidth = 1,
+                AnimationSpeed = 1.35,
                 IsToggled = true
             });
 
@@ -137,6 +139,15 @@ namespace ControlGallery.Panels
             onGradient.GradientStops.Add(new MfnDrawing.GradientStop(new SKColor(0, 122, 204), 0f));
             onGradient.GradientStops.Add(new MfnDrawing.GradientStop(new SKColor(0, 190, 150), 1f));
 
+            var thumbGradient = new MfnDrawing.LinearGradientBrush
+            {
+                StartPoint = new SKPoint(0, 0),
+                EndPoint = new SKPoint(1, 1)
+            };
+
+            thumbGradient.GradientStops.Add(new MfnDrawing.GradientStop(SKColors.White, 0f));
+            thumbGradient.GradientStops.Add(new MfnDrawing.GradientStop(new SKColor(92, 111, 148), 1f));
+
             Controls.Add(new Label
             {
                 Text = "Gradient track",
@@ -160,12 +171,14 @@ namespace ControlGallery.Panels
                 OnIconColor = SKColors.White,
                 OffIconColor = new SKColor(70, 70, 70, 180),
                 ThumbBorderWidth = 2,
-                ThumbBorderColor = SKColors.White
+                ThumbBorderColor = SKColors.White,
+                ThumbBrush = thumbGradient,
+                AnimationSpeed = 0.75
             });
 
             Controls.Add(new Label
             {
-                Text = "No animation",
+                Text = "Custom icons",
                 Left = 10,
                 Top = 212,
                 Width = 160,
@@ -176,12 +189,128 @@ namespace ControlGallery.Panels
             {
                 Left = 180,
                 Top = 206,
+                Width = 82,
+                Height = 34,
+                OffTrackColor = new SKColor(42, 48, 62),
+                OnTrackColor = new SKColor(21, 145, 110),
+                TrackBorderColor = new SKColor(15, 22, 33),
+                ThumbColor = new SKColor(245, 248, 255),
+                ThumbBorderColor = new SKColor(255, 255, 255, 180),
+                OffIconImage = CreateLightningIcon(new SKColor(118, 196, 255), new SKColor(255, 214, 94)),
+                OnIconImage = CreateLeafIcon(new SKColor(186, 247, 216), new SKColor(47, 121, 88)),
+                ThumbIconImage = CreateThumbGlyph(new SKColor(34, 42, 58)),
+                IconSize = 18,
+                AnimationSpeed = 2.2,
+                IsToggled = true
+            });
+
+            Controls.Add(new Label
+            {
+                Text = "No animation",
+                Left = 10,
+                Top = 262,
+                Width = 160,
+                Height = 24
+            });
+
+            Controls.Add(new Switch
+            {
+                Left = 180,
+                Top = 256,
                 Animate = false,
                 OffTrackColor = Theme.ControlMidColor,
                 OnTrackColor = Theme.AccentColor2,
                 ThumbIcon = SwitchIconKind.Dot,
                 ThumbIconColor = Theme.AccentColor2
             });
+        }
+
+        private static SKBitmap CreateLightningIcon(SKColor primary, SKColor accent)
+        {
+            var bitmap = new SKBitmap(32, 32, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);
+
+            using var bolt = new SKPath();
+            bolt.MoveTo(18, 2);
+            bolt.LineTo(8, 18);
+            bolt.LineTo(16, 18);
+            bolt.LineTo(12, 30);
+            bolt.LineTo(25, 12);
+            bolt.LineTo(17, 12);
+            bolt.Close();
+
+            using var paint = new SKPaint
+            {
+                Color = primary,
+                IsAntialias = true,
+                IsStroke = false
+            };
+
+            canvas.DrawPath(bolt, paint);
+
+            paint.Color = accent;
+            canvas.DrawCircle(24, 8, 3, paint);
+
+            return bitmap;
+        }
+
+        private static SKBitmap CreateLeafIcon(SKColor primary, SKColor accent)
+        {
+            var bitmap = new SKBitmap(32, 32, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);
+
+            using var leaf = new SKPath();
+            leaf.MoveTo(5, 18);
+            leaf.CubicTo(9, 5, 23, 4, 28, 8);
+            leaf.CubicTo(28, 22, 17, 28, 5, 18);
+            leaf.Close();
+
+            using var paint = new SKPaint
+            {
+                Color = primary,
+                IsAntialias = true,
+                IsStroke = false
+            };
+
+            canvas.DrawPath(leaf, paint);
+
+            paint.Color = accent;
+            paint.IsStroke = true;
+            paint.StrokeWidth = 2;
+            paint.StrokeCap = SKStrokeCap.Round;
+            canvas.DrawLine(9, 19, 24, 10, paint);
+
+            return bitmap;
+        }
+
+        private static SKBitmap CreateThumbGlyph(SKColor color)
+        {
+            var bitmap = new SKBitmap(32, 32, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);
+
+            using var paint = new SKPaint
+            {
+                Color = color,
+                IsAntialias = true,
+                IsStroke = false
+            };
+
+            canvas.DrawCircle(16, 16, 5, paint);
+            paint.IsStroke = true;
+            paint.StrokeWidth = 2;
+            paint.StrokeCap = SKStrokeCap.Round;
+            canvas.DrawLine(16, 5, 16, 9, paint);
+            canvas.DrawLine(16, 23, 16, 27, paint);
+            canvas.DrawLine(5, 16, 9, 16, paint);
+            canvas.DrawLine(23, 16, 27, 16, paint);
+
+            return bitmap;
         }
     }
 }

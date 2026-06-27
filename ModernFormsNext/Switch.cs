@@ -56,6 +56,7 @@ namespace ModernFormsNext
         private bool updateValueWhileDragging;
         private bool animate = true;
         private int animationDuration = 160;
+        private double animationSpeed = 1d;
         private Func<float, float>? animationEasing;
 
         private SKColor? offTrackColor;
@@ -71,6 +72,7 @@ namespace ModernFormsNext
         private SKColor? offThumbColor;
         private SKColor? negativeThumbColor;
         private SKColor? onThumbColor;
+        private SKColor? thumbColor;
         private SKColor? thumbBorderColor;
         private int thumbBorderWidth = 1;
         private int thumbCornerRadius = -1;
@@ -79,6 +81,7 @@ namespace ModernFormsNext
         private MfnBrush? offThumbBrush;
         private MfnBrush? negativeThumbBrush;
         private MfnBrush? onThumbBrush;
+        private MfnBrush? thumbBrush;
 
         private SwitchIconKind offIcon;
         private SwitchIconKind negativeIcon;
@@ -244,6 +247,33 @@ namespace ModernFormsNext
         }
 
         /// <summary>
+        /// Gets or sets a multiplier applied to <see cref="AnimationDuration"/>.
+        /// </summary>
+        /// <value>
+        /// A positive finite multiplier. The default value is 1.0. Values greater than 1 make
+        /// the switch animate faster; values between 0 and 1 make it animate more slowly.
+        /// </value>
+        /// <remarks>
+        /// This property affects future switch animations by dividing
+        /// <see cref="AnimationDuration"/> by the multiplier. Changing it invalidates rendering
+        /// but does not restart an animation that is already running.
+        /// </remarks>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when the value is less than or equal to zero, NaN, or infinite.
+        /// </exception>
+        public double AnimationSpeed
+        {
+            get => animationSpeed;
+            set
+            {
+                if (value <= 0d || !double.IsFinite(value))
+                    throw new ArgumentOutOfRangeException(nameof(AnimationSpeed), "Animation speed must be a positive finite value.");
+
+                SetInvalidatingField(ref animationSpeed, value);
+            }
+        }
+
+        /// <summary>
         /// Gets or sets the easing function used by the built-in switch animation.
         /// </summary>
         /// <remarks>
@@ -389,6 +419,20 @@ namespace ModernFormsNext
         }
 
         /// <summary>
+        /// Gets or sets the fallback thumb color used by all switch values.
+        /// </summary>
+        /// <remarks>
+        /// This color is used when the active value does not provide a more specific
+        /// <see cref="OffThumbColor"/>, <see cref="NegativeThumbColor"/>, or
+        /// <see cref="OnThumbColor"/>. Setting this property invalidates rendering only.
+        /// </remarks>
+        public SKColor? ThumbColor
+        {
+            get => thumbColor;
+            set => SetInvalidatingField(ref thumbColor, value);
+        }
+
+        /// <summary>
         /// Gets or sets the thumb color used when <see cref="Value"/> is 0.
         /// </summary>
         public SKColor? OffThumbColor
@@ -413,6 +457,38 @@ namespace ModernFormsNext
         {
             get => onThumbColor;
             set => SetInvalidatingField(ref onThumbColor, value);
+        }
+
+        /// <summary>
+        /// Gets or sets the fallback brush used to paint the thumb for all switch values.
+        /// </summary>
+        /// <remarks>
+        /// Use this property for a single thumb gradient shared by every value. State-specific
+        /// brushes, such as <see cref="OffThumbBrush"/>, <see cref="NegativeThumbBrush"/>, and
+        /// <see cref="OnThumbBrush"/>, take precedence over this fallback. Setting this property
+        /// invalidates rendering only.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var thumbGradient = new ModernFormsNext.Drawing.LinearGradientBrush
+        /// {
+        ///     StartPoint = new SKPoint(0, 0),
+        ///     EndPoint = new SKPoint(1, 1)
+        /// };
+        ///
+        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.White, 0f));
+        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.SteelBlue, 1f));
+        ///
+        /// var control = new Switch
+        /// {
+        ///     ThumbBrush = thumbGradient
+        /// };
+        /// </code>
+        /// </example>
+        public MfnBrush? ThumbBrush
+        {
+            get => thumbBrush;
+            set => SetInvalidatingField(ref thumbBrush, value);
         }
 
         /// <summary>
@@ -573,6 +649,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the bitmap icon drawn at the off position.
         /// </summary>
+        /// <remarks>
+        /// When this value is not <see langword="null"/>, it is drawn instead of
+        /// <see cref="OffIcon"/>. The control stores the bitmap reference and does not take
+        /// ownership of it; keep the bitmap alive while the switch can render it and dispose it
+        /// after it is no longer assigned. Setting this property invalidates rendering only.
+        /// </remarks>
         public SKBitmap? OffIconImage
         {
             get => offIconImage;
@@ -582,6 +664,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the bitmap icon drawn at the negative position.
         /// </summary>
+        /// <remarks>
+        /// When this value is not <see langword="null"/>, it is drawn instead of
+        /// <see cref="NegativeIcon"/>. The control stores the bitmap reference and does not take
+        /// ownership of it; keep the bitmap alive while the switch can render it and dispose it
+        /// after it is no longer assigned. Setting this property invalidates rendering only.
+        /// </remarks>
         public SKBitmap? NegativeIconImage
         {
             get => negativeIconImage;
@@ -591,6 +679,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the bitmap icon drawn at the on position.
         /// </summary>
+        /// <remarks>
+        /// When this value is not <see langword="null"/>, it is drawn instead of
+        /// <see cref="OnIcon"/>. The control stores the bitmap reference and does not take
+        /// ownership of it; keep the bitmap alive while the switch can render it and dispose it
+        /// after it is no longer assigned. Setting this property invalidates rendering only.
+        /// </remarks>
         public SKBitmap? OnIconImage
         {
             get => onIconImage;
@@ -600,6 +694,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the bitmap icon drawn inside the thumb.
         /// </summary>
+        /// <remarks>
+        /// When this value is not <see langword="null"/>, it is drawn instead of
+        /// <see cref="ThumbIcon"/>. The control stores the bitmap reference and does not take
+        /// ownership of it; keep the bitmap alive while the switch can render it and dispose it
+        /// after it is no longer assigned. Setting this property invalidates rendering only.
+        /// </remarks>
         public SKBitmap? ThumbIconImage
         {
             get => thumbIconImage;
@@ -744,8 +844,9 @@ namespace ModernFormsNext
         private void AnimateVisualToValue(int value, bool animateChange)
         {
             var target = GetTargetPosition(value);
+            var effectiveDuration = GetEffectiveAnimationDuration();
 
-            if (!animateChange || AnimationDuration == 0) {
+            if (!animateChange || effectiveDuration == 0) {
                 AnimationManager.Cancel(this, VisualPositionAnimationKey);
                 SetVisualPosition(target);
                 return;
@@ -756,11 +857,19 @@ namespace ModernFormsNext
                 VisualPositionAnimationKey,
                 visualPosition,
                 target,
-                AnimationDuration,
+                effectiveDuration,
                 SetVisualPosition,
                 AnimationEasing ?? Easings.EaseOutCubic);
 
             _ = AnimationManager.AddOrReplace(animation);
+        }
+
+        private int GetEffectiveAnimationDuration()
+        {
+            if (AnimationDuration == 0)
+                return 0;
+
+            return Math.Max(1, (int)Math.Round(AnimationDuration / AnimationSpeed));
         }
 
         private int GetNextCycleValue()
