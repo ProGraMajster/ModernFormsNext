@@ -1,0 +1,214 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+
+namespace ModernFormsNext.VisualStudioExtension.Detection;
+
+internal sealed class ModernFormsDesignableFileDetector
+{
+    public ModernFormsDesignableFileInfo? Inspect(string codeFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(codeFilePath)
+            || !string.Equals(Path.GetExtension(codeFilePath), ".cs", StringComparison.OrdinalIgnoreCase)
+            || codeFilePath.EndsWith(".Designer.cs", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetFileName(codeFilePath), "Program.cs", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var designFilePath = Path.ChangeExtension(codeFilePath, ".mfdesign");
+        var designerCodePath = Path.Combine(
+            Path.GetDirectoryName(codeFilePath) ?? string.Empty,
+            Path.GetFileNameWithoutExtension(codeFilePath) + ".Designer.cs");
+        var hasDesignFile = IsModernFormsNextDesignFile(designFilePath);
+        var projectInfo = InspectProject(codeFilePath);
+        var isPartialModernFormsType = IsPartialModernFormsNextType(codeFilePath, projectInfo.HasModernFormsNextReference);
+        var isDesignable = hasDesignFile
+            || projectInfo.HasExplicitDesignerMetadata
+            || isPartialModernFormsType;
+
+        return new ModernFormsDesignableFileInfo(
+            codeFilePath,
+            designerCodePath,
+            designFilePath,
+            Path.GetFileNameWithoutExtension(codeFilePath),
+            hasDesignFile,
+            projectInfo.HasExplicitDesignerMetadata,
+            isDesignable);
+    }
+
+    private static bool IsModernFormsNextDesignFile(string designFilePath)
+    {
+        if (!File.Exists(designFilePath))
+            return false;
+
+        try
+        {
+            var text = File.ReadAllText(designFilePath);
+
+            return text.IndexOf("\"toolName\"", StringComparison.OrdinalIgnoreCase) >= 0
+                    && text.IndexOf("ModernFormsNext", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("\"className\"", StringComparison.OrdinalIgnoreCase) >= 0
+                    && text.IndexOf("\"formName\"", StringComparison.OrdinalIgnoreCase) >= 0
+                    && text.IndexOf("\"controls\"", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static ProjectInspectionResult InspectProject(string codeFilePath)
+    {
+        var projectPath = FindNearestProjectFile(Path.GetDirectoryName(codeFilePath));
+
+        if (projectPath is null)
+            return ProjectInspectionResult.Empty;
+
+        try
+        {
+            var projectDirectory = Path.GetDirectoryName(projectPath) ?? string.Empty;
+            var relativePath = GetRelativePath(projectDirectory, codeFilePath).Replace('\\', '/');
+            var fileName = Path.GetFileName(codeFilePath);
+            var project = XDocument.Load(projectPath);
+
+            var hasModernFormsNextReference = project.Descendants().Any(element =>
+            {
+                if (string.Equals(element.Name.LocalName, "PackageReference", StringComparison.OrdinalIgnoreCase))
+                {
+                    var include = (string?)element.Attribute("Include") ?? (string?)element.Attribute("Update");
+
+                    return string.Equals(include, "ModernFormsNext", StringComparison.OrdinalIgnoreCase);
+                }
+
+                if (string.Equals(element.Name.LocalName, "ProjectReference", StringComparison.OrdinalIgnoreCase))
+                {
+                    var include = (string?)element.Attribute("Include") ?? (string?)element.Attribute("Update");
+
+                    return include is not null
+                        && string.Equals(Path.GetFileName(include), "ModernFormsNext.csproj", StringComparison.OrdinalIgnoreCase);
+                }
+
+                return false;
+            });
+
+            var hasExplicitDesignerMetadata = project.Descendants().Any(element =>
+            {
+                if (!string.Equals(element.Name.LocalName, "Compile", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                var include = ((string?)element.Attribute("Include") ?? (string?)element.Attribute("Update"))?.Replace('\\', '/');
+
+                if (include is null)
+                    return false;
+
+                var matchesFile = string.Equals(include, relativePath, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(include, fileName, StringComparison.OrdinalIgnoreCase);
+
+                return matchesFile
+                    && element.Elements().Any(child =>
+                        string.Equals(child.Name.LocalName, "ModernFormsNextDesigner", StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(child.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(child.Name.LocalName, "SubType", StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(child.Value.Trim(), "ModernFormsNextForm", StringComparison.OrdinalIgnoreCase));
+            });
+
+            return new ProjectInspectionResult(hasModernFormsNextReference, hasExplicitDesignerMetadata);
+        }
+        catch
+        {
+            return ProjectInspectionResult.Empty;
+        }
+    }
+
+    private static bool IsPartialModernFormsNextType(string codeFilePath, bool hasModernFormsNextReference)
+    {
+        if (!hasModernFormsNextReference || !File.Exists(codeFilePath))
+            return false;
+
+        try
+        {
+            var source = File.ReadAllText(codeFilePath);
+            var hasModernFormsUsing = Regex.IsMatch(source, @"^\s*using\s+ModernFormsNext(\.[\w.]+)?\s*;", RegexOptions.Multiline);
+            var hasWindowsFormsUsing = Regex.IsMatch(source, @"^\s*using\s+System\.Windows\.Forms(\.[\w.]+)?\s*;", RegexOptions.Multiline);
+
+            foreach (Match match in Regex.Matches(
+                source,
+                @"\b(?:(?:public|private|protected|internal|sealed|abstract|static|unsafe|new)\s+)*partial\s+class\s+(?<name>\w+)\s*:\s*(?<base>[A-Za-z_][\w.<>]*)"))
+            {
+                var baseTypeName = match.Groups["base"].Value;
+
+                if (baseTypeName.StartsWith("ModernFormsNext.", StringComparison.Ordinal))
+                    return baseTypeName.EndsWith(".Form", StringComparison.Ordinal)
+                        || baseTypeName.EndsWith(".Control", StringComparison.Ordinal)
+                        || baseTypeName.EndsWith(".ModernForm", StringComparison.Ordinal)
+                        || baseTypeName.EndsWith(".ModernControl", StringComparison.Ordinal);
+
+                if (hasWindowsFormsUsing)
+                    continue;
+
+                if (hasModernFormsUsing
+                    && (string.Equals(baseTypeName, "Form", StringComparison.Ordinal)
+                        || string.Equals(baseTypeName, "Control", StringComparison.Ordinal)
+                        || string.Equals(baseTypeName, "ModernForm", StringComparison.Ordinal)
+                        || string.Equals(baseTypeName, "ModernControl", StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    private static string? FindNearestProjectFile(string? directory)
+    {
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            var project = Directory.EnumerateFiles(directory, "*.csproj").FirstOrDefault();
+
+            if (project is not null)
+                return project;
+
+            directory = Directory.GetParent(directory)?.FullName;
+        }
+
+        return null;
+    }
+
+    private static string GetRelativePath(string baseDirectory, string path)
+    {
+        var baseUri = new Uri(AppendDirectorySeparator(Path.GetFullPath(baseDirectory)));
+        var pathUri = new Uri(Path.GetFullPath(path));
+
+        return Uri.UnescapeDataString(baseUri.MakeRelativeUri(pathUri).ToString()).Replace('/', Path.DirectorySeparatorChar);
+    }
+
+    private static string AppendDirectorySeparator(string path)
+        => path.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+            ? path
+            : path + Path.DirectorySeparatorChar;
+
+    private sealed class ProjectInspectionResult
+    {
+        public static readonly ProjectInspectionResult Empty = new(false, false);
+
+        public ProjectInspectionResult(
+            bool hasModernFormsNextReference,
+            bool hasExplicitDesignerMetadata)
+        {
+            HasModernFormsNextReference = hasModernFormsNextReference;
+            HasExplicitDesignerMetadata = hasExplicitDesignerMetadata;
+        }
+
+        public bool HasModernFormsNextReference { get; }
+
+        public bool HasExplicitDesignerMetadata { get; }
+    }
+}

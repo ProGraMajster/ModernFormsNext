@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "Visual Studio Experimental": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\devenv.exe",
+      "commandLineArgs": "/RootSuffix Exp",
+      "workingDirectory": "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE"
+    }
+  }
+}

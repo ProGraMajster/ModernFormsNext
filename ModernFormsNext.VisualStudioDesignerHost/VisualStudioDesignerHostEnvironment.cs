@@ -1,0 +1,38 @@
+using ModernFormsNext.Designer;
+
+namespace ModernFormsNext.VisualStudioDesignerHost;
+
+/// <summary>
+/// Provides file, status, and output integration for the standalone designer host launched by Visual Studio.
+/// </summary>
+public sealed class VisualStudioDesignerHostEnvironment : IDesignerHostEnvironment
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VisualStudioDesignerHostEnvironment"/> class.
+    /// </summary>
+    /// <param name="currentDocumentPath">The active <c>.mfdesign</c> document path.</param>
+    /// <param name="currentProjectPath">The project path supplied by Visual Studio, if known.</param>
+    public VisualStudioDesignerHostEnvironment(string? currentDocumentPath, string? currentProjectPath = null)
+    {
+        CurrentDocumentPath = currentDocumentPath;
+        CurrentProjectPath = currentProjectPath;
+    }
+
+    /// <inheritdoc/>
+    public string? CurrentDocumentPath { get; }
+
+    /// <inheritdoc/>
+    public string? CurrentProjectPath { get; }
+
+    /// <inheritdoc/>
+    public void ReportStatus(string message)
+    {
+        Console.WriteLine(message);
+    }
+
+    /// <inheritdoc/>
+    public void ReportOutput(string message)
+    {
+        Console.WriteLine(message);
+    }
+}

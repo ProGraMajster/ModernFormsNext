@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable"
+              xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+
+  <Symbols>
+    <GuidSymbol name="guidModernFormsDesignerPackage" value="{0E6A57C2-A0C1-456E-BFE1-5C8F6EB0AA11}" />
+    <GuidSymbol name="guidModernFormsDesignerCommandSet" value="{CDA8870E-234B-44C9-BA43-362BFF40A0E3}">
+      <IDSymbol name="ModernFormsDesignerExtensionsGroup" value="0x1021" />
+      <IDSymbol name="ModernFormsDesignerItemContextGroup" value="0x1022" />
+      <IDSymbol name="ModernFormsDesignerCodeContextGroup" value="0x1023" />
+      <IDSymbol name="cmdidViewModernFormsNextDesigner" value="0x0100" />
+    </GuidSymbol>
+    <GuidSymbol name="guidSHLMainMenu" value="{D309F791-903F-11D0-9EFC-00A0C911004F}">
+      <IDSymbol name="IDM_VS_MENU_EXTENSIONS" value="0x0091" />
+    </GuidSymbol>
+  </Symbols>
+
+  <Commands package="guidModernFormsDesignerPackage">
+    <Groups>
+      <Group guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerExtensionsGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_EXTENSIONS" />
+      </Group>
+      <Group guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerItemContextGroup" priority="0x0210">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE" />
+      </Group>
+      <Group guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerCodeContextGroup" priority="0x0610">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidModernFormsDesignerCommandSet" id="cmdidViewModernFormsNextDesigner" priority="0x0100" type="Button">
+        <Parent guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerItemContextGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DefaultInvisible</CommandFlag>
+        <Strings>
+          <ButtonText>View ModernFormsNext Designer</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+
+  <CommandPlacements>
+    <CommandPlacement guid="guidModernFormsDesignerCommandSet" id="cmdidViewModernFormsNextDesigner" priority="0x0105">
+      <Parent guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerExtensionsGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidModernFormsDesignerCommandSet" id="cmdidViewModernFormsNextDesigner" priority="0x0100">
+      <Parent guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerCodeContextGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
+</CommandTable>

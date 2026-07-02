@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "formatVersion": 1,
+    "toolName": "ModernFormsNext.Templates"
+  },
+  "namespace": "MyApp",
+  "className": "MainForm",
+  "formName": "MainForm",
+  "size": {
+    "width": 900,
+    "height": 600
+  },
+  "events": {},
+  "controls": [
+    {
+      "typeName": "Button",
+      "name": "button1",
+      "bounds": {
+        "x": 260,
+        "y": 60,
+        "width": 120,
+        "height": 40
+      },
+      "memberVisibility": "private",
+      "properties": {
+        "Text": "Click me",
+        "TextAlign": {
+          "kind": "enum",
+          "typeName": "ModernFormsNext.ContentAlignment",
+          "value": "MiddleCenter"
+        }
+      },
+      "events": {
+        "Click": "button1_Click"
+      },
+      "children": []
+    }
+  ]
+}

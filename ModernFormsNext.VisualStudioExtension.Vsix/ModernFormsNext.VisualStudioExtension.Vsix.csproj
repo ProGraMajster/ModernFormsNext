@@ -1,0 +1,81 @@
+﻿<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <AssemblyVersion>$(ModernFormsNextPackageVersion).0</AssemblyVersion>
+    <FileVersion>$(ModernFormsNextPackageVersion).0</FileVersion>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>ModernFormsNext.VisualStudioExtension</AssemblyName>
+    <RootNamespace>ModernFormsNext.VisualStudioExtension</RootNamespace>
+    <Authors>ProGraMajster</Authors>
+    <Company>ModernFormsNext</Company>
+    <Product>ModernFormsNext.VisualStudioExtension</Product>
+    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+    <Description>Visual Studio designer support for ModernFormsNext .mfdesign files.</Description>
+    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <NeutralLanguage>en</NeutralLanguage>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <DeployExtension>false</DeployExtension>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>true</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>true</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+    <TargetVsixContainerName>ModernFormsNextDesigner.vsix</TargetVsixContainerName>
+    <VSSDKBuildToolsVersion>17.14.2142</VSSDKBuildToolsVersion>
+    <UseCodebase>true</UseCodebase>
+    <DesignerHostProject>..\ModernFormsNext.VisualStudioDesignerHost\ModernFormsNext.VisualStudioDesignerHost.csproj</DesignerHostProject>
+    <DesignerHostPublishDir>$(IntermediateOutputPath)DesignerHost\</DesignerHostPublishDir>
+    <DesignerHostRuntimeIdentifier>win-x64</DesignerHostRuntimeIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Design" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <VSCTCompile Include="ModernFormsNext.VisualStudioExtension.vsct" />
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\$(VSSDKBuildToolsVersion)\tools\vssdk\Microsoft.VsSDK.targets"
+          Condition="Exists('$(NuGetPackageRoot)microsoft.vssdk.buildtools\$(VSSDKBuildToolsVersion)\tools\vssdk\Microsoft.VsSDK.targets')" />
+
+  <Target Name="CreateModernFormsNextVsixAfterBuild"
+          AfterTargets="Build"
+          DependsOnTargets="GeneratePkgDef;CopyPkgDef;CreateVsixContainer"
+          Condition="'$(DesignTimeBuild)' != 'true'" />
+
+  <Target Name="PublishModernFormsNextDesignerHost"
+          BeforeTargets="GetVsixSourceItems"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <RemoveDir Directories="$(DesignerHostPublishDir)" />
+    <MSBuild Projects="$(DesignerHostProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);TargetFramework=net10.0-windows;RuntimeIdentifier=$(DesignerHostRuntimeIdentifier);PublishDir=$(MSBuildProjectDirectory)\$(DesignerHostPublishDir);SelfContained=false;EnableWindowsTargeting=true" />
+    <ItemGroup>
+      <Content Include="$(DesignerHostPublishDir)**\*">
+        <IncludeInVSIX>true</IncludeInVSIX>
+        <VSIXSubPath>DesignerHost\%(RecursiveDir)</VSIXSubPath>
+      </Content>
+    </ItemGroup>
+  </Target>
+</Project>

@@ -11,7 +11,22 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="ModernFormsNext" Version="1.6.0" />
+		<PackageReference Include="ModernFormsNext" Version="1.7.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Update="MainForm.cs">
+			<ModernFormsNextDesigner>true</ModernFormsNextDesigner>
+			<SubType>ModernFormsNextForm</SubType>
+		</Compile>
+		<Compile Update="MainForm.Designer.cs">
+			<DependentUpon>MainForm.cs</DependentUpon>
+			<AutoGen>True</AutoGen>
+			<DesignTime>True</DesignTime>
+		</Compile>
+		<None Update="MainForm.mfdesign">
+			<DependentUpon>MainForm.cs</DependentUpon>
+		</None>
 	</ItemGroup>
 
 </Project>

@@ -9,32 +9,18 @@ namespace MyApp;
 /// This form contains minimal starter content. More advanced control examples are available
 /// in the ModernFormsNext ControlGallery sample.
 /// </remarks>
-public sealed class MainForm : Form
+public sealed partial class MainForm : ModernFormsNext.Form
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="MainForm"/> class.
     /// </summary>
     public MainForm()
     {
-        Text = "ModernFormsNext App";
-        Width = 900;
-        Height = 600;
+        InitializeComponent();
+    }
 
-        var button = new Button
-        {
-            Text = "Click me",
-            Left = 260,
-            Top = 60,
-            Width = 120,
-            Height = 40,
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-
-        button.Click += (_, _) =>
-        {
-            Text = "Button clicked";
-        };
-
-        Controls.Add(button);
+    private void button1_Click(object? sender, EventArgs e)
+    {
+        Text = "Button clicked";
     }
 }
