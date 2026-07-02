@@ -106,7 +106,7 @@ namespace ModernFormsNext
         /// Derived text controls override this method when they need to keep an internal document model synchronized with keyboard deletion.
         /// Implementations should invalidate rendering when the displayed text changes.
         /// </remarks>
-        protected virtual bool DeleteText (bool forward, bool wholeWord) => document.DeleteText (forward, wholeWord);
+        protected virtual bool DeleteText (bool forward, bool wholeWord) => ApplyTextEdit (() => document.DeleteText (forward, wholeWord));
 
         /// <summary>
         /// Deletes the selected text from the control.
@@ -116,7 +116,7 @@ namespace ModernFormsNext
         /// This method is used by keyboard editing and clipboard cut operations. Derived controls should override it when deleting selected text
         /// requires additional validation or model updates.
         /// </remarks>
-        protected virtual bool DeleteSelectedText () => document.DeleteSelection ();
+        protected virtual bool DeleteSelectedText () => ApplyTextEdit (() => document.DeleteSelection ());
 
         // Handles key down events.
         private bool HandleKeyDown (KeyEventArgs e)
@@ -198,7 +198,26 @@ namespace ModernFormsNext
         /// Derived controls override this method to validate or transform user input before it reaches the text document. Implementations should
         /// keep the caret valid and invalidate rendering when displayed text changes.
         /// </remarks>
-        protected virtual bool InsertText (string text) => document.InsertText (text);
+        protected virtual bool InsertText (string text) => ApplyTextEdit (() => document.InsertText (text));
+
+        // TextBoxDocument owns caret and selection state, while TextBox owns the
+        // public control contract. Keep invalidation and TextChanged centralized
+        // so keyboard, paste, and cut/delete edits behave like setting Text.
+        private bool ApplyTextEdit (Func<bool> edit)
+        {
+            var old_text = document.Text;
+            var changed = edit ();
+
+            if (!changed)
+                return false;
+
+            Invalidate ();
+
+            if (old_text != document.Text)
+                OnTextChanged (EventArgs.Empty);
+
+            return true;
+        }
 
         /// <summary>
         /// Processes a key-down event after the public <see cref="Control.KeyDown"/> event has been raised.
@@ -494,6 +513,7 @@ namespace ModernFormsNext
                 if (document.Text != value) {
                     document.Text = value;
                     ScrollToCaret ();
+                    OnTextChanged (EventArgs.Empty);
                 }
             }
         }

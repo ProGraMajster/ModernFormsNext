@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Authors>ProGraMajster</Authors>
+    <Company>ModernFormsNext</Company>
+    <Product>ModernFormsNext.DesignerPlayground</Product>
+    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+    <Description>Standalone test host for the reusable ModernFormsNext designer shell.</Description>
+    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ModernFormsNext\ModernFormsNext.csproj" />
+    <ProjectReference Include="..\..\ModernFormsNext.Designer\ModernFormsNext.Designer.csproj" />
+  </ItemGroup>
+
+</Project>

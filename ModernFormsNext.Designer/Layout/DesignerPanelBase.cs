@@ -1,0 +1,44 @@
+using ModernFormsNext;
+using SkiaSharp;
+
+namespace ModernFormsNext.Designer.Layout;
+
+internal abstract class DesignerPanelBase : Panel
+{
+    protected const int HeaderHeight = 28;
+
+    protected DesignerPanelBase(string title)
+    {
+        Title = title;
+        TabStop = false;
+        Style.BackgroundColor = DesignerColors.PanelBackground;
+        Style.Border.Width = 1;
+        Style.Border.Color = DesignerColors.PanelBorder;
+    }
+
+    protected string Title { get; private set; }
+
+    public void SetTitle(string title)
+    {
+        Title = title;
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+
+        e.Canvas.FillRectangle(ClientRectangle, DesignerColors.PanelBackground);
+        e.Canvas.FillRectangle(0, 0, Width, HeaderHeight, DesignerColors.PanelHeader);
+        e.Canvas.DrawRectangle(0, 0, Width, Height, DesignerColors.PanelBorder);
+        e.Canvas.DrawText(
+            Title,
+            Theme.UIFont,
+            e.LogicalToDeviceUnits(Theme.FontSize),
+            new System.Drawing.Rectangle(e.LogicalToDeviceUnits(10), 0, e.LogicalToDeviceUnits(Math.Max(1, Width - 20)), e.LogicalToDeviceUnits(HeaderHeight)),
+            DesignerColors.Text,
+            ContentAlignment.MiddleLeft,
+            maxLines: 1,
+            ellipsis: true);
+    }
+}

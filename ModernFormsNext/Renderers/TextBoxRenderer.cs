@@ -31,10 +31,25 @@ namespace ModernFormsNext.Renderers
 
             if (control.Selected) {
                 var caret = TextMeasurer.GetCursorLocation (block, text_origin, GetCursorIndex (control), GetCurrentFontSize (control));
-                e.Canvas.DrawRectangle (caret, Theme.ForegroundColor);
+                DrawCaret (e, caret);
             }
 
             e.Canvas.Restore ();
+        }
+
+        private static void DrawCaret (PaintEventArgs e, Rectangle caret)
+        {
+            using var paint = new SkiaSharp.SKPaint {
+                Color = Theme.ForegroundColor,
+                IsAntialias = false,
+                StrokeWidth = Math.Max (1, e.LogicalToDeviceUnits (1))
+            };
+
+            var x = caret.Left;
+            var top = caret.Top;
+            var bottom = Math.Max (caret.Top + 1, caret.Bottom);
+
+            e.Canvas.DrawLine (x, top, x, bottom, paint);
         }
 
         /// <summary>

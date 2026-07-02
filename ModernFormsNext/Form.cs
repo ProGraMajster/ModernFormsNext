@@ -36,8 +36,7 @@ namespace ModernFormsNext
             TitleBar = Controls.AddImplicitControl (new FormTitleBar ());
 
             Resizeable = true;
-            Window.SetSystemDecorations (SystemDecorations.None);
-            Window.SetExtendClientAreaToDecorationsHint (true);
+            ApplySystemDecorations (use_system_decorations);
 
             Window.Closing = (e) => {
                 var args = new CancelEventArgs ();
@@ -436,13 +435,7 @@ namespace ModernFormsNext
                 if (shown)
                     throw new InvalidOperationException ($"Cannot change {nameof (UseSystemDecorations)} once a Form has been shown.");
 
-                if (use_system_decorations != value) {
-                    use_system_decorations = value;
-                    TitleBar.Visible = !use_system_decorations;
-                    Style.Border.Width = use_system_decorations ? 0 : 1;
-                    Window.SetSystemDecorations (value ? SystemDecorations.Full : SystemDecorations.None);
-                    Window.SetExtendClientAreaToDecorationsHint (!value);
-                }
+                ApplySystemDecorations (value);
             }
         }
 
@@ -455,6 +448,26 @@ namespace ModernFormsNext
         }
 
         private IWindowImpl Window => (IWindowImpl)window;
+
+        private void ApplySystemDecorations (bool value)
+        {
+            // Keep the platform window synchronized even when the requested value
+            // matches the field default. Generated designer code can explicitly set
+            // UseSystemDecorations = false, and that assignment must still force the
+            // backend into managed-decoration mode before the form is shown.
+            use_system_decorations = value;
+            TitleBar.Visible = !use_system_decorations;
+            Style.Border.Width = use_system_decorations ? 0 : 1;
+            Window.SetSystemDecorations (value ? SystemDecorations.Full : SystemDecorations.None);
+
+            // Managed decorations are drawn by FormTitleBar, so the backend must not
+            // reserve any platform chrome/title-bar area. Leaving the backend on its
+            // default PreferSystemChrome hint can create an unpainted strip between the
+            // custom title bar and Dock.Fill content.
+            Window.SetExtendClientAreaChromeHints (value ? ExtendClientAreaChromeHints.Default : ExtendClientAreaChromeHints.NoChrome);
+            Window.SetExtendClientAreaTitleBarHeightHint (value ? -1 : 0);
+            Window.SetExtendClientAreaToDecorationsHint (!value);
+        }
 
         private enum WindowElement
         {

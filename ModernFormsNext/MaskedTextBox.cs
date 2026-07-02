@@ -511,10 +511,6 @@ namespace ModernFormsNext
 
                 if (masked_text_provider is null) {
                     base.Text = value;
-
-                    if (old_text != Text)
-                        OnTextChanged (EventArgs.Empty);
-
                     return;
                 }
 
@@ -1043,24 +1039,12 @@ namespace ModernFormsNext
 
         private bool DeleteUnmaskedSelection ()
         {
-            var old_text = Text;
-            var result = base.DeleteSelectedText ();
-
-            if (result && old_text != Text)
-                OnTextChanged (EventArgs.Empty);
-
-            return result;
+            return base.DeleteSelectedText ();
         }
 
         private bool DeleteUnmaskedText (bool forward, bool wholeWord)
         {
-            var old_text = Text;
-            var result = base.DeleteText (forward, wholeWord);
-
-            if (result && old_text != Text)
-                OnTextChanged (EventArgs.Empty);
-
-            return result;
+            return base.DeleteText (forward, wholeWord);
         }
 
         private int GetDeletePosition (bool forward)
@@ -1153,13 +1137,7 @@ namespace ModernFormsNext
 
         private bool InsertUnmaskedText (string text)
         {
-            var old_text = Text;
-            var result = base.InsertText (text);
-
-            if (result && old_text != Text)
-                OnTextChanged (EventArgs.Empty);
-
-            return result;
+            return base.InsertText (text);
         }
 
         private int GetNextCaretPosition (int position)

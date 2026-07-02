@@ -345,7 +345,14 @@ namespace ModernFormsNext
 
         private void OnResize (Size size, WindowResizeReason reason)
         {
-            adapter.SetBounds (DisplayRectangle.Left, DisplayRectangle.Top, Size.Width, Size.Height);
+            var displayRectangle = DisplayRectangle;
+            adapter.SetBounds (displayRectangle.Left, displayRectangle.Top, displayRectangle.Width, displayRectangle.Height);
+
+            // The adapter is the root layout container for Form.Controls and has no
+            // parent that can relayout it after a native resize notification. Trigger
+            // its own layout explicitly so Dock.Fill and Anchor children react to the
+            // new client rectangle instead of keeping stale bounds.
+            adapter.PerformLayout ();
         }
 
         /// <summary>

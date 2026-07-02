@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageId>ModernFormsNext.Designer</PackageId>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Authors>ProGraMajster</Authors>
+    <Company>ModernFormsNext</Company>
+    <Product>ModernFormsNext.Designer</Product>
+    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+    <Description>Reusable ModernFormsNext form designer shell, panels, property grid, toolbox, design surface, and host services.</Description>
+    <PackageTags>ui;designer;forms;skia;desktop;framework;modernforms;mfdesign</PackageTags>
+    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+    <None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.Designing\ModernFormsNext.Designing.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.CodeGeneration\ModernFormsNext.CodeGeneration.csproj" />
+  </ItemGroup>
+
+</Project>
