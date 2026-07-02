@@ -114,7 +114,8 @@ types the default follows the WinForms-style `DBNull.Value` behavior.
 - `BindingNavigator` is not compiled in 1.3.0 because the original WinForms version is
   based on `ToolStrip`. It needs a ModernFormsNext-native navigation control instead of
   a direct port.
-- Designer-only WinForms integration points are not part of the current scope.
+- The ModernFormsNext designer is separate from the data-binding runtime. WinForms-only designer
+  serialization hooks remain out of scope for this binding layer.
 - Data binding is framework code and should be used from the UI thread, like the rest of
   the ModernFormsNext control model.
 - Windows is currently the best-supported runtime target for the framework as a whole.

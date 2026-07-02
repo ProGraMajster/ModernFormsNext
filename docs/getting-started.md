@@ -79,9 +79,29 @@ For packaged usage, reference the package version produced by this repository:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="ModernFormsNext" Version="1.6.0" />
+    <PackageReference Include="ModernFormsNext" Version="1.7.0" />
 </ItemGroup>
 ```
+
+## Visual Designer
+
+ModernFormsNext 1.7.0 adds the first reusable designer stack. The generated template includes
+three related files:
+
+```text
+MainForm.cs
+MainForm.Designer.cs
+MainForm.mfdesign
+```
+
+`MainForm.cs` is the user-authored form class. `MainForm.Designer.cs` is generated from
+`MainForm.mfdesign`. The Visual Studio extension exposes **View ModernFormsNext Designer** on
+designable ModernFormsNext files and opens the companion `.mfdesign` document.
+
+The template uses `ModernFormsNextDesigner=true` project metadata instead of `SubType=Form`, so
+Visual Studio does not launch the built-in Windows Forms designer for ModernFormsNext forms.
+
+For installation and VSIX setup, see [Installing ModernFormsNext](installation.md).
 
 ### Create MainForm.cs
 

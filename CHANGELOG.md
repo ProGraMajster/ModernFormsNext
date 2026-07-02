@@ -4,6 +4,84 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.7.0] - 2026-07-02
+
+Compared with [1.6.0], this release adds the first ModernFormsNext designer stack, Visual Studio
+extension packaging, designer document serialization, code generation, reverse parsing, and
+design-time metadata infrastructure while preserving the code-first runtime model.
+
+Published packages and artifacts:
+
+- `ModernFormsNext`
+- `ModernFormsNext.Templates`
+- `ModernFormsNext.WindowKit`
+- `ModernFormsNext.WindowKit.Backend`
+- `ModernFormsNext.WindowKit.Backend.Windows`
+- `ModernFormsNext.Designing`
+- `ModernFormsNext.CodeGeneration`
+- `ModernFormsNext.Designer`
+- `ModernFormsNextDesigner.vsix`
+
+### Added
+
+- Added `ModernFormsNext.Designing` with neutral `.mfdesign` document models, geometry types,
+  design properties, JSON serialization, validation, selection services, metadata attributes,
+  metadata reading, and document hosting primitives.
+- Added `ModernFormsNext.CodeGeneration` with deterministic C# `.Designer.cs` generation,
+  member visibility handling, nested `Controls.Add(...)` generation, designer hash metadata,
+  and a conservative Roslyn-based reverse parser for supported generated-code patterns.
+- Added `ModernFormsNext.Designer`, a reusable ModernFormsNext designer shell containing the
+  toolbox, document outline, designer surface, property grid, output panel, status bar,
+  settings, docking layout, runtime/placeholder rendering modes, auto-save, localization, and
+  file services.
+- Added `samples/ModernFormsNext.DesignerPlayground` as a standalone designer host/test app.
+- Added `ModernFormsNext.VisualStudioExtension` and `ModernFormsNext.VisualStudioExtension.Vsix`
+  for Visual Studio designer command registration, `.mfdesign` editor hosting, VSIX packaging,
+  and Experimental Instance installation.
+- Added `ModernFormsNext.VisualStudioDesignerHost`, the out-of-process designer host used by the
+  Visual Studio extension.
+- Added a `BrushEditDialog` for editing solid and gradient brushes with preview support.
+- Added English and Polish designer/extension UI strings.
+
+### Changed
+
+- Bumped the shared package version from `1.6.0` to `1.7.0`.
+- Updated the application template to reference `ModernFormsNext` `1.7.0`.
+- Updated the application template to include `MainForm.cs`, generated `MainForm.Designer.cs`,
+  and companion `MainForm.mfdesign`.
+- Marked template designable files with `ModernFormsNextDesigner=true` and avoided
+  `<SubType>Form</SubType>` so Visual Studio does not load the built-in WinForms designer.
+- Updated installation, template, and architecture documentation for the new designer workflow.
+
+### Fixed
+
+- Fixed Visual Studio extension packaging so the VSIX contains the package asset, generated
+  package definition, extension assembly, and designer host files.
+- Fixed designable-file detection so ordinary Windows Forms files are not treated as
+  ModernFormsNext designer files.
+- Fixed designer document path canonicalization so opening `MainForm.cs`, `MainForm.Designer.cs`,
+  or `MainForm.mfdesign` resolves to one active designer session.
+- Fixed generated layout ordering for docked controls so `Dock` assignments are emitted before
+  layout-affecting bounds where needed.
+
+### Removed
+
+- Removed the temporary Visual Studio extension test command from the command table.
+
+### Compatibility Notes
+
+- The designer is an MVP but uses the shared `ModernFormsNext.Designer` shell in both the
+  playground and Visual Studio extension. It is intentionally not a separate WPF/WinForms UI.
+- `.mfdesign` remains the designer source of truth. Reverse sync from `.Designer.cs` is available
+  as a conservative parser API, not as automatic destructive merge behavior.
+- The Visual Studio extension currently targets Visual Studio 2022/2026-compatible VSSDK ranges
+  and uses an out-of-process ModernFormsNext host while the framework gets a more formal
+  embeddable designer surface API.
+
+### Validation
+
+- Local Debug build completed successfully.
+
 ## [1.6.0] - 2026-06-27
 
 Compared with [1.5.0], this release adds more WinForms-compatible controls and dialog APIs while expanding the framework's custom rendering surface. It introduces `GroupBox`, a highly customizable `Switch`, printing dialogs and print preview infrastructure, gradient text rendering, and template/package hygiene updates for the next published package set.
@@ -155,6 +233,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
+[1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.5.0
 [1.4.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.4.0

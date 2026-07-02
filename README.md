@@ -17,6 +17,7 @@ ModernFormsNext is not WPF, MAUI, WinUI, Avalonia, Uno, Blazor, Electron, or XAM
 - WinForms-like API with no XAML
 - SkiaSharp-based rendering
 - Fully code-driven UI
+- Optional ModernFormsNext Designer with `.mfdesign` documents and `.Designer.cs` generation
 - WinForms-like data binding primitives
 - Notification area icon support through backend services
 - Extensible architecture
@@ -68,6 +69,23 @@ dotnet run --project .\samples\ControlGallery\ControlGallery.csproj
 dotnet run --project .\samples\ModernFormsNext.DemoApp\ModernFormsNext.DemoApp.csproj
 ```
 
+## Install the Framework and Designer
+
+For packaged app development:
+
+```powershell
+dotnet add package ModernFormsNext --version 1.7.0
+dotnet new install ModernFormsNext.Templates::1.7.0
+dotnet new mfn-app -n MyApp
+```
+
+The generated template includes `MainForm.cs`, generated `MainForm.Designer.cs`, and companion
+designer metadata in `MainForm.mfdesign`. Install the Visual Studio extension package
+`ModernFormsNextDesigner.vsix` to use **View ModernFormsNext Designer** from `MainForm.cs`.
+
+See [Installing ModernFormsNext](docs/installation.md) for the full package, template, VSIX,
+Experimental Instance, and troubleshooting instructions.
+
 ## Basic Code-First Example
 
 ```csharp
@@ -96,6 +114,10 @@ public class MainForm : Form
 ## Repository Structure
 
 - `ModernFormsNext/` - shared framework code: controls, forms, rendering, layout, input, themes, and dialogs.
+- `ModernFormsNext.Designing/` - neutral designer document model, metadata, serialization, and validation.
+- `ModernFormsNext.CodeGeneration/` - `.mfdesign` to `.Designer.cs` generation and conservative reverse parsing.
+- `ModernFormsNext.Designer/` - reusable designer shell used by the playground and Visual Studio extension.
+- `ModernFormsNext.VisualStudioExtension/` - Visual Studio command, detector, editor, and VSIX integration.
 - `ModernFormsNext.WindowKit/` - platform-neutral windowing, dispatcher, input, storage, and service abstractions.
 - `ModernFormsNext.WindowKit.Backend/` - shared backend bootstrap and interop infrastructure.
 - `ModernFormsNext.WindowKit.Backend.Windows/` - Windows backend implementation and Win32 interop.
@@ -107,6 +129,8 @@ public class MainForm : Form
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
+- [Installation and Designer](docs/installation.md)
+- [Designer Architecture](docs/designer-architecture.md)
 - [Data Binding](docs/data-binding.md)
 - [Platform-Specific Features](docs/platform-specific-features.md)
 - [Samples](docs/samples.md)
