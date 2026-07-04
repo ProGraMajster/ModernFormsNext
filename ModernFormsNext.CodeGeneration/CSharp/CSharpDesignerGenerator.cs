@@ -26,6 +26,17 @@ public sealed class CSharpDesignerGenerator
         "Name"
     };
 
+    private static readonly HashSet<string> DesignerOnlyProperties = new(StringComparer.Ordinal)
+    {
+        DesignNodeRoleNames.RolePropertyName,
+        DesignNodeRoleNames.DisplayNamePropertyName,
+        DesignNodeRoleNames.DisplayTypePropertyName,
+        "TableColumn",
+        "TableRow",
+        "TableColumnSpan",
+        "TableRowSpan"
+    };
+
     private static readonly HashSet<string> GeneratedFormProperties = new(StringComparer.Ordinal)
     {
         "Name",
@@ -125,7 +136,7 @@ public sealed class CSharpDesignerGenerator
         foreach (var control in controls)
             WriteControlEvents(writer, control, controlExpressions[control]);
 
-        WriteControlAdds(writer, document.Controls, "this", controlExpressions);
+        WriteControlAdds(writer, document.Controls, "this", parentNode: null, controlExpressions);
 
         if (controls.Length > 0)
             writer.WriteLine();
@@ -206,6 +217,14 @@ public sealed class CSharpDesignerGenerator
     {
         foreach (var control in controls)
         {
+            if (IsSplitPanel(control))
+            {
+                foreach (var splitPanelChild in FlattenControls(control.Children))
+                    yield return splitPanelChild;
+
+                continue;
+            }
+
             yield return control;
 
             foreach (var child in FlattenControls(control.Children))
@@ -227,7 +246,7 @@ public sealed class CSharpDesignerGenerator
 
         foreach (var property in control.Properties)
         {
-            if (GeneratedControlProperties.Contains(property.Key))
+            if (GeneratedControlProperties.Contains(property.Key) || DesignerOnlyProperties.Contains(property.Key))
                 continue;
 
             WritePropertyAssignment(writer, controlExpression, property.Key, property.Value, control.Name, validation);
@@ -287,15 +306,67 @@ public sealed class CSharpDesignerGenerator
         CodeWriter writer,
         IEnumerable<DesignControlNode> controls,
         string parentExpression,
+        DesignControlNode? parentNode,
         IReadOnlyDictionary<DesignControlNode, string> controlExpressions)
     {
         foreach (var control in controls)
         {
+            if (IsSplitPanel(control))
+            {
+                var splitPanelExpression = parentExpression + (IsSplitPanel1(control) ? ".Panel1" : ".Panel2");
+                WriteControlAdds(writer, control.Children, splitPanelExpression, control, controlExpressions);
+                continue;
+            }
+
             var controlExpression = controlExpressions[control];
-            writer.WriteLine($"        {parentExpression}.Controls.Add({controlExpression});");
-            WriteControlAdds(writer, control.Children, controlExpression, controlExpressions);
+            var addCollection = IsTabPage(control) ? "TabPages" : "Controls";
+            writer.WriteLine($"        {parentExpression}.{addCollection}.Add({controlExpression});");
+            WriteTableLayoutAssignments(writer, parentNode, parentExpression, control, controlExpression);
+            WriteControlAdds(writer, control.Children, controlExpression, control, controlExpressions);
         }
     }
+
+    private static void WriteTableLayoutAssignments(
+        CodeWriter writer,
+        DesignControlNode? parentNode,
+        string parentExpression,
+        DesignControlNode control,
+        string controlExpression)
+    {
+        if (parentNode is null || !IsType(parentNode, "TableLayoutPanel"))
+            return;
+
+        if (control.Properties.TryGetValue("TableColumn", out var column))
+            writer.WriteLine($"        {parentExpression}.SetColumn({controlExpression}, {CSharpLiteralWriter.WriteValue(column)});");
+
+        if (control.Properties.TryGetValue("TableRow", out var row))
+            writer.WriteLine($"        {parentExpression}.SetRow({controlExpression}, {CSharpLiteralWriter.WriteValue(row)});");
+
+        if (control.Properties.TryGetValue("TableColumnSpan", out var columnSpan))
+            writer.WriteLine($"        {parentExpression}.SetColumnSpan({controlExpression}, {CSharpLiteralWriter.WriteValue(columnSpan)});");
+
+        if (control.Properties.TryGetValue("TableRowSpan", out var rowSpan))
+            writer.WriteLine($"        {parentExpression}.SetRowSpan({controlExpression}, {CSharpLiteralWriter.WriteValue(rowSpan)});");
+    }
+
+    private static bool IsSplitPanel(DesignControlNode node)
+        => IsRole(node, DesignNodeRoleNames.SplitContainerPanel1)
+        || IsRole(node, DesignNodeRoleNames.SplitContainerPanel2);
+
+    private static bool IsSplitPanel1(DesignControlNode node)
+        => IsRole(node, DesignNodeRoleNames.SplitContainerPanel1);
+
+    private static bool IsTabPage(DesignControlNode node)
+        => IsType(node, "TabPage");
+
+    private static bool IsRole(DesignControlNode node, string role)
+        => node.Properties.TryGetValue(DesignNodeRoleNames.RolePropertyName, out var property)
+        && property.Value is string value
+        && string.Equals(value, role, StringComparison.Ordinal);
+
+    private static bool IsType(DesignControlNode node, string shortTypeName)
+        => string.Equals(node.TypeName, shortTypeName, StringComparison.Ordinal)
+        || node.TypeName.EndsWith("." + shortTypeName, StringComparison.Ordinal);
 
     private readonly struct CodeWriter
     {

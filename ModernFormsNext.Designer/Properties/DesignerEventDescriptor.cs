@@ -10,6 +10,8 @@ internal sealed class DesignerEventDescriptor
 
     public required string Description { get; init; }
 
+    public Type? HandlerType { get; init; }
+
     public Func<string?> GetHandlerName { get; init; } = () => null;
 
     public Func<string?, (bool Success, string? Error)> CommitHandlerName { get; init; } = _ => (false, "The event cannot be edited.");

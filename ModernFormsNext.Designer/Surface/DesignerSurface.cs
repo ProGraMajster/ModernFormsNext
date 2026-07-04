@@ -15,7 +15,7 @@ internal sealed class DesignerSurface : Panel
         this.state = state;
         renderer = new DesignerSurfaceRenderer();
         mouseController = new DesignerMouseController(state);
-        TabStop = false;
+        TabStop = true;
         Style.BackgroundColor = DesignerColors.Workspace;
         Style.Border.Width = 1;
         Style.Border.Color = DesignerColors.PanelBorder;
@@ -28,8 +28,43 @@ internal sealed class DesignerSurface : Panel
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
+        Select();
         mouseController.HandleMouseDown(this, e);
         Invalidate();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (e.KeyCode == Keys.Delete)
+        {
+            e.Handled = state.DeleteSelectedNode();
+            Invalidate();
+            return;
+        }
+
+        if (!e.Control)
+            return;
+
+        if (e.KeyCode == Keys.C)
+        {
+            e.Handled = state.CopySelectedNode();
+            return;
+        }
+
+        if (e.KeyCode == Keys.V)
+        {
+            e.Handled = state.PasteCopiedNode();
+            Invalidate();
+            return;
+        }
+
+        if (e.KeyCode == Keys.D)
+        {
+            e.Handled = state.DuplicateSelectedNode();
+            Invalidate();
+        }
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

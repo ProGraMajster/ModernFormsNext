@@ -252,6 +252,32 @@ internal sealed class DesignerPropertyGridState
         return CommitSelectedEvent(text);
     }
 
+    public bool TryCreateDefaultEventHandler(
+        out DesignerEventDescriptor? eventDescriptor,
+        out string handlerName)
+    {
+        eventDescriptor = SelectedEvent;
+        handlerName = string.Empty;
+
+        if (Mode != DesignerPropertyGridMode.Events || eventDescriptor is null)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(eventDescriptor.GetValueText()))
+            return false;
+
+        handlerName = CreateDefaultEventHandlerName(HeaderName, eventDescriptor.Name);
+
+        if (!eventDescriptor.TryCommit(handlerName, out var error))
+        {
+            playgroundState.Log($"Event '{eventDescriptor.DisplayName}' was not changed: {error}");
+            return false;
+        }
+
+        playgroundState.NotifyDocumentChanged();
+        playgroundState.Log($"Added event {HeaderName}.{eventDescriptor.DisplayName} -> {handlerName}.");
+        return true;
+    }
+
     public void Refresh()
     {
         var document = playgroundState.Document;
@@ -610,6 +636,9 @@ internal sealed class DesignerPropertyGridState
         descriptors.Add(Bounds("Y", "Y", "Vertical position in logical pixels.", bounds => bounds.Y, (bounds, value) => new DesignBounds(bounds.X, value, bounds.Width, bounds.Height)));
         descriptors.Add(Bounds("Width", "Width", "Width in logical pixels.", bounds => bounds.Width, (bounds, value) => new DesignBounds(bounds.X, bounds.Y, value, bounds.Height), requirePositive: true));
         descriptors.Add(Bounds("Height", "Height", "Height in logical pixels.", bounds => bounds.Height, (bounds, value) => new DesignBounds(bounds.X, bounds.Y, bounds.Width, value), requirePositive: true));
+
+        AddSpecialContainerDescriptors(descriptors, node);
+
         if (ShouldShowModelProperty(node, "Text"))
             descriptors.Add(NodeProperty(node, "Text", "Text", "Appearance", "Text displayed by the control.", typeof(string), string.Empty));
 
@@ -619,6 +648,95 @@ internal sealed class DesignerPropertyGridState
         if (ShouldShowModelProperty(node, "Visible"))
             descriptors.Add(NodeProperty(node, "Visible", "Visible", "Behavior", "Determines whether the control is visible.", typeof(bool), true));
     }
+
+    private void AddSpecialContainerDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode node)
+    {
+        if (DesignerSpecialContainers.IsTabControl(node))
+            descriptors.Add(TabPagesProperty(node));
+
+        var parent = playgroundState.FindParent(node);
+
+        if (parent is not null && DesignerSpecialContainers.IsTableLayoutPanel(parent))
+        {
+            descriptors.Add(TableLayoutChildProperty(
+                node,
+                DesignerSpecialContainers.TableColumnPropertyName,
+                "Column",
+                "The zero-based TableLayoutPanel column that contains this control.",
+                defaultValue: 0,
+                minimumValue: 0));
+            descriptors.Add(TableLayoutChildProperty(
+                node,
+                DesignerSpecialContainers.TableRowPropertyName,
+                "Row",
+                "The zero-based TableLayoutPanel row that contains this control.",
+                defaultValue: 0,
+                minimumValue: 0));
+            descriptors.Add(TableLayoutChildProperty(
+                node,
+                DesignerSpecialContainers.TableColumnSpanPropertyName,
+                "ColumnSpan",
+                "The number of TableLayoutPanel columns spanned by this control.",
+                defaultValue: 1,
+                minimumValue: 1));
+            descriptors.Add(TableLayoutChildProperty(
+                node,
+                DesignerSpecialContainers.TableRowSpanPropertyName,
+                "RowSpan",
+                "The number of TableLayoutPanel rows spanned by this control.",
+                defaultValue: 1,
+                minimumValue: 1));
+        }
+    }
+
+    private static DesignerPropertyDescriptor TabPagesProperty(DesignControlNode tabControl)
+        => new()
+        {
+            Name = "TabPages",
+            DisplayName = "TabPages",
+            Category = "Data",
+            Description = "Opens the TabPage collection editor for this TabControl.",
+            ValueType = typeof(string),
+            IsReadOnly = true,
+            ShouldSerialize = false,
+            HasDialogEditor = true,
+            DialogEditor = DesignerPropertyDialogEditors.TabPages(tabControl),
+            GetValue = () =>
+            {
+                var count = tabControl.Children.Count(DesignerSpecialContainers.IsTabPage);
+                return $"{count} TabPage{(count == 1 ? string.Empty : "s")}";
+            }
+        };
+
+    private static DesignerPropertyDescriptor TableLayoutChildProperty(
+        DesignControlNode node,
+        string propertyName,
+        string displayName,
+        string description,
+        int defaultValue,
+        int minimumValue)
+        => new()
+        {
+            Name = propertyName,
+            DisplayName = displayName,
+            Category = "Layout",
+            Description = description,
+            ValueType = typeof(int),
+            GetValue = () => DesignerSpecialContainers.GetInt(node, propertyName, defaultValue),
+            CommitText = text =>
+            {
+                if (!DesignerPropertyValueEditor.TryConvert(text, typeof(int), out var value, out var error))
+                    return (false, error);
+
+                var intValue = (int)value!;
+
+                if (intValue < minimumValue)
+                    return (false, $"{displayName} must be at least {minimumValue}.");
+
+                DesignerSpecialContainers.SetInt(node, propertyName, intValue);
+                return (true, null);
+            }
+        };
 
     private void AddMetadataDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode? node)
     {
@@ -811,7 +929,7 @@ internal sealed class DesignerPropertyGridState
         var descriptors = new SortedDictionary<string, DesignerEventDescriptor>(StringComparer.Ordinal);
 
         foreach (var fixedEvent in FixedEvents)
-            descriptors[fixedEvent.Name] = CreateEventDescriptor(bindings, fixedEvent.Name, fixedEvent.DisplayName, fixedEvent.Category, fixedEvent.Description);
+            descriptors[fixedEvent.Name] = CreateEventDescriptor(bindings, fixedEvent.Name, fixedEvent.DisplayName, fixedEvent.Category, fixedEvent.Description, handlerType: null);
 
         var selectedType = node is null ? typeof(Form) : playgroundState.ResolveControlType(node);
 
@@ -824,23 +942,25 @@ internal sealed class DesignerPropertyGridState
                     metadata.Name,
                     metadata.DisplayName,
                     metadata.Category ?? "Misc",
-                    metadata.Description ?? "Designer metadata does not provide a description for this event.");
+                    metadata.Description ?? "Designer metadata does not provide a description for this event.",
+                    handlerType: null);
             }
 
             foreach (var eventInfo in controlType
                 .GetEvents(BindingFlags.Instance | BindingFlags.Public)
                 .Where(eventInfo => !IsHiddenByDesignerAttributes(eventInfo)))
             {
-                if (descriptors.ContainsKey(eventInfo.Name))
-                    continue;
-
                 var metadata = metadataReader.ReadEvent(eventInfo);
+                var existing = descriptors.TryGetValue(eventInfo.Name, out var existingDescriptor)
+                    ? existingDescriptor
+                    : null;
                 descriptors[eventInfo.Name] = CreateEventDescriptor(
                     bindings,
                     eventInfo.Name,
                     metadata.DisplayName,
-                    metadata.Category ?? GuessEventCategory(eventInfo.Name),
-                    metadata.Description ?? "Runtime event discovered by reflection.");
+                    metadata.Category ?? existing?.Category ?? GuessEventCategory(eventInfo.Name),
+                    metadata.Description ?? existing?.Description ?? "Runtime event discovered by reflection.",
+                    eventInfo.EventHandlerType);
             }
         }
 
@@ -857,13 +977,15 @@ internal sealed class DesignerPropertyGridState
         string name,
         string displayName,
         string category,
-        string description)
+        string description,
+        Type? handlerType)
         => new()
         {
             Name = name,
             DisplayName = displayName,
             Category = category,
             Description = description,
+            HandlerType = handlerType,
             GetHandlerName = () => bindings.TryGetValue(name, out var handlerName) ? handlerName : null,
             CommitHandlerName = handlerName =>
             {
@@ -874,6 +996,28 @@ internal sealed class DesignerPropertyGridState
                 return (true, null);
             }
         };
+
+    private static string CreateDefaultEventHandlerName(string objectName, string eventName)
+    {
+        var baseName = $"{SanitizeIdentifierPart(objectName)}_{SanitizeIdentifierPart(eventName)}";
+        return DesignDocumentValidator.IsValidCSharpIdentifier(baseName)
+            ? baseName
+            : $"handler_{baseName}";
+    }
+
+    private static string SanitizeIdentifierPart(string value)
+    {
+        var text = string.IsNullOrWhiteSpace(value) ? "control" : value.Trim();
+        var chars = text
+            .Select((character, index) =>
+                (index == 0 ? char.IsLetter(character) || character == '_' : char.IsLetterOrDigit(character) || character == '_')
+                    ? character
+                    : '_')
+            .ToArray();
+        var result = new string(chars);
+
+        return string.IsNullOrWhiteSpace(result) ? "control" : result;
+    }
 
     private DesignerPropertyDescriptor FormSize(
         string name,

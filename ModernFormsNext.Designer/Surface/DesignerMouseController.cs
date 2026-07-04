@@ -11,11 +11,13 @@ internal sealed class DesignerMouseController
     private readonly DesignerSession state;
     private readonly DesignerCoordinateMapper coordinateMapper;
     private readonly DesignerHitTestService hitTestService;
+    private readonly DesignerLayoutEngine layoutEngine = new();
     private DesignerMouseOperation operation;
     private DesignerResizeHandle resizeHandle;
     private DesignControlNode? activeNode;
     private DesignPoint startDocumentPoint;
     private DesignBounds startBounds;
+    private int startSplitterDistance;
     private bool changedBounds;
 
     public DesignerMouseController(DesignerSession state)
@@ -43,6 +45,27 @@ internal sealed class DesignerMouseController
         {
             state.SelectForm();
             ClearOperation(surface);
+            return;
+        }
+
+        if (hitTestService.HitTestTabHeader(state, point, out var tabIndex) is { } tabControl)
+        {
+            DesignerSpecialContainers.SetInt(tabControl, DesignerSpecialContainers.SelectedIndexPropertyName, tabIndex);
+            state.SelectNode(tabControl);
+            state.NotifyDocumentChanged();
+            state.Log($"Selected tab {tabIndex + 1} on {tabControl.Name}.");
+            ClearOperation(surface);
+            return;
+        }
+
+        if (hitTestService.HitTestSplitter(state, point) is { } splitContainer)
+        {
+            state.SelectNode(splitContainer);
+            BeginOperation(surface, splitContainer, DesignerMouseOperation.MovingSplitter, DesignerResizeHandle.None, point);
+            startSplitterDistance = DesignerSpecialContainers.GetInt(
+                splitContainer,
+                DesignerSpecialContainers.SplitterDistancePropertyName,
+                GetDefaultSplitterDistance(splitContainer));
             return;
         }
 
@@ -76,7 +99,7 @@ internal sealed class DesignerMouseController
         else
             state.SetPointerPosition(null);
 
-        if (operation is not (DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing) || activeNode is null)
+        if (operation is not (DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter) || activeNode is null)
             return;
 
         var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
@@ -85,8 +108,10 @@ internal sealed class DesignerMouseController
 
         if (operation == DesignerMouseOperation.Dragging)
             UpdateDrag(deltaX, deltaY);
-        else
+        else if (operation == DesignerMouseOperation.Resizing)
             UpdateResize(deltaX, deltaY);
+        else
+            UpdateSplitterDistance(deltaX, deltaY);
     }
 
     public void HandleMouseUp(Control surface, MouseEventArgs e)
@@ -94,7 +119,9 @@ internal sealed class DesignerMouseController
         if (e.Button != MouseButtons.Left)
             return;
 
-        if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing && activeNode is not null && changedBounds)
+        if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter
+            && activeNode is not null
+            && changedBounds)
         {
             var surfacePoint = ToSurfacePoint(surface, e);
             var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
@@ -102,8 +129,16 @@ internal sealed class DesignerMouseController
             if (operation == DesignerMouseOperation.Dragging)
                 state.ReparentNodeAtDocumentPoint(activeNode, currentPoint);
 
-            var action = operation == DesignerMouseOperation.Dragging ? "Moved" : "Resized";
-            state.Log($"{action} {activeNode.Name} to {activeNode.Bounds.X}, {activeNode.Bounds.Y}, {activeNode.Bounds.Width} x {activeNode.Bounds.Height}.");
+            if (operation == DesignerMouseOperation.MovingSplitter)
+            {
+                var distance = DesignerSpecialContainers.GetInt(activeNode, DesignerSpecialContainers.SplitterDistancePropertyName, startSplitterDistance);
+                state.Log($"Moved {activeNode.Name} splitter to {distance}.");
+            }
+            else
+            {
+                var action = operation == DesignerMouseOperation.Dragging ? "Moved" : "Resized";
+                state.Log($"{action} {activeNode.Name} to {activeNode.Bounds.X}, {activeNode.Bounds.Y}, {activeNode.Bounds.Width} x {activeNode.Bounds.Height}.");
+            }
         }
 
         ClearOperation(surface);
@@ -121,6 +156,7 @@ internal sealed class DesignerMouseController
         activeNode = node;
         startDocumentPoint = documentPoint;
         startBounds = node.Bounds;
+        startSplitterDistance = 0;
         changedBounds = false;
         surface.Capture = true;
     }
@@ -131,6 +167,7 @@ internal sealed class DesignerMouseController
         resizeHandle = DesignerResizeHandle.None;
         activeNode = null;
         changedBounds = false;
+        startSplitterDistance = 0;
         surface.Capture = false;
     }
 
@@ -242,6 +279,45 @@ internal sealed class DesignerMouseController
         activeNode.Bounds = bounds;
         changedBounds = true;
         state.NotifyDocumentChanged();
+    }
+
+    private void UpdateSplitterDistance(int deltaX, int deltaY)
+    {
+        if (activeNode is null || !DesignerSpecialContainers.IsSplitContainer(activeNode))
+            return;
+
+        var orientation = DesignerSpecialContainers.GetEnum(
+            activeNode,
+            DesignerSpecialContainers.OrientationPropertyName,
+            Orientation.Horizontal);
+        var splitterWidth = Math.Max(1, DesignerSpecialContainers.GetInt(activeNode, DesignerSpecialContainers.SplitterWidthPropertyName, 5));
+        var panel1Minimum = Math.Max(0, DesignerSpecialContainers.GetInt(activeNode, "Panel1MinimumSize", 25));
+        var panel2Minimum = Math.Max(0, DesignerSpecialContainers.GetInt(activeNode, "Panel2MinimumSize", 25));
+        var layout = layoutEngine.Layout(state.Document);
+        var bounds = layout.GetEffectiveBounds(activeNode);
+        var available = orientation == Orientation.Horizontal ? bounds.Width : bounds.Height;
+        var maximum = Math.Max(panel1Minimum, available - splitterWidth - panel2Minimum);
+        var delta = orientation == Orientation.Horizontal ? deltaX : deltaY;
+        var nextDistance = Math.Clamp(startSplitterDistance + delta, panel1Minimum, maximum);
+
+        if (DesignerSpecialContainers.GetInt(activeNode, DesignerSpecialContainers.SplitterDistancePropertyName, startSplitterDistance) == nextDistance)
+            return;
+
+        DesignerSpecialContainers.SetInt(activeNode, DesignerSpecialContainers.SplitterDistancePropertyName, nextDistance);
+        changedBounds = true;
+        state.NotifyDocumentChanged();
+    }
+
+    private int GetDefaultSplitterDistance(DesignControlNode splitContainer)
+    {
+        var layout = layoutEngine.Layout(state.Document);
+        var bounds = layout.GetEffectiveBounds(splitContainer);
+        var orientation = DesignerSpecialContainers.GetEnum(
+            splitContainer,
+            DesignerSpecialContainers.OrientationPropertyName,
+            Orientation.Horizontal);
+
+        return Math.Max(25, (orientation == Orientation.Horizontal ? bounds.Width : bounds.Height) / 2);
     }
 
     private bool TryGetDocumentPoint(Control surface, float logicalX, float logicalY, out DesignPoint point)

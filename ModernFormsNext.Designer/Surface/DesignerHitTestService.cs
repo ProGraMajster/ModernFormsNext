@@ -25,6 +25,22 @@ internal sealed class DesignerHitTestService
             ?? DesignerHitTestResult.Empty;
     }
 
+    public DesignControlNode? HitTestSplitter(DesignerSession state, DesignPoint documentPoint)
+    {
+        var layout = layoutEngine.Layout(state.Document);
+        var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
+
+        return HitTestSplitters(state.Document.Controls, layout, documentClip, documentPoint);
+    }
+
+    public DesignControlNode? HitTestTabHeader(DesignerSession state, DesignPoint documentPoint, out int tabIndex)
+    {
+        var layout = layoutEngine.Layout(state.Document);
+        var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
+
+        return HitTestTabHeaders(state.Document.Controls, layout, documentClip, documentPoint, out tabIndex);
+    }
+
     public DesignerResizeHandle HitTestResizeHandle(
         DesignerSession state,
         int surfaceWidth,
@@ -111,21 +127,23 @@ internal sealed class DesignerHitTestService
         && y <= bounds.Bottom;
 
     private static DesignerHitTestResult? HitTestControls(
-        DesignControlCollection controls,
+        IEnumerable<DesignControlNode> controls,
         DesignerLayoutResult layout,
         DesignBounds parentClip,
         DesignPoint point)
     {
-        for (var index = controls.Count - 1; index >= 0; index--)
+        var orderedControls = new List<DesignControlNode>(controls);
+
+        for (var index = orderedControls.Count - 1; index >= 0; index--)
         {
-            var control = controls[index];
+            var control = orderedControls[index];
             var absoluteBounds = layout.GetEffectiveBounds(control);
             var visibleBounds = Intersect(absoluteBounds, parentClip);
 
             if (!visibleBounds.Contains(point.X, point.Y))
                 continue;
 
-            var childHit = HitTestControls(control.Children, layout, visibleBounds, point);
+            var childHit = HitTestControls(GetHitTestChildren(control), layout, visibleBounds, point);
 
             if (childHit is not null)
                 return childHit;
@@ -135,6 +153,120 @@ internal sealed class DesignerHitTestService
         }
 
         return null;
+    }
+
+    private static IEnumerable<DesignControlNode> GetHitTestChildren(DesignControlNode node)
+    {
+        if (DesignerSpecialContainers.IsTabControl(node))
+        {
+            if (DesignerSpecialContainers.GetSelectedTabPage(node) is { } page)
+                yield return page;
+
+            yield break;
+        }
+
+        foreach (var child in node.Children)
+            yield return child;
+    }
+
+    private static DesignControlNode? HitTestSplitters(
+        IEnumerable<DesignControlNode> controls,
+        DesignerLayoutResult layout,
+        DesignBounds parentClip,
+        DesignPoint point)
+    {
+        var orderedControls = new List<DesignControlNode>(controls);
+
+        for (var index = orderedControls.Count - 1; index >= 0; index--)
+        {
+            var control = orderedControls[index];
+            var absoluteBounds = layout.GetEffectiveBounds(control);
+            var visibleBounds = Intersect(absoluteBounds, parentClip);
+
+            if (!visibleBounds.Contains(point.X, point.Y))
+                continue;
+
+            if (DesignerSpecialContainers.IsSplitContainer(control)
+                && Intersect(DesignerSpecialContainers.GetSplitterBounds(control, absoluteBounds), visibleBounds).Contains(point.X, point.Y))
+            {
+                return control;
+            }
+
+            var childHit = HitTestSplitters(GetHitTestChildren(control), layout, visibleBounds, point);
+
+            if (childHit is not null)
+                return childHit;
+        }
+
+        return null;
+    }
+
+    private static DesignControlNode? HitTestTabHeaders(
+        IEnumerable<DesignControlNode> controls,
+        DesignerLayoutResult layout,
+        DesignBounds parentClip,
+        DesignPoint point,
+        out int tabIndex)
+    {
+        var orderedControls = new List<DesignControlNode>(controls);
+
+        for (var index = orderedControls.Count - 1; index >= 0; index--)
+        {
+            var control = orderedControls[index];
+            var absoluteBounds = layout.GetEffectiveBounds(control);
+            var visibleBounds = Intersect(absoluteBounds, parentClip);
+
+            if (!visibleBounds.Contains(point.X, point.Y))
+                continue;
+
+            if (DesignerSpecialContainers.IsTabControl(control)
+                && TryHitTabHeader(control, absoluteBounds, point, out tabIndex))
+            {
+                return control;
+            }
+
+            var childHit = HitTestTabHeaders(GetHitTestChildren(control), layout, visibleBounds, point, out tabIndex);
+
+            if (childHit is not null)
+                return childHit;
+        }
+
+        tabIndex = -1;
+        return null;
+    }
+
+    private static bool TryHitTabHeader(
+        DesignControlNode tabControl,
+        DesignBounds bounds,
+        DesignPoint point,
+        out int tabIndex)
+    {
+        var x = bounds.X + 4;
+        var y = bounds.Y + 2;
+        const int headerHeight = 24;
+
+        for (var index = 0; index < tabControl.Children.Count; index++)
+        {
+            var page = tabControl.Children[index];
+
+            if (!DesignerSpecialContainers.IsTabPage(page))
+                continue;
+
+            var text = DesignerSpecialContainers.TryGetString(page, "Text", out var pageText) ? pageText : page.Name;
+            var width = Math.Clamp(48 + (text.Length * 6), 64, 140);
+            var header = new DesignBounds(x, y, width, headerHeight);
+
+            if (header.Contains(point.X, point.Y))
+            {
+                tabIndex = index;
+                return true;
+            }
+
+            x += width;
+        }
+
+        tabIndex = -1;
+        return false;
     }
 
     private static DesignBounds Intersect(DesignBounds first, DesignBounds second)

@@ -68,7 +68,7 @@ public sealed class ModernFormsDesignerShell : Panel
         documentTab = Controls.Add(new DesignerDocumentTab(Session));
         surface = Controls.Add(new DesignerSurface(Session));
         solutionExplorer = Controls.Add(new SolutionExplorerPanel(Session, T("SolutionExplorer"), T("NoProjectPath")));
-        properties = Controls.Add(new DesignerPropertyGrid(Session, T("Properties")));
+        properties = Controls.Add(new DesignerPropertyGrid(Session, files, T("Properties")));
         output = Controls.Add(new OutputPanel(Session, T("Output")));
         statusBar = Controls.Add(new DesignerStatusBar(Session, this.options));
         dockManager = new DesignerDockManager(this, this.options, LayoutChildren);
@@ -117,6 +117,51 @@ public sealed class ModernFormsDesignerShell : Panel
     public void ImportDesignerCode(string path)
         => commands.ImportDesignerCode(path);
 
+    /// <summary>
+    /// Processes keyboard shortcuts that operate on the currently selected designer control.
+    /// </summary>
+    /// <param name="e">The key event raised by the hosting window.</param>
+    /// <returns>
+    /// <see langword="true"/> when the shortcut was handled by the designer; otherwise,
+    /// <see langword="false"/>.
+    /// </returns>
+    /// <remarks>
+    /// Hosts should call this method before dispatching the key event to focused child controls.
+    /// The method intentionally ignores shortcuts while a property value editor is active so text
+    /// editing keeps normal <c>Delete</c>, <c>Ctrl+C</c>, and <c>Ctrl+V</c> behavior.
+    /// </remarks>
+    public bool ProcessDesignerShortcut(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+
+        if (properties.IsEditingValue)
+            return false;
+
+        var handled = false;
+
+        if (e.KeyCode == Keys.Delete && e.Modifiers == Keys.None)
+        {
+            handled = Session.DeleteSelectedNode();
+        }
+        else if (e.Control && !e.Alt && !e.Shift)
+        {
+            handled = e.KeyCode switch
+            {
+                Keys.C => Session.CopySelectedNode(),
+                Keys.V => Session.PasteCopiedNode(),
+                Keys.D => Session.DuplicateSelectedNode(),
+                _ => false
+            };
+        }
+
+        if (!handled)
+            return false;
+
+        e.SuppressKeyPress = true;
+        InvalidateDesignerViews();
+        return true;
+    }
+
     private void LayoutChildren()
     {
         var toolbarHeight = options.ShowToolbar ? DefaultToolbarHeight : 0;
@@ -135,6 +180,15 @@ public sealed class ModernFormsDesignerShell : Panel
             centerBounds.Top + TabHeight,
             centerBounds.Width,
             Math.Max(1, centerBounds.Height - TabHeight - Gap));
+    }
+
+    private void InvalidateDesignerViews()
+    {
+        surface.Invalidate();
+        outline.Invalidate();
+        documentTab.Invalidate();
+        properties.Invalidate();
+        statusBar.Invalidate();
     }
 
     private string T(string key) => DesignerText.Get(key, options.Language);

@@ -17,6 +17,7 @@ public sealed class DesignerSession
     private readonly List<string> outputLines = [];
     private readonly List<DesignerOpenDocument> openDocuments = [];
     private readonly IDesignerHostEnvironment? environment;
+    private DesignControlNode? clipboardNode;
     private DesignerOpenDocument? activeDocument;
 
     /// <summary>
@@ -134,6 +135,7 @@ public sealed class DesignerSession
     internal void OpenDocument(DesignDocument document, string? path, bool markDirty)
     {
         ArgumentNullException.ThrowIfNull(document);
+        DesignerSpecialContainers.NormalizeDocument(document);
 
         var normalizedPath = DesignerDocumentPath.NormalizeDesignPath(path);
         var existing = !string.IsNullOrWhiteSpace(normalizedPath)
@@ -184,6 +186,34 @@ public sealed class DesignerSession
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
         Log($"Activated {activeDocument.DisplayName}.");
+    }
+
+    internal void CloseDocument(int index)
+    {
+        if (index < 0 || index >= openDocuments.Count)
+            return;
+
+        if (openDocuments.Count == 1)
+        {
+            Log("The last designer document tab cannot be closed.");
+            return;
+        }
+
+        var closedDocument = openDocuments[index];
+        var wasActive = ReferenceEquals(activeDocument, closedDocument);
+        openDocuments.RemoveAt(index);
+
+        if (wasActive)
+        {
+            activeDocument = openDocuments[Math.Clamp(index, 0, openDocuments.Count - 1)];
+            Host.LoadDocument(activeDocument.Document);
+            IsDirty = activeDocument.IsDirty;
+            DocumentChanged?.Invoke(this, EventArgs.Empty);
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        Log($"Closed {closedDocument.DisplayName}.");
     }
 
     /// <summary>
@@ -315,14 +345,19 @@ public sealed class DesignerSession
         if (typeName == "Panel")
             node.Properties["Text"] = DesignPropertyValue.FromString(string.Empty);
 
-        if (parent is null)
+        DesignerSpecialContainers.InitializeNewNode(node);
+
+        var destination = GetChildCollectionForNewControl(parent, out var targetName);
+        AssignDefaultTableLayoutPosition(node, parent);
+
+        if (destination is null)
             Document.Controls.Add(node);
         else
-            parent.Children.Add(node);
+            destination.Add(node);
 
         Host.Selection.Select(node);
         NotifyDocumentChanged();
-        Log($"Added {typeName} {node.Name}.");
+        Log($"Added {typeName} {node.Name} to {targetName}.");
         return node;
     }
 
@@ -343,6 +378,12 @@ public sealed class DesignerSession
 
         if (ReferenceEquals(node, target))
             return false;
+
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+        {
+            Log($"{DesignerSpecialContainers.GetOutlineName(node)} is a structural designer node and cannot be moved.");
+            return false;
+        }
 
         if (target is not null && ContainsDescendant(node, target))
         {
@@ -368,9 +409,8 @@ public sealed class DesignerSession
         }
         else if (IsContainerNode(target))
         {
-            destinationCollection = target.Children;
+            destinationCollection = GetChildCollectionForNewControl(target, out targetName) ?? target.Children;
             destinationIndex = destinationCollection.Count;
-            targetName = target.Name;
         }
         else if (TryFindNode(target, out var targetCollection, out var targetIndex))
         {
@@ -402,6 +442,7 @@ public sealed class DesignerSession
             absoluteBounds.Width,
             absoluteBounds.Height);
         destinationCollection.Insert(Math.Clamp(destinationIndex, 0, destinationCollection.Count), node);
+        AssignDefaultTableLayoutPosition(node, target);
         Host.Selection.Select(node);
         NotifyDocumentChanged();
         Log($"Moved {node.Name} to {targetName}.");
@@ -421,6 +462,9 @@ public sealed class DesignerSession
         if (!TryFindNodeWithParent(node, Document.Controls, parent: null, out var currentParent, out var sourceCollection, out var sourceIndex))
             return false;
 
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+            return false;
+
         var layout = new DesignerLayoutEngine().Layout(Document);
         var targetParent = FindDeepestContainerAtPoint(Document.Controls, layout, node, documentPoint, new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height));
 
@@ -434,7 +478,9 @@ public sealed class DesignerSession
         var targetBounds = targetParent is null
             ? new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height)
             : layout.GetEffectiveBounds(targetParent);
-        var destination = targetParent is null ? Document.Controls : targetParent.Children;
+        var destination = targetParent is null
+            ? Document.Controls
+            : GetChildCollectionForNewControl(targetParent, out _) ?? targetParent.Children;
 
         sourceCollection.RemoveAt(sourceIndex);
         node.Bounds = new DesignBounds(
@@ -443,6 +489,7 @@ public sealed class DesignerSession
             absoluteBounds.Width,
             absoluteBounds.Height);
         destination.Add(node);
+        AssignTableLayoutPositionFromPoint(node, targetParent, targetBounds, documentPoint);
         Host.Selection.Select(node);
         NotifyDocumentChanged();
         Log($"Reparented {node.Name} to {(targetParent is null ? Document.FormName : targetParent.Name)}.");
@@ -457,6 +504,12 @@ public sealed class DesignerSession
     public bool DeleteNode(DesignControlNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
+
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+        {
+            Log($"{DesignerSpecialContainers.GetOutlineName(node)} is owned by its SplitContainer and cannot be deleted.");
+            return false;
+        }
 
         if (!TryFindNodeWithParent(node, Document.Controls, parent: null, out var parentNode, out var collection, out var index))
         {
@@ -477,6 +530,75 @@ public sealed class DesignerSession
     }
 
     /// <summary>
+    /// Deletes the currently selected control node when a control is selected.
+    /// </summary>
+    /// <returns><see langword="true"/> when a control was deleted; otherwise, <see langword="false"/>.</returns>
+    public bool DeleteSelectedNode()
+        => SelectedNode is not null && DeleteNode(SelectedNode);
+
+    /// <summary>
+    /// Copies the currently selected control node into the designer clipboard.
+    /// </summary>
+    /// <returns><see langword="true"/> when a control was copied; otherwise, <see langword="false"/>.</returns>
+    public bool CopySelectedNode()
+    {
+        if (SelectedNode is null)
+        {
+            Log("No control is selected to copy.");
+            return false;
+        }
+
+        clipboardNode = CloneNode(SelectedNode, preserveName: true, usedNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        Log($"Copied {SelectedNode.Name}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Duplicates the currently selected control node as a sibling with a unique name.
+    /// </summary>
+    /// <returns><see langword="true"/> when a control was duplicated; otherwise, <see langword="false"/>.</returns>
+    public bool DuplicateSelectedNode()
+    {
+        if (SelectedNode is null)
+        {
+            Log("No control is selected to duplicate.");
+            return false;
+        }
+
+        if (!TryFindNodeWithParent(SelectedNode, Document.Controls, parent: null, out _, out var collection, out var index))
+            return false;
+
+        var sourceName = SelectedNode.Name;
+        var clone = CloneForPaste(SelectedNode, offsetRoot: true);
+        collection.Insert(index + 1, clone);
+        Host.Selection.Select(clone);
+        NotifyDocumentChanged();
+        Log($"Duplicated {sourceName} as {clone.Name}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Pastes the last copied control node into the active document.
+    /// </summary>
+    /// <returns><see langword="true"/> when a control was pasted; otherwise, <see langword="false"/>.</returns>
+    public bool PasteCopiedNode()
+    {
+        if (clipboardNode is null)
+        {
+            Log("No copied control is available to paste.");
+            return false;
+        }
+
+        var clone = CloneForPaste(clipboardNode, offsetRoot: true);
+        var destination = GetPasteDestination(out var targetName);
+        destination.Add(clone);
+        Host.Selection.Select(clone);
+        NotifyDocumentChanged();
+        Log($"Pasted {clone.Name} into {targetName}.");
+        return true;
+    }
+
+    /// <summary>
     /// Determines whether the specified node can contain child controls in the designer model.
     /// </summary>
     /// <param name="node">The node to inspect.</param>
@@ -486,6 +608,9 @@ public sealed class DesignerSession
         if (node is null)
             return false;
 
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+            return true;
+
         var type = ResolveControlType(node);
 
         return type is not null
@@ -494,10 +619,12 @@ public sealed class DesignerSession
                 || type.Name.Contains("Tab", StringComparison.Ordinal)
                 || type.Name.Contains("Group", StringComparison.Ordinal)
                 || type.Name.Contains("Split", StringComparison.Ordinal)
+                || type.Name.Contains("Layout", StringComparison.Ordinal)
             : node.TypeName.Contains("Panel", StringComparison.Ordinal)
                 || node.TypeName.Contains("Tab", StringComparison.Ordinal)
                 || node.TypeName.Contains("Group", StringComparison.Ordinal)
-                || node.TypeName.Contains("Split", StringComparison.Ordinal);
+                || node.TypeName.Contains("Split", StringComparison.Ordinal)
+                || node.TypeName.Contains("Layout", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -569,6 +696,11 @@ public sealed class DesignerSession
             ?? frameworkAssembly.GetType(typeName, throwOnError: false)
             ?? frameworkAssembly.GetType($"ModernFormsNext.{typeName}", throwOnError: false);
     }
+
+    internal DesignControlNode? FindParent(DesignControlNode node)
+        => TryFindNodeWithParent(node, Document.Controls, parent: null, out var parentNode, out _, out _)
+            ? parentNode
+            : null;
 
     /// <summary>
     /// Notifies designer UI components that the document model changed.
@@ -826,6 +958,203 @@ public sealed class DesignerSession
         return false;
     }
 
+    private DesignControlCollection GetPasteDestination(out string targetName)
+    {
+        if (IsContainerNode(SelectedNode))
+        {
+            return GetChildCollectionForNewControl(SelectedNode, out targetName) ?? SelectedNode!.Children;
+        }
+
+        if (SelectedNode is not null
+            && TryFindNodeWithParent(SelectedNode, Document.Controls, parent: null, out var parent, out var collection, out _))
+        {
+            targetName = parent?.Name ?? Document.FormName;
+            return collection;
+        }
+
+        targetName = Document.FormName;
+        return Document.Controls;
+    }
+
+    private DesignControlCollection? GetChildCollectionForNewControl(DesignControlNode? parent, out string targetName)
+    {
+        if (parent is null)
+        {
+            targetName = Document.FormName;
+            return null;
+        }
+
+        DesignerSpecialContainers.EnsureSpecialChildren(parent);
+
+        if (DesignerSpecialContainers.IsTabControl(parent)
+            && DesignerSpecialContainers.GetSelectedTabPage(parent) is { } selectedPage)
+        {
+            targetName = DesignerSpecialContainers.GetOutlineName(selectedPage);
+            return selectedPage.Children;
+        }
+
+        if (DesignerSpecialContainers.IsSplitContainer(parent)
+            && DesignerSpecialContainers.GetPanel1(parent) is { } panel1)
+        {
+            targetName = DesignerSpecialContainers.GetOutlineName(panel1);
+            return panel1.Children;
+        }
+
+        targetName = DesignerSpecialContainers.GetOutlineName(parent);
+        return parent.Children;
+    }
+
+    private void AssignDefaultTableLayoutPosition(DesignControlNode node, DesignControlNode? parent)
+    {
+        if (parent is null || !DesignerSpecialContainers.IsTableLayoutPanel(parent))
+            return;
+
+        var columns = Math.Max(1, DesignerSpecialContainers.GetInt(parent, DesignerSpecialContainers.ColumnCountPropertyName, 2));
+        var rows = Math.Max(1, DesignerSpecialContainers.GetInt(parent, DesignerSpecialContainers.RowCountPropertyName, 2));
+        var existingChildren = parent.Children.Where(child => !ReferenceEquals(child, node)).ToArray();
+        var used = existingChildren
+            .Select(child => (
+                Column: DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableColumnPropertyName, 0),
+                Row: DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableRowPropertyName, 0)))
+            .ToHashSet();
+
+        for (var row = 0; row < rows; row++)
+        {
+            for (var column = 0; column < columns; column++)
+            {
+                if (used.Contains((column, row)))
+                    continue;
+
+                DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableColumnPropertyName, column);
+                DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowPropertyName, row);
+                DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableColumnSpanPropertyName, 1);
+                DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowSpanPropertyName, 1);
+                return;
+            }
+        }
+
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableColumnPropertyName, existingChildren.Length % columns);
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowPropertyName, Math.Clamp(existingChildren.Length / columns, 0, rows - 1));
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableColumnSpanPropertyName, 1);
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowSpanPropertyName, 1);
+    }
+
+    private static void AssignTableLayoutPositionFromPoint(
+        DesignControlNode node,
+        DesignControlNode? parent,
+        DesignBounds parentBounds,
+        DesignPoint documentPoint)
+    {
+        if (parent is null || !DesignerSpecialContainers.IsTableLayoutPanel(parent))
+            return;
+
+        var columns = Math.Max(1, DesignerSpecialContainers.GetInt(parent, DesignerSpecialContainers.ColumnCountPropertyName, 2));
+        var rows = Math.Max(1, DesignerSpecialContainers.GetInt(parent, DesignerSpecialContainers.RowCountPropertyName, 2));
+        var columnWidth = Math.Max(1, parentBounds.Width / columns);
+        var rowHeight = Math.Max(1, parentBounds.Height / rows);
+        var column = Math.Clamp((documentPoint.X - parentBounds.X) / columnWidth, 0, columns - 1);
+        var row = Math.Clamp((documentPoint.Y - parentBounds.Y) / rowHeight, 0, rows - 1);
+
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableColumnPropertyName, column);
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowPropertyName, row);
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableColumnSpanPropertyName, 1);
+        DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowSpanPropertyName, 1);
+    }
+
+    private DesignControlNode CloneForPaste(DesignControlNode source, bool offsetRoot)
+    {
+        var usedNames = GetUsedControlNames();
+        var clone = CloneNode(source, preserveName: false, usedNames);
+
+        if (offsetRoot)
+        {
+            clone.Bounds = new DesignBounds(
+                clone.Bounds.X + 16,
+                clone.Bounds.Y + 16,
+                clone.Bounds.Width,
+                clone.Bounds.Height);
+        }
+
+        return clone;
+    }
+
+    private DesignControlNode CloneNode(
+        DesignControlNode source,
+        bool preserveName,
+        HashSet<string> usedNames)
+    {
+        var clone = new DesignControlNode
+        {
+            TypeName = source.TypeName,
+            Name = preserveName ? source.Name : CreateUniqueControlName(source.Name, source.TypeName, usedNames),
+            Bounds = source.Bounds,
+            MemberVisibility = source.MemberVisibility,
+            Properties = new SortedDictionary<string, DesignPropertyValue>(
+                source.Properties.ToDictionary(property => property.Key, property => ClonePropertyValue(property.Value), StringComparer.Ordinal),
+                StringComparer.Ordinal),
+            Events = new SortedDictionary<string, string?>(
+                source.Events.ToDictionary(eventBinding => eventBinding.Key, eventBinding => eventBinding.Value, StringComparer.Ordinal),
+                StringComparer.Ordinal)
+        };
+
+        if (!preserveName)
+            usedNames.Add(clone.Name);
+
+        foreach (var child in source.Children)
+            clone.Children.Add(CloneNode(child, preserveName, usedNames));
+
+        return clone;
+    }
+
+    private HashSet<string> GetUsedControlNames()
+        => EnumerateNodes()
+            .Select(item => item.Node.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static DesignPropertyValue ClonePropertyValue(DesignPropertyValue value)
+        => value.Kind == DesignPropertyValueKind.Object && value.ObjectProperties is not null
+            ? DesignPropertyValue.FromStructuredObject(
+                value.ObjectTypeName ?? "System.Object",
+                value.ObjectProperties.ToDictionary(
+                    property => property.Key,
+                    property => ClonePropertyValue(property.Value),
+                    StringComparer.Ordinal))
+            : new DesignPropertyValue(value.Kind, value.Value, value.EnumTypeName, value.ObjectTypeName, value.ObjectProperties);
+
+    private static string CreateUniqueControlName(string currentName, string typeName, HashSet<string> usedNames)
+    {
+        var baseName = SanitizeIdentifierBase(string.IsNullOrWhiteSpace(currentName)
+            ? char.ToLowerInvariant(typeName[0]) + typeName[1..]
+            : currentName);
+
+        for (var suffix = 1; suffix < int.MaxValue; suffix++)
+        {
+            var candidate = $"{baseName}{suffix}";
+
+            if (!usedNames.Contains(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException($"Cannot create a unique designer name for '{currentName}'.");
+    }
+
+    private static string SanitizeIdentifierBase(string value)
+    {
+        var text = string.IsNullOrWhiteSpace(value) ? "control" : value.Trim();
+        var chars = text
+            .Select((character, index) =>
+                (index == 0 ? char.IsLetter(character) || character == '_' : char.IsLetterOrDigit(character) || character == '_')
+                    ? character
+                    : '_')
+            .ToArray();
+        var result = new string(chars);
+
+        return DesignDocumentValidator.IsValidCSharpIdentifier(result)
+            ? result
+            : $"control_{result}";
+    }
+
     private int CountControls(string typeName)
     {
         var prefix = char.ToLowerInvariant(typeName[0]) + typeName[1..];
@@ -841,6 +1170,10 @@ public sealed class DesignerSession
         return typeName switch
         {
             "Panel" => new DesignBounds(120 + offset, 95 + offset, 240, 120),
+            "FlowLayoutPanel" => new DesignBounds(120 + offset, 95 + offset, 260, 130),
+            "TableLayoutPanel" => new DesignBounds(120 + offset, 95 + offset, 260, 130),
+            "SplitContainer" => new DesignBounds(120 + offset, 95 + offset, 300, 160),
+            "TabControl" => new DesignBounds(120 + offset, 95 + offset, 320, 180),
             "Label" => new DesignBounds(originX + offset, originY + offset, 100, 24),
             "TextBox" => new DesignBounds(originX + offset, originY + offset, 150, 25),
             _ => new DesignBounds(originX + offset, originY + offset, 90, 28)
@@ -853,6 +1186,7 @@ public sealed class DesignerSession
             "Button" => $"button{index}",
             "Label" => $"label{index}",
             "TextBox" => $"textBox{index}",
+            "TabPage" => $"tabPage{index}",
             _ => string.Empty
         };
 }

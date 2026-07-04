@@ -60,7 +60,7 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         if (e.Button == MouseButtons.Right)
         {
             contextNode = row.Node;
-            deleteMenuItem.Enabled = contextNode is not null;
+            deleteMenuItem.Enabled = contextNode is not null && !DesignerSpecialContainers.IsSpecialGeneratedPart(contextNode);
 
             if (row.Node is null)
                 state.SelectForm();
@@ -78,8 +78,8 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
             return;
         }
 
-        state.SelectNode(row.Node);
-        dragNode = row.Node;
+            state.SelectNode(row.Node);
+        dragNode = DesignerSpecialContainers.IsSpecialGeneratedPart(row.Node) ? null : row.Node;
         dragStartY = e.Y;
         dropIndex = -1;
         isDragging = false;
@@ -210,7 +210,11 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         rows.Add(new OutlineRow(null, 0, state.Document.FormName, "Form"));
 
         foreach (var item in state.EnumerateNodes())
-            rows.Add(new OutlineRow(item.Node, item.Depth, item.Node.Name, item.Node.TypeName));
+            rows.Add(new OutlineRow(
+                item.Node,
+                item.Depth,
+                DesignerSpecialContainers.GetOutlineName(item.Node),
+                DesignerSpecialContainers.GetOutlineType(item.Node)));
     }
 
     private OutlineRow? GetRowAt(int y)
@@ -261,6 +265,12 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         => typeName switch
         {
             "Panel" => "[]",
+            "SplitterPanel" => "[]",
+            "SplitContainer" => "[]",
+            "TabControl" => "T",
+            "TabPage" => "[]",
+            "FlowLayoutPanel" => ">>",
+            "TableLayoutPanel" => "#",
             "Button" => "ab",
             "Label" => "A",
             "TextBox" => "[]",

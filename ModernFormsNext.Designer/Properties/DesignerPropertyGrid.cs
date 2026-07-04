@@ -11,6 +11,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     private readonly DesignerPropertyGridState state;
     private readonly DesignerPropertyGridRenderer renderer;
     private readonly DesignerPropertyGridController controller;
+    private readonly DesignerFileService? fileService;
     private TextBox? textEditor;
     private ComboBox? comboEditor;
     private bool committingEdit;
@@ -19,8 +20,17 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     private int scrollOffset;
 
     public DesignerPropertyGrid(DesignerSession playgroundState, string title = "Properties")
+        : this(playgroundState, fileService: null, title)
+    {
+    }
+
+    public DesignerPropertyGrid(
+        DesignerSession playgroundState,
+        DesignerFileService? fileService,
+        string title = "Properties")
         : base(title)
     {
+        this.fileService = fileService;
         state = new DesignerPropertyGridState(playgroundState);
         renderer = new DesignerPropertyGridRenderer();
         controller = new DesignerPropertyGridController(state, renderer);
@@ -41,6 +51,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             ClampScrollOffset();
         };
     }
+
+    internal bool IsEditingValue => textEditor is not null || comboEditor is not null || state.IsEditing;
 
     public void BeginEdit(DesignerPropertyGridRow row, Rectangle bounds)
     {
@@ -132,6 +144,13 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     {
         base.OnDoubleClick(e);
 
+        if (controller.TryCreateDefaultEventHandler(e.X, e.Y, Width, scrollOffset, out var eventDescriptor, out var handlerName))
+        {
+            EnsureEventHandlerMethod(eventDescriptor, handlerName);
+            Invalidate();
+            return;
+        }
+
         if (controller.TryBeginEdit(this, e.X, e.Y, scrollOffset))
             Invalidate();
     }
@@ -188,8 +207,12 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         {
             if (textEditor is not null)
             {
+                var editingEvent = state.EditingEvent;
                 state.UpdateEditingText(textEditor.Text);
                 committed = state.CommitEditing();
+
+                if (committed && editingEvent is not null && !string.IsNullOrWhiteSpace(textEditor.Text))
+                    EnsureEventHandlerMethod(editingEvent, textEditor.Text.Trim());
             }
             else if (comboEditor is not null)
             {
@@ -397,6 +420,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             return;
 
         committingEdit = true;
+        var editingEvent = state.EditingEvent;
+        var committedText = textEditor?.Text ?? GetComboValueText();
 
         try
         {
@@ -407,6 +432,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
             if (!state.CommitEditing())
                 state.CancelEditing();
+            else if (editingEvent is not null && !string.IsNullOrWhiteSpace(committedText))
+                EnsureEventHandlerMethod(editingEvent, committedText.Trim());
         }
         finally
         {
@@ -453,5 +480,14 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     {
         var type = Nullable.GetUnderlyingType(property.ValueType) ?? property.ValueType;
         return type == typeof(bool) || type.IsEnum;
+    }
+
+    private void EnsureEventHandlerMethod(DesignerEventDescriptor? eventDescriptor, string handlerName)
+    {
+        if (fileService is null || eventDescriptor is null || string.IsNullOrWhiteSpace(handlerName))
+            return;
+
+        var result = fileService.EnsureEventHandlerMethod(state.Session.Document, handlerName.Trim(), eventDescriptor.HandlerType);
+        state.Session.Log(result.Message);
     }
 }

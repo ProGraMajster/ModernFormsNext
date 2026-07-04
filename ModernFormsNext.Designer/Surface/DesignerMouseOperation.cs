@@ -5,5 +5,6 @@ internal enum DesignerMouseOperation
     None,
     Selecting,
     Dragging,
-    Resizing
+    Resizing,
+    MovingSplitter
 }

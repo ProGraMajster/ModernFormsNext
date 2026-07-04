@@ -57,6 +57,28 @@ internal sealed class DesignerPropertyGridController
         return true;
     }
 
+    public bool TryCreateDefaultEventHandler(
+        int x,
+        int y,
+        int width,
+        int scrollOffset,
+        out DesignerEventDescriptor? eventDescriptor,
+        out string handlerName)
+    {
+        eventDescriptor = null;
+        handlerName = string.Empty;
+
+        if (!TryGetRowAt(y, scrollOffset, out var row, out _)
+            || row.Event is null
+            || x < GetValueLeft(width))
+        {
+            return false;
+        }
+
+        state.SelectRow(row);
+        return state.TryCreateDefaultEventHandler(out eventDescriptor, out handlerName);
+    }
+
     public bool TryBeginEditSelected(DesignerPropertyGrid grid, int scrollOffset)
     {
         var currentY = DesignerPropertyGridMetrics.GridTop - scrollOffset;

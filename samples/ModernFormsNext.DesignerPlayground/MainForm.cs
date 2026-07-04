@@ -7,6 +7,7 @@ namespace ModernFormsNext.DesignerPlayground;
 internal sealed class MainForm : Form
 {
     private readonly PlaygroundDesignerHostEnvironment hostEnvironment = new();
+    private readonly ModernFormsDesignerShell designerShell;
 
     public MainForm()
     {
@@ -14,7 +15,7 @@ internal sealed class MainForm : Form
         Name = "DesignerPlayground";
         Size = new System.Drawing.Size(1480, 900);
 
-        var designerShell = new ModernFormsDesignerShell(
+        designerShell = new ModernFormsDesignerShell(
             new ModernFormsDesignerOptions
             {
                 ShowToolbar = true,
@@ -27,5 +28,13 @@ internal sealed class MainForm : Form
         designerShell.Dock = DockStyle.Fill;
 
         Controls.Add(designerShell);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (designerShell.ProcessDesignerShortcut(e))
+            return;
+
+        base.OnKeyDown(e);
     }
 }

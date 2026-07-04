@@ -110,8 +110,14 @@ internal sealed class DesignerSurfaceRenderer
         var bounds = ToDevice(e, surfaceBounds);
         var selected = ReferenceEquals(state.SelectedNode, node);
 
-        if (state.ControlRenderMode == DesignerControlRenderMode.Runtime)
+        if (ShouldUseSpecialDesignerRendering(node))
+        {
+            DrawSpecialContainer(e, node, layout, view, bounds);
+        }
+        else if (state.ControlRenderMode == DesignerControlRenderMode.Runtime)
+        {
             DrawRuntimeControl(e, state, node, surfaceBounds, bounds);
+        }
         else
         {
             LogPlaceholderRenderDiagnostics(state, node, bounds);
@@ -123,7 +129,7 @@ internal sealed class DesignerSurfaceRenderer
             e.Canvas.Save();
             e.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
 
-            foreach (var child in node.Children)
+            foreach (var child in GetRenderableChildren(node))
                 DrawNode(e, state, layout, child, view);
 
             e.Canvas.Restore();
@@ -152,6 +158,129 @@ internal sealed class DesignerSurfaceRenderer
             default:
                 DrawUnknown(e, node, bounds);
                 break;
+        }
+    }
+
+    private static bool ShouldUseSpecialDesignerRendering(DesignControlNode node)
+        => DesignerSpecialContainers.IsSplitContainer(node)
+        || DesignerSpecialContainers.IsTabControl(node)
+        || DesignerSpecialContainers.IsFlowLayoutPanel(node)
+        || DesignerSpecialContainers.IsTableLayoutPanel(node)
+        || DesignerSpecialContainers.IsTabPage(node)
+        || DesignerSpecialContainers.IsSplitPanel(node);
+
+    private void DrawSpecialContainer(
+        PaintEventArgs e,
+        DesignControlNode node,
+        DesignerLayoutResult layout,
+        DesignerSurfaceView view,
+        System.Drawing.Rectangle bounds)
+    {
+        if (DesignerSpecialContainers.IsSplitContainer(node))
+        {
+            DrawPanel(e, bounds);
+            var splitter = coordinateMapper.ToSurfaceBounds(DesignerSpecialContainers.GetSplitterBounds(node, layout.GetEffectiveBounds(node)), view);
+            var splitterBounds = ToDevice(e, splitter);
+            e.Canvas.FillRectangle(splitterBounds, new SKColor(190, 190, 190));
+            e.Canvas.DrawRectangle(splitterBounds, new SKColor(115, 115, 115));
+            return;
+        }
+
+        if (DesignerSpecialContainers.IsTabControl(node))
+        {
+            DrawTabControl(e, node, bounds);
+            return;
+        }
+
+        if (DesignerSpecialContainers.IsTableLayoutPanel(node))
+        {
+            DrawPanel(e, bounds);
+            DrawTableGrid(e, node, bounds);
+            return;
+        }
+
+        if (DesignerSpecialContainers.IsFlowLayoutPanel(node)
+            || DesignerSpecialContainers.IsSplitPanel(node)
+            || DesignerSpecialContainers.IsTabPage(node))
+        {
+            DrawPanel(e, bounds);
+        }
+    }
+
+    private static IEnumerable<DesignControlNode> GetRenderableChildren(DesignControlNode node)
+    {
+        if (DesignerSpecialContainers.IsTabControl(node))
+        {
+            if (DesignerSpecialContainers.GetSelectedTabPage(node) is { } page)
+                yield return page;
+
+            yield break;
+        }
+
+        foreach (var child in node.Children)
+            yield return child;
+    }
+
+    private static void DrawTabControl(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds)
+    {
+        e.Canvas.FillRectangle(bounds, new SKColor(245, 245, 245));
+        e.Canvas.DrawRectangle(bounds, new SKColor(115, 115, 115));
+
+        var headerHeight = e.LogicalToDeviceUnits(24);
+        var x = bounds.Left + e.LogicalToDeviceUnits(4);
+        var selectedIndex = DesignerSpecialContainers.GetSelectedTabIndex(node);
+
+        for (var index = 0; index < node.Children.Count; index++)
+        {
+            var page = node.Children[index];
+
+            if (!DesignerSpecialContainers.IsTabPage(page))
+                continue;
+
+            var text = GetText(page, page.Name);
+            var tabWidth = e.LogicalToDeviceUnits(Math.Clamp(48 + (text.Length * 6), 64, 140));
+            var tabBounds = new System.Drawing.Rectangle(x, bounds.Top + e.LogicalToDeviceUnits(2), tabWidth, headerHeight);
+            var selected = index == selectedIndex;
+
+            e.Canvas.FillRectangle(tabBounds, selected ? new SKColor(255, 255, 255) : new SKColor(230, 230, 230));
+            e.Canvas.DrawRectangle(tabBounds, new SKColor(115, 115, 115));
+            e.Canvas.DrawText(
+                text,
+                Theme.UIFont,
+                e.LogicalToDeviceUnits(Theme.FontSize),
+                new System.Drawing.Rectangle(tabBounds.Left + e.LogicalToDeviceUnits(6), tabBounds.Top, Math.Max(1, tabBounds.Width - e.LogicalToDeviceUnits(12)), tabBounds.Height),
+                new SKColor(20, 20, 20),
+                ContentAlignment.MiddleLeft,
+                maxLines: 1,
+                ellipsis: true);
+
+            x += tabWidth;
+        }
+    }
+
+    private static void DrawTableGrid(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds)
+    {
+        var columns = Math.Max(1, DesignerSpecialContainers.GetInt(node, DesignerSpecialContainers.ColumnCountPropertyName, 2));
+        var rows = Math.Max(1, DesignerSpecialContainers.GetInt(node, DesignerSpecialContainers.RowCountPropertyName, 2));
+
+        using var paint = new SKPaint
+        {
+            Color = new SKColor(165, 165, 165),
+            StrokeWidth = e.LogicalToDeviceUnits(1),
+            IsAntialias = false,
+            PathEffect = SKPathEffect.CreateDash(new[] { 3f, 3f }, 0)
+        };
+
+        for (var column = 1; column < columns; column++)
+        {
+            var x = bounds.Left + (bounds.Width * column / columns);
+            e.Canvas.DrawLine(x, bounds.Top, x, bounds.Bottom, paint);
+        }
+
+        for (var row = 1; row < rows; row++)
+        {
+            var y = bounds.Top + (bounds.Height * row / rows);
+            e.Canvas.DrawLine(bounds.Left, y, bounds.Right, y, paint);
         }
     }
 

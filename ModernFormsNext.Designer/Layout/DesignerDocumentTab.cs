@@ -8,6 +8,8 @@ internal sealed class DesignerDocumentTab : Panel
 {
     private readonly DesignerSession state;
     private const int TabWidth = 220;
+    private const int CloseButtonSize = 16;
+    private const int CloseButtonRightPadding = 8;
 
     public DesignerDocumentTab(DesignerSession state)
     {
@@ -26,7 +28,12 @@ internal sealed class DesignerDocumentTab : Panel
             return;
 
         var index = Math.Max(0, e.X / TabWidth);
-        state.SwitchDocument(index);
+
+        if (IsCloseButtonHit(index, e.X, e.Y))
+            state.CloseDocument(index);
+        else
+            state.SwitchDocument(index);
+
         Invalidate();
     }
 
@@ -53,11 +60,29 @@ internal sealed class DesignerDocumentTab : Panel
                 $"{document.DisplayName}{dirtyMarker} [Design]",
                 Theme.UIFont,
                 e.LogicalToDeviceUnits(Theme.FontSize),
-                new System.Drawing.Rectangle(e.LogicalToDeviceUnits(x + 10), 0, e.LogicalToDeviceUnits(TabWidth - 20), e.LogicalToDeviceUnits(Height)),
+                new System.Drawing.Rectangle(e.LogicalToDeviceUnits(x + 10), 0, e.LogicalToDeviceUnits(TabWidth - 42), e.LogicalToDeviceUnits(Height)),
                 active ? DesignerColors.Text : DesignerColors.MutedText,
                 ContentAlignment.MiddleLeft,
                 maxLines: 1,
                 ellipsis: true);
+
+            var closeBounds = GetCloseButtonBounds(index);
+            var closeColor = active ? DesignerColors.Text : DesignerColors.MutedText;
+            e.Canvas.DrawLine(closeBounds.Left + 4, closeBounds.Top + 4, closeBounds.Right - 4, closeBounds.Bottom - 4, closeColor);
+            e.Canvas.DrawLine(closeBounds.Right - 4, closeBounds.Top + 4, closeBounds.Left + 4, closeBounds.Bottom - 4, closeColor);
         }
+    }
+
+    private bool IsCloseButtonHit(int index, int x, int y)
+        => index >= 0
+        && index < state.OpenDocuments.Count
+        && GetCloseButtonBounds(index).Contains(x, y);
+
+    private static System.Drawing.Rectangle GetCloseButtonBounds(int index)
+    {
+        var tabLeft = index * TabWidth;
+        var left = tabLeft + TabWidth - CloseButtonRightPadding - CloseButtonSize;
+        var top = (32 - CloseButtonSize) / 2;
+        return new System.Drawing.Rectangle(left, top, CloseButtonSize, CloseButtonSize);
     }
 }

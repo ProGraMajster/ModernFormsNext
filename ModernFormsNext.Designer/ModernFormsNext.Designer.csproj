@@ -36,6 +36,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Designing\ModernFormsNext.Designing.csproj" />
     <ProjectReference Include="..\ModernFormsNext.CodeGeneration\ModernFormsNext.CodeGeneration.csproj" />

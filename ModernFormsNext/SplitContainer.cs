@@ -104,6 +104,24 @@ namespace ModernFormsNext
             }
         }
 
+        /// <summary>
+        /// Gets or sets the distance, in logical pixels, from the left or top edge of the
+        /// split container to the splitter.
+        /// </summary>
+        /// <remarks>
+        /// When <see cref="Orientation"/> is <see cref="Orientation.Horizontal"/>, the value
+        /// controls the width of <see cref="Panel1"/>. When the orientation is vertical, it
+        /// controls the height of <see cref="Panel1"/>. The value is clamped to
+        /// <see cref="Panel1MinimumSize"/> and <see cref="Panel2MinimumSize"/>.
+        /// </remarks>
+        public int SplitterDistance {
+            get => orientation == Orientation.Horizontal ? Panel1.Width : Panel1.Height;
+            set {
+                ResizePanels (value);
+                Invalidate ();
+            }
+        }
+
         // Updates the size of Panel1 to resize and move all controls.
         private void ResizePanels (int value)
         {

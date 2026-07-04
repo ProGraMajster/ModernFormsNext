@@ -96,6 +96,14 @@ internal static class DesignerPropertyDialogEditors
             return true;
         };
 
+    public static Func<DesignerPropertyDialogContext, Task<bool>> TabPages(DesignControlNode tabControl)
+        => async context =>
+        {
+            var dialog = new DesignerTabPageCollectionDialog(context.Session, tabControl);
+
+            return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
+        };
+
     private static string? GetStoredString(DesignControlNode node, string propertyName)
         => node.Properties.TryGetValue(propertyName, out var value)
             ? value.Value?.ToString()
