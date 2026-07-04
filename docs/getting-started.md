@@ -101,6 +101,15 @@ designable ModernFormsNext files and opens the companion `.mfdesign` document.
 The template uses `ModernFormsNextDesigner=true` project metadata instead of `SubType=Form`, so
 Visual Studio does not launch the built-in Windows Forms designer for ModernFormsNext forms.
 
+After installing the VSIX, additional forms can be created from Visual Studio through
+**Add** > **New Item** > **ModernFormsNext Form**. That item template creates the code file,
+the generated `.Designer.cs` companion, and the `.mfdesign` document together.
+
+Inside the designer, `Delete` removes the selected control, `Ctrl+D` duplicates it, and
+`Ctrl+C` / `Ctrl+V` copy and paste designer controls. These shortcuts are routed through the
+designer shell so they work from the Visual Studio-hosted designer as well as from the
+standalone playground.
+
 For installation and VSIX setup, see [Installing ModernFormsNext](installation.md).
 
 ### Create MainForm.cs

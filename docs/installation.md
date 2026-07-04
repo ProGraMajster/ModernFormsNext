@@ -88,8 +88,11 @@ For the Experimental Instance, close Visual Studio and run:
 .\ModernFormsNext.VisualStudioExtension\Install-Experimental.ps1
 ```
 
-The script uninstalls older copies, installs the current VSIX into `/RootSuffix Exp`, and forces
-Visual Studio to refresh package registration. The equivalent manual install command is:
+The script removes stale ModernFormsNext Designer state from the Experimental Instance, installs
+the current VSIX into `/RootSuffix Exp`, and forces Visual Studio to refresh package registration.
+It also clears stale ModernFormsNext Designer registration from the Experimental Instance cache
+and private registry, which prevents Visual Studio from loading an older deleted extension folder
+after repeated local installs. The equivalent manual install command is:
 
 ```powershell
 & "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\VSIXInstaller.exe" /rootSuffix:Exp ".\ModernFormsNext.VisualStudioExtension.Vsix\bin\Debug\net472\ModernFormsNextDesigner.vsix"
@@ -111,6 +114,46 @@ user-facing project item. Saving the designer writes `MainForm.mfdesign` and reg
 Auto-save is enabled by default in the designer settings. It can be disabled from the designer
 settings dialog if manual saves are preferred.
 
+### Designer Keyboard Shortcuts
+
+The designer supports the same control-oriented shortcuts in the standalone playground and in
+the Visual Studio-hosted designer:
+
+| Shortcut | Action |
+| --- | --- |
+| `Delete` | Deletes the selected control from the design document. |
+| `Ctrl+C` | Copies the selected control into the designer clipboard. |
+| `Ctrl+V` | Pastes the copied control into the active container. |
+| `Ctrl+D` | Duplicates the selected control next to the original with a unique field name. |
+
+The shortcuts operate on the selected design control, not on generated C# text. When a property
+value editor is active in the Property Grid, text editing keeps normal keyboard behavior so
+`Delete`, `Ctrl+C`, and `Ctrl+V` apply to the edited value instead.
+
+## Add a New Form in Visual Studio
+
+The VSIX also installs a C# item template named **ModernFormsNext Form**.
+
+1. Right-click the project in Solution Explorer.
+2. Choose **Add** > **New Item**.
+3. Search for **ModernFormsNext Form**.
+4. Enter the form name, for example `SettingsForm.cs`.
+5. Choose **Add**.
+
+The item template creates:
+
+```text
+SettingsForm.cs
+SettingsForm.Designer.cs
+SettingsForm.mfdesign
+```
+
+`SettingsForm.cs` is the user-authored form class, `SettingsForm.Designer.cs` is generated
+initialization code, and `SettingsForm.mfdesign` is the designer document. The template does not
+use `<SubType>Form</SubType>`, so Visual Studio should not route the file to the built-in
+Windows Forms designer. The ModernFormsNext designer command can still identify the file because
+the generated `.mfdesign` companion file contains ModernFormsNext design metadata.
+
 ## Localization
 
 The designer and Visual Studio extension currently include English and Polish UI strings. Use
@@ -126,3 +169,14 @@ extension follows the current Visual Studio UI culture where possible.
 - If the Experimental Instance uses an older VSIX, uninstall **ModernFormsNext Designer** from
   **Extensions / Manage Extensions**, rerun `Install-Experimental.ps1`, and start Visual Studio
   with `/RootSuffix Exp /updateconfiguration`.
+- If Visual Studio reports that `ModernFormsDesignerPackage` failed to load and `ActivityLog.xml`
+  points to a removed random folder under `AppData\Local\Microsoft\VisualStudio\...\Extensions`,
+  close all Visual Studio instances and rerun `Install-Experimental.ps1`. The script deletes the
+  stale Experimental Instance private registry so the package `CodeBase` is rebuilt from the
+  newly installed VSIX.
+- If **ModernFormsNext Form** does not appear in **Add New Item** after installing the VSIX,
+  close Visual Studio and refresh the item-template cache:
+
+  ```powershell
+  & "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\devenv.exe" /RootSuffix Exp /installvstemplates
+  ```

@@ -82,6 +82,9 @@ dotnet new mfn-app -n MyApp
 The generated template includes `MainForm.cs`, generated `MainForm.Designer.cs`, and companion
 designer metadata in `MainForm.mfdesign`. Install the Visual Studio extension package
 `ModernFormsNextDesigner.vsix` to use **View ModernFormsNext Designer** from `MainForm.cs`.
+The same extension also adds a **ModernFormsNext Form** item template to Visual Studio's
+**Add New Item** dialog for creating additional `.cs`, `.Designer.cs`, and `.mfdesign` form
+triplets.
 
 See [Installing ModernFormsNext](docs/installation.md) for the full package, template, VSIX,
 Experimental Instance, and troubleshooting instructions.

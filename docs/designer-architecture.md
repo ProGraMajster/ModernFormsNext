@@ -69,6 +69,11 @@ The VSIX must not globally replace the C# editor for every `.cs` file. Only file
 recognized as ModernFormsNext form/control files, have explicit ModernFormsNext project design
 metadata, or have a valid companion `.mfdesign` file should expose the designer command.
 
+The VSIX also contributes a **ModernFormsNext Form** C# item template. The item template creates
+the user-authored `.cs` file, the generated `.Designer.cs` file, and the `.mfdesign` companion
+document in one operation. It avoids `SubType=Form` for the same reason as the project template:
+that value belongs to the classic Windows Forms designer.
+
 Designable C# detection is intentionally conservative. A bare `class Form1 : Form`, a bare
 `class MyControl : Control`, or `<SubType>Form</SubType>` is not enough because those shapes can
 also represent classic Windows Forms files. The preferred project marker is:
