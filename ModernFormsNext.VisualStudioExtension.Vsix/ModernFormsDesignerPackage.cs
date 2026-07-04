@@ -23,7 +23,7 @@ namespace ModernFormsNext.VisualStudioExtension;
 /// only exposes Visual Studio registration and validation commands needed to deploy the extension.
 /// </remarks>
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
-[InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.7.0")]
+[InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.7.4")]
 [ProvideMenuResource("ModernFormsNext.VisualStudioExtension.CTMENU", 1)]
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
@@ -313,10 +313,22 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
 
         var projectPath = FindNearestProjectPath(designFilePath);
         var hostKey = projectPath ?? Path.GetDirectoryName(designFilePath) ?? designFilePath;
+        var pipeName = DesignerHostIpcClient.GetPipeName(hostKey);
 
         if (designerHostProcesses.TryGetValue(hostKey, out var existingHost)
             && !existingHost.HasExited)
         {
+            if (!DesignerHostIpcClient.TryOpenDocument(pipeName, designFilePath, projectPath, TimeSpan.FromSeconds(2)))
+            {
+                VsShellUtilities.ShowMessageBox(
+                    this,
+                    "ModernFormsNext Designer is already running, but it did not accept the open-document command. Try closing the designer host window and opening the designer again.",
+                    "ModernFormsNext Designer",
+                    OLEMSGICON.OLEMSGICON_WARNING,
+                    OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            }
+
             ActivateExistingHost(existingHost);
             return;
         }
@@ -341,7 +353,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         var startInfo = new ProcessStartInfo
         {
             FileName = hostPath,
-            Arguments = BuildHostArguments(designFilePath, projectPath),
+            Arguments = BuildHostArguments(designFilePath, projectPath, pipeName),
             UseShellExecute = false,
             WorkingDirectory = Path.GetDirectoryName(designFilePath) ?? packageDirectory ?? Environment.CurrentDirectory
         };
@@ -385,10 +397,10 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         }
     }
 
-    private static string BuildHostArguments(string designFilePath, string? projectPath)
+    private static string BuildHostArguments(string designFilePath, string? projectPath, string pipeName)
         => string.IsNullOrWhiteSpace(projectPath)
-            ? $"--design-file {QuoteProcessArgument(designFilePath)}"
-            : $"--design-file {QuoteProcessArgument(designFilePath)} --project {QuoteProcessArgument(projectPath!)}";
+            ? $"--design-file {QuoteProcessArgument(designFilePath)} --pipe {QuoteProcessArgument(pipeName)}"
+            : $"--design-file {QuoteProcessArgument(designFilePath)} --project {QuoteProcessArgument(projectPath!)} --pipe {QuoteProcessArgument(pipeName)}";
 
     private static string? FindNearestProjectPath(string path)
     {

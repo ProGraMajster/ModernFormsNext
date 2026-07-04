@@ -15,7 +15,8 @@
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <ModernFormsNextVisualStudioExtensionVersion>1.7.4</ModernFormsNextVisualStudioExtensionVersion>
+    <Version>$(ModernFormsNextVisualStudioExtensionVersion)</Version>
     <Authors>ProGraMajster</Authors>
     <Company>ModernFormsNext</Company>
     <Product>ModernFormsNext.VisualStudioExtension</Product>
@@ -33,9 +34,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="source.extension.vsixmanifest">
-      <SubType>Designer</SubType>
-    </None>
     <VSCTCompile Include="ModernFormsNext.VisualStudioExtension.vsct" />
   </ItemGroup>
 

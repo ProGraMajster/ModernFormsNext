@@ -19,10 +19,21 @@ public sealed class VisualStudioDesignerHostEnvironment : IDesignerHostEnvironme
     }
 
     /// <inheritdoc/>
-    public string? CurrentDocumentPath { get; }
+    public string? CurrentDocumentPath { get; private set; }
 
     /// <inheritdoc/>
-    public string? CurrentProjectPath { get; }
+    public string? CurrentProjectPath { get; private set; }
+
+    /// <summary>
+    /// Updates the active Visual Studio document context used by designer services.
+    /// </summary>
+    /// <param name="currentDocumentPath">The active <c>.mfdesign</c> document path.</param>
+    /// <param name="currentProjectPath">The active project path, if known.</param>
+    public void UpdateContext(string? currentDocumentPath, string? currentProjectPath)
+    {
+        CurrentDocumentPath = currentDocumentPath;
+        CurrentProjectPath = currentProjectPath;
+    }
 
     /// <inheritdoc/>
     public void ReportStatus(string message)

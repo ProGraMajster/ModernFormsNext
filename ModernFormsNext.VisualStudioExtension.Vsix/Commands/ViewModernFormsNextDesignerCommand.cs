@@ -41,9 +41,10 @@ internal sealed class ViewModernFormsNextDesignerCommand
             return;
 
         var fileInfo = package.GetSelectedDesignableFile();
-        var isVisible = fileInfo?.IsDesignable == true;
+        var isVisible = fileInfo is not null;
+        var isDesignable = fileInfo?.IsDesignable == true;
         command.Visible = isVisible;
-        command.Enabled = isVisible;
+        command.Enabled = isDesignable;
     }
 
     private void Execute(object sender, EventArgs e)

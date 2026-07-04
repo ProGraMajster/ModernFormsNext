@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Item" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>ModernFormsNext Form</Name>
+    <Description>Creates a ModernFormsNext form with designer code and .mfdesign metadata.</Description>
+    <ProjectType>CSharp</ProjectType>
+    <SortOrder>1000</SortOrder>
+    <DefaultName>ModernFormsNextForm.cs</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <TemplateGroupID>ModernFormsNext</TemplateGroupID>
+  </TemplateData>
+  <TemplateContent>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.cs" SubType="ModernFormsNextForm">ModernFormsNextForm.cs</ProjectItem>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.Designer.cs">ModernFormsNextForm.Designer.cs</ProjectItem>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.mfdesign">ModernFormsNextForm.mfdesign</ProjectItem>
+  </TemplateContent>
+</VSTemplate>

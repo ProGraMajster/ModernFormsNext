@@ -34,7 +34,6 @@
       <Button guid="guidModernFormsDesignerCommandSet" id="cmdidViewModernFormsNextDesigner" priority="0x0100" type="Button">
         <Parent guid="guidModernFormsDesignerCommandSet" id="ModernFormsDesignerItemContextGroup" />
         <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>DefaultInvisible</CommandFlag>
         <Strings>
           <ButtonText>View ModernFormsNext Designer</ButtonText>
         </Strings>

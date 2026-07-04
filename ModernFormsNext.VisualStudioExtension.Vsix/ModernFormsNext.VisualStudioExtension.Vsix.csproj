@@ -8,9 +8,10 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AnalysisLevel>latest</AnalysisLevel>
-    <Version>$(ModernFormsNextPackageVersion)</Version>
-    <AssemblyVersion>$(ModernFormsNextPackageVersion).0</AssemblyVersion>
-    <FileVersion>$(ModernFormsNextPackageVersion).0</FileVersion>
+    <ModernFormsNextVisualStudioExtensionVersion>1.7.4</ModernFormsNextVisualStudioExtensionVersion>
+    <Version>$(ModernFormsNextVisualStudioExtensionVersion)</Version>
+    <AssemblyVersion>$(ModernFormsNextVisualStudioExtensionVersion).0</AssemblyVersion>
+    <FileVersion>$(ModernFormsNextVisualStudioExtensionVersion).0</FileVersion>
     <IsPackable>false</IsPackable>
     <AssemblyName>ModernFormsNext.VisualStudioExtension</AssemblyName>
     <RootNamespace>ModernFormsNext.VisualStudioExtension</RootNamespace>
@@ -48,6 +49,31 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The VSIX project publishes the out-of-process designer host while the
+      solution is often rebuilt in parallel by Visual Studio. These build-order
+      references make the dependency graph explicit so the packaging project
+      cannot publish the host while its ModernFormsNext/backend references are
+      still being cleaned or rebuilt. The outputs are not referenced by this
+      net472 package assembly; they are only build dependencies.
+    -->
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension\ModernFormsNext.VisualStudioExtension.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioDesignerHost\ModernFormsNext.VisualStudioDesignerHost.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="ItemTemplates\**\*.cs" />
+    <None Remove="ItemTemplates\**\*" />
+    <Content Include="ItemTemplates\**\*">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <VSIXSubPath>ItemTemplates\%(RecursiveDir)</VSIXSubPath>
+    </Content>
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
@@ -64,6 +90,29 @@
           DependsOnTargets="GeneratePkgDef;CopyPkgDef;CreateVsixContainer"
           Condition="'$(DesignTimeBuild)' != 'true'" />
 
+  <Target Name="SyncModernFormsNextVsixManifest"
+          BeforeTargets="CreateVsixContainer"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <!--
+      VSSDK packs extension.vsixmanifest from the intermediate/output folder.
+      Keep it in lockstep with the editable source manifest so repeated local
+      builds cannot package a stale InstallationTarget or version.
+    -->
+    <Delete Files="$(TargetDir)$(TargetVsixContainerName);$(IntermediateOutputPath)extension.vsixmanifest;$(OutputPath)extension.vsixmanifest" />
+    <Copy SourceFiles="source.extension.vsixmanifest"
+          DestinationFiles="$(IntermediateOutputPath)extension.vsixmanifest"
+          SkipUnchangedFiles="false" />
+    <Copy SourceFiles="source.extension.vsixmanifest"
+          DestinationFiles="$(OutputPath)extension.vsixmanifest"
+          SkipUnchangedFiles="false" />
+  </Target>
+
+  <Target Name="ValidateModernFormsNextVsix"
+          AfterTargets="CreateVsixContainer"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Validate-Vsix.ps1&quot; -VsixPath &quot;$(TargetDir)$(TargetVsixContainerName)&quot; -ExpectedVersion &quot;$(ModernFormsNextVisualStudioExtensionVersion)&quot; -Configuration &quot;$(Configuration)&quot; -ProjectDirectory &quot;$(MSBuildProjectDirectory)&quot;" />
+  </Target>
+
   <Target Name="PublishModernFormsNextDesignerHost"
           BeforeTargets="GetVsixSourceItems"
           Condition="'$(DesignTimeBuild)' != 'true'">
@@ -72,9 +121,10 @@
              Targets="Publish"
              Properties="Configuration=$(Configuration);TargetFramework=net10.0-windows;RuntimeIdentifier=$(DesignerHostRuntimeIdentifier);PublishDir=$(MSBuildProjectDirectory)\$(DesignerHostPublishDir);SelfContained=false;EnableWindowsTargeting=true" />
     <ItemGroup>
-      <Content Include="$(DesignerHostPublishDir)**\*">
+      <ModernFormsNextDesignerHostFile Include="$(DesignerHostPublishDir)**\*" />
+      <Content Include="@(ModernFormsNextDesignerHostFile)">
         <IncludeInVSIX>true</IncludeInVSIX>
-        <VSIXSubPath>DesignerHost\%(RecursiveDir)</VSIXSubPath>
+        <VSIXSubPath>DesignerHost\%(ModernFormsNextDesignerHostFile.RecursiveDir)</VSIXSubPath>
       </Content>
     </ItemGroup>
   </Target>

@@ -2,8 +2,20 @@
 
 This project builds the Visual Studio extension that registers the ModernFormsNext designer.
 
-The extension is versioned with the repository package version. The current release line is
-`1.7.0`.
+The extension is versioned with the repository package version. Check
+`ModernFormsNext.VisualStudioExtension.Vsix\source.extension.vsixmanifest` for
+the exact local VSIX version.
+
+The local VSIX uses `InstallationTarget Version="[17.0,)"` and
+`Microsoft.VisualStudio.Component.CoreEditor Version="[17.0,)"`. Visual Studio
+2026 evaluates VSIX compatibility through the supported Visual Studio API level,
+so the lower bound must remain `17.0` even when the extension is tested in a
+Visual Studio 2026 Experimental Instance.
+
+The packaging project validates the generated `.vsix` after every build. The
+build fails if the final package contains a stale manifest, a lower bound of
+`18.0`, missing VS Package or item-template assets, or a Debug/Release manifest
+mismatch when both configurations have been built.
 
 ## Build
 
@@ -19,14 +31,28 @@ ModernFormsNext.VisualStudioExtension.Vsix\bin\Debug\net472\ModernFormsNextDesig
 
 ## Install into the Experimental Instance
 
-The recommended local install path is the helper script below. It uninstalls any
-older copy, installs the current VSIX, and forces Visual Studio to rebuild the
-Experimental Instance package registration.
+The recommended local install path is the helper script below. It removes stale
+ModernFormsNext Designer state from the Experimental Instance, installs the
+current VSIX, and forces Visual Studio to rebuild package registration. For the
+`Exp` hive it removes stale extension folders, Visual Studio cache files, and
+the Experimental Instance `privateregistry.bin` file. This is required after
+some repeated local installs because Visual Studio can keep a package `CodeBase`
+that points at a deleted random extension folder.
 
-Close the Experimental Instance first, then run:
+The script automatically closes Visual Studio instances that are already running
+with `/RootSuffix Exp`. If a normal Visual Studio instance is still open, the
+script stops with a list of running processes instead of closing the main IDE
+without permission. Close normal Visual Studio manually, then run:
 
 ```powershell
 .\ModernFormsNext.VisualStudioExtension\Install-Experimental.ps1
+```
+
+If the open normal Visual Studio instance is disposable and you want the script
+to close it too, run:
+
+```powershell
+.\ModernFormsNext.VisualStudioExtension\Install-Experimental.ps1 -ForceCloseVisualStudio
 ```
 
 The script installs:
@@ -57,7 +83,9 @@ If Visual Studio reports that `ModernFormsDesignerPackage` failed to load and
 the ActivityLog points to an older random extension directory such as
 `...\Extensions\abc123.tmp\ModernFormsNext.VisualStudioExtension.dll`, the
 Experimental Instance still has stale package registration. Close Visual Studio
-and rerun `Install-Experimental.ps1`.
+and rerun `Install-Experimental.ps1`. The script clears the Experimental
+Instance private registry before reinstalling so Visual Studio rebuilds the
+package registration from the current VSIX.
 
 ## Manual verification
 
@@ -69,5 +97,7 @@ Verify:
 - Right-clicking `Program.cs` does not show **View ModernFormsNext Designer**.
 - Right-clicking `MainForm.Designer.cs` does not show **View ModernFormsNext Designer**.
 - `MainForm.cs` is marked with `<ModernFormsNextDesigner>true</ModernFormsNextDesigner>` and does not use `<SubType>Form</SubType>`.
+- **Add** > **New Item** lists **ModernFormsNext Form** for C# projects and creates `.cs`,
+  `.Designer.cs`, and `.mfdesign` files together.
 - Saving the designer writes `MainForm.mfdesign` and regenerates `MainForm.Designer.cs` without
   modifying `MainForm.cs`.

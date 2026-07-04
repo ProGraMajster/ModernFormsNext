@@ -19,6 +19,9 @@ namespace ModernFormsNext.VisualStudioDesignerHost;
 public sealed class VisualStudioDesignerHostForm : Form
 {
     private readonly DesignerHostArguments arguments;
+    private readonly VisualStudioDesignerHostEnvironment environment;
+    private readonly ModernFormsDesignerShell shell;
+    private readonly DesignerHostIpcServer? ipcServer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VisualStudioDesignerHostForm"/> class.
@@ -32,10 +35,10 @@ public sealed class VisualStudioDesignerHostForm : Form
         Name = "ModernFormsNextVisualStudioDesignerHost";
         Size = new System.Drawing.Size(1480, 900);
 
-        var environment = new VisualStudioDesignerHostEnvironment(
+        environment = new VisualStudioDesignerHostEnvironment(
             arguments.DesignDocumentPath,
             arguments.ProjectPath ?? FindNearestProjectPath(arguments.DesignDocumentPath));
-        var shell = new ModernFormsDesignerShell(
+        shell = new ModernFormsDesignerShell(
             new ModernFormsDesignerOptions
             {
                 ShowToolbar = true,
@@ -48,23 +51,44 @@ public sealed class VisualStudioDesignerHostForm : Form
         };
 
         Controls.Add(shell);
-        LoadDesignDocument(shell);
+        OpenDesignDocument(arguments.DesignDocumentPath, arguments.ProjectPath);
+
+        if (!string.IsNullOrWhiteSpace(arguments.PipeName))
+        {
+            ipcServer = new DesignerHostIpcServer(
+                arguments.PipeName,
+                command => Application.RunOnUIThread(() => OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath)));
+            ipcServer.Start();
+        }
+
+        Closed += (_, _) => ipcServer?.Dispose();
     }
 
-    private void LoadDesignDocument(ModernFormsDesignerShell shell)
+    protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (!string.IsNullOrWhiteSpace(arguments.DesignDocumentPath)
-            && File.Exists(arguments.DesignDocumentPath))
+        if (shell.ProcessDesignerShortcut(e))
+            return;
+
+        base.OnKeyDown(e);
+    }
+
+    private void OpenDesignDocument(string? designDocumentPath, string? projectPath)
+    {
+        Text = GetWindowTitle(designDocumentPath);
+        environment.UpdateContext(designDocumentPath, projectPath ?? FindNearestProjectPath(designDocumentPath));
+
+        if (!string.IsNullOrWhiteSpace(designDocumentPath)
+            && File.Exists(designDocumentPath))
         {
             try
             {
-                shell.LoadDocument(DesignDocumentSerializer.Default.Load(arguments.DesignDocumentPath));
-                shell.Session.Log($"Opened {arguments.DesignDocumentPath}.");
+                shell.Session.OpenDocument(DesignDocumentSerializer.Default.Load(designDocumentPath), designDocumentPath);
+                shell.Session.Log($"Opened {designDocumentPath}.");
                 return;
             }
             catch (Exception ex)
             {
-                shell.Session.Log($"Could not load {arguments.DesignDocumentPath}: {ex.Message}");
+                shell.Session.Log($"Could not load {designDocumentPath}: {ex.Message}");
             }
         }
 
