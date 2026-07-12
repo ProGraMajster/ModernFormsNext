@@ -13,6 +13,7 @@ namespace ModernFormsNext
     {
         private MenuItemCollection? items;
         private MenuDropDown? dropdown;
+        private bool checkedState;
         private bool enabled = true;
         private bool selected;
 
@@ -42,6 +43,24 @@ namespace ModernFormsNext
         /// Raised when the menu item is clicked.
         /// </summary>
         public event EventHandler<MouseEventArgs>? Click;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the item represents an active command state.
+        /// </summary>
+        /// <remarks>
+        /// Tool bars render checked items with a persistent highlight. Setting this property does
+        /// not toggle the value automatically when the item is clicked.
+        /// </remarks>
+        public bool Checked {
+            get => checkedState;
+            set {
+                if (checkedState == value)
+                    return;
+
+                checkedState = value;
+                OwnerControl?.Invalidate (Bounds);
+            }
+        }
 
         /// <summary>
         /// Gets or sets a value indicating whether the menu item is enabled.
@@ -221,5 +240,11 @@ namespace ModernFormsNext
         /// Gets or sets the text of the menu item.
         /// </summary>
         public string Text { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the explanatory text displayed when the pointer rests over this item in a
+        /// <see cref="ToolBar"/>.
+        /// </summary>
+        public string ToolTipText { get; set; } = string.Empty;
     }
 }

@@ -24,7 +24,9 @@ namespace ModernFormsNext.Renderers
         protected virtual void RenderItem (ToolBar control, MenuItem item, PaintEventArgs e)
         {
             // Background
-            var background_color = item.Hovered || item.IsDropDownOpened ? Theme.ControlHighlightLowColor : Theme.BackgroundColor;
+            var background_color = item.Hovered || item.IsDropDownOpened || item.Checked
+                ? Theme.ControlHighlightLowColor
+                : Theme.BackgroundColor;
             e.Canvas.FillRectangle (item.Bounds, background_color);
 
             var bounds = item.Bounds;
