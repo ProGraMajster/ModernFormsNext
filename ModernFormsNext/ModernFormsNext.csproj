@@ -47,6 +47,7 @@
 
 	<!-- External -->
 	<ItemGroup>
+		<PackageReference Include="Markdig" Version="1.3.2" />
 		<PackageReference Include="Topten.RichTextKit" Version="0.4.167" />
 	</ItemGroup>
 

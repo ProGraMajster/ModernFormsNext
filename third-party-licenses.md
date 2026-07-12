@@ -59,6 +59,11 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+### Markdig
+- Markdown parsing is provided by the `Markdig` NuGet package
+- Original project: https://github.com/xoofx/markdig
+- Original license: BSD 2-Clause
+
 ### Microsoft WinForms
 - This code may be found throughout the codebase and may retain license headers in individual files
 - Original project: https://github.com/dotnet/winforms
