@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="modernformsnext.windowkit.backend.android">
+  <!-- This library intentionally declares no feature permissions. Camera, microphone, media,
+       location, notifications, and nearby-device access are opt-in application capabilities. -->
+</manifest>

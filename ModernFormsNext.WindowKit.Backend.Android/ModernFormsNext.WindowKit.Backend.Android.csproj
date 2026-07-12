@@ -1,12 +1,32 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsPackable>false</IsPackable>
-	  
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
+    <AndroidManifest>Properties\AndroidManifest.xml</AndroidManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
+  </ItemGroup>
+
+  <!-- The plain net10.0 target contains only deterministic permission mapping and queue logic.
+       It exists so those rules can be tested without an emulator. Native Android integration is
+       compiled exclusively into the net10.0-android target. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Remove="Platform\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-android'">
+    <AndroidManifest Remove="Properties\AndroidManifest.xml" />
+    <None Include="Properties\AndroidManifest.xml" />
+  </ItemGroup>
 
 </Project>
