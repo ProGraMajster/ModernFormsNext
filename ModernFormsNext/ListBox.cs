@@ -342,7 +342,7 @@ namespace ModernFormsNext
                     // TODO: Shift
 
                     // When Control is held we treat this like MultiSimple
-                    if (e.Control) {
+                    if (e.IsShortcutControlPressed) {
                         Items.ToggleSelectedIndex (index);
                         break;
                     }
