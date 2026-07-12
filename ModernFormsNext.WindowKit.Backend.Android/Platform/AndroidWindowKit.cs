@@ -18,6 +18,11 @@ public static class AndroidWindowKit
     private static AndroidWindowKitBackend? current;
 
     /// <summary>
+    /// Gets the stable Android logcat tag used by the backend and its Skia surface host.
+    /// </summary>
+    public const string LogTag = "ModernFormsNext";
+
+    /// <summary>
     /// Gets a value indicating whether Android backend initialization completed.
     /// </summary>
     public static bool IsInitialized => current?.IsInitialized == true;

@@ -44,4 +44,14 @@ public sealed class AndroidWindowKitOptions(Context applicationContext)
     /// Gets or sets an optional sink for actionable backend diagnostics.
     /// </summary>
     public Action<string>? DiagnosticSink { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether individual surface renders should be written to
+    /// Android diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// Lifecycle, initialization, and failures are always reported. Per-frame messages are opt-in
+    /// because they can be noisy while debugging pointer input or resizing.
+    /// </remarks>
+    public bool EnableDetailedDiagnostics { get; set; }
 }

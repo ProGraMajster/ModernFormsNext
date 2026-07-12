@@ -79,7 +79,7 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             }
 
             ApplicationContext = new AndroidApplicationContext(options.ApplicationContext);
-            ActivityTracker = new AndroidActivityTracker(options.ActivityProvider);
+            ActivityTracker = new AndroidActivityTracker(options.ActivityProvider, options.DiagnosticSink);
             Dispatcher = new AndroidMainThreadDispatcher();
             Permissions = new AndroidPermissionService(
                 ApplicationContext.Context,
@@ -97,8 +97,9 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             PlatformServiceRegistry.Register<IPermissionService>(Permissions);
 
             IsInitialized = true;
-            options.DiagnosticSink?.Invoke(
-                $"ModernFormsNext Android backend initialized on API {PlatformInfo.SdkVersion}.");
+            AndroidLogger.Write(
+                $"Android backend initialized on API {PlatformInfo.SdkVersion}.",
+                options.DiagnosticSink);
         }
     }
 }

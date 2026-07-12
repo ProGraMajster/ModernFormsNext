@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using SkiaSharp;
 using Topten.RichTextKit;
@@ -81,14 +82,20 @@ namespace ModernFormsNext
                 return true;
 
             if (forward && !AtEnd) {
-                RemoveText (cursor_index, 1);
+                // Delete one Unicode text element rather than one UTF-16 code unit. Android IMEs
+                // commonly commit surrogate pairs, combining marks, and emoji modifier sequences;
+                // splitting those values would leave invalid or visibly corrupted text behind.
+                var length = StringInfo.GetNextTextElement (text, cursor_index).Length;
+                RemoveText (cursor_index, length);
                 return true;
             }
 
             if (!forward && !AtBeginning) {
-                SetCursorToCharIndex (cursor_index - 1);
-
-                RemoveText (cursor_index, 1);
+                var previous = StringInfo.ParseCombiningCharacters (text)
+                    .Last (index => index < cursor_index);
+                var length = cursor_index - previous;
+                SetCursorToCharIndex (previous);
+                RemoveText (previous, length);
 
                 return true;
             }
@@ -174,7 +181,8 @@ namespace ModernFormsNext
             text = text.Insert (cursor_index, str);
             cached_text_block = null;
 
-            // TODO: Need to properly handle code points
+            // Inserted text is kept intact so the cursor remains on the boundary after the
+            // complete IME commit, including surrogate pairs and composed text.
             SetCursorToCharIndex (cursor_index + str.Length);
 
             return true;

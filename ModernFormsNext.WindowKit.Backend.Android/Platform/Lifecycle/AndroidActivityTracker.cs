@@ -15,12 +15,14 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
 {
     private readonly object sync = new();
     private readonly Func<Activity?>? activityProvider;
+    private readonly Action<string>? diagnosticSink;
     private WeakReference<Activity>? currentActivity;
     private AndroidApplicationLifecycleState state = AndroidApplicationLifecycleState.Unknown;
 
-    internal AndroidActivityTracker(Func<Activity?>? activityProvider)
+    internal AndroidActivityTracker(Func<Activity?>? activityProvider, Action<string>? diagnosticSink)
     {
         this.activityProvider = activityProvider;
+        this.diagnosticSink = diagnosticSink;
     }
 
     /// <summary>
@@ -72,7 +74,10 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
 
     /// <inheritdoc/>
     public void OnActivityCreated(Activity activity, Bundle? savedInstanceState)
-        => SetActivity(activity, AndroidApplicationLifecycleState.Created);
+    {
+        SetActivity(activity, AndroidApplicationLifecycleState.Created);
+        AndroidLogger.Write($"Activity created: {activity.GetType().FullName}.", diagnosticSink);
+    }
 
     /// <inheritdoc/>
     public void OnActivityStarted(Activity activity)
@@ -80,11 +85,17 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
 
     /// <inheritdoc/>
     public void OnActivityResumed(Activity activity)
-        => SetActivity(activity, AndroidApplicationLifecycleState.Foreground);
+    {
+        SetActivity(activity, AndroidApplicationLifecycleState.Foreground);
+        AndroidLogger.Write($"Activity resumed: {activity.GetType().FullName}.", diagnosticSink);
+    }
 
     /// <inheritdoc/>
     public void OnActivityPaused(Activity activity)
-        => SetStateIfCurrent(activity, AndroidApplicationLifecycleState.Background);
+    {
+        SetStateIfCurrent(activity, AndroidApplicationLifecycleState.Background);
+        AndroidLogger.Write($"Activity paused: {activity.GetType().FullName}.", diagnosticSink);
+    }
 
     /// <inheritdoc/>
     public void OnActivityStopped(Activity activity)
@@ -110,6 +121,7 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
         }
 
         ActivityDestroyed?.Invoke(activity);
+        AndroidLogger.Write($"Activity destroyed: {activity.GetType().FullName}.", diagnosticSink);
     }
 
     private void SetActivity(Activity activity, AndroidApplicationLifecycleState newState)

@@ -214,10 +214,23 @@ namespace ModernFormsNext.WindowKit.Input
 
             if (platform == null)
             {
-                throw new Exception("Could not create Cursor: IStandardCursorFactory not registered.");
+                // Touch-only backends can host the framework before they implement pointer cursor
+                // artwork. Controls still need to construct successfully; assigning this cursor is
+                // intentionally a no-op until the backend registers ICursorFactory.
+                return CursorlessPlatformCursor.Instance;
             }
 
             return platform.GetCursor(type);
+        }
+
+        private sealed class CursorlessPlatformCursor : ICursorImpl
+        {
+            internal static CursorlessPlatformCursor Instance { get; } = new CursorlessPlatformCursor();
+
+            public void Dispose()
+            {
+                // Process-wide sentinel with no native resource ownership.
+            }
         }
     }
 }
