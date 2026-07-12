@@ -163,6 +163,54 @@ namespace ModernFormsNext
             set => SetBounds (value.Left, value.Top, value.Width, value.Height);
         }
 
+        /// <summary>
+        /// Gets or sets the normal background color of the control.
+        /// </summary>
+        /// <value>
+        /// The effective background color resolved from <see cref="Style"/> and its parent
+        /// styles.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// <see cref="BackColor"/> is provided as a compatibility-oriented facade over
+        /// <see cref="ControlStyle.BackgroundColor"/>. It is supported and can be used normally,
+        /// especially when migrating code from classic desktop frameworks such as Windows Forms.
+        /// </para>
+        /// <para>
+        /// For new ModernFormsNext code, direct use of the <see cref="ControlStyle"/> system is
+        /// recommended because <see cref="Style"/> exposes the framework's styling model more
+        /// naturally. Assigning this property updates <see cref="Style"/> only; it does not create
+        /// a separate color store and it does not modify <see cref="StyleHover"/>.
+        /// </para>
+        /// <para>
+        /// Changing this property invalidates rendering and does not affect layout.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var label = new Label
+        /// {
+        ///     ForeColor = SKColors.White,
+        ///     BackColor = SKColors.Black
+        /// };
+        ///
+        /// // Recommended ModernFormsNext style-system equivalent:
+        /// var styledLabel = new Label();
+        /// styledLabel.Style.ForegroundColor = SKColors.White;
+        /// styledLabel.Style.BackgroundColor = SKColors.Black;
+        /// </code>
+        /// </example>
+        public virtual SKColor BackColor {
+            get => Style.GetBackgroundColor ();
+            set {
+                if (Style.BackgroundColor == value)
+                    return;
+
+                Style.BackgroundColor = value;
+                Invalidate ();
+            }
+        }
+
         private ModernFormsNext.Drawing.Brush? backgroundBrush;
 
         /// <summary>
@@ -197,6 +245,54 @@ namespace ModernFormsNext
                     return;
 
                 backgroundBrush = value;
+                Invalidate ();
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the normal foreground color of the control.
+        /// </summary>
+        /// <value>
+        /// The effective foreground color resolved from <see cref="Style"/> and its parent
+        /// styles.
+        /// </value>
+        /// <remarks>
+        /// <para>
+        /// <see cref="ForeColor"/> is provided as a compatibility-oriented facade over
+        /// <see cref="ControlStyle.ForegroundColor"/>. It is supported and can be used normally,
+        /// especially when migrating code from classic desktop frameworks such as Windows Forms.
+        /// </para>
+        /// <para>
+        /// For new ModernFormsNext code, direct use of the <see cref="ControlStyle"/> system is
+        /// recommended because <see cref="Style"/> exposes the framework's styling model more
+        /// naturally. Assigning this property updates <see cref="Style"/> only; it does not create
+        /// a separate color store and it does not modify <see cref="StyleHover"/>.
+        /// </para>
+        /// <para>
+        /// Changing this property invalidates rendering and does not affect layout.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var label = new Label
+        /// {
+        ///     ForeColor = SKColors.White,
+        ///     BackColor = SKColors.Black
+        /// };
+        ///
+        /// // Recommended ModernFormsNext style-system equivalent:
+        /// var styledLabel = new Label();
+        /// styledLabel.Style.ForegroundColor = SKColors.White;
+        /// styledLabel.Style.BackgroundColor = SKColors.Black;
+        /// </code>
+        /// </example>
+        public virtual SKColor ForeColor {
+            get => Style.GetForegroundColor ();
+            set {
+                if (Style.ForegroundColor == value)
+                    return;
+
+                Style.ForegroundColor = value;
                 Invalidate ();
             }
         }
@@ -1274,6 +1370,10 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnKeyPress (KeyPressEventArgs e) => (Events[s_keyPressEvent] as EventHandler<KeyPressEventArgs>)?.Invoke (this, e);
 
+        // Controls that edit text can opt into receiving Tab as input. The root adapter
+        // otherwise treats Tab as focus navigation before the selected control sees it.
+        internal virtual bool WantsTabKey => false;
+
         /// <summary>
         /// Raises the KeyUp event.
         /// </summary>
@@ -1688,7 +1788,7 @@ namespace ModernFormsNext
         {
             if (this is ControlAdapter adapter) {
                 // Tab
-                if (e.KeyChar == 9) {
+                if (e.KeyChar == 9 && adapter.SelectedControl?.WantsTabKey != true) {
                     if (adapter.FindForm () is Form f)
                         f.ShowFocusCues = true;
 

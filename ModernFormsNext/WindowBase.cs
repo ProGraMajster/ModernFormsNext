@@ -95,9 +95,13 @@ namespace ModernFormsNext
         public event EventHandler? Closed;
 
         /// <summary>
-        /// Gets the collection of controls contained by the window.
+        /// Gets the collection of user controls contained by the window.
         /// </summary>
-        public Control.ControlCollection Controls => adapter.Controls;
+        /// <remarks>
+        /// Derived window types can expose a logical client-area collection while keeping
+        /// framework-owned chrome controls in the internal root adapter.
+        /// </remarks>
+        public virtual Control.ControlCollection Controls => adapter.Controls;
 
         /// <summary>
         /// Gets the current style of this window instance.

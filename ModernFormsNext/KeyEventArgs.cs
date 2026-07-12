@@ -28,6 +28,16 @@ namespace ModernFormsNext
         public virtual bool Alt => (KeyData & Keys.Alt) == Keys.Alt;
 
         /// <summary>
+        /// Gets a value indicating whether the AltGraph modifier was active.
+        /// </summary>
+        /// <remarks>
+        /// AltGraph may be accompanied by Control and Alt flags on platforms such as Windows.
+        /// Text input controls use this property to avoid treating that synthetic Control state
+        /// as an editing shortcut.
+        /// </remarks>
+        public bool AltGraph => (KeyData & Keys.AltGraph) == Keys.AltGraph;
+
+        /// <summary>
         ///  Gets a value indicating whether the CTRL key was pressed.
         /// </summary>
         public bool Control => (KeyData & Keys.Control) == Keys.Control;
@@ -77,6 +87,11 @@ namespace ModernFormsNext
         public virtual bool Shift => (KeyData & Keys.Shift) == Keys.Shift;
 
         /// <summary>
+        /// Gets whether Control represents an editing shortcut rather than an AltGraph sequence.
+        /// </summary>
+        internal bool IsShortcutControlPressed => Control && !AltGraph;
+
+        /// <summary>
         /// Gets or sets a value indicating the key press should be suppressed.
         /// </summary>
         public bool SuppressKeyPress {
@@ -97,6 +112,8 @@ namespace ModernFormsNext
                 keys |= Keys.Control;
             if (modifiers.HasFlag (RawInputModifiers.Shift))
                 keys |= Keys.Shift;
+            if (modifiers.HasFlag (RawInputModifiers.AltGraph))
+                keys |= Keys.AltGraph;
 
             return keys;
         }

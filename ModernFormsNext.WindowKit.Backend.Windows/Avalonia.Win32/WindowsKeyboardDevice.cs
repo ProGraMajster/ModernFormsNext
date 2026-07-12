@@ -22,6 +22,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Input
                     result |= RawInputModifiers.Alt;
                 }
 
+                // Windows reports AltGr as RightAlt together with a synthetic LeftCtrl.
+                // Preserve the physical RightAlt state so controls do not mistake that
+                // synthetic Control flag for an editing shortcut.
+                if (IsDown(Key.RightAlt))
+                {
+                    result |= RawInputModifiers.AltGraph;
+                }
+
                 if (IsDown(Key.LeftCtrl) || IsDown(Key.RightCtrl))
                 {
                     result |= RawInputModifiers.Control;

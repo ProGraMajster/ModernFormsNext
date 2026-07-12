@@ -84,7 +84,16 @@ namespace ModernFormsNext
         }
 
         // Gets the index of the character at the specified location.
-        private int GetCharIndexFromPosition (Point location)
+        /// <summary>
+        /// Gets the UTF-16 text index nearest to a client-coordinate location.
+        /// </summary>
+        /// <param name="location">The location in control client coordinates.</param>
+        /// <returns>The nearest UTF-16 index in <see cref="Text"/>.</returns>
+        /// <remarks>
+        /// Derived source editors use this hook for gestures such as word selection while the
+        /// shared text document remains responsible for hit testing and DPI-aware text layout.
+        /// </remarks>
+        protected int GetTextIndexFromPosition (Point location)
         {
             if (!document.Text.HasValue ())
                 return 0;
@@ -122,53 +131,54 @@ namespace ModernFormsNext
         private bool HandleKeyDown (KeyEventArgs e)
         {
             var need_refresh = false;
+            var shortcut_control = e.IsShortcutControlPressed;
 
             try {
                 switch (e.KeyData & Keys.KeyCode) {
                     case Keys.Left:
-                        need_refresh = document.MoveCursor (ArrowDirection.Left, e.Shift, e.Control, false);
+                        need_refresh = document.MoveCursor (ArrowDirection.Left, e.Shift, shortcut_control, false);
                         return true;
                     case Keys.Right:
-                        need_refresh = document.MoveCursor (ArrowDirection.Right, e.Shift, e.Control, false);
+                        need_refresh = document.MoveCursor (ArrowDirection.Right, e.Shift, shortcut_control, false);
                         return true;
                     case Keys.Home:
-                        need_refresh = document.MoveCursor (ArrowDirection.Left, e.Shift, e.Control, true);
+                        need_refresh = document.MoveCursor (ArrowDirection.Left, e.Shift, shortcut_control, true);
                         return true;
                     case Keys.End:
-                        need_refresh = document.MoveCursor (ArrowDirection.Right, e.Shift, e.Control, true);
+                        need_refresh = document.MoveCursor (ArrowDirection.Right, e.Shift, shortcut_control, true);
                         return true;
                     case Keys.Up:
-                        need_refresh = document.MoveCursor (ArrowDirection.Up, e.Shift, e.Control, false);
+                        need_refresh = document.MoveCursor (ArrowDirection.Up, e.Shift, shortcut_control, false);
                         return true;
                     case Keys.Down:
-                        need_refresh = document.MoveCursor (ArrowDirection.Down, e.Shift, e.Control, false);
+                        need_refresh = document.MoveCursor (ArrowDirection.Down, e.Shift, shortcut_control, false);
                         return true;
                     case Keys.Delete:
-                        need_refresh = DeleteText (true, e.Control);
+                        need_refresh = DeleteText (true, shortcut_control);
                         return true;
                     case Keys.Back:
-                        need_refresh = DeleteText (false, e.Control);
+                        need_refresh = DeleteText (false, shortcut_control);
                         return true;
                     case Keys.C:
-                        if (e.Control)
+                        if (shortcut_control)
                             Copy ();
 
-                        return e.Control;
+                        return shortcut_control;
                     case Keys.X:
-                        if (e.Control)
+                        if (shortcut_control)
                             Cut ();
 
-                        return e.Control;
+                        return shortcut_control;
                     case Keys.V:
-                        if (e.Control)
+                        if (shortcut_control)
                             Paste ();
 
-                        return e.Control;
+                        return shortcut_control;
                     case Keys.A:
-                        if (e.Control)
+                        if (shortcut_control)
                             document.SelectAll ();
 
-                        return e.Control;
+                        return shortcut_control;
 
                 }
             } finally {
@@ -331,7 +341,7 @@ namespace ModernFormsNext
             if (e.Button != MouseButtons.Left)
                 return;
 
-            SetCursorToCharIndex (GetCharIndexFromPosition (e.Location));
+            SetCursorToCharIndex (GetTextIndexFromPosition (e.Location));
 
             is_highlighting = true;
             selection_anchor = document.CursorIndex;
@@ -345,7 +355,7 @@ namespace ModernFormsNext
             base.OnMouseMove (e);
 
             if (is_highlighting) {
-                SetCursorToCharIndex (GetCharIndexFromPosition (e.Location));
+                SetCursorToCharIndex (GetTextIndexFromPosition (e.Location));
 
                 if (document.CursorIndex == selection_anchor) {
                     document.SelectionStart = -1;
@@ -367,7 +377,7 @@ namespace ModernFormsNext
             if (e.Button != MouseButtons.Left)
                 return;
 
-            SetCursorToCharIndex (GetCharIndexFromPosition (e.Location));
+            SetCursorToCharIndex (GetTextIndexFromPosition (e.Location));
 
             is_highlighting = false;
 

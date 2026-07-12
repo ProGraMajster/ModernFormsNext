@@ -65,14 +65,27 @@ namespace ModernFormsNext
         public Point ScreenLocation { get; }
 
         /// <summary>
-        /// Gets whether the Control modifier key was also pressed.
+        /// Gets whether the Alt modifier key was also pressed.
         /// </summary>
         public bool Alt => key_data.HasFlag (Keys.Alt);
 
         /// <summary>
-        /// Gets whether the Alt modifier key was also pressed.
+        /// Gets whether the AltGraph modifier key was also pressed.
+        /// </summary>
+        /// <remarks>
+        /// AltGraph can be accompanied by synthetic Control and Alt flags on Windows.
+        /// </remarks>
+        public bool AltGraph => key_data.HasFlag (Keys.AltGraph);
+
+        /// <summary>
+        /// Gets whether the Control modifier key was also pressed.
         /// </summary>
         public bool Control => key_data.HasFlag (Keys.Control);
+
+        /// <summary>
+        /// Gets whether Control represents a mouse shortcut rather than an AltGraph sequence.
+        /// </summary>
+        internal bool IsShortcutControlPressed => Control && !AltGraph;
 
         /// <summary>
         /// Gets the modifier keys that were also pressed.

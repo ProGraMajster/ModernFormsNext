@@ -38,6 +38,15 @@ namespace ModernFormsNext.WindowKit.Input
         /// their native command or meta key.
         /// </remarks>
         Meta = 8,
+
+        /// <summary>
+        /// The AltGraph modifier used by international keyboard layouts is active.
+        /// </summary>
+        /// <remarks>
+        /// Platforms that represent AltGraph as a synthetic Control+Alt sequence should set
+        /// this flag in addition to the physical modifier flags.
+        /// </remarks>
+        AltGraph = 16,
     }
 
     /// <summary>
@@ -119,9 +128,18 @@ namespace ModernFormsNext.WindowKit.Input
         XButton2MouseButton = 256,
 
         /// <summary>
+        /// The AltGraph modifier used by international keyboard layouts is active.
+        /// </summary>
+        /// <remarks>
+        /// This flag preserves AltGraph semantics when a platform also reports synthetic
+        /// Control and Alt modifiers for the same physical key sequence.
+        /// </remarks>
+        AltGraph = 4096,
+
+        /// <summary>
         /// Mask containing all keyboard modifier flags.
         /// </summary>
-        KeyboardMask = Alt | Control | Shift | Meta,
+        KeyboardMask = Alt | Control | Shift | Meta | AltGraph,
 
         /// <summary>
         /// The pen is inverted.

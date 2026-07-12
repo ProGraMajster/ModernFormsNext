@@ -13,16 +13,7 @@ namespace ModernFormsNext
     internal static class WindowKitExtensions
     {
         public static Keys AddModifiers (Keys keys, RawInputModifiers modifiers)
-        {
-            if (modifiers.HasFlag (RawInputModifiers.Alt))
-                keys |= ModernFormsNext.Keys.Alt;
-            if (modifiers.HasFlag (RawInputModifiers.Control))
-                keys |= ModernFormsNext.Keys.Control;
-            if (modifiers.HasFlag (RawInputModifiers.Shift))
-                keys |= ModernFormsNext.Keys.Shift;
-
-            return keys;
-        }
+            => keys | KeyEventArgs.FromInputModifiers (modifiers);
 
         public static string? GetFullPath (this IStorageFile file)
         {

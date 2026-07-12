@@ -40,12 +40,21 @@ namespace ModernFormsNext
         public string Text { get; set; }
 
         /// <summary>
-        /// Gets whether the Control modifier key was also pressed.
+        /// Gets whether the Alt modifier key was also pressed.
         /// </summary>
         public bool Alt => key_data.HasFlag (Keys.Alt);
 
         /// <summary>
-        /// Gets whether the Alt modifier key was also pressed.
+        /// Gets whether the AltGraph modifier key was also pressed.
+        /// </summary>
+        /// <remarks>
+        /// The platform-provided <see cref="Text"/> remains the source of the resulting text;
+        /// this property only describes the modifier state that accompanied it.
+        /// </remarks>
+        public bool AltGraph => key_data.HasFlag (Keys.AltGraph);
+
+        /// <summary>
+        /// Gets whether the Control modifier key was also pressed.
         /// </summary>
         public bool Control => key_data.HasFlag (Keys.Control);
 

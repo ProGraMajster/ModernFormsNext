@@ -49,6 +49,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                             case WindowActivate.WA_INACTIVE:
                                 {
+                                    _ignoreWmChar = false;
                                     Deactivated?.Invoke();
                                     break;
                                 }
@@ -703,6 +704,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     }
 
                 case WindowsMessage.WM_KILLFOCUS:
+                    _ignoreWmChar = false;
                     LostFocus?.Invoke();
                     break;
 

@@ -88,6 +88,8 @@ namespace ModernFormsNext
             Key.F11 => Keys.F11,
             Key.F12 => Keys.F12,
 
+            Key.Oem3 => Keys.Oemtilde,
+
             Key.LeftCtrl => Keys.ControlKey,
             Key.RightCtrl => Keys.ControlKey,
             Key.LeftShift => Keys.ShiftKey,

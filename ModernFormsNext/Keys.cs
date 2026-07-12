@@ -981,5 +981,14 @@ namespace ModernFormsNext
         ///  The ALT modifier key.
         /// </summary>
         Alt = 0x00040000,
+
+        /// <summary>
+        /// The AltGraph modifier key used by international keyboard layouts.
+        /// </summary>
+        /// <remarks>
+        /// On Windows, AltGraph is commonly reported as Right Alt together with a synthetic
+        /// Control modifier. This flag distinguishes that sequence from a Control shortcut.
+        /// </remarks>
+        AltGraph = 0x00080000,
     }
 }
