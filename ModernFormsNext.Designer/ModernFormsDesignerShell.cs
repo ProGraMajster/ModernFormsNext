@@ -63,15 +63,15 @@ public sealed class ModernFormsDesignerShell : Panel
         Style.BackgroundColor = DesignerColors.AppBackground;
 
         toolbar = Controls.Add(new DesignerToolbar(commands, this.options));
-        toolbox = Controls.Add(new ToolboxPanel(commands, T("Toolbox"), T("SearchToolbox")));
-        outline = Controls.Add(new DocumentOutlinePanel(Session, T("DocumentOutline"), T("Delete")));
+        toolbox = Controls.Add(new ToolboxPanel(commands, this.options, T("Toolbox"), T("SearchToolbox")));
+        outline = Controls.Add(new DocumentOutlinePanel(Session, this.options, T("DocumentOutline"), T("Delete"), T("SearchDocumentOutline")));
         documentTab = Controls.Add(new DesignerDocumentTab(Session));
         surface = Controls.Add(new DesignerSurface(Session));
         solutionExplorer = Controls.Add(new SolutionExplorerPanel(Session, T("SolutionExplorer"), T("NoProjectPath")));
         properties = Controls.Add(new DesignerPropertyGrid(Session, files, T("Properties")));
         output = Controls.Add(new OutputPanel(Session, T("Output")));
         statusBar = Controls.Add(new DesignerStatusBar(Session, this.options));
-        dockManager = new DesignerDockManager(this, this.options, LayoutChildren);
+        dockManager = new DesignerDockManager(this, this.options, LayoutChildren, Session.Log);
         dockManager.AddWindow(DesignerToolWindowId.Toolbox, T("Toolbox"), toolbox);
         dockManager.AddWindow(DesignerToolWindowId.DocumentOutline, T("DocumentOutline"), outline);
         dockManager.AddWindow(DesignerToolWindowId.SolutionExplorer, T("SolutionExplorer"), solutionExplorer);

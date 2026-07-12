@@ -150,6 +150,7 @@ internal sealed class DesignerSurfaceRenderer
                 DrawLabel(e, node, bounds);
                 break;
             case "TextBox":
+            case "RichTextBox":
                 DrawTextBox(e, node, bounds);
                 break;
             case "Button":

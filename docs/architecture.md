@@ -107,6 +107,12 @@ Typical event flow:
 5. The UI updates state.
 6. The renderer redraws affected areas.
 
+Keyboard input keeps physical key events separate from resulting text. Controls use `KeyDown` and
+`KeyUp` for navigation, special keys, and shortcuts, while printable and composed text is delivered
+through the platform `TextInput`/IME path. Backends preserve `AltGraph` explicitly when a platform
+also reports synthetic Control and Alt flags, so shared controls can distinguish international text
+entry from Ctrl shortcuts without platform-specific checks.
+
 ---
 
 ## Extensibility

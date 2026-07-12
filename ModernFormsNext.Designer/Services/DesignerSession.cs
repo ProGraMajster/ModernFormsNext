@@ -450,6 +450,135 @@ public sealed class DesignerSession
     }
 
     /// <summary>
+    /// Moves the selected control one position earlier inside its current parent collection.
+    /// </summary>
+    /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
+    public bool MoveSelectedNodeUp()
+        => MoveSelectedNodeWithinCurrentContainer(delta: -1);
+
+    /// <summary>
+    /// Moves the selected control one position later inside its current parent collection.
+    /// </summary>
+    /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
+    public bool MoveSelectedNodeDown()
+        => MoveSelectedNodeWithinCurrentContainer(delta: 1);
+
+    /// <summary>
+    /// Moves the selected control out of its current container while preserving its visual position.
+    /// </summary>
+    /// <returns><see langword="true"/> when the selected control was reparented; otherwise, <see langword="false"/>.</returns>
+    public bool MoveSelectedNodeOutOfContainer()
+    {
+        if (SelectedNode is null)
+        {
+            Log("No control is selected to move.");
+            return false;
+        }
+
+        var node = SelectedNode;
+
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+        {
+            Log($"{DesignerSpecialContainers.GetOutlineName(node)} is a structural designer node and cannot be moved.");
+            return false;
+        }
+
+        if (!TryFindNodeWithParent(node, Document.Controls, parent: null, out var parentNode, out var sourceCollection, out var sourceIndex)
+            || parentNode is null)
+        {
+            Log($"{node.Name} is already at the form level.");
+            return false;
+        }
+
+        var exitNode = parentNode;
+        var destinationParent = FindParent(exitNode);
+
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(exitNode)
+            && destinationParent is not null)
+        {
+            exitNode = destinationParent;
+            destinationParent = FindParent(exitNode);
+        }
+
+        var layout = new DesignerLayoutEngine().Layout(Document);
+        var absoluteBounds = layout.GetEffectiveBounds(node);
+        var destinationParentBounds = destinationParent is null
+            ? new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height)
+            : layout.GetEffectiveBounds(destinationParent);
+        var destinationCollection = destinationParent is null ? Document.Controls : destinationParent.Children;
+
+        if (!TryFindNode(exitNode, out var exitCollection, out var exitIndex))
+            exitIndex = destinationCollection.Count - 1;
+
+        sourceCollection.RemoveAt(sourceIndex);
+        node.Bounds = new DesignBounds(
+            absoluteBounds.X - destinationParentBounds.X,
+            absoluteBounds.Y - destinationParentBounds.Y,
+            absoluteBounds.Width,
+            absoluteBounds.Height);
+
+        var destinationIndex = ReferenceEquals(destinationCollection, exitCollection)
+            ? Math.Clamp(exitIndex + 1, 0, destinationCollection.Count)
+            : destinationCollection.Count;
+        destinationCollection.Insert(destinationIndex, node);
+        Host.Selection.Select(node);
+        NotifyDocumentChanged();
+        Log($"Moved {node.Name} out of {DesignerSpecialContainers.GetOutlineName(parentNode)}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Moves the selected control into the next container in document-outline order.
+    /// </summary>
+    /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
+    public bool MoveSelectedNodeToNextContainer()
+    {
+        if (SelectedNode is null)
+        {
+            Log("No control is selected to move.");
+            return false;
+        }
+
+        var node = SelectedNode;
+
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+        {
+            Log($"{DesignerSpecialContainers.GetOutlineName(node)} is a structural designer node and cannot be moved.");
+            return false;
+        }
+
+        var containers = EnumerateNodes()
+            .Select(item => item.Node)
+            .Where(candidate => !ReferenceEquals(candidate, node))
+            .Where(candidate => !ContainsDescendant(node, candidate))
+            .Where(IsContainerNode)
+            .ToArray();
+
+        if (containers.Length == 0)
+        {
+            Log("No destination container is available.");
+            return false;
+        }
+
+        var parent = FindParent(node);
+        var currentContainerIndex = parent is null
+            ? -1
+            : Array.FindIndex(containers, candidate => ReferenceEquals(candidate, parent));
+        var startIndex = Math.Max(currentContainerIndex + 1, 0);
+
+        for (var offset = 0; offset < containers.Length; offset++)
+        {
+            var target = containers[(startIndex + offset) % containers.Length];
+
+            if (!ReferenceEquals(target, parent))
+                return MoveNodeToOutlineTarget(node, target);
+        }
+
+        Log("No different destination container is available.");
+        return false;
+    }
+
+    /// <summary>
     /// Reparents a node after an interactive surface drag while preserving its visual bounds.
     /// </summary>
     /// <param name="node">The node that was dragged.</param>
@@ -595,6 +724,48 @@ public sealed class DesignerSession
         Host.Selection.Select(clone);
         NotifyDocumentChanged();
         Log($"Pasted {clone.Name} into {targetName}.");
+        return true;
+    }
+
+    private bool MoveSelectedNodeWithinCurrentContainer(int delta)
+    {
+        if (SelectedNode is null)
+        {
+            Log("No control is selected to move.");
+            return false;
+        }
+
+        var node = SelectedNode;
+
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+        {
+            Log($"{DesignerSpecialContainers.GetOutlineName(node)} is a structural designer node and cannot be moved.");
+            return false;
+        }
+
+        if (!TryFindNode(node, out var collection, out var index))
+        {
+            Log($"Cannot move {node.Name}: the node is not in the active document.");
+            return false;
+        }
+
+        var newIndex = index + delta;
+
+        if (newIndex < 0 || newIndex >= collection.Count)
+        {
+            Log(delta < 0
+                ? $"{node.Name} is already first in its container."
+                : $"{node.Name} is already last in its container.");
+            return false;
+        }
+
+        collection.RemoveAt(index);
+        collection.Insert(newIndex, node);
+        Host.Selection.Select(node);
+        NotifyDocumentChanged();
+        Log(delta < 0
+            ? $"Moved {node.Name} up in its container."
+            : $"Moved {node.Name} down in its container.");
         return true;
     }
 
@@ -1176,6 +1347,7 @@ public sealed class DesignerSession
             "TabControl" => new DesignBounds(120 + offset, 95 + offset, 320, 180),
             "Label" => new DesignBounds(originX + offset, originY + offset, 100, 24),
             "TextBox" => new DesignBounds(originX + offset, originY + offset, 150, 25),
+            "RichTextBox" => new DesignBounds(originX + offset, originY + offset, 220, 96),
             _ => new DesignBounds(originX + offset, originY + offset, 90, 28)
         };
     }
@@ -1186,6 +1358,7 @@ public sealed class DesignerSession
             "Button" => $"button{index}",
             "Label" => $"label{index}",
             "TextBox" => $"textBox{index}",
+            "RichTextBox" => $"richTextBox{index}",
             "TabPage" => $"tabPage{index}",
             _ => string.Empty
         };

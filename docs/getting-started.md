@@ -163,3 +163,13 @@ For Windows-only and backend-provided APIs, see [Platform-Specific Features](pla
 
 For WinForms-like property binding, `BindingSource`, and binding conversion behavior, see
 [Data Binding](data-binding.md).
+
+For `ControlStyle`, `BackColor`, `ForeColor`, and normal/hover color behavior, see
+[Styling](styling.md).
+
+For tooltip text, manual display, and SkiaSharp owner-drawn tooltip rendering, see
+[ToolTips](tooltips.md).
+
+For native Markdown source editing, formatting commands, undo/redo, and optional preview, see
+[MarkdownEditor](markdown-editor.md). For read-only rendering and the shared document model, see
+[Markdown and Documents](markdown.md).

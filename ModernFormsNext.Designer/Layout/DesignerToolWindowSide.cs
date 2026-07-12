@@ -6,6 +6,11 @@ namespace ModernFormsNext.Designer.Layout;
 public enum DesignerToolWindowSide
 {
     /// <summary>
+    /// The tool window is docked along the top side of the designer workspace.
+    /// </summary>
+    Top,
+
+    /// <summary>
     /// The tool window is docked along the left side of the designer workspace.
     /// </summary>
     Left,

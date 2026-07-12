@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AnalysisLevel>latest</AnalysisLevel>
-    <ModernFormsNextVisualStudioExtensionVersion>1.7.4</ModernFormsNextVisualStudioExtensionVersion>
+    <ModernFormsNextVisualStudioExtensionVersion>1.7.5</ModernFormsNextVisualStudioExtensionVersion>
     <Version>$(ModernFormsNextVisualStudioExtensionVersion)</Version>
     <AssemblyVersion>$(ModernFormsNextVisualStudioExtensionVersion).0</AssemblyVersion>
     <FileVersion>$(ModernFormsNextVisualStudioExtensionVersion).0</FileVersion>

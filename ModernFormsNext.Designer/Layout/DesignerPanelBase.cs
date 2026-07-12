@@ -3,7 +3,7 @@ using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Layout;
 
-internal abstract class DesignerPanelBase : Panel
+internal abstract class DesignerPanelBase : Control
 {
     protected const int HeaderHeight = 28;
 
@@ -18,6 +18,14 @@ internal abstract class DesignerPanelBase : Panel
 
     protected string Title { get; private set; }
 
+    protected static void ApplyPanelInputStyle(Control control)
+    {
+        control.Style.BackgroundColor = DesignerColors.PanelHeader;
+        control.Style.ForegroundColor = DesignerColors.Text;
+        control.Style.Border.Width = 1;
+        control.Style.Border.Color = DesignerColors.PanelBorder;
+    }
+
     public void SetTitle(string title)
     {
         Title = title;
@@ -26,11 +34,8 @@ internal abstract class DesignerPanelBase : Panel
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);
-
         e.Canvas.FillRectangle(ClientRectangle, DesignerColors.PanelBackground);
         e.Canvas.FillRectangle(0, 0, Width, HeaderHeight, DesignerColors.PanelHeader);
-        e.Canvas.DrawRectangle(0, 0, Width, Height, DesignerColors.PanelBorder);
         e.Canvas.DrawText(
             Title,
             Theme.UIFont,
@@ -40,5 +45,11 @@ internal abstract class DesignerPanelBase : Panel
             ContentAlignment.MiddleLeft,
             maxLines: 1,
             ellipsis: true);
+
+        // Child controls such as search boxes and toolbar buttons must be painted after the
+        // panel chrome. Otherwise the background fill hides them completely.
+        base.OnPaint(e);
+
+        e.Canvas.DrawRectangle(0, 0, Width, Height, DesignerColors.PanelBorder);
     }
 }

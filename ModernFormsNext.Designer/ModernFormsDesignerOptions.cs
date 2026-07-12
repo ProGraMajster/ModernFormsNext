@@ -20,6 +20,33 @@ public sealed class ModernFormsDesignerOptions
     public bool ShowToolbar { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the toolbox search box is visible.
+    /// </summary>
+    /// <remarks>
+    /// Hiding the search box gives more vertical space to the toolbox list while keeping the
+    /// same toolbox item model and filtering behavior available for hosts that enable it.
+    /// </remarks>
+    public bool ShowToolboxSearch { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the document outline toolbar is visible.
+    /// </summary>
+    /// <remarks>
+    /// The toolbar contains tree display and ordering commands. Hosts can hide it for a more
+    /// compact outline while keeping selection and context-menu behavior available.
+    /// </remarks>
+    public bool ShowDocumentOutlineToolbar { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the document outline search box is visible.
+    /// </summary>
+    /// <remarks>
+    /// Hiding the search box disables outline filtering in the built-in panel and expands the
+    /// visible tree area.
+    /// </remarks>
+    public bool ShowDocumentOutlineSearch { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the output/log panel is visible.
     /// </summary>
     public bool ShowOutputPanel { get; set; } = true;

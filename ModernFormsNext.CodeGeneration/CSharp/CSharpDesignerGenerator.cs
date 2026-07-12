@@ -10,7 +10,7 @@ namespace ModernFormsNext.CodeGeneration.CSharp;
 /// <remarks>
 /// The generator emits WinForms-like initialization code while using the actual
 /// ModernFormsNext runtime API available today: <c>Bounds</c>, <c>Controls</c>,
-/// <c>Dock</c>, <c>Name</c>, <c>Text</c>, and <c>Size</c>. It emits an explicit
+/// <c>Dock</c>, <c>Name</c>, <c>Text</c>, and <c>ClientSize</c>. It emits an explicit
 /// <c>DockStyle.None</c> when the design document has no dock value so runtime
 /// constructor defaults on specialized controls do not change designer-authored
 /// layout. It does not depend on Visual Studio SDK services and is deterministic
@@ -41,6 +41,7 @@ public sealed class CSharpDesignerGenerator
     {
         "Name",
         "Text",
+        "ClientSize",
         "Size"
     };
 
@@ -144,7 +145,7 @@ public sealed class CSharpDesignerGenerator
         var formName = string.IsNullOrWhiteSpace(document.FormName) ? className : document.FormName;
         writer.WriteLine($"        this.Name = {CSharpLiteralWriter.WriteStringLiteral(formName)};");
         writer.WriteLine($"        this.Text = {CSharpLiteralWriter.WriteStringLiteral(formName)};");
-        writer.WriteLine($"        this.Size = new System.Drawing.Size({document.Size.Width}, {document.Size.Height});");
+        writer.WriteLine($"        this.ClientSize = new System.Drawing.Size({document.Size.Width}, {document.Size.Height});");
 
         foreach (var property in document.Properties)
         {

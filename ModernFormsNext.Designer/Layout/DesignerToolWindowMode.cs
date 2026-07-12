@@ -21,6 +21,11 @@ public enum DesignerToolWindowMode
     AutoHide,
 
     /// <summary>
+    /// The tool window is detached from the designer shell and shown in its own window.
+    /// </summary>
+    Floating,
+
+    /// <summary>
     /// The tool window is not visible.
     /// </summary>
     Hidden

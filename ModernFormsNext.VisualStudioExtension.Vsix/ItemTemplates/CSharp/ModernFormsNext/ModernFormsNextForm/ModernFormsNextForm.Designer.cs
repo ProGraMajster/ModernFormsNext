@@ -11,6 +11,6 @@ public sealed partial class $safeitemname$
     {
         this.Name = "$safeitemname$";
         this.Text = "$safeitemname$";
-        this.Size = new System.Drawing.Size(900, 600);
+        this.ClientSize = new System.Drawing.Size(900, 600);
     }
 }

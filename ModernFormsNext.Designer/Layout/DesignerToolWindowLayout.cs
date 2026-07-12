@@ -24,10 +24,20 @@ public sealed class DesignerToolWindowLayout
     /// Gets or sets the preferred size in logical pixels.
     /// </summary>
     /// <remarks>
-    /// For left and right dock sides this is interpreted as width. For bottom dock side this
-    /// is interpreted as height.
+    /// For left and right dock sides this is interpreted as width. For top and bottom dock
+    /// sides this is interpreted as height.
     /// </remarks>
     public int Size { get; set; }
+
+    /// <summary>
+    /// Gets or sets the preferred length of the tool-window segment along its dock side.
+    /// </summary>
+    /// <remarks>
+    /// For left and right dock sides this is interpreted as height. For top and bottom dock
+    /// sides this is interpreted as width. A value of <c>0</c> lets the dock manager distribute
+    /// the available space between visible tool windows.
+    /// </remarks>
+    public int Length { get; set; }
 
     /// <summary>
     /// Gets or sets the order of the tool window within its dock side.

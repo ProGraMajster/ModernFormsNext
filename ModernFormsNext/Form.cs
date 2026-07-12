@@ -23,6 +23,7 @@ namespace ModernFormsNext
         private TaskCompletionSource<DialogResult>? dialog_task;
         private System.Drawing.Size minimum_size;
         private System.Drawing.Size maximum_size;
+        private readonly FormClientArea client_area;
 
         private bool show_focus_cues;
         private string text = string.Empty;
@@ -33,7 +34,12 @@ namespace ModernFormsNext
         /// </summary>
         public Form () : base (CreateWindowImpl())
         {
-            TitleBar = Controls.AddImplicitControl (new FormTitleBar ());
+            // The client area must be an internal root child, not the public
+            // Controls collection. Dock layout processes children from the back,
+            // so the title bar is added after the fill host to reserve the top
+            // edge before the client host consumes the remaining area.
+            client_area = base.Controls.AddImplicitControl (new FormClientArea ());
+            TitleBar = base.Controls.AddImplicitControl (new FormTitleBar ());
 
             Resizeable = true;
             ApplySystemDecorations (use_system_decorations);
@@ -46,7 +52,7 @@ namespace ModernFormsNext
                 return args.Cancel;
             };
 
-            Window.Resize (new Size (DefaultSize.Width, DefaultSize.Height));
+            ClientSize = DefaultSize;
         }
 
         private static IWindowBaseImpl CreateWindowImpl()
@@ -128,6 +134,43 @@ namespace ModernFormsNext
              style.Border.Color = Theme.AccentColor2;
              style.Border.Width = 1;
          });
+
+        /// <summary>
+        /// Gets the collection of controls hosted in the form client area.
+        /// </summary>
+        /// <remarks>
+        /// Unlike the internal window root, this collection does not include managed
+        /// decoration controls such as <see cref="TitleBar"/>. Coordinates of controls
+        /// added here are relative to the client area below the managed title bar,
+        /// matching WinForms-style designer expectations.
+        /// </remarks>
+        public override Control.ControlCollection Controls => client_area.Controls;
+
+        /// <summary>
+        /// Gets or sets the usable client size of the form in logical pixels.
+        /// </summary>
+        /// <remarks>
+        /// When managed decorations are enabled, the client size excludes the custom
+        /// title bar and form border. Generated designer code should assign this
+        /// property when the design document stores the intended form surface size.
+        /// </remarks>
+        public System.Drawing.Size ClientSize {
+            get {
+                var displayRectangle = DisplayRectangle;
+                return new System.Drawing.Size (
+                    Math.Max (0, displayRectangle.Width),
+                    Math.Max (0, displayRectangle.Height - ManagedTitleBarHeight));
+            }
+            set {
+                var clientWidth = Math.Max (0, value.Width);
+                var clientHeight = Math.Max (0, value.Height);
+                var border = CurrentStyle.Border;
+
+                Window.Resize (new Size (
+                    clientWidth + border.Left.GetWidth () + border.Right.GetWidth (),
+                    clientHeight + ManagedTitleBarHeight + border.Top.GetWidth () + border.Bottom.GetWidth ()));
+            }
+        }
 
         /// <summary>
         ///  Gets or sets the dialog result for the form.
@@ -324,7 +367,7 @@ namespace ModernFormsNext
         /// </summary>
         protected internal virtual void OnThemeChanged (EventArgs e)
         {
-            foreach (var control in Controls.GetAllControls ())
+            foreach (var control in base.Controls.GetAllControls ())
                 control.OnThemeChanged (e);
         }
 
@@ -397,6 +440,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the unscaled size of the window.
         /// </summary>
+        /// <remarks>
+        /// This property represents the native drawable window size including
+        /// ModernFormsNext managed decorations. Use <see cref="ClientSize"/> when
+        /// setting the design surface size for user controls.
+        /// </remarks>
         public new System.Drawing.Size Size {
             get => new System.Drawing.Size ((int)window.ClientSize.Width, (int)window.ClientSize.Height);
             set => Window.Resize (new ModernFormsNext.WindowKit.Size (value.Width, value.Height));
@@ -467,6 +515,30 @@ namespace ModernFormsNext
             Window.SetExtendClientAreaChromeHints (value ? ExtendClientAreaChromeHints.Default : ExtendClientAreaChromeHints.NoChrome);
             Window.SetExtendClientAreaTitleBarHeightHint (value ? -1 : 0);
             Window.SetExtendClientAreaToDecorationsHint (!value);
+
+            adapter.PerformLayout ();
+
+            if (shown)
+                Invalidate ();
+        }
+
+        private int ManagedTitleBarHeight => TitleBar.Visible ? TitleBar.Height : 0;
+
+        private sealed class FormClientArea : Control
+        {
+            public FormClientArea ()
+            {
+                Dock = DockStyle.Fill;
+                SetControlBehavior (ControlBehaviors.Selectable, false);
+            }
+
+            protected override void OnPaintBackground (PaintEventArgs e)
+            {
+                // The form paints the visible background. Clear only the transparent
+                // offscreen buffer for the client host so stale child-control pixels
+                // cannot survive after move/remove operations.
+                e.Canvas.Clear (SKColors.Transparent);
+            }
         }
 
         private enum WindowElement

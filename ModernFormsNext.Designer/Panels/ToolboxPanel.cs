@@ -9,19 +9,26 @@ internal sealed class ToolboxPanel : DesignerPanelBase
 {
     private const int SearchTop = 36;
     private const int SearchHeight = 25;
-    private const int CategoryTop = 72;
     private const int RowHeight = 26;
 
     private readonly DesignerCommandService commands;
+    private readonly ModernFormsDesignerOptions options;
     private readonly IReadOnlyList<DesignerToolboxItem> items;
     private readonly List<ToolboxRow> rows = [];
     private readonly TextBox searchBox;
+    private readonly string searchPlaceholder;
     private int scrollOffset;
 
-    public ToolboxPanel(DesignerCommandService commands, string title = "Toolbox", string searchText = "Search Toolbox")
+    public ToolboxPanel(
+        DesignerCommandService commands,
+        ModernFormsDesignerOptions options,
+        string title = "Toolbox",
+        string searchText = "Search Toolbox")
         : base(title)
     {
         this.commands = commands;
+        this.options = options;
+        searchPlaceholder = searchText;
         items = new DesignerToolboxService().GetItems();
 
         searchBox = Controls.Add(new TextBox
@@ -30,21 +37,24 @@ internal sealed class ToolboxPanel : DesignerPanelBase
             Top = SearchTop,
             Width = 240,
             Height = SearchHeight,
-            Text = searchText
+            Placeholder = searchText
         });
+        ApplyPanelInputStyle(searchBox);
 
         searchBox.TextChanged += (_, _) =>
         {
             scrollOffset = 0;
             Invalidate();
         };
+
+        searchBox.Visible = options.ShowToolboxSearch;
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
 
-        if (e.Y < CategoryTop)
+        if (e.Y < ListTop)
             return;
 
         var index = rows.FindIndex(row => e.Y >= row.Top && e.Y < row.Top + RowHeight);
@@ -70,7 +80,7 @@ internal sealed class ToolboxPanel : DesignerPanelBase
         base.OnMouseWheel(e);
 
         var contentHeight = rows.Count * RowHeight;
-        var viewportHeight = Math.Max(1, Height - CategoryTop);
+        var viewportHeight = Math.Max(1, Height - ListTop);
         var maxOffset = Math.Max(0, contentHeight - viewportHeight);
         var delta = e.Delta.Y == 0 ? 0 : -Math.Sign(e.Delta.Y) * (RowHeight * 3);
         scrollOffset = Math.Clamp(scrollOffset + delta, 0, maxOffset);
@@ -81,11 +91,14 @@ internal sealed class ToolboxPanel : DesignerPanelBase
     {
         base.OnPaint(e);
 
-        searchBox.Width = Math.Max(1, Width - 16);
+        searchBox.Visible = options.ShowToolboxSearch;
+        if (searchBox.Visible)
+            searchBox.SetBounds(8, SearchTop, Math.Max(1, Width - 16), SearchHeight);
+
         rows.Clear();
 
         var filter = GetFilterText();
-        var y = CategoryTop - scrollOffset;
+        var y = ListTop - scrollOffset;
         var groupedItems = items
             .Where(item => MatchesFilter(item, filter))
             .GroupBy(item => item.Category)
@@ -124,8 +137,7 @@ internal sealed class ToolboxPanel : DesignerPanelBase
     private string GetFilterText()
     {
         var text = searchBox.Text?.Trim() ?? string.Empty;
-        return text.Equals("Search Toolbox", StringComparison.OrdinalIgnoreCase)
-            || text.Equals("Szukaj w przyborniku", StringComparison.OrdinalIgnoreCase)
+        return !options.ShowToolboxSearch || text.Equals(searchPlaceholder, StringComparison.OrdinalIgnoreCase)
             ? string.Empty
             : text;
     }
@@ -162,18 +174,18 @@ internal sealed class ToolboxPanel : DesignerPanelBase
     }
 
     private bool IsRowVisible(int y)
-        => y + RowHeight >= CategoryTop && y <= Height;
+        => y + RowHeight >= ListTop && y <= Height;
 
     private void DrawScrollHint(PaintEventArgs e)
     {
         var contentHeight = rows.Count * RowHeight;
-        var viewportHeight = Math.Max(1, Height - CategoryTop);
+        var viewportHeight = Math.Max(1, Height - ListTop);
 
         if (contentHeight <= viewportHeight)
             return;
 
-        var trackTop = CategoryTop;
-        var trackHeight = Math.Max(1, Height - CategoryTop - 4);
+        var trackTop = ListTop;
+        var trackHeight = Math.Max(1, Height - ListTop - 4);
         var thumbHeight = Math.Max(24, trackHeight * viewportHeight / contentHeight);
         var maxOffset = Math.Max(1, contentHeight - viewportHeight);
         var thumbTop = trackTop + ((trackHeight - thumbHeight) * scrollOffset / maxOffset);
@@ -187,14 +199,21 @@ internal sealed class ToolboxPanel : DesignerPanelBase
             "Button" => "ab",
             "Label" => "A",
             "TextBox" => "[]",
+            "RichTextBox" => "rt",
             "CheckBox" => "x",
+            "CheckedListBox" => "x#",
             "RadioButton" => "o",
             "ComboBox" => "v",
             "ListBox" => "#",
             "TreeView" => "+",
             "TabControl" => "T",
+            "ToolTip" => "?",
             _ => item.IsComponent ? "*" : "+"
         };
+
+    private int ListTop => options.ShowToolboxSearch
+        ? SearchTop + SearchHeight + 11
+        : HeaderHeight + 8;
 
     private sealed record ToolboxRow(DesignerToolboxItem? Item, int Top);
 }

@@ -21,7 +21,7 @@ namespace ModernFormsNext.VisualStudioExtension;
 /// normal C# editor.
 /// </remarks>
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
-[InstalledProductRegistration("#110", "#112", "1.7.4")]
+[InstalledProductRegistration("#110", "#112", "1.7.5")]
 [ProvideMenuResource("ModernFormsNext.VisualStudioExtension.CTMENU", 1)]
 [ProvideEditorFactory(typeof(MfDesignEditorFactory), 101)]
 [ProvideEditorExtension(typeof(MfDesignEditorFactory), DesignFileExtension, 50, NameResourceID = 113, DefaultName = ExtensionDisplayName)]

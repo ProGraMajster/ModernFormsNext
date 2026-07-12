@@ -17,7 +17,7 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text = "ModernFormsNext App";
-        this.Size = new System.Drawing.Size(900, 600);
+        this.ClientSize = new System.Drawing.Size(900, 600);
 
         var button = new Button
         {
@@ -29,8 +29,8 @@ public sealed class MainForm : Form
             TextAlign = ContentAlignment.MiddleCenter
         };
 
-        button.Top = this.Size.Height / 2 - button.Height / 2;
-        button.Left = this.Size.Width / 2 - button.Width / 2;
+        button.Top = this.ClientSize.Height / 2 - button.Height / 2;
+        button.Left = this.ClientSize.Width / 2 - button.Width / 2;
 
         button.Click += (_, _) =>
         {
