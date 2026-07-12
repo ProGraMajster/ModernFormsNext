@@ -19,6 +19,7 @@ ModernFormsNext is not WPF, MAUI, WinUI, Avalonia, Uno, Blazor, Electron, or XAM
 - Fully code-driven UI
 - Optional ModernFormsNext Designer with `.mfdesign` documents and `.Designer.cs` generation
 - WinForms-like data binding primitives
+- Native Markdown document rendering through the ModernFormsNext document model
 - Notification area icon support through backend services
 - Extensible architecture
 - Custom controls support
@@ -135,6 +136,11 @@ public class MainForm : Form
 - [Installation and Designer](docs/installation.md)
 - [Designer Architecture](docs/designer-architecture.md)
 - [Data Binding](docs/data-binding.md)
+- [Styling](docs/styling.md)
+- [ToolTips](docs/tooltips.md)
+- [RichTextBox](docs/richtextbox.md)
+- [Markdown and Documents](docs/markdown.md)
+- [MarkdownEditor](docs/markdown-editor.md) - native Markdown source editing with hosted link/image requests, validated local asset copying, undo/redo, and synchronized split preview.
 - [Platform-Specific Features](docs/platform-specific-features.md)
 - [Samples](docs/samples.md)
 - [Architecture](docs/architecture.md)

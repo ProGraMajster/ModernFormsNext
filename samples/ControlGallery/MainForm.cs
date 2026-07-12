@@ -21,6 +21,7 @@ namespace ControlGallery
 
             tree.Items.Add ("Button", ImageLoader.Get ("button.png"));
             tree.Items.Add ("CheckBox", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("CheckedListBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ComboBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Dialogs", ImageLoader.Get ("button.png"));
             tree.Items.Add("DataGridView", ImageLoader.Get("button.png"));
@@ -35,6 +36,8 @@ namespace ControlGallery
             tree.Items.Add("LinkLabel", ImageLoader.Get("button.png"));
             tree.Items.Add ("ListBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ListView", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("MarkdownEditor", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("MarkdownViewer", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Menu", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MaskedTextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MessageBox", ImageLoader.Get ("button.png"));
@@ -46,6 +49,7 @@ namespace ControlGallery
             tree.Items.Add ("ProgressBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("RadioButton", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Ribbon", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("RichTextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ScrollableControl", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ScrollBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("SplitContainer", ImageLoader.Get ("button.png"));
@@ -57,6 +61,7 @@ namespace ControlGallery
             tree.Items.Add ("TextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TitleBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ToolBar", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("ToolTip", ImageLoader.Get ("button.png"));
             tree.Items.Add("TrackBar", ImageLoader.Get("button.png"));
             tree.Items.Add ("TreeView", ImageLoader.Get ("button.png"));
             tree.Items.Add("ColorDialog", ImageLoader.Get("button.png"));
@@ -98,6 +103,8 @@ namespace ControlGallery
                     return new ButtonPanel ();
                 case "CheckBox":
                     return new CheckBoxPanel ();
+                case "CheckedListBox":
+                    return new CheckedListBoxPanel ();
                 case "ComboBox":
                     return new ComboBoxPanel ();
                 case "DataGridView":
@@ -124,6 +131,10 @@ namespace ControlGallery
                     return new ListBoxPanel ();
                 case "ListView":
                     return new ListViewPanel ();
+                case "MarkdownEditor":
+                    return new MarkdownEditorPanel ();
+                case "MarkdownViewer":
+                    return new MarkdownViewerPanel ();
                 case "Menu":
                     return new MenuPanel ();
                 case "MaskedTextBox":
@@ -146,6 +157,8 @@ namespace ControlGallery
                     return new RadioButtonPanel ();
                 case "Ribbon":
                     return new RibbonPanel ();
+                case "RichTextBox":
+                    return new RichTextBoxPanel();
                 case "ScrollableControl":
                     return new ScrollableControlPanel ();
                 case "ScrollBar":
@@ -168,6 +181,8 @@ namespace ControlGallery
                     return new TitleBarPanel ();
                 case "ToolBar":
                     return new ToolBarPanel ();
+                case "ToolTip":
+                    return new ToolTipPanel ();
                 case "TrackBar":
                     return new TrackBarPanel();
                 case "TreeView":

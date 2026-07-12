@@ -42,13 +42,25 @@ dotnet run
 
 ## ControlGallery
 
+The `MarkdownEditor` page demonstrates Editor, Preview, and Split modes, the public command
+toolbar, Ctrl+K, hosted link and image request dialogs built only from ModernFormsNext controls,
+preview link forwarding, and optional proportional scroll synchronization. Its source includes
+editable links and images, Unicode, local and HTTP image sources, and enough content for manual
+scroll testing. Its hosted image dialog can insert a reference unchanged or choose a local raster
+image with the ModernFormsNext file picker and copy it into `MarkdownEditorAssets` beside the
+sample output. Collision handling is selectable and no source-repository directory is modified.
+
 A showcase of available controls and components.
 
 Includes:
 
 - buttons
 - inputs
+- checked and selectable list controls
+- rich text editing controls
+- Markdown source editing with a grouped toolbar, list-aware Enter/Tab/Backspace behavior, AltGr-safe shortcuts, undo/redo, and native split preview
 - menus
+- tooltips
 - containers
 - layout elements
 

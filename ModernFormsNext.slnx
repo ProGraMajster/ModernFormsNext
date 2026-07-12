@@ -10,6 +10,9 @@
     <Project Path="samples/Explorer/Explore.csproj" />
     <Project Path="samples/Outlaw/Outlaw.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj" />
     <Project Path="ModernFormsNext.Designer/ModernFormsNext.Designer.csproj" />

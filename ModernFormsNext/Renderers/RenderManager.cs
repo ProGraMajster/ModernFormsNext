@@ -15,6 +15,7 @@ namespace ModernFormsNext.Renderers
         {
             SetRenderer<Button> (new ButtonRenderer ());
             SetRenderer<CheckBox> (new CheckBoxRenderer ());
+            SetRenderer<CheckedListBox> (new CheckedListBoxRenderer ());
             SetRenderer<ComboBox> (new ComboBoxRenderer ());
             SetRenderer<DataGridView>(new DataGridViewRenderer());
             SetRenderer<FormTitleBar> (new FormTitleBarRenderer ());
@@ -31,6 +32,8 @@ namespace ModernFormsNext.Renderers
             SetRenderer<ProgressBar> (new ProgressBarRenderer ());
             SetRenderer<RadioButton> (new RadioButtonRenderer ());
             SetRenderer<Ribbon> (new RibbonRenderer ());
+            SetRenderer<RichTextBox> (new RichTextBoxRenderer ());
+            SetRenderer<MarkdownEditorTextBox> (new MarkdownEditorTextBoxRenderer ());
             SetRenderer<ScrollableControl> (new ScrollableControlRenderer ());
             SetRenderer<ScrollBar> (new ScrollBarRenderer ());
             SetRenderer<SplitContainer> (new SplitContainerRenderer ());
@@ -40,6 +43,7 @@ namespace ModernFormsNext.Renderers
             SetRenderer<TabControl> (new TabControlRenderer ());
             SetRenderer<TabStrip> (new TabStripRenderer ());
             SetRenderer<TextBox> (new TextBoxRenderer ());
+            SetRenderer<ToolTipPopupControl> (new ToolTipPopupControlRenderer ());
             SetRenderer<ToolBar> (new ToolBarRenderer ());
             SetRenderer<TreeView> (new TreeViewRenderer ());
             SetRenderer<TrackBar> (new TrackBarRenderer ());
@@ -47,6 +51,7 @@ namespace ModernFormsNext.Renderers
             SetRenderer<HueSlider> (new HueSliderRenderer ());
             SetRenderer<DateTimePicker> (new DateTimePickerRenderer ());
             SetRenderer<DateTimePickerCalendar> (new DateTimePickerCalendarRenderer ());
+            SetRenderer<DocumentViewer> (new DocumentViewerRenderer ());
             SetRenderer<NumericUpDown> (new NumericUpDownRenderer ());
         }
 
