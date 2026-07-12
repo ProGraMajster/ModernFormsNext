@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-windows;net10.0-android</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationId>com.programajster.modernformsnext.sample</ApplicationId>
+    <ApplicationTitle>ModernFormsNext Cross-Platform Sample</ApplicationTitle>
+    <AndroidPackageFormats>apk</AndroidPackageFormats>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">23.0</SupportedOSPlatformVersion>
+    <AndroidManifest Condition="'$(TargetFramework)' == 'net10.0-android'">Platforms\Android\AndroidManifest.xml</AndroidManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ModernFormsNext\ModernFormsNext.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Android\ModernFormsNext.WindowKit.Backend.Android.csproj" />
+    <!-- System.Drawing.Common references this assembly, but its Android AOT dependency is not
+         selected transitively. Keep the explicit reference until the upstream asset graph does. -->
+    <PackageReference Include="System.Formats.Nrbf" Version="10.0.5" />
+    <Compile Remove="Platforms\Windows\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <Compile Remove="Platforms\Android\**\*.cs" />
+    <AndroidManifest Remove="Platforms\Android\AndroidManifest.xml" />
+    <None Include="Platforms\Android\AndroidManifest.xml" />
+  </ItemGroup>
+
+</Project>

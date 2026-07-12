@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+  <uses-permission android:name="android.permission.CAMERA" />
+  <!-- Legacy AAR metadata can make the manifest merger infer obsolete compatibility permissions.
+       This sample performs no phone-state or broad external-storage access. -->
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+  <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+  <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+  <application
+      android:allowBackup="true"
+      android:label="ModernFormsNext Cross-Platform Sample"
+      android:supportsRtl="true"
+      android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+</manifest>

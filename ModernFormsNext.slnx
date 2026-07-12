@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/docs/" />
   <Folder Name="/samples/">
+    <Project Path="samples/ModernFormsNext.CrossPlatform.Sample/ModernFormsNext.CrossPlatform.Sample.csproj" />
     <Project Path="samples/ModernFormsNext.Android.SmokeTest/ModernFormsNext.Android.SmokeTest.csproj" />
     <Project Path="samples/ModernFormsNext.DemoApp/ModernFormsNext.DemoApp.csproj" Id="443f0023-59f5-4347-9a5d-8a214ddd092a" />
     <Project Path="samples/ModernFormsNext.DesignerPlayground/ModernFormsNext.DesignerPlayground.csproj" />
@@ -12,6 +13,7 @@
     <Project Path="samples/Outlaw/Outlaw.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="ModernFormsNext.CrossPlatform.Sample.Tests/ModernFormsNext.CrossPlatform.Sample.Tests.csproj" />
     <Project Path="ModernFormsNext.WindowKit.Backend.Android.Tests/ModernFormsNext.WindowKit.Backend.Android.Tests.csproj" />
     <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
   </Folder>
