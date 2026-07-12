@@ -125,9 +125,11 @@ public class MainForm : Form
 - `ModernFormsNext.WindowKit/` - platform-neutral windowing, dispatcher, input, storage, and service abstractions.
 - `ModernFormsNext.WindowKit.Backend/` - shared backend bootstrap and interop infrastructure.
 - `ModernFormsNext.WindowKit.Backend.Windows/` - Windows backend implementation and Win32 interop.
+- `ModernFormsNext.WindowKit.Backend.Android/` - early Android lifecycle, dispatcher, manifest, and permission foundation; framework UI rendering is not yet implemented.
 - `ModernFormsNext.Templates/` - project templates for generated user applications.
 - `samples/ControlGallery/` - manual visual validation app for controls and rendering.
 - `samples/ModernFormsNext.DemoApp/` - reference/template application generated for users, not a control playground.
+- `samples/ModernFormsNext.Android.SmokeTest/` - technical Android manifest, lifecycle, and permission smoke test.
 - `docs/` - architecture, getting started, data binding, platform-specific features, samples, and screenshots.
 
 ## Documentation
@@ -142,6 +144,9 @@ public class MainForm : Form
 - [Markdown and Documents](docs/markdown.md)
 - [MarkdownEditor](docs/markdown-editor.md) - native Markdown source editing with hosted link/image requests, validated local asset copying, undo/redo, and synchronized split preview.
 - [Platform-Specific Features](docs/platform-specific-features.md)
+- [Platform-Specific Code Architecture](docs/platform-specific-code.md)
+- [Android Backend](docs/android-backend.md)
+- [Android Permissions and Manifests](docs/android-permissions.md)
 - [Samples](docs/samples.md)
 - [Architecture](docs/architecture.md)
 
