@@ -88,12 +88,29 @@ dotnet run
 
 ---
 
+## ModernFormsNext.CrossPlatform.Sample
+
+One MAUI-like (but non-MAUI), multi-target project organized around shared `App` and `MainPage`
+files plus thin `Platforms/Windows` and `Platforms/Android` hosts. Both targets use the same real
+ModernFormsNext control tree. Android currently reaches that tree through the transitional
+`SkiaControlSurface` rather than a complete Android `IWindowingPlatform`.
+
+```powershell
+.\scripts\windows\Run-CrossPlatformSample.ps1
+.\scripts\android\Run-CrossPlatformSample.ps1 -DeviceId <serial>
+```
+
+See [Cross-platform sample](cross-platform-sample.md).
+
+---
+
 ## Notes
 
 - Samples are the best way to learn ModernFormsNext
 - They reflect current framework capabilities
 - `ControlGallery` is the preferred place for control demos and visual/manual regression checks
 - `ModernFormsNext.DemoApp` represents the generated template application and should stay minimal
+- `ModernFormsNext.CrossPlatform.Sample` validates the shared Windows/Android application pipeline
 - Some features may still be experimental
 
 ---

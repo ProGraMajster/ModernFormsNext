@@ -1,6 +1,7 @@
 # Android backend
 
-The Android backend is an early platform foundation, not a complete ModernFormsNext UI backend.
+The Android backend is an early platform foundation with a transitional Skia control surface, not
+a complete ModernFormsNext window backend.
 Windows remains the primary and best-supported runtime. The Android project targets
 `net10.0-android` with API 23 as its current minimum and has no MAUI or AndroidX dependency.
 
@@ -54,6 +55,23 @@ The dispatcher is registered in the lightweight `PlatformServiceRegistry` and is
 `AndroidWindowKit.Current.Dispatcher`. It does not yet claim to be the event-loop implementation for
 ModernFormsNext Android windows, because that UI backend has not been built.
 
+## Transitional Skia control surface
+
+`AndroidSkiaHostView` is one `SKCanvasView` that owns Android surface lifecycle, density
+conversion, resize, touch translation, IME connection, coalesced invalidation, and disposal.
+`SkiaControlSurface` belongs to the core framework and adapts a real `Control` tree to that canvas,
+including framework layout, paint, hit testing, pointer capture, selection, and committed-text
+routing. This is the pipeline used by `ModernFormsNext.CrossPlatform.Sample`.
+
+The view renders only after invalidation or resize. It does not run a permanent frame timer.
+Canvas and Android objects remain platform-owned; the adapter borrows the shared control root so
+activity recreation can detach and reattach without discarding application state.
+
+The integration is deliberately narrower than `Application.Run(Form)`: Android does not yet
+implement the complete `IWindowImpl`/`IWindowingPlatform` contract, multiple windows, native
+dialogs, accessibility bridging, clipboard, drag-and-drop, or platform cursor artwork. Do not
+describe this slice as full Android parity.
+
 ## Runtime permission callback
 
 The backend uses the supported platform `Activity.RequestPermissions` API without adding AndroidX.
@@ -81,17 +99,22 @@ Activity, lifecycle, SDK, camera, microphone, and notification state. Camera and
 declared; microphone is deliberately omitted to exercise `NotDeclared`. See its README for the
 manual rotation, denial, settings, and manifest checklist.
 
+The separate `samples/ModernFormsNext.CrossPlatform.Sample` is the real shared-control vertical
+slice. It is not a replacement for the native foundation smoke test; each sample has a different
+validation role.
+
 ## Limitations
 
-- ModernFormsNext controls and forms do not yet render on Android.
+- A single real ModernFormsNext control tree can render through the transitional Skia surface, but
+  general `Application.Run(Form)` and Android window creation are not implemented.
 - No Android `IWindowingPlatform`, clipboard, notification delivery, camera/media capture, WebView,
   file picker, sharing, or drag-and-drop service exists yet.
 - Android 14 selected-photo access is not represented as a partial grant. Prefer a system photo
   picker for user-selected images until a dedicated media-selection API is designed.
 - Runtime dialogs require host callback forwarding; this avoids an AndroidX dependency in this
   foundation.
-- No emulator/device automation is part of the ordinary test suite. Platform mapping and queue
-  behavior run as `net10.0` tests; device behavior is covered by the smoke test.
+- Platform mapping, queue, density, lifecycle, invalidation, resize, and disposal behavior run as
+  `net10.0` tests. Deployment remains an explicit device/emulator step through repository scripts.
 
 ## Troubleshooting
 
@@ -101,4 +124,4 @@ manual rotation, denial, settings, and manifest checklist.
 - `PermanentlyDenied`: explain why the feature needs access and offer an explicit action that calls
   `OpenApplicationSettingsAsync`.
 - Request never completes: verify `OnRequestPermissionsResult` is forwarded and inspect the
-  `MFN.WindowKit` diagnostic log.
+  the stable `ModernFormsNext` logcat tag.

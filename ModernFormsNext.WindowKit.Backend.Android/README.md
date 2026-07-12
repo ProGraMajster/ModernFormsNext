@@ -9,10 +9,14 @@ currently provides:
 - a main `Looper`/`Handler` dispatcher;
 - platform-neutral permission contracts with Android SDK-aware mapping;
 - final-manifest validation and serialized runtime permission requests.
+- a lifecycle-aware, density-aware `AndroidSkiaHostView` transition surface;
+- logical pointer, resize, invalidation, render-count, and IME event translation.
 
-It does **not** yet render ModernFormsNext controls or implement Android windows, clipboard,
-camera capture, microphone capture, notifications, media, WebView, file pickers, sharing, or
-drag-and-drop. Unsupported services are deliberately not registered.
+Together with core `SkiaControlSurface`, the backend can render one real ModernFormsNext control
+tree in a host activity. It does **not** yet implement general Android windows or
+`Application.Run(Form)`, clipboard, camera capture, microphone capture, notifications, media,
+WebView, file pickers, sharing, accessibility bridging, or drag-and-drop. Unsupported services are
+deliberately not registered.
 
 ## Initialize
 
@@ -59,4 +63,6 @@ before opening a dialog when a required entry is missing.
 
 See [Android backend](../docs/android-backend.md),
 [Android permissions](../docs/android-permissions.md), and the
-[Android smoke test](../samples/ModernFormsNext.Android.SmokeTest/README.md).
+[Android smoke test](../samples/ModernFormsNext.Android.SmokeTest/README.md). The end-to-end shared
+control pipeline is demonstrated by
+[the cross-platform sample](../samples/ModernFormsNext.CrossPlatform.Sample/README.md).

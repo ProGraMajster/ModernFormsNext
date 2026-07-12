@@ -70,6 +70,22 @@ dotnet run --project .\samples\ControlGallery\ControlGallery.csproj
 dotnet run --project .\samples\ModernFormsNext.DemoApp\ModernFormsNext.DemoApp.csproj
 ```
 
+### Run the Cross-Platform Sample
+
+`samples/ModernFormsNext.CrossPlatform.Sample` is one multi-target project with one shared `App`
+and `MainPage` control tree. Windows hosts it in a normal ModernFormsNext `Form`; Android hosts the
+same controls in the current transitional Skia surface.
+
+```powershell
+.\scripts\windows\Run-CrossPlatformSample.ps1
+.\scripts\android\Get-AndroidDevices.ps1
+.\scripts\android\Run-CrossPlatformSample.ps1 -DeviceId <serial>
+```
+
+Android support remains experimental and Windows remains the primary target. See
+[cross-platform sample](docs/cross-platform-sample.md) and
+[Android development](docs/android-development.md).
+
 ## Install the Framework and Designer
 
 For packaged app development:
