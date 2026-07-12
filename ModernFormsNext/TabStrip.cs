@@ -172,16 +172,17 @@ namespace ModernFormsNext
         protected override void OnKeyDown(KeyEventArgs e)
         {
             // Navigation logic (keyboard shortcuts)
-            if (e.KeyCode == Keys.Right || (e.KeyCode == Keys.Tab && e.Control && !e.Shift) || (e.KeyCode == Keys.PageDown && e.Control))
+            var shortcutControl = e.IsShortcutControlPressed;
+            if (e.KeyCode == Keys.Right || (e.KeyCode == Keys.Tab && shortcutControl && !e.Shift) || (e.KeyCode == Keys.PageDown && shortcutControl))
             {
-                SelectNextTab(true, false, (e.KeyCode == Keys.Tab && e.Control && !e.Shift) || (e.KeyCode == Keys.PageDown && e.Control));
+                SelectNextTab(true, false, (e.KeyCode == Keys.Tab && shortcutControl && !e.Shift) || (e.KeyCode == Keys.PageDown && shortcutControl));
                 e.Handled = true;
                 return;
             }
 
-            if (e.KeyCode == Keys.Left || (e.KeyCode == Keys.Tab && e.Control && e.Shift) || (e.KeyCode == Keys.PageUp && e.Control))
+            if (e.KeyCode == Keys.Left || (e.KeyCode == Keys.Tab && shortcutControl && e.Shift) || (e.KeyCode == Keys.PageUp && shortcutControl))
             {
-                SelectNextTab(false, false, (e.KeyCode == Keys.Tab && e.Control && e.Shift) || (e.KeyCode == Keys.PageUp && e.Control));
+                SelectNextTab(false, false, (e.KeyCode == Keys.Tab && shortcutControl && e.Shift) || (e.KeyCode == Keys.PageUp && shortcutControl));
                 e.Handled = true;
                 return;
             }
