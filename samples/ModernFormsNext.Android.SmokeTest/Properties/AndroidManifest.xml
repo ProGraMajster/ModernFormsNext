@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.modernformsnext.android.smoketest">
+  <!-- The smoke test opts into camera and Android 13+ notifications. Microphone is deliberately
+       absent so Check/Request Microphone demonstrates NotDeclared without opening a dialog. -->
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <!-- A feature declaration affects store/device filtering, not runtime authorization. The camera
+       remains optional so this technical test can install on devices without camera hardware. -->
+  <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+
+  <application android:allowBackup="false"
+               android:label="ModernFormsNext Android Smoke Test"
+               android:supportsRtl="true" />
+</manifest>
