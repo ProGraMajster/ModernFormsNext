@@ -68,6 +68,15 @@ public static class FrameworkBootstrap
             if (initialized)
                 return;
 
+            // Explicitly initialized hosts such as Android must supply native context and lifecycle
+            // before generic framework startup. Honor that registration instead of attempting
+            // parameterless reflection-based activation a second time.
+            if (WindowKitBackendRegistry.Current?.IsInitialized == true)
+            {
+                initialized = true;
+                return;
+            }
+
             LoadBackendAssemblies();
 
             var bootstrapper = AppDomain.CurrentDomain

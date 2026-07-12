@@ -21,6 +21,9 @@ public static class WindowsPlatformBootstrap
     /// Initializes Windows backend services once.
     /// </summary>
     public static void Initialize()
+        => WindowKitBackendRegistry.Register(new WindowsWindowKitBackend());
+
+    internal static void InitializeServices()
     {
         if (initialized)
             return;
