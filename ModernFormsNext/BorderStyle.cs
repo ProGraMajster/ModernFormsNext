@@ -45,19 +45,52 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets the computed radius for all border corners.
+        /// Gets the computed color for all border sides.
         /// </summary>
-        public SKColor GetColor () => Color ?? _parent?.GetColor () ?? SKColor.Empty;
+        public SKColor GetColor ()
+        {
+            var remaining = StyleInheritanceTraversal.GetLimit(this, static style => style._parent);
+
+            for (BorderStyle? current = this; current is not null && remaining-- > 0; current = current._parent)
+            {
+                if (current.Color is { } color)
+                    return color;
+            }
+
+            return SKColor.Empty;
+        }
 
         /// <summary>
         /// Gets the computed radius for all border corners.
         /// </summary>
-        public int GetRadius () => Radius ?? _parent?.GetRadius () ?? 0;
+        public int GetRadius ()
+        {
+            var remaining = StyleInheritanceTraversal.GetLimit(this, static style => style._parent);
+
+            for (BorderStyle? current = this; current is not null && remaining-- > 0; current = current._parent)
+            {
+                if (current.Radius is { } radius)
+                    return radius;
+            }
+
+            return 0;
+        }
 
         /// <summary>
         /// Gets the computed width for all border.
         /// </summary>
-        public int GetWidth () => Width ?? _parent?.GetWidth () ?? 0;
+        public int GetWidth ()
+        {
+            var remaining = StyleInheritanceTraversal.GetLimit(this, static style => style._parent);
+
+            for (BorderStyle? current = this; current is not null && remaining-- > 0; current = current._parent)
+            {
+                if (current.Width is { } width)
+                    return width;
+            }
+
+            return 0;
+        }
 
         /// <summary>
         /// Gets the styles for the left border.
@@ -114,7 +147,18 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the computed color of this side of the border.
         /// </summary>
-        public SKColor GetColor () => Color ?? _parent?.GetColor () ?? Theme.BorderLowColor;
+        public SKColor GetColor ()
+        {
+            var remaining = StyleInheritanceTraversal.GetLimit(this, static style => style._parent);
+
+            for (BorderSideStyle? current = this; current is not null && remaining-- > 0; current = current._parent)
+            {
+                if (current.Color is { } color)
+                    return color;
+            }
+
+            return Theme.BorderLowColor;
+        }
 
         /// <summary>
         /// Gets or sets the width of this side of the border.
@@ -124,6 +168,17 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the computed width of this side of the border.
         /// </summary>
-        public int GetWidth () => Width ?? _parent?.GetWidth () ?? 0;
+        public int GetWidth ()
+        {
+            var remaining = StyleInheritanceTraversal.GetLimit(this, static style => style._parent);
+
+            for (BorderSideStyle? current = this; current is not null && remaining-- > 0; current = current._parent)
+            {
+                if (current.Width is { } width)
+                    return width;
+            }
+
+            return 0;
+        }
     }
 }

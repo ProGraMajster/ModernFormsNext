@@ -8,7 +8,6 @@ namespace ModernFormsNext
     /// </summary>
     public class ControlStyle
     {
-        internal readonly ControlStyle? _parent;
         private SKTypeface? font;
         private Font? textFont;
 
@@ -16,9 +15,14 @@ namespace ModernFormsNext
         /// Initializes a new instance of the ControlStyle class.  This constructor is
         /// generally used by the static DefaultStyle property.
         /// </summary>
+        /// <param name="parent">The style from which unset values are inherited, or <see langword="null"/> for a root style.</param>
+        /// <param name="setDefaults">The callback that assigns this style's defaults.</param>
+        /// <exception cref="ArgumentNullException">Thrown when <paramref name="setDefaults"/> is <see langword="null"/>.</exception>
         public ControlStyle (ControlStyle? parent, Action<ControlStyle> setDefaults)
         {
-            _parent = parent;
+            ArgumentNullException.ThrowIfNull(setDefaults);
+
+            ParentStyle = parent;
 
             Border = new BorderStyle (parent?.Border);
 
@@ -31,9 +35,10 @@ namespace ModernFormsNext
         /// Initializes a new instance of the ControlStyle class.  This constructor is
         /// generally used by the instance Style property.
         /// </summary>
-        public ControlStyle (ControlStyle parent)
+        /// <param name="parent">The style from which unset values are inherited, or <see langword="null"/> for a detached root style.</param>
+        public ControlStyle (ControlStyle? parent)
         {
-            _parent = parent;
+            ParentStyle = parent;
 
             Border = new BorderStyle (parent?.Border);
         }
@@ -78,6 +83,16 @@ namespace ModernFormsNext
         public SKColor? ForegroundColor { get; set; }
 
         /// <summary>
+        /// Gets the style from which unset values are inherited.
+        /// </summary>
+        /// <remarks>
+        /// A root or detached style can have no parent. Value resolution does not require an
+        /// owning control, visual parent, form, window, or initialized platform backend. Cyclic
+        /// chains are treated as exhausted after every unique style has been inspected once.
+        /// </remarks>
+        public ControlStyle? ParentStyle { get; internal set; }
+
+        /// <summary>
         /// Gets or sets the ModernFormsNext font used to render text.
         /// </summary>
         /// <remarks>
@@ -111,21 +126,29 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the computed background color.
         /// </summary>
-        public SKColor GetBackgroundColor () => BackgroundColor ?? _parent?.GetBackgroundColor () ?? Theme.ControlMidColor;
+        public SKColor GetBackgroundColor ()
+            => ResolveValue(TryGetBackgroundColor, static () => Theme.ControlMidColor);
 
         /// <summary>
         /// Gets the computed font.
         /// </summary>
-        public SKTypeface GetFont () => font ?? _parent?.GetFont () ?? Theme.UIFont;
+        /// <remarks>
+        /// When neither this style nor an inherited style provides a typeface, the framework UI
+        /// font is returned. The theme guarantees that this fallback is non-null on every backend.
+        /// </remarks>
+        public SKTypeface GetFont ()
+            => ResolveValue(TryGetFont, static () => Theme.UIFont);
+
+        /// <summary>
+        /// Gets the family name of the computed font.
+        /// </summary>
+        public string GetFontFamily () => GetFont ().FamilyName;
 
         /// <summary>
         /// Gets the computed font size.
         /// </summary>
         public int GetFontSize ()
-            => FontSize
-                ?? (textFont is null ? null : (int?)Math.Max(1, (int)Math.Round(textFont.SizeInPoints)))
-                ?? _parent?.GetFontSize ()
-                ?? Theme.FontSize;
+            => ResolveValue(TryGetFontSize, static () => Math.Max(1, Theme.FontSize));
 
         /// <summary>
         /// Gets the computed ModernFormsNext font style flags.
@@ -136,23 +159,30 @@ namespace ModernFormsNext
         /// <see cref="SKTypeface"/> can be inferred.
         /// </remarks>
         public FontStyle GetFontStyle()
-        {
-            if (textFont is not null)
-                return textFont.Style;
+            => ResolveValue(TryGetFontStyle, static () => GetFontStyle(Theme.UIFont));
 
-            if (font is not null)
-                return GetFontStyle(font);
-
-            return _parent?.GetFontStyle() ?? GetFontStyle(Theme.UIFont);
-        }
+        /// <summary>
+        /// Gets the numeric SkiaSharp weight of the computed font.
+        /// </summary>
+        /// <remarks>
+        /// The returned value uses the same numeric scale as <see cref="SKTypeface.FontWeight"/>.
+        /// </remarks>
+        public int GetFontWeight () => GetFont ().FontWeight;
 
         /// <summary>
         /// Gets the computed foreground color.
         /// </summary>
-        public SKColor GetForegroundColor () => ForegroundColor ?? _parent?.GetForegroundColor () ?? Theme.ForegroundColor;
+        public SKColor GetForegroundColor ()
+            => ResolveValue(TryGetForegroundColor, static () => Theme.ForegroundColor);
 
-        private static FontStyle GetFontStyle(SKTypeface typeface)
+        internal int GetInheritanceTraversalLimit ()
+            => StyleInheritanceTraversal.GetLimit(this, static style => style.ParentStyle);
+
+        internal static FontStyle GetFontStyle(SKTypeface? typeface)
         {
+            if (typeface is null)
+                return FontStyle.Regular;
+
             var style = FontStyle.Regular;
 
             if (typeface.FontWeight >= (int)SKFontStyleWeight.SemiBold)
@@ -163,5 +193,95 @@ namespace ModernFormsNext
 
             return style;
         }
+
+        private T ResolveValue<T> (TryGetStyleValue<T> tryGetValue, Func<T> getFallback)
+        {
+            var remaining = GetInheritanceTraversalLimit ();
+            ControlStyle? current = this;
+
+            while (current is not null && remaining-- > 0)
+            {
+                if (tryGetValue(current, out var value))
+                    return value;
+
+                current = current.ParentStyle;
+            }
+
+            return getFallback ();
+        }
+
+        private static bool TryGetBackgroundColor (ControlStyle style, out SKColor value)
+        {
+            if (style.BackgroundColor is { } color)
+            {
+                value = color;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static bool TryGetFont (ControlStyle style, out SKTypeface value)
+        {
+            if (style.font is { } typeface)
+            {
+                value = typeface;
+                return true;
+            }
+
+            value = null!;
+            return false;
+        }
+
+        private static bool TryGetFontSize (ControlStyle style, out int value)
+        {
+            if (style.FontSize is { } size)
+            {
+                value = size;
+                return true;
+            }
+
+            if (style.textFont is { } textStyle)
+            {
+                value = Math.Max(1, (int)Math.Round(textStyle.SizeInPoints));
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static bool TryGetFontStyle (ControlStyle style, out FontStyle value)
+        {
+            if (style.textFont is { } textStyle)
+            {
+                value = textStyle.Style;
+                return true;
+            }
+
+            if (style.font is { } typeface)
+            {
+                value = GetFontStyle(typeface);
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        private static bool TryGetForegroundColor (ControlStyle style, out SKColor value)
+        {
+            if (style.ForegroundColor is { } color)
+            {
+                value = color;
+                return true;
+            }
+
+            value = default;
+            return false;
+        }
+
+        private delegate bool TryGetStyleValue<T> (ControlStyle style, out T value);
     }
 }

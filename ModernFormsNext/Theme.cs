@@ -13,13 +13,17 @@ namespace ModernFormsNext
 
         private static readonly object _lock = new();
         private static readonly ConcurrentDictionary<string, object> values = new();
+        private static readonly SKTypeface frameworkDefaultTypeface = SKTypeface.CreateDefault();
+        private static readonly SKTypeface frameworkDefaultBoldTypeface =
+            SKTypeface.FromFamilyName(null, SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+                ?? frameworkDefaultTypeface;
 
         static Theme ()
         {
             SetBuiltInTheme (BuiltInTheme.Default);
 
-            values[nameof (UIFont)] = SKTypeface.FromFamilyName ("Segoe UI Emoji", SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
-            values[nameof (UIFontBold)] = SKTypeface.FromFamilyName ("Segoe UI Emoji", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright);
+            values[nameof (UIFont)] = CreateTypefaceOrDefault("Segoe UI Emoji", SKFontStyleWeight.Normal, SKFontStyleSlant.Upright);
+            values[nameof (UIFontBold)] = CreateTypefaceOrDefault("Segoe UI Emoji", SKFontStyleWeight.Bold, SKFontStyleSlant.Upright);
             values[nameof (FontSize)] = 14;
             values[nameof (ItemFontSize)] = 12;
         }
@@ -205,6 +209,9 @@ namespace ModernFormsNext
 
         private static T GetValue<T> (string name) => (T)values[name];
 
+        private static T GetValueOrDefault<T> (string name, T fallback)
+            => values.TryGetValue(name, out var value) && value is T typedValue ? typedValue : fallback;
+
         /// <summary>
         /// A smaller font size generally used for lists of items.
         /// </summary>
@@ -335,17 +342,50 @@ namespace ModernFormsNext
         /// <summary>
         /// The default font used by controls.
         /// </summary>
+        /// <remarks>
+        /// This property always returns a typeface. Before theme font initialization, or when a
+        /// configured family is unavailable on the current platform, it returns the framework's
+        /// process-lifetime default SkiaSharp typeface.
+        /// </remarks>
         public static SKTypeface UIFont {
-            get => GetValue<SKTypeface> (nameof (UIFont));
-            set => SetValue (nameof (UIFont), value);
+            get => GetValueOrDefault(nameof(UIFont), frameworkDefaultTypeface);
+            set => SetValue(nameof(UIFont), value ?? frameworkDefaultTypeface);
         }
 
         /// <summary>
         /// The default bold font used by controls.
         /// </summary>
+        /// <remarks>
+        /// This property always returns a typeface and uses a platform-default bold face when the
+        /// preferred framework family is unavailable.
+        /// </remarks>
         public static SKTypeface UIFontBold {
-            get => GetValue<SKTypeface> (nameof (UIFontBold));
-            set => SetValue (nameof (UIFontBold), value);
+            get => GetValueOrDefault(nameof(UIFontBold), frameworkDefaultBoldTypeface);
+            set => SetValue(nameof(UIFontBold), value ?? frameworkDefaultBoldTypeface);
+        }
+
+        // Font family availability differs by platform. The requested framework family is tried
+        // first, then the platform's default family with the requested weight/slant, and finally
+        // the process-lifetime default typeface guaranteed by SkiaSharp to be non-null.
+        internal static SKTypeface CreateTypefaceOrDefault(
+            string? familyName,
+            SKFontStyleWeight weight,
+            SKFontStyleSlant slant)
+        {
+            var typeface = SKTypeface.FromFamilyName(familyName, weight, SKFontStyleWidth.Normal, slant);
+
+            if (typeface is not null)
+                return typeface;
+
+            if (familyName is not null)
+            {
+                typeface = SKTypeface.FromFamilyName(null, weight, SKFontStyleWidth.Normal, slant);
+
+                if (typeface is not null)
+                    return typeface;
+            }
+
+            return weight >= SKFontStyleWeight.SemiBold ? frameworkDefaultBoldTypeface : frameworkDefaultTypeface;
         }
     }
 }

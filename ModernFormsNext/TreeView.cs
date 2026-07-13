@@ -524,7 +524,21 @@ namespace ModernFormsNext
             /// <summary>
             /// Gets the computed selected item background color.
             /// </summary>
-            public SKColor GetSelectedItemBackgroundColor () => SelectedItemBackgroundColor ?? (_parent as TreeViewControlStyle)?.GetSelectedItemBackgroundColor () ?? Theme.ControlHighlightLowColor;
+            public SKColor GetSelectedItemBackgroundColor ()
+            {
+                var remaining = GetInheritanceTraversalLimit ();
+                ControlStyle? current = this;
+
+                while (current is not null && remaining-- > 0)
+                {
+                    if (current is TreeViewControlStyle treeStyle && treeStyle.SelectedItemBackgroundColor is { } color)
+                        return color;
+
+                    current = current.ParentStyle;
+                }
+
+                return Theme.ControlHighlightLowColor;
+            }
         }
     }
 }

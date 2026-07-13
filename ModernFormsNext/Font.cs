@@ -127,14 +127,16 @@ namespace ModernFormsNext
         /// of SkiaSharp typeface selection and are therefore not represented in the returned
         /// <see cref="SKTypeface"/>. Use <see cref="Control.Font"/> or
         /// <see cref="ControlStyle.TextFont"/> when applying a ModernFormsNext font to controls
-        /// that should render those text effects.
+        /// that should render those text effects. When the requested family is unavailable, the
+        /// framework uses the platform's default family with the requested weight and slant, then
+        /// falls back to SkiaSharp's guaranteed non-null default typeface.
         /// </remarks>
         public SKTypeface ToTypeface()
         {
             var weight = Bold ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal;
             var slant = Italic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
 
-            return SKTypeface.FromFamilyName(FamilyName, weight, SKFontStyleWidth.Normal, slant);
+            return Theme.CreateTypefaceOrDefault(FamilyName, weight, slant);
         }
 
         /// <inheritdoc/>
