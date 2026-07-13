@@ -2,14 +2,48 @@
 
   <PropertyGroup>
     <TargetFrameworks>net10.0-windows;net10.0-android</TargetFrameworks>
-    <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <!-- OutputType=Exe is the .NET for Android application marker. The Android SDK changes the
+         managed assembly output to Library internally after setting AndroidApplication=true. -->
+    <OutputType>Exe</OutputType>
+    <AndroidApplication>true</AndroidApplication>
     <ApplicationId>com.programajster.modernformsnext.sample</ApplicationId>
     <ApplicationTitle>ModernFormsNext Cross-Platform Sample</ApplicationTitle>
-    <AndroidPackageFormats>apk</AndroidPackageFormats>
-    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">23.0</SupportedOSPlatformVersion>
-    <AndroidManifest Condition="'$(TargetFramework)' == 'net10.0-android'">Platforms\Android\AndroidManifest.xml</AndroidManifest>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
+
+    <!-- SupportedOSPlatformVersion becomes minSdkVersion. targetSdkVersion is selected by the
+         net10.0-android reference pack through TargetPlatformVersion, so legacy manifest-specific
+         MinSdkVersion/TargetSdkVersion properties are intentionally not duplicated here. -->
+    <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
+
+    <!-- The Android SDK removes the LaunchProfiles capability. Visual Studio 18.7 otherwise sees
+         the generic SupportsHotReload capability and imports a launch-profile Hot Reload provider
+         that cannot apply to Android. Disable only that optional layer; F5 debugging remains on. -->
+    <SupportsHotReload>false</SupportsHotReload>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android' And '$(Configuration)' == 'Debug'">
+    <!-- Visual Studio uses .NET for Android fast deployment in Debug. The repository deployment
+         script overrides EmbedAssembliesIntoApk to true when it needs a standalone adb APK. -->
+    <EmbedAssembliesIntoApk>false</EmbedAssembliesIntoApk>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <RunAOTCompilation>false</RunAOTCompilation>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android' And '$(Configuration)' == 'Release'">
+    <!-- Release validates the self-contained package and the Android AOT path. -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <RunAOTCompilation>true</RunAOTCompilation>
   </PropertyGroup>
 
   <ItemGroup>
