@@ -1,61 +1,57 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Debug',
+    [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
     [string]$DeviceId,
+    [string]$AvdName,
+    [string]$SdkRoot,
     [switch]$NoBuild,
-    [switch]$Reinstall,
+    [switch]$NoRestore,
     [switch]$ClearLogcat,
-    [switch]$FollowLogcat
+    [switch]$FollowLogcat,
+    [switch]$ColdBoot,
+    [switch]$WipeAvdData,
+    [switch]$NoEmulatorWindow,
+    [switch]$DisableEmulatorAcceleration,
+    [ValidateSet('auto', 'host', 'swiftshader_indirect', 'swiftshader', 'angle_indirect')]
+    [string]$GpuMode = 'auto',
+    [ValidateRange(1, 3600)][int]$BootTimeoutSeconds = 300
 )
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$project = Join-Path $repoRoot 'samples\ModernFormsNext.CrossPlatform.Sample\ModernFormsNext.CrossPlatform.Sample.csproj'
-$adb = & (Join-Path $PSScriptRoot 'Resolve-Adb.ps1') -PathOnly
-$devices = @(& (Join-Path $PSScriptRoot 'Get-AndroidDevices.ps1'))
+Import-Module (Join-Path $PSScriptRoot 'AndroidTools.psm1') -Force
+if ($AvdName) {
+    $DeviceId = & (Join-Path $PSScriptRoot 'Start-AndroidEmulator.ps1') `
+        -Name $AvdName `
+        -SdkRoot $SdkRoot `
+        -BootTimeoutSeconds $BootTimeoutSeconds `
+        -GpuMode $GpuMode `
+        -ColdBoot:$ColdBoot `
+        -WipeData:$WipeAvdData `
+        -NoWindow:$NoEmulatorWindow `
+        -DisableAcceleration:$DisableEmulatorAcceleration
+}
 
-if ($DeviceId) {
-    if (-not ($devices | Where-Object Serial -eq $DeviceId)) { throw "Device '$DeviceId' is not connected and ready." }
-}
-elseif ($devices.Count -eq 1) {
-    $DeviceId = $devices[0].Serial
-}
-elseif ($devices.Count -eq 0) {
-    throw 'No usable Android device is connected. Run Get-AndroidDevices.ps1 or Start-AndroidEmulator.ps1 first.'
+$devices = @(Get-AndroidDevice -SdkRoot $SdkRoot -IncludeUnavailable)
+$device = Select-AndroidDevice -Device $devices -Serial $DeviceId
+$DeviceId = $device.Serial
+& (Join-Path $PSScriptRoot 'Wait-AndroidDevice.ps1') -DeviceId $DeviceId -SdkRoot $SdkRoot -TimeoutSeconds $BootTimeoutSeconds | Out-Null
+
+if ($NoBuild) {
+    $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+    $apk = Resolve-CrossPlatformSampleApk -RepositoryRoot $repositoryRoot -Configuration $Configuration
 }
 else {
-    throw "Multiple devices are connected. Pass -DeviceId. Available: $($devices.Serial -join ', ')"
+    $apk = & (Join-Path $PSScriptRoot 'Build-CrossPlatformSample.ps1') -Configuration $Configuration -NoRestore:$NoRestore
 }
 
-if (-not $NoBuild) {
-    & dotnet build $project -f net10.0-android -c $Configuration
-    if ($LASTEXITCODE -ne 0) { throw "Android build failed with exit code $LASTEXITCODE." }
+$adb = Resolve-AndroidTool -Name adb -SdkRoot $SdkRoot
+if ($ClearLogcat) {
+    Invoke-CheckedNativeCommand -FilePath $adb -ArgumentList @('-s', $DeviceId, 'logcat', '-c') -Operation 'Clearing logcat'
 }
 
-$output = Join-Path (Split-Path $project) "bin\$Configuration\net10.0-android"
-$apk = Get-ChildItem -LiteralPath $output -Recurse -File -Filter '*-Signed.apk' -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTimeUtc -Descending |
-    Select-Object -First 1
-if (-not $apk) {
-    $apk = Get-ChildItem -LiteralPath $output -Recurse -File -Filter '*.apk' -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -First 1
-}
-if (-not $apk) { throw "No APK was found under '$output'." }
+& (Join-Path $PSScriptRoot 'Install-CrossPlatformSample.ps1') -ApkPath $apk.FullName -DeviceId $DeviceId -SdkRoot $SdkRoot | Out-Null
+$launch = & (Join-Path $PSScriptRoot 'Launch-CrossPlatformSample.ps1') -DeviceId $DeviceId -SdkRoot $SdkRoot
+$launch
 
-$package = 'com.programajster.modernformsnext.sample'
-$activity = 'com.programajster.modernformsnext.sample.MainActivity'
-if ($Reinstall) { & $adb -s $DeviceId uninstall $package | Out-Host }
-if ($ClearLogcat) { & $adb -s $DeviceId logcat -c }
-
-Write-Host "Installing $($apk.FullName) on $DeviceId..."
-& $adb -s $DeviceId install -r $apk.FullName
-if ($LASTEXITCODE -ne 0) { throw "adb install failed with exit code $LASTEXITCODE." }
-
-& $adb -s $DeviceId shell am start -n "$package/$activity"
-if ($LASTEXITCODE -ne 0) { throw "Activity launch failed with exit code $LASTEXITCODE." }
-
-Write-Host "Launched $package/$activity on $DeviceId."
 if ($FollowLogcat) {
-    & (Join-Path $PSScriptRoot 'Watch-ModernFormsNextLogcat.ps1') -DeviceId $DeviceId
+    & (Join-Path $PSScriptRoot 'Watch-ModernFormsNextLogcat.ps1') -DeviceId $DeviceId -SdkRoot $SdkRoot
 }

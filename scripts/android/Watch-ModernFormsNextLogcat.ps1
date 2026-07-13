@@ -1,33 +1,32 @@
 [CmdletBinding()]
 param(
     [string]$DeviceId,
-    [switch]$Clear
+    [string]$SdkRoot,
+    [string]$Tag = 'ModernFormsNext',
+    [switch]$Clear,
+    [switch]$AllProcessLogs
 )
 
-$adb = & (Join-Path $PSScriptRoot 'Resolve-Adb.ps1') -PathOnly
-$devices = @(& (Join-Path $PSScriptRoot 'Get-AndroidDevices.ps1'))
-if ($DeviceId) {
-    $device = $devices | Where-Object Serial -eq $DeviceId | Select-Object -First 1
-    if (-not $device) { throw "Device '$DeviceId' is not connected and ready." }
-}
-elseif ($devices.Count -eq 1) {
-    $DeviceId = $devices[0].Serial
-}
-elseif ($devices.Count -eq 0) {
-    throw 'No usable Android device is connected.'
-}
-else {
-    throw "Multiple devices are connected. Pass -DeviceId. Available: $($devices.Serial -join ', ')"
+Import-Module (Join-Path $PSScriptRoot 'AndroidTools.psm1') -Force
+$adb = Resolve-AndroidTool -Name adb -SdkRoot $SdkRoot
+$device = Select-AndroidDevice -Device @(Get-AndroidDevice -SdkRoot $SdkRoot -IncludeUnavailable) -Serial $DeviceId
+$DeviceId = $device.Serial
+if ($Clear) {
+    Invoke-CheckedNativeCommand -FilePath $adb -ArgumentList @('-s', $DeviceId, 'logcat', '-c') -Operation 'Clearing logcat'
 }
 
-if ($Clear) { & $adb -s $DeviceId logcat -c }
 $package = 'com.programajster.modernformsnext.sample'
-$processId = (& $adb -s $DeviceId shell pidof $package 2>$null).Trim().Split(' ')[0]
-Write-Host "Watching logcat on $DeviceId (tag ModernFormsNext, package $package). Press Ctrl+C to stop."
-if ($processId) {
-    & $adb -s $DeviceId logcat --pid=$processId 'ModernFormsNext:I' '*:S'
+$pidOutput = @(& $adb -s $DeviceId shell pidof $package 2>$null | Select-Object -First 1)
+$processId = if ($pidOutput.Count -and $pidOutput[0].Trim()) { ($pidOutput[0].Trim() -split '\s+')[0] } else { $null }
+Write-Host "Watching logcat on $DeviceId. Press Ctrl+C to stop."
+
+if ($AllProcessLogs -and $processId) {
+    & $adb -s $DeviceId logcat "--pid=$processId"
+}
+elseif ($processId) {
+    & $adb -s $DeviceId logcat "--pid=$processId" "$($Tag):V" '*:S'
 }
 else {
-    Write-Warning 'The sample process is not running; filtering by the stable ModernFormsNext tag instead.'
-    & $adb -s $DeviceId logcat 'ModernFormsNext:I' '*:S'
+    Write-Warning "Package '$package' is not running; filtering by tag '$Tag' without a PID."
+    & $adb -s $DeviceId logcat "$($Tag):V" 'AndroidRuntime:E' '*:S'
 }
