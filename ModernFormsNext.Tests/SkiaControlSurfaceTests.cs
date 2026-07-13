@@ -57,6 +57,73 @@ public sealed class SkiaControlSurfaceTests
     }
 
     [Fact]
+    public void CompositionIsReplacedAndCommittedWithoutDuplication()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            adapter.SetComposingText("za");
+            adapter.SetComposingText("zaż");
+            var composing = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal((0, 3), (composing.CompositionStart, composing.CompositionEnd));
+
+            adapter.CommitText("zażółć 👋");
+
+            Assert.Equal("zażółć 👋", textBox.Text);
+            var committed = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal(-1, committed.CompositionStart);
+            Assert.Equal(committed.Text.Length, committed.SelectionEnd);
+        }
+    }
+
+    [Fact]
+    public void DeleteSurroundingTextPreservesUnicodeTextElementBoundaries()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            adapter.CommitText("A👋🏽B");
+            adapter.SetTextSelection("A👋🏽".Length, "A👋🏽".Length);
+
+            adapter.DeleteSurroundingText(1, 1);
+
+            Assert.Equal("A", textBox.Text);
+        }
+    }
+
+    [Fact]
+    public void DeleteSurroundingTextPreservesTheSelectedRange()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            adapter.CommitText("abcXYZdef");
+            adapter.SetTextSelection(3, 6);
+
+            adapter.DeleteSurroundingText(2, 2);
+
+            Assert.Equal("aXYZf", textBox.Text);
+            Assert.Equal(1, textBox.SelectionStart);
+            Assert.Equal(4, textBox.SelectionEnd);
+        }
+    }
+
+    [Fact]
+    public void EnterAndArrowKeysUseTheFrameworkKeyboardPipeline()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            textBox.MultiLine = true;
+            adapter.CommitText("AB");
+            adapter.ProcessKeyDown(Keys.Left);
+            adapter.ProcessKeyDown(Keys.Enter);
+
+            Assert.Equal("A\nB", textBox.Text);
+        }
+    }
+
+    [Fact]
     public void CancelClearsPointerCaptureWithoutClicking()
     {
         var button = new Button { Width = 120, Height = 40 };
@@ -82,5 +149,16 @@ public sealed class SkiaControlSurfaceTests
         Assert.Throws<ObjectDisposedException>(() => adapter.Resize(1, 1));
         root.Text = "Still alive";
         Assert.Equal("Still alive", root.Text);
+    }
+
+    private static TextBox CreateSelectedTextBox(out SkiaControlSurface adapter)
+    {
+        var textBox = new TextBox { Width = 240, Height = 40 };
+        var root = new Control { Width = 240, Height = 40 };
+        root.Controls.Add(textBox);
+        adapter = new SkiaControlSurface(root);
+        adapter.Resize(240, 40);
+        adapter.ProcessPointer(ControlSurfacePointerAction.Down, 4, 4);
+        return textBox;
     }
 }

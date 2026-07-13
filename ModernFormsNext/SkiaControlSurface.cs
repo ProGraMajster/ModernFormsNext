@@ -17,6 +17,9 @@ public sealed class SkiaControlSurface : IDisposable
 {
     private readonly HashSet<Control> observedControls = [];
     private readonly SurfaceRootControl surfaceRoot = new();
+    private TextBox? composingTextBox;
+    private int compositionStart = -1;
+    private int compositionLength;
     private bool disposed;
 
     /// <summary>
@@ -102,6 +105,9 @@ public sealed class SkiaControlSurface : IDisposable
     public void ProcessPointer(ControlSurfacePointerAction action, int x, int y)
     {
         ThrowIfDisposed();
+        if (action == ControlSurfacePointerAction.Down)
+            FinishComposingText();
+
         var button = action is ControlSurfacePointerAction.Down or ControlSurfacePointerAction.Up
             ? MouseButtons.Left
             : MouseButtons.None;
@@ -144,10 +150,180 @@ public sealed class SkiaControlSurface : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(text);
-        if (text.Length == 0)
+
+        var selected = FindSelectedControl();
+        if (selected is null)
             return;
 
-        FindSelectedControl()?.RaiseKeyPress(new KeyPressEventArgs(text));
+        if (ReferenceEquals(selected, composingTextBox))
+            SelectCompositionForReplacement(composingTextBox!);
+
+        if (text.Length > 0)
+            selected.RaiseKeyPress(new KeyPressEventArgs(text));
+        else if (ReferenceEquals(selected, composingTextBox))
+            selected.RaiseKeyDown(new KeyEventArgs(Keys.Back));
+
+        ClearCompositionSelection();
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Updates the active IME composition in the selected framework text box.</summary>
+    /// <param name="text">The complete current composing text supplied by the platform IME.</param>
+    /// <remarks>
+    /// The existing composition is replaced atomically. ModernFormsNext currently represents the
+    /// composing range with its normal text selection until dedicated composition styling exists.
+    /// Call this method on the surface's UI thread.
+    /// </remarks>
+    public void SetComposingText(string text)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(text);
+        if (FindSelectedControl() is not TextBox textBox)
+            return;
+
+        if (ReferenceEquals(composingTextBox, textBox))
+            SelectCompositionForReplacement(textBox);
+        else
+        {
+            ClearCompositionSelection();
+            compositionStart = textBox.SelectionStart >= 0 && textBox.SelectionEnd >= 0
+                ? Math.Min(textBox.SelectionStart, textBox.SelectionEnd)
+                : textBox.document.CursorIndex;
+        }
+
+        if (text.Length > 0)
+            textBox.RaiseKeyPress(new KeyPressEventArgs(text));
+        else if (textBox.SelectionStart >= 0 && textBox.SelectionEnd >= 0)
+            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Back));
+
+        composingTextBox = textBox;
+        compositionLength = text.Length;
+        SetTextSelectionCore(textBox, compositionStart, compositionStart + compositionLength);
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Finishes the current IME composition without removing its committed text.</summary>
+    public void FinishComposingText()
+    {
+        ThrowIfDisposed();
+        if (composingTextBox is null)
+            return;
+
+        var caret = compositionStart + compositionLength;
+        SetTextSelectionCore(composingTextBox, caret, caret);
+        ClearCompositionState();
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Gets a text, caret, selection, and composition snapshot for the platform IME.</summary>
+    /// <returns>The selected text-box state, or <see langword="null"/> when no text box is selected.</returns>
+    public ControlSurfaceTextInputState? GetTextInputState()
+    {
+        ThrowIfDisposed();
+        if (FindSelectedControl() is not TextBox textBox)
+            return null;
+
+        var cursor = textBox.document.CursorIndex;
+        var selectionStart = textBox.SelectionStart >= 0 ? textBox.SelectionStart : cursor;
+        var selectionEnd = textBox.SelectionEnd >= 0 ? textBox.SelectionEnd : cursor;
+        var composing = ReferenceEquals(composingTextBox, textBox);
+        return new ControlSurfaceTextInputState(
+            textBox.Text,
+            selectionStart,
+            selectionEnd,
+            composing ? compositionStart : -1,
+            composing ? compositionStart + compositionLength : -1);
+    }
+
+    /// <summary>Sets the selected text range requested by a platform input method.</summary>
+    /// <param name="start">The inclusive UTF-16 selection start.</param>
+    /// <param name="end">The exclusive UTF-16 selection end.</param>
+    public void SetTextSelection(int start, int end)
+    {
+        ThrowIfDisposed();
+        if (FindSelectedControl() is not TextBox textBox)
+            return;
+        if (start < 0 || end < 0 || start > textBox.Text.Length || end > textBox.Text.Length)
+            throw new ArgumentOutOfRangeException(nameof(start), "Selection indexes must be within the selected text box.");
+
+        ClearCompositionState();
+        SetTextSelectionCore(textBox, start, end);
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Deletes text around the caret in response to a platform input connection.</summary>
+    /// <param name="beforeLength">Maximum UTF-16 code units to remove before the caret.</param>
+    /// <param name="afterLength">Maximum UTF-16 code units to remove after the caret.</param>
+    /// <remarks>
+    /// The framework deletes complete Unicode text elements, so a request that intersects a
+    /// surrogate pair, emoji sequence, or combining sequence removes that element atomically.
+    /// </remarks>
+    public void DeleteSurroundingText(int beforeLength, int afterLength)
+    {
+        ThrowIfDisposed();
+        if (beforeLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(beforeLength));
+        if (afterLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(afterLength));
+        if (FindSelectedControl() is not TextBox textBox)
+            return;
+
+        var originalCursor = textBox.document.CursorIndex;
+        var selectionStart = textBox.SelectionStart >= 0
+            ? Math.Min(textBox.SelectionStart, textBox.SelectionEnd)
+            : originalCursor;
+        var selectionEnd = textBox.SelectionEnd >= 0
+            ? Math.Max(textBox.SelectionStart, textBox.SelectionEnd)
+            : originalCursor;
+        ClearCompositionState();
+        SetTextSelectionCore(textBox, selectionStart, selectionStart);
+        var remainingBefore = beforeLength;
+        while (remainingBefore > 0 && !textBox.document.AtBeginning)
+        {
+            var oldCursor = textBox.document.CursorIndex;
+            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Back));
+            remainingBefore -= Math.Max(1, oldCursor - textBox.document.CursorIndex);
+        }
+
+        var deletedBefore = selectionStart - textBox.document.CursorIndex;
+        selectionStart -= deletedBefore;
+        selectionEnd -= deletedBefore;
+        SetTextSelectionCore(textBox, selectionEnd, selectionEnd);
+
+        var remainingAfter = afterLength;
+        while (remainingAfter > 0 && !textBox.document.AtEnd)
+        {
+            var oldLength = textBox.Text.Length;
+            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Delete));
+            remainingAfter -= Math.Max(1, oldLength - textBox.Text.Length);
+        }
+
+        SetTextSelectionCore(textBox, selectionStart, selectionEnd);
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Routes a platform key-down transition to the selected framework control.</summary>
+    /// <param name="key">The platform-neutral framework key.</param>
+    public void ProcessKeyDown(Keys key)
+    {
+        ThrowIfDisposed();
+        var selected = FindSelectedControl();
+        if (selected is null)
+            return;
+
+        var args = new KeyEventArgs(key);
+        selected.RaiseKeyDown(args);
+        if (!args.SuppressKeyPress && key is Keys.Enter or Keys.Return)
+            selected.RaiseKeyPress(new KeyPressEventArgs("\r", key));
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Routes a platform key-up transition to the selected framework control.</summary>
+    /// <param name="key">The platform-neutral framework key.</param>
+    public void ProcessKeyUp(Keys key)
+    {
+        ThrowIfDisposed();
+        FindSelectedControl()?.RaiseKeyUp(new KeyEventArgs(key));
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -169,6 +345,7 @@ public sealed class SkiaControlSurface : IDisposable
         foreach (var control in observedControls.ToArray())
             Unobserve(control);
         observedControls.Clear();
+        ClearCompositionState();
         surfaceRoot.Controls.Remove(Root);
         surfaceRoot.Dispose();
         Invalidated = null;
@@ -222,7 +399,49 @@ public sealed class SkiaControlSurface : IDisposable
         => ObserveTree(e.Value);
 
     private void OnControlRemoved(object? sender, EventArgs<Control> e)
-        => Unobserve(e.Value);
+    {
+        if (ReferenceEquals(e.Value, composingTextBox))
+            ClearCompositionState();
+        Unobserve(e.Value);
+    }
+
+    private void SelectCompositionForReplacement(TextBox textBox)
+        => SetTextSelectionCore(textBox, compositionStart, compositionStart + compositionLength);
+
+    private void ClearCompositionSelection()
+    {
+        if (composingTextBox is not null)
+        {
+            var caret = composingTextBox.document.CursorIndex;
+            SetTextSelectionCore(composingTextBox, caret, caret);
+        }
+
+        ClearCompositionState();
+    }
+
+    private void ClearCompositionState()
+    {
+        composingTextBox = null;
+        compositionStart = -1;
+        compositionLength = 0;
+    }
+
+    private static void SetTextSelectionCore(TextBox textBox, int start, int end)
+    {
+        textBox.document.SetCursorToCharIndex(end);
+        if (start == end)
+        {
+            textBox.SelectionStart = -1;
+            textBox.SelectionEnd = -1;
+        }
+        else
+        {
+            textBox.SelectionStart = start;
+            textBox.SelectionEnd = end;
+        }
+
+        textBox.ScrollToCaret();
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 

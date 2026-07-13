@@ -26,4 +26,28 @@ public sealed class SampleAppState
 
     /// <summary>Gets the most recent permission result shown by the sample.</summary>
     public string PermissionStatus { get; internal set; } = "Not requested";
+
+    /// <summary>Gets the latest lifecycle transition reported by the current native host.</summary>
+    public string LifecycleStatus { get; internal set; } = "Application created";
+
+    /// <summary>Gets the current Android logical-pixel density, or <c>1</c> on Windows.</summary>
+    public float Density { get; internal set; } = 1f;
+
+    /// <summary>Gets the current Android scaled density, or <c>1</c> on Windows.</summary>
+    public float ScaledDensity { get; internal set; } = 1f;
+
+    /// <summary>Gets a value indicating whether the native rendering surface is attached.</summary>
+    public bool SurfaceAttached { get; internal set; }
+
+    /// <summary>Gets the number of pointers currently tracked by the platform surface.</summary>
+    public int ActivePointerCount { get; internal set; }
+
+    /// <summary>Gets the number of render passes completed by the current native surface.</summary>
+    public long NativeRenderCount { get; internal set; }
+
+    /// <summary>Gets a short description of the most recent input transition.</summary>
+    public string LastInput { get; internal set; } = "None";
+
+    /// <summary>Gets the name of the last shared control that received focus.</summary>
+    public string FocusedControl { get; internal set; } = "None";
 }

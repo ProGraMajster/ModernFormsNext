@@ -24,6 +24,7 @@ public sealed class AndroidSurfaceHostStateTests
     public void RepeatedInvalidationIsCoalescedUntilRenderCompletes()
     {
         var state = new AndroidSurfaceHostState();
+        state.AttachSurface();
         state.Resume();
 
         Assert.True(state.RequestInvalidation());
@@ -47,6 +48,36 @@ public sealed class AndroidSurfaceHostStateTests
     }
 
     [Fact]
+    public void ResizeBeforeStartIsRememberedWithoutSchedulingNativeWork()
+    {
+        var state = new AndroidSurfaceHostState();
+
+        Assert.True(state.Resize(320, 640));
+        Assert.False(state.IsInvalidationPending);
+
+        state.Start();
+        state.Resume();
+        Assert.True(state.RequestInvalidation());
+    }
+
+    [Fact]
+    public void DetachedSurfacePreservesOneRenderForReattachment()
+    {
+        var state = new AndroidSurfaceHostState();
+        state.Start();
+        state.AttachSurface();
+        state.Resume();
+        state.RequestInvalidation();
+        state.CompleteRender();
+
+        Assert.Empty(state.DetachSurface());
+        Assert.False(state.CanRender);
+        Assert.True(state.IsInvalidationPending);
+        Assert.True(state.AttachSurface());
+        Assert.True(state.CanRender);
+    }
+
+    [Fact]
     public void PauseCancelsAllPointersAndRejectsFurtherInput()
     {
         var state = new AndroidSurfaceHostState();
@@ -56,7 +87,22 @@ public sealed class AndroidSurfaceHostStateTests
 
         Assert.Equal([3, 7], state.Pause());
         Assert.Equal(0, state.ActivePointerCount);
+        Assert.Null(state.PrimaryPointerId);
         Assert.False(state.TrackPointer(9, AndroidPointerAction.Down));
+    }
+
+    [Fact]
+    public void PrimaryPointerRemainsStableUntilItLeaves()
+    {
+        var state = new AndroidSurfaceHostState();
+        state.Resume();
+
+        state.TrackPointer(7, AndroidPointerAction.Down, isPrimary: true);
+        state.TrackPointer(3, AndroidPointerAction.Down);
+        Assert.Equal(7, state.PrimaryPointerId);
+
+        state.TrackPointer(7, AndroidPointerAction.Up);
+        Assert.Equal(3, state.PrimaryPointerId);
     }
 
     [Fact]

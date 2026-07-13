@@ -11,7 +11,7 @@ public sealed class SampleApplicationTests
         var platform = new FakePlatformServices("Test Android", "Test OS", "Test backend");
         var app = new App(platform);
 
-        var texts = app.Root.Controls.OfType<Label>().Select(label => label.Text).ToArray();
+        var texts = Descendants(app.Root).OfType<Label>().Select(label => label.Text).ToArray();
 
         Assert.Contains("Platform: Test Android", texts);
         Assert.Contains("OS: Test OS", texts);
@@ -22,7 +22,7 @@ public sealed class SampleApplicationTests
     public void SharedButtonUpdatesStateWithoutAPlatformSpecificPage()
     {
         var app = new App(new FakePlatformServices());
-        var button = app.Root.Controls.OfType<Button>()
+        var button = Descendants(app.Root).OfType<Button>()
             .Single(button => button.Text == "Run shared action");
 
         button.PerformClick();
@@ -35,7 +35,7 @@ public sealed class SampleApplicationTests
     {
         var platform = new FakePlatformServices();
         var app = new App(platform);
-        var button = app.Root.Controls.OfType<Button>()
+        var button = Descendants(app.Root).OfType<Button>()
             .Single(button => button.Text == "Post through UI dispatcher");
 
         button.PerformClick();
@@ -48,7 +48,7 @@ public sealed class SampleApplicationTests
     public void ReattachingAHostCanReuseTheSameAppRootAndState()
     {
         var app = new App(new FakePlatformServices());
-        var button = app.Root.Controls.OfType<Button>()
+        var button = Descendants(app.Root).OfType<Button>()
             .Single(button => button.Text == "Run shared action");
         for (var index = 0; index < 4; index++)
             button.PerformClick();
@@ -73,8 +73,11 @@ public sealed class SampleApplicationTests
         public FakeDispatcher FakeDispatcher { get; } = new();
         public IPlatformDispatcher Dispatcher => FakeDispatcher;
         public bool SupportsPermissionAction => true;
+        public Task<PlatformPermissionStatus> CheckSamplePermissionAsync()
+            => Task.FromResult(PlatformPermissionStatus.Granted);
         public Task<PlatformPermissionStatus> RequestSamplePermissionAsync()
             => Task.FromResult(PlatformPermissionStatus.Granted);
+        public Task<bool> OpenApplicationSettingsAsync() => Task.FromResult(true);
     }
 
     private sealed class FakeDispatcher : IPlatformDispatcher
@@ -98,6 +101,16 @@ public sealed class SampleApplicationTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(function());
+        }
+    }
+
+    private static IEnumerable<Control> Descendants(Control root)
+    {
+        foreach (Control control in root.Controls)
+        {
+            yield return control;
+            foreach (var descendant in Descendants(control))
+                yield return descendant;
         }
     }
 }

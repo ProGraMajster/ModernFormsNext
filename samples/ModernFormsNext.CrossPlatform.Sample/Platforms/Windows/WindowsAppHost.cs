@@ -21,6 +21,7 @@ public sealed class WindowsAppHost : Form
         MinimumSize = new Size(520, 620);
         app.Root.Dock = DockStyle.Fill;
         Controls.Add(app.Root);
-        app.RefreshPlatformStatus();
+        app.UpdateSurfaceDiagnostics(1, 1, surfaceAttached: true, activePointers: 0, nativeRenderCount: 0);
+        app.NotifyLifecycle("Windows window created");
     }
 }

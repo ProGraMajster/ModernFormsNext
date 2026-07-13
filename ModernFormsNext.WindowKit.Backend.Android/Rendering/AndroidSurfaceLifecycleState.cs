@@ -5,8 +5,11 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// </summary>
 public enum AndroidSurfaceLifecycleState
 {
-    /// <summary>The host has not yet been attached to an activity.</summary>
+    /// <summary>The owning activity has not started the host.</summary>
     Uninitialized,
+
+    /// <summary>The owning activity has started, but the surface is not yet accepting input.</summary>
+    Started,
 
     /// <summary>The host is visible and may render or accept input.</summary>
     Resumed,

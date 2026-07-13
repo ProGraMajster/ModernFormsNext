@@ -28,6 +28,12 @@ internal sealed class AndroidPlatformServices(AndroidWindowKitBackend backend) :
 
     public bool SupportsPermissionAction => true;
 
+    public async Task<PlatformPermissionStatus> CheckSamplePermissionAsync()
+        => (await backend.Permissions.CheckAsync(PlatformPermission.Camera)).Status;
+
     public async Task<PlatformPermissionStatus> RequestSamplePermissionAsync()
         => (await backend.Permissions.RequestAsync(PlatformPermission.Camera)).Status;
+
+    public Task<bool> OpenApplicationSettingsAsync()
+        => backend.Permissions.OpenApplicationSettingsAsync();
 }

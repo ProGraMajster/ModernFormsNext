@@ -25,23 +25,36 @@ public sealed class AndroidAppHost : IDisposable
         this.app = app ?? throw new ArgumentNullException(nameof(app));
         controlSurface = new SkiaControlSurface(app.Root);
         nativeSurface = new AndroidSkiaHostView(activity);
+        nativeSurface.TextInputStateProvider = GetTextInputState;
 
         controlSurface.Invalidated += OnControlSurfaceInvalidated;
         nativeSurface.Render += OnRender;
         nativeSurface.Pointer += OnPointer;
         nativeSurface.TextCommitted += OnTextCommitted;
         nativeSurface.ComposingTextChanged += OnComposingTextChanged;
-        nativeSurface.DeleteBackwardRequested += OnDeleteBackwardRequested;
+        nativeSurface.ComposingTextFinished += OnComposingTextFinished;
+        nativeSurface.DeleteSurroundingTextRequested += OnDeleteSurroundingTextRequested;
+        nativeSurface.KeyInput += OnKeyInput;
+        nativeSurface.TextSelectionRequested += OnTextSelectionRequested;
     }
 
     /// <summary>Gets the single native view that the activity should display.</summary>
     public AndroidSkiaHostView View => nativeSurface;
+
+    /// <summary>Forwards activity start to the render surface.</summary>
+    public void Start()
+    {
+        ThrowIfDisposed();
+        nativeSurface.StartHost();
+        UpdateDiagnostics();
+    }
 
     /// <summary>Forwards activity resume to the render surface.</summary>
     public void Resume()
     {
         ThrowIfDisposed();
         nativeSurface.ResumeHost();
+        UpdateDiagnostics();
         app.RefreshPlatformStatus();
     }
 
@@ -51,6 +64,7 @@ public sealed class AndroidAppHost : IDisposable
         ThrowIfDisposed();
         nativeSurface.PauseHost();
         controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0);
+        UpdateDiagnostics();
         app.RefreshPlatformStatus();
     }
 
@@ -59,6 +73,16 @@ public sealed class AndroidAppHost : IDisposable
     {
         ThrowIfDisposed();
         nativeSurface.StopHost();
+        UpdateDiagnostics();
+        app.RefreshPlatformStatus();
+    }
+
+    /// <summary>Refreshes density and size after an Android configuration transition.</summary>
+    public void ConfigurationChanged()
+    {
+        ThrowIfDisposed();
+        nativeSurface.RefreshConfiguration();
+        UpdateDiagnostics();
         app.RefreshPlatformStatus();
     }
 
@@ -75,7 +99,11 @@ public sealed class AndroidAppHost : IDisposable
         nativeSurface.Pointer -= OnPointer;
         nativeSurface.TextCommitted -= OnTextCommitted;
         nativeSurface.ComposingTextChanged -= OnComposingTextChanged;
-        nativeSurface.DeleteBackwardRequested -= OnDeleteBackwardRequested;
+        nativeSurface.ComposingTextFinished -= OnComposingTextFinished;
+        nativeSurface.DeleteSurroundingTextRequested -= OnDeleteSurroundingTextRequested;
+        nativeSurface.KeyInput -= OnKeyInput;
+        nativeSurface.TextSelectionRequested -= OnTextSelectionRequested;
+        nativeSurface.TextInputStateProvider = null;
         controlSurface.Dispose();
         nativeSurface.Dispose();
     }
@@ -86,11 +114,16 @@ public sealed class AndroidAppHost : IDisposable
         var height = Math.Max(0, (int)MathF.Round(e.LogicalHeight));
         controlSurface.Resize(width, height);
         controlSurface.Render(e.Canvas);
+        UpdateDiagnostics();
     }
 
     private void OnPointer(object? sender, AndroidPointerEvent e)
     {
-        if (!e.IsPrimary && e.Action != AndroidPointerAction.Cancel)
+        app.State.ActivePointerCount = nativeSurface.HostState.ActivePointerCount;
+        if (e.Action != AndroidPointerAction.Move)
+            app.State.LastInput = $"Pointer {e.PointerId}: {e.Action} at {e.X:0.#}, {e.Y:0.#}";
+
+        if (!e.IsPrimary)
             return;
 
         var action = e.Action switch
@@ -110,22 +143,89 @@ public sealed class AndroidAppHost : IDisposable
             else
                 nativeSurface.HideSoftKeyboard();
         }
+
+        UpdateDiagnostics();
     }
 
-    private void OnTextCommitted(object? sender, string text) => controlSurface.CommitText(text);
+    private void OnTextCommitted(object? sender, string text)
+    {
+        controlSurface.CommitText(text);
+        app.UpdateLastInput($"IME committed {text.Length} UTF-16 unit(s)");
+    }
 
     private void OnComposingTextChanged(object? sender, string text)
     {
-        // Composition remains owned by Android until CommitText. Rendering intermediate text as a
-        // commit would duplicate CJK input and split emoji/grapheme sequences.
+        controlSurface.SetComposingText(text);
+        app.UpdateLastInput($"IME composition changed ({text.Length} UTF-16 unit(s))");
     }
 
-    private void OnDeleteBackwardRequested(object? sender, EventArgs e) => controlSurface.DeleteBackward();
+    private void OnComposingTextFinished(object? sender, EventArgs e)
+    {
+        controlSurface.FinishComposingText();
+        app.UpdateLastInput("IME composition finished");
+    }
+
+    private void OnDeleteSurroundingTextRequested(object? sender, AndroidTextDeletionRequest e)
+    {
+        controlSurface.DeleteSurroundingText(e.BeforeLength, e.AfterLength);
+        app.UpdateLastInput($"IME deletion: before {e.BeforeLength}, after {e.AfterLength}");
+    }
+
+    private void OnTextSelectionRequested(object? sender, AndroidTextSelectionEvent e)
+    {
+        controlSurface.SetTextSelection(e.Start, e.End);
+        app.UpdateLastInput($"IME selection: {e.Start}..{e.End}");
+    }
+
+    private void OnKeyInput(object? sender, AndroidInputKeyEvent e)
+    {
+        var key = e.Key switch
+        {
+            AndroidInputKey.Backspace => Keys.Back,
+            AndroidInputKey.Delete => Keys.Delete,
+            AndroidInputKey.Enter => Keys.Enter,
+            AndroidInputKey.Left => Keys.Left,
+            AndroidInputKey.Up => Keys.Up,
+            AndroidInputKey.Right => Keys.Right,
+            AndroidInputKey.Down => Keys.Down,
+            _ => throw new ArgumentOutOfRangeException(nameof(e))
+        };
+
+        if (e.IsDown)
+            controlSurface.ProcessKeyDown(key);
+        else
+            controlSurface.ProcessKeyUp(key);
+        app.UpdateLastInput($"Key {e.Key} {(e.IsDown ? "down" : "up")}");
+    }
 
     private void OnControlSurfaceInvalidated(object? sender, EventArgs e)
     {
-        if (!disposed && nativeSurface.HostState.LifecycleState == AndroidSurfaceLifecycleState.Resumed)
+        if (!disposed && nativeSurface.HostState.LifecycleState is not
+            (AndroidSurfaceLifecycleState.Uninitialized or AndroidSurfaceLifecycleState.Disposed))
             nativeSurface.RequestRender();
+    }
+
+    private AndroidTextInputState GetTextInputState()
+    {
+        var state = controlSurface.GetTextInputState();
+        return state is null
+            ? new AndroidTextInputState(string.Empty, 0, 0)
+            : new AndroidTextInputState(
+                state.Value.Text,
+                state.Value.SelectionStart,
+                state.Value.SelectionEnd,
+                state.Value.CompositionStart,
+                state.Value.CompositionEnd);
+    }
+
+    private void UpdateDiagnostics()
+    {
+        app.UpdateSurfaceDiagnostics(
+            nativeSurface.Density,
+            nativeSurface.ScaledDensity,
+            nativeSurface.HostState.IsSurfaceAttached,
+            nativeSurface.HostState.ActivePointerCount,
+            nativeSurface.HostState.RenderCount);
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);

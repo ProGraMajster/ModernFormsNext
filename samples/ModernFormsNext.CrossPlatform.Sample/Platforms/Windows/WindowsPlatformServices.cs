@@ -20,8 +20,13 @@ internal sealed class WindowsPlatformServices : ISamplePlatformServices
 
     public bool SupportsPermissionAction => false;
 
+    public Task<PlatformPermissionStatus> CheckSamplePermissionAsync()
+        => Task.FromResult(PlatformPermissionStatus.NotSupported);
+
     public Task<PlatformPermissionStatus> RequestSamplePermissionAsync()
         => Task.FromResult(PlatformPermissionStatus.NotSupported);
+
+    public Task<bool> OpenApplicationSettingsAsync() => Task.FromResult(false);
 
     private sealed class WindowsSampleDispatcher : IPlatformDispatcher
     {

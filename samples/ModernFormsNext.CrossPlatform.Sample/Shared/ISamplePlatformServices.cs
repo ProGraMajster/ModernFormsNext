@@ -30,7 +30,15 @@ public interface ISamplePlatformServices
     /// <summary>Gets a value indicating whether the sample permission action is available.</summary>
     bool SupportsPermissionAction { get; }
 
-    /// <summary>Checks or requests the optional camera permission used by the sample.</summary>
+    /// <summary>Checks the optional camera permission without showing a system prompt.</summary>
+    /// <returns>The current platform-neutral permission status.</returns>
+    Task<PlatformPermissionStatus> CheckSamplePermissionAsync();
+
+    /// <summary>Explicitly requests the optional camera permission used by the sample.</summary>
     /// <returns>The resulting platform-neutral permission status.</returns>
     Task<PlatformPermissionStatus> RequestSamplePermissionAsync();
+
+    /// <summary>Opens this application's platform settings after an explicit user action.</summary>
+    /// <returns><see langword="true"/> when settings were opened.</returns>
+    Task<bool> OpenApplicationSettingsAsync();
 }

@@ -12,6 +12,15 @@ public sealed class AndroidSurfaceHostState
 {
     private readonly HashSet<int> activePointers = [];
 
+    /// <summary>Gets a value indicating whether the native drawing surface is attached.</summary>
+    public bool IsSurfaceAttached { get; private set; }
+
+    /// <summary>Gets a value indicating whether the host may execute a render pass.</summary>
+    public bool CanRender => LifecycleState == AndroidSurfaceLifecycleState.Resumed && IsSurfaceAttached;
+
+    /// <summary>Gets the pointer identifier that currently drives the single-pointer framework pipeline.</summary>
+    public int? PrimaryPointerId { get; private set; }
+
     /// <summary>Gets the current surface lifecycle state.</summary>
     public AndroidSurfaceLifecycleState LifecycleState { get; private set; }
 
@@ -30,7 +39,36 @@ public sealed class AndroidSurfaceHostState
     /// <summary>Gets the number of active pointers tracked by the surface.</summary>
     public int ActivePointerCount => activePointers.Count;
 
-    /// <summary>Marks the surface as attached and active.</summary>
+    /// <summary>Marks the owning activity as started.</summary>
+    public void Start()
+    {
+        ThrowIfDisposed();
+        LifecycleState = AndroidSurfaceLifecycleState.Started;
+    }
+
+    /// <summary>Marks the native drawing surface as attached.</summary>
+    /// <returns><see langword="true"/> when a pending render should be posted to the native view.</returns>
+    public bool AttachSurface()
+    {
+        ThrowIfDisposed();
+        IsSurfaceAttached = true;
+        return LifecycleState == AndroidSurfaceLifecycleState.Resumed && IsInvalidationPending;
+    }
+
+    /// <summary>Marks the native drawing surface as detached and cancels active pointers.</summary>
+    /// <returns>The pointer identifiers that must receive cancellation.</returns>
+    public IReadOnlyList<int> DetachSurface()
+    {
+        ThrowIfDisposed();
+        IsSurfaceAttached = false;
+
+        // Preserve a pending render request across a temporary surface loss. Android can detach
+        // and recreate the native surface without recreating the managed application tree.
+        IsInvalidationPending = true;
+        return CancelPointers();
+    }
+
+    /// <summary>Marks the surface as active and ready to accept input.</summary>
     public void Resume()
     {
         ThrowIfDisposed();
@@ -66,7 +104,8 @@ public sealed class AndroidSurfaceHostState
 
         LogicalWidth = width;
         LogicalHeight = height;
-        RequestInvalidation();
+        if (LifecycleState != AndroidSurfaceLifecycleState.Uninitialized)
+            RequestInvalidation();
         return true;
     }
 
@@ -76,7 +115,7 @@ public sealed class AndroidSurfaceHostState
     {
         ThrowIfDisposed();
         if (LifecycleState == AndroidSurfaceLifecycleState.Uninitialized)
-            throw new InvalidOperationException("The Android surface must be resumed before it can be invalidated.");
+            throw new InvalidOperationException("The Android surface must be started before it can be invalidated.");
         if (IsInvalidationPending)
             return false;
 
@@ -88,15 +127,19 @@ public sealed class AndroidSurfaceHostState
     public void CompleteRender()
     {
         ThrowIfDisposed();
-        if (LifecycleState == AndroidSurfaceLifecycleState.Uninitialized)
-            throw new InvalidOperationException("The Android surface must be resumed before it can render.");
+        if (!CanRender)
+            throw new InvalidOperationException("The Android surface must be attached and resumed before it can render.");
 
         IsInvalidationPending = false;
         RenderCount++;
     }
 
     /// <summary>Updates the active-pointer set and reports whether input was accepted.</summary>
-    public bool TrackPointer(int pointerId, AndroidPointerAction action)
+    /// <param name="pointerId">The stable Android pointer identifier.</param>
+    /// <param name="action">The platform-neutral pointer transition.</param>
+    /// <param name="isPrimary">Whether this pointer drives the framework's single-pointer pipeline.</param>
+    /// <returns><see langword="true"/> when the resumed host accepted the transition.</returns>
+    public bool TrackPointer(int pointerId, AndroidPointerAction action, bool isPrimary = false)
     {
         ThrowIfDisposed();
         if (LifecycleState != AndroidSurfaceLifecycleState.Resumed)
@@ -106,14 +149,26 @@ public sealed class AndroidSurfaceHostState
         {
             case AndroidPointerAction.Down:
                 activePointers.Add(pointerId);
+                if (isPrimary || PrimaryPointerId is null)
+                    PrimaryPointerId = pointerId;
                 break;
             case AndroidPointerAction.Up:
             case AndroidPointerAction.Cancel:
                 activePointers.Remove(pointerId);
+                if (PrimaryPointerId == pointerId)
+                    PrimaryPointerId = activePointers.Count == 0 ? null : activePointers.Min();
                 break;
         }
 
         return true;
+    }
+
+    /// <summary>Cancels every active pointer without changing the activity lifecycle state.</summary>
+    /// <returns>The pointer identifiers that must receive cancellation.</returns>
+    public IReadOnlyList<int> CancelActivePointers()
+    {
+        ThrowIfDisposed();
+        return CancelPointers();
     }
 
     /// <summary>Releases the host permanently and returns pointers that require cancellation.</summary>
@@ -124,6 +179,7 @@ public sealed class AndroidSurfaceHostState
 
         var cancelled = CancelPointers();
         IsInvalidationPending = false;
+        IsSurfaceAttached = false;
         LifecycleState = AndroidSurfaceLifecycleState.Disposed;
         return cancelled;
     }
@@ -135,6 +191,7 @@ public sealed class AndroidSurfaceHostState
 
         var cancelled = activePointers.Order().ToArray();
         activePointers.Clear();
+        PrimaryPointerId = null;
         return cancelled;
     }
 
