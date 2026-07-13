@@ -1,46 +1,123 @@
 # Android development
 
+Android support is an experimental vertical slice. Windows remains the primary and most complete
+runtime. The cross-platform sample is intentionally a normal .NET multi-target project; it does
+not use MAUI, XAML, AndroidX, or native Android controls as framework widgets.
+
 ## Requirements
 
-- the repository's .NET 10 SDK and Android workload;
-- an Android SDK containing `platform-tools/adb`;
-- either a USB-debugging device or an installed Android Virtual Device;
-- Windows PowerShell 5.1 or newer.
+- the .NET SDK selected by `global.json` (`10.0.201`, with .NET 10 feature-band roll-forward);
+- the .NET Android workload (`dotnet workload install android` when it is not installed);
+- an Android SDK with platform tools, build tools, and a platform matching the installed workload;
+- the JDK selected by .NET for Android/Visual Studio;
+- either an authorized USB-debugging device or an existing Android Virtual Device (AVD);
+- Windows PowerShell 5.1 or newer for the repository scripts.
 
-The scripts do not install an SDK, change machine PATH, create an AVD, or accept device licenses.
-They inspect the current shell, common Visual Studio/Android Studio SDK locations, and Android
-Studio registry entries, then report actionable failures.
+For a predictable first emulator run, use an x86_64 API 34 phone AVD with at least 4 GB RAM and
+hardware acceleration enabled. API 34 is not a target-SDK requirement; it is a conservative test
+device for this experimental backend. The project currently uses API 23 as `minSdkVersion`, while
+the installed .NET Android reference pack selects `targetSdkVersion`.
 
-## Build
+The scripts do not install workloads, accept licenses, create AVDs, edit PATH, or change global
+Visual Studio settings. `Resolve-AndroidSdk.ps1` checks an explicit `-SdkRoot`, Android environment
+variables, PATH, the standard per-user and Visual Studio SDK locations, and Android Studio registry
+keys. Paths containing spaces are passed as single process arguments.
 
 ```powershell
-dotnet build .\samples\ModernFormsNext.CrossPlatform.Sample\ModernFormsNext.CrossPlatform.Sample.csproj `
-  -f net10.0-android -c Debug
+dotnet workload list
+.\scripts\android\Resolve-AndroidSdk.ps1 -RequireEmulator
+.\scripts\android\Test-AndroidTooling.ps1
 ```
 
-For Release/AOT, the sample explicitly references `System.Formats.Nrbf 10.0.5`. The current
-`System.Drawing.Common` dependency brings `System.Private.Windows.Core` into the Android asset
-graph, but does not select `System.Formats.Nrbf` transitively for AOT. Removing that explicit
-reference currently causes Mono AOT to fail while loading the Windows compatibility assembly.
+If Android licenses or components are missing, use the Visual Studio Installer/Android SDK Manager
+that owns the selected SDK. Do not mix build-tools directories from unrelated SDK installations.
 
-Android 16's build tools may warn that the existing `HarfBuzzSharp.NativeAssets.Android 7.3.0.1`
-binary does not advertise 16 KB page-size compatibility. This is an upstream native-asset warning,
-not proof that a device run was performed; keep it visible until the dependency is updated.
+## Build modes
 
-## Backend boundary
+Visual Studio Debug uses .NET for Android fast deployment:
 
-`AndroidWindowKit.Initialize` owns application context, activity tracking, the main-thread
-dispatcher, permission coordination, and diagnostics. `AndroidSkiaHostView` owns one native view,
-density, resize, touch, IME, and surface lifecycle. Core `SkiaControlSurface` owns the adaptation to
-the actual ModernFormsNext `Control` tree.
+- portable PDBs and managed debugging are enabled;
+- AOT is disabled;
+- `EmbedAssembliesIntoApk=false` allows the IDE to deploy changed assemblies efficiently.
 
-Keep Android APIs under platform host/backend directories. Shared `App` and `MainPage` must not
-reference `Activity`, `View`, `MotionEvent`, or `InputMethodManager`.
+A raw `adb install` cannot use those external fast-deployment assemblies. The repository build
+script therefore invokes `SignAndroidPackage` and overrides `EmbedAssembliesIntoApk=true` to create
+a standalone signed APK:
+
+```powershell
+.\scripts\android\Build-CrossPlatformSample.ps1 -Configuration Debug
+```
+
+Release embeds assemblies and enables Android AOT:
+
+```powershell
+.\scripts\android\Build-CrossPlatformSample.ps1 -Configuration Release
+```
+
+Use `-NoAot` only as an explicit diagnostic comparison. A successful non-AOT Release build is not
+a substitute for the required Release/AOT validation.
+
+The sample references `System.Formats.Nrbf 10.0.5` explicitly. `System.Drawing.Common` brings
+`System.Private.Windows.Core` into the Android asset graph, but that compatibility assembly's AOT
+dependency is not currently selected transitively. Removing the explicit reference makes Mono AOT
+fail while loading that graph.
+
+Android 16 build tools may also emit `XA0141` for the current HarfBuzzSharp 7.3.0.1 native assets,
+which do not advertise 16 KB page-size compatibility. This is an upstream package warning and must
+remain visible until that native dependency is upgraded.
+
+## Visual Studio F5 and Ctrl+F5
+
+Select `net10.0-android` and a concrete device/AVD in Visual Studio's debug target selector. F5
+starts the managed debugger; Ctrl+F5 builds, deploys, and launches without attaching it. The stable
+launcher component is:
+
+```text
+com.programajster.modernformsnext.sample/
+com.programajster.modernformsnext.sample.MainActivity
+```
+
+The Android target deliberately sets `SupportsHotReload=false`. This is narrowly scoped and does
+not disable debugging. The reason is a project-system capability mismatch observed with Visual
+Studio 18.7:
+
+1. the generic .NET SDK advertises `SupportsHotReload`;
+2. the .NET Android SDK removes the `LaunchProfiles` capability;
+3. Visual Studio attempts to import the launch-profile-based
+   `Microsoft.VisualStudio.ProjectSystem.HotReload.IProjectHotReloadLaunchProvider`;
+4. no provider satisfies the Android capability constraints, so the import finds zero exports.
+
+Adding a desktop `launchSettings.json` profile with `commandName: Project` is not a valid Android
+fix and bypasses the platform deployment contract. Keeping the Android workload and disabling only
+the unsupported Hot Reload capability preserves normal F5/Ctrl+F5 deployment and managed debug.
+
+## Runtime architecture
+
+`AndroidWindowKit.Initialize` owns application context, weak activity tracking, the main-thread
+dispatcher, permission coordination, and diagnostics. `AndroidSkiaHostView` owns one native Skia
+view, physical/logical density conversion, attachment, resize, touch, hardware keys, IME, and
+coalesced invalidation. Core `SkiaControlSurface` renders and routes those events through the real
+ModernFormsNext `Control` tree.
+
+Activity lifecycle and native surface attachment are separate. A render requested while paused or
+detached remains coalesced until the surface is both attached and resumed. Pause, stop, detach, and
+Android pointer cancellation release framework pointer capture. Activity recreation disposes only
+the short-lived host; `SampleApplication` retains the shared `App`, state, and `MainPage` tree.
+
+The IME bridge exposes surrounding text, UTF-16 selection, active composition, commit, finish,
+deletion, and cursor movement. Code-point deletion is converted without splitting surrogate pairs;
+the framework editor additionally deletes complete text elements for emoji/combining safety. There
+is no hidden Android `EditText` and no second Android-specific application model.
 
 ## Diagnostics
 
-The stable logcat tag is `ModernFormsNext`. Lifecycle, initialization, resize, failures, and
-disposal are logged. Per-render logging is opt-in through
-`AndroidWindowKitOptions.EnableDetailedDiagnostics` to avoid flooding logcat.
+The stable backend logcat tag is `ModernFormsNext`. Lifecycle, initialization, resize, failure, and
+disposal messages are logged; per-frame logging stays opt-in to avoid flooding logcat.
 
-See [Android and adb](android-adb.md) and [Android permissions](android-permissions.md).
+```powershell
+.\scripts\android\Watch-ModernFormsNextLogcat.ps1 -DeviceId <serial> -Clear
+.\scripts\android\Collect-AndroidDiagnostics.ps1 -DeviceId <serial>
+```
+
+See [Android and adb](android-adb.md), [Android backend](android-backend.md),
+[Android permissions](android-permissions.md), and [the cross-platform sample](cross-platform-sample.md).

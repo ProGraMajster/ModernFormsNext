@@ -78,7 +78,8 @@ same controls in the current transitional Skia surface.
 
 ```powershell
 .\scripts\windows\Run-CrossPlatformSample.ps1
-.\scripts\android\Get-AndroidDevices.ps1
+.\scripts\android\Resolve-AndroidSdk.ps1
+.\scripts\android\Get-AndroidDevices.ps1 -IncludeUnavailable
 .\scripts\android\Run-CrossPlatformSample.ps1 -DeviceId <serial>
 ```
 
@@ -141,7 +142,9 @@ public class MainForm : Form
 - `ModernFormsNext.WindowKit/` - platform-neutral windowing, dispatcher, input, storage, and service abstractions.
 - `ModernFormsNext.WindowKit.Backend/` - shared backend bootstrap and interop infrastructure.
 - `ModernFormsNext.WindowKit.Backend.Windows/` - Windows backend implementation and Win32 interop.
-- `ModernFormsNext.WindowKit.Backend.Android/` - early Android lifecycle, dispatcher, manifest, and permission foundation; framework UI rendering is not yet implemented.
+- `ModernFormsNext.WindowKit.Backend.Android/` - experimental Android lifecycle, dispatcher,
+  manifest/permission foundation, and one shared-control Skia surface; it is not yet a complete
+  framework window backend.
 - `ModernFormsNext.Templates/` - project templates for generated user applications.
 - `samples/ControlGallery/` - manual visual validation app for controls and rendering.
 - `samples/ModernFormsNext.DemoApp/` - reference/template application generated for users, not a control playground.
@@ -162,6 +165,9 @@ public class MainForm : Form
 - [Platform-Specific Features](docs/platform-specific-features.md)
 - [Platform-Specific Code Architecture](docs/platform-specific-code.md)
 - [Android Backend](docs/android-backend.md)
+- [Android Development](docs/android-development.md)
+- [Android and adb](docs/android-adb.md)
+- [Cross-Platform Sample](docs/cross-platform-sample.md)
 - [Android Permissions and Manifests](docs/android-permissions.md)
 - [Samples](docs/samples.md)
 - [Architecture](docs/architecture.md)

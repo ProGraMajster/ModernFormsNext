@@ -1,12 +1,25 @@
 # ModernFormsNext cross-platform sample
 
-This is one multi-target ModernFormsNext application project. `App` and `MainPage` are compiled
-unchanged for Windows and Android. Platform code is isolated under `Platforms/Windows` and
-`Platforms/Android`.
+This directory is one multi-target application project targeting `net10.0-windows` and
+`net10.0-android`. `App`, `MainPage`, state, layout, and interaction logic compile unchanged for
+both targets. Platform startup and native adaptation are isolated under `Platforms/Windows` and
+`Platforms/Android`; there is no MAUI, XAML, AndroidX, separate shared project, or duplicated page.
 
-The Android host is an explicit transition slice: a single activity supplies an Android
-`SKCanvasView`, while `SkiaControlSurface` renders and routes input through the same real
-ModernFormsNext `Control` tree used by the Windows window. It is not yet a general Android
-`Form`/window backend.
+The shared page uses real ModernFormsNext controls and exercises scrolling, resizing, single-line
+and multiline IME input, Polish/Asian/RTL text, emoji, focus, buttons, checkboxes, flow layout,
+dispatcher callbacks, lifecycle/density diagnostics, and an explicit camera permission flow.
 
-Use the repository scripts documented in `docs/cross-platform-sample.md` to run either target.
+Windows attaches `App.Root` to a normal ModernFormsNext `Form`. Android creates one Skia view and
+adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the same framework
+control pipeline. Android support remains experimental and is not yet a complete `Form`/window
+backend.
+
+From the repository root:
+
+```powershell
+.\scripts\windows\Run-CrossPlatformSample.ps1
+.\scripts\android\Run-CrossPlatformSample.ps1 -DeviceId <serial>
+```
+
+See [`docs/cross-platform-sample.md`](../../docs/cross-platform-sample.md) for Visual Studio steps,
+ADB/emulator commands, limitations, and the complete manual validation checklist.

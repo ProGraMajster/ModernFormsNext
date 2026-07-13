@@ -1,7 +1,7 @@
 # Android backend
 
-The Android backend is an early platform foundation with a transitional Skia control surface, not
-a complete ModernFormsNext window backend.
+The Android backend is an early platform foundation with an experimental shared-control Skia
+surface, not a complete ModernFormsNext window backend.
 Windows remains the primary and best-supported runtime. The Android project targets
 `net10.0-android` with API 23 as its current minimum and has no MAUI or AndroidX dependency.
 
@@ -55,10 +55,11 @@ The dispatcher is registered in the lightweight `PlatformServiceRegistry` and is
 `AndroidWindowKit.Current.Dispatcher`. It does not yet claim to be the event-loop implementation for
 ModernFormsNext Android windows, because that UI backend has not been built.
 
-## Transitional Skia control surface
+## Shared-control Skia surface
 
-`AndroidSkiaHostView` is one `SKCanvasView` that owns Android surface lifecycle, density
-conversion, resize, touch translation, IME connection, coalesced invalidation, and disposal.
+`AndroidSkiaHostView` is one `SKCanvasView` that owns Android activity/surface lifecycle, density
+conversion, resize, multi-pointer tracking, hardware editing keys, IME connection, coalesced
+invalidation, and disposal.
 `SkiaControlSurface` belongs to the core framework and adapts a real `Control` tree to that canvas,
 including framework layout, paint, hit testing, pointer capture, selection, and committed-text
 routing. This is the pipeline used by `ModernFormsNext.CrossPlatform.Sample`.
@@ -66,6 +67,15 @@ routing. This is the pipeline used by `ModernFormsNext.CrossPlatform.Sample`.
 The view renders only after invalidation or resize. It does not run a permanent frame timer.
 Canvas and Android objects remain platform-owned; the adapter borrows the shared control root so
 activity recreation can detach and reattach without discarding application state.
+
+Activity state and native view attachment are tracked independently. A detached or paused view
+does not render; one pending invalidation survives until it is attached and resumed. Pointer
+cancellation, pause, stop, detach, and disposal clear all tracked pointers and framework capture.
+
+The input connection supplies surrounding text, UTF-16 selection, and composition to Android.
+Commit/composition/finish, selection, deletion in UTF-16 or code points, Enter, Delete, Backspace,
+and arrow keys route into the selected framework `TextBox`. Surrogate pairs and complete framework
+text elements are preserved. No native `EditText` is used.
 
 The integration is deliberately narrower than `Application.Run(Form)`: Android does not yet
 implement the complete `IWindowImpl`/`IWindowingPlatform` contract, multiple windows, native
@@ -105,7 +115,7 @@ validation role.
 
 ## Limitations
 
-- A single real ModernFormsNext control tree can render through the transitional Skia surface, but
+- A single real ModernFormsNext control tree can render through the shared-control Skia surface, but
   general `Application.Run(Form)` and Android window creation are not implemented.
 - No Android `IWindowingPlatform`, clipboard, notification delivery, camera/media capture, WebView,
   file picker, sharing, or drag-and-drop service exists yet.
@@ -113,8 +123,9 @@ validation role.
   picker for user-selected images until a dedicated media-selection API is designed.
 - Runtime dialogs require host callback forwarding; this avoids an AndroidX dependency in this
   foundation.
-- Platform mapping, queue, density, lifecycle, invalidation, resize, and disposal behavior run as
-  `net10.0` tests. Deployment remains an explicit device/emulator step through repository scripts.
+- Platform mapping, queue, density, lifecycle, invalidation, resize, Unicode input-state, and
+  disposal behavior run as `net10.0` tests. Deployment remains an explicit device/emulator step
+  through repository scripts.
 
 ## Troubleshooting
 
