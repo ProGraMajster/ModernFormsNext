@@ -373,11 +373,23 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             return;
 
         var density = Density;
+        var rawX = motionEvent.GetX(index);
+        var rawY = motionEvent.GetY(index);
+        var logicalX = AndroidDensityConverter.ToLogical(rawX, density);
+        var logicalY = AndroidDensityConverter.ToLogical(rawY, density);
+        if (detailedDiagnostics)
+        {
+            AndroidLogger.Write(
+                $"Pointer {pointerId}: {action}; raw=({rawX:0.#},{rawY:0.#}); " +
+                $"logical=({logicalX:0.#},{logicalY:0.#}); primary={isPrimary}.",
+                diagnosticSink);
+        }
+
         Pointer?.Invoke(this, new AndroidPointerEvent(
             pointerId,
             action,
-            AndroidDensityConverter.ToLogical(motionEvent.GetX(index), density),
-            AndroidDensityConverter.ToLogical(motionEvent.GetY(index), density),
+            logicalX,
+            logicalY,
             isPrimary));
     }
 

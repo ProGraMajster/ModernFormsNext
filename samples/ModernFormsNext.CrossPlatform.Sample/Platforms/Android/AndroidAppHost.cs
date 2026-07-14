@@ -123,9 +123,6 @@ public sealed class AndroidAppHost : IDisposable
         if (e.Action != AndroidPointerAction.Move)
             app.State.LastInput = $"Pointer {e.PointerId}: {e.Action} at {e.X:0.#}, {e.Y:0.#}";
 
-        if (!e.IsPrimary)
-            return;
-
         var action = e.Action switch
         {
             AndroidPointerAction.Down => ControlSurfacePointerAction.Down,
@@ -134,7 +131,7 @@ public sealed class AndroidAppHost : IDisposable
             AndroidPointerAction.Cancel => ControlSurfacePointerAction.Cancel,
             _ => throw new ArgumentOutOfRangeException(nameof(e))
         };
-        controlSurface.ProcessPointer(action, (int)MathF.Round(e.X), (int)MathF.Round(e.Y));
+        controlSurface.ProcessPointer(e.PointerId, action, (int)MathF.Round(e.X), (int)MathF.Round(e.Y));
 
         if (action == ControlSurfacePointerAction.Up)
         {

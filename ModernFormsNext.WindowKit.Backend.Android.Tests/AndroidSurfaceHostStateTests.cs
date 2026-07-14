@@ -8,6 +8,7 @@ public sealed class AndroidSurfaceHostStateTests
     public void DensityConversionUsesLogicalPixelsAndRejectsInvalidDensity()
     {
         Assert.Equal(120f, AndroidDensityConverter.ToLogical(360f, 3f));
+        Assert.Equal(100f, AndroidDensityConverter.ToLogical(275f, 2.75f));
         Assert.Throws<ArgumentOutOfRangeException>(() => AndroidDensityConverter.ToLogical(1, 0));
     }
 

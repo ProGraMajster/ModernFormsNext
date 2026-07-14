@@ -67,8 +67,40 @@ namespace ModernFormsNext
             }
         }
 
-        private bool IsInternalScrollControl (Control c)
+        internal bool IsInternalScrollControl (Control c)
             => ReferenceEquals (c, hscrollbar) || ReferenceEquals (c, vscrollbar) || ReferenceEquals (c, sizegrip);
+
+        internal Point TouchScrollPosition => scroll_position;
+
+        // A touch host supplies logical-pixel finger movement. Moving the finger left/up advances
+        // the corresponding scrollbar, while moving right/down rewinds it. Updating the real
+        // scrollbar values keeps their thumbs and the existing ScrollWindow path synchronized.
+        internal bool ScrollByTouchDelta (Point delta)
+        {
+            if (!AutoScroll)
+                return false;
+
+            var oldHorizontal = hscrollbar.Value;
+            var oldVertical = vscrollbar.Value;
+            var newHorizontal = hscrollbar.Visible
+                ? Math.Clamp (oldHorizontal - delta.X, hscrollbar.Minimum, hscrollbar.Maximum)
+                : oldHorizontal;
+            var newVertical = vscrollbar.Visible
+                ? Math.Clamp (oldVertical - delta.Y, vscrollbar.Minimum, vscrollbar.Maximum)
+                : oldVertical;
+
+            if (newHorizontal != oldHorizontal) {
+                hscrollbar.Value = newHorizontal;
+                OnScroll (new ScrollEventArgs (ScrollEventType.ThumbTrack, newHorizontal));
+            }
+
+            if (newVertical != oldVertical) {
+                vscrollbar.Value = newVertical;
+                OnScroll (new ScrollEventArgs (ScrollEventType.ThumbTrack, newVertical));
+            }
+
+            return newHorizontal != oldHorizontal || newVertical != oldVertical;
+        }
 
         // Calculates and sets the current canvas size.
         private void CalculateCanvasSize ()

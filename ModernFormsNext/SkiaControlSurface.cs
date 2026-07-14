@@ -16,7 +16,10 @@ namespace ModernFormsNext;
 public sealed class SkiaControlSurface : IDisposable
 {
     private readonly HashSet<Control> observedControls = [];
+    private readonly Dictionary<int, PointerState> pointers = [];
     private readonly SurfaceRootControl surfaceRoot = new();
+    private readonly Action<string>? pointerDiagnosticSink;
+    private int pointerDragThreshold = 8;
     private TextBox? composingTextBox;
     private int compositionStart = -1;
     private int compositionLength;
@@ -26,9 +29,13 @@ public sealed class SkiaControlSurface : IDisposable
     /// Creates an adapter for a framework control tree.
     /// </summary>
     /// <param name="root">The root control rendered into the platform surface.</param>
-    public SkiaControlSurface(Control root)
+    /// <param name="pointerDiagnosticSink">
+    /// Optional disabled-by-default destination for pointer routing diagnostics.
+    /// </param>
+    public SkiaControlSurface(Control root, Action<string>? pointerDiagnosticSink = null)
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
+        this.pointerDiagnosticSink = pointerDiagnosticSink;
         surfaceRoot.Controls.Add(Root);
         surfaceRoot.CreateControl();
         ObserveTree(surfaceRoot);
@@ -42,6 +49,24 @@ public sealed class SkiaControlSurface : IDisposable
 
     /// <summary>Gets the most recently assigned logical surface size.</summary>
     public Size LogicalSize { get; private set; }
+
+    /// <summary>Gets or sets the drag distance, in logical pixels, that cancels a tap.</summary>
+    /// <remarks>
+    /// A scrollable ancestor may take ownership after this distance is exceeded. Values are
+    /// interpreted after the platform has converted physical coordinates by its density scale.
+    /// </remarks>
+    public int PointerDragThreshold
+    {
+        get => pointerDragThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            pointerDragThreshold = value;
+        }
+    }
+
+    /// <summary>Gets the number of pointer sequences currently tracked by the surface.</summary>
+    public int ActivePointerCount => pointers.Count;
 
     /// <summary>Gets the currently selected descendant that receives committed text.</summary>
     public Control? SelectedControl => FindSelectedControl();
@@ -104,43 +129,132 @@ public sealed class SkiaControlSurface : IDisposable
     /// <param name="y">The vertical position in logical pixels.</param>
     public void ProcessPointer(ControlSurfacePointerAction action, int x, int y)
     {
-        ThrowIfDisposed();
-        if (action == ControlSurfacePointerAction.Down)
-            FinishComposingText();
+        if (action == ControlSurfacePointerAction.Cancel)
+        {
+            CancelAllPointers();
+            return;
+        }
 
-        var button = action is ControlSurfacePointerAction.Down or ControlSurfacePointerAction.Up
-            ? MouseButtons.Left
-            : MouseButtons.None;
-        var args = new MouseEventArgs(button, action == ControlSurfacePointerAction.Up ? 1 : 0, x, y, Point.Empty);
+        ProcessPointer(0, action, x, y);
+    }
+
+    /// <summary>Routes one identified pointer through hit testing, capture, gestures, and click generation.</summary>
+    /// <param name="pointerId">A platform-stable identifier for the complete pointer sequence.</param>
+    /// <param name="action">The pointer transition.</param>
+    /// <param name="x">The horizontal position in logical pixels.</param>
+    /// <param name="y">The vertical position in logical pixels.</param>
+    /// <remarks>
+    /// Every active pointer owns independent capture state. Touch movement does not synthesize
+    /// hover events. A valid tap raises exactly one framework click before its mouse-up transition,
+    /// matching the existing window-host ordering.
+    /// </remarks>
+    public void ProcessPointer(int pointerId, ControlSurfacePointerAction action, int x, int y)
+    {
+        ThrowIfDisposed();
+        var location = new Point(x, y);
+        var hit = HitTest(surfaceRoot, location);
+        var clickGenerated = false;
+        var cancelled = false;
+        PointerState? processedState = null;
 
         switch (action)
         {
             case ControlSurfacePointerAction.Down:
-                // A normal ControlAdapter owns exclusive selection for window-backed controls.
-                // Surface-hosted roots do not have that adapter, so preserve the same invariant
-                // here before framework hit testing selects the pointer target.
+                if (pointers.Remove(pointerId, out var replaced))
+                    CancelPointer(replaced);
+
+                FinishComposingText();
                 foreach (var control in observedControls.Where(control => control.Selected).ToArray())
                     control.Deselect();
-                surfaceRoot.RaiseMouseDown(args);
+
+                var target = hit?.Control;
+                var scrollCandidate = FindScrollableAncestor(target);
+                var downState = new PointerState(pointerId, location, target, scrollCandidate);
+                pointers.Add(pointerId, downState);
+                processedState = downState;
+
+                if (target is not null)
+                {
+                    target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0));
+                    downState.CapturedControl = target;
+                }
+
                 if (FindSelectedControl() is null)
-                    FindSelectableAt(surfaceRoot, new Point(x, y))?.Select();
+                    FindSelectableAt(surfaceRoot, location)?.Select();
                 break;
+
             case ControlSurfacePointerAction.Move:
-                surfaceRoot.RaiseMouseMove(args);
+                if (!pointers.TryGetValue(pointerId, out var moveState))
+                    break;
+                processedState = moveState;
+
+                var totalX = location.X - moveState.DownLocation.X;
+                var totalY = location.Y - moveState.DownLocation.Y;
+                var exceededThreshold = (long)totalX * totalX + (long)totalY * totalY >
+                    (long)PointerDragThreshold * PointerDragThreshold;
+
+                if (exceededThreshold && moveState.ClickEligible)
+                {
+                    moveState.ClickEligible = false;
+                    if (moveState.ScrollCandidate is not null)
+                    {
+                        moveState.CapturedControl?.CancelPointerInteraction();
+                        moveState.CapturedControl = null;
+                        moveState.GestureOwner = moveState.ScrollCandidate;
+                        moveState.GestureOwner.Capture = true;
+                        cancelled = true;
+                    }
+                }
+
+                var delta = new Point(location.X - moveState.LastLocation.X, location.Y - moveState.LastLocation.Y);
+                if (!moveState.ClickEligible && moveState.ScrollCandidate?.ScrollByTouchDelta(delta) == true)
+                    moveState.GestureOwner = moveState.ScrollCandidate;
+                else if (moveState.GestureOwner is null && moveState.CapturedControl is not null)
+                    moveState.CapturedControl.RaiseMouseMove(
+                        CreateMouseArgs(moveState.CapturedControl, location, MouseButtons.Left, 0));
+
+                moveState.LastLocation = location;
                 break;
+
             case ControlSurfacePointerAction.Up:
-                surfaceRoot.RaiseMouseUp(args);
+                if (!pointers.Remove(pointerId, out var upState))
+                    break;
+                processedState = upState;
+
+                if (upState.GestureOwner is not null)
+                {
+                    upState.GestureOwner.CancelPointerInteraction();
+                }
+                else if (upState.CapturedControl is not null)
+                {
+                    var releasedOnCapture = hit is not null && ReferenceEquals(hit.Value.Control, upState.CapturedControl);
+                    var upArgs = CreateMouseArgs(upState.CapturedControl, location, MouseButtons.Left, 1);
+                    if (upState.ClickEligible && releasedOnCapture)
+                    {
+                        upState.CapturedControl.RaiseClick(upArgs);
+                        clickGenerated = true;
+                    }
+
+                    upState.CapturedControl.RaiseMouseUp(upArgs);
+                }
                 break;
+
             case ControlSurfacePointerAction.Cancel:
-                foreach (var control in observedControls.Where(control => control.Capture).ToArray())
-                    control.Capture = false;
-                surfaceRoot.Capture = false;
-                surfaceRoot.RaiseMouseLeave(EventArgs.Empty);
+                if (pointers.Remove(pointerId, out var cancelState))
+                {
+                    processedState = cancelState;
+                    CancelPointer(cancelState);
+                    cancelled = true;
+                }
                 break;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(action));
         }
 
+        WritePointerDiagnostic(pointerId, action, location, hit?.Control,
+            pointers.TryGetValue(pointerId, out var active) ? active : processedState,
+            clickGenerated, cancelled);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -341,6 +455,7 @@ public sealed class SkiaControlSurface : IDisposable
         if (disposed)
             return;
 
+        CancelAllPointers(invalidate: false);
         disposed = true;
         foreach (var control in observedControls.ToArray())
             Unobserve(control);
@@ -400,10 +515,136 @@ public sealed class SkiaControlSurface : IDisposable
 
     private void OnControlRemoved(object? sender, EventArgs<Control> e)
     {
+        foreach (var pointer in pointers.Values.Where(pointer =>
+                     IsSelfOrDescendant(pointer.CapturedControl, e.Value) ||
+                     IsSelfOrDescendant(pointer.GestureOwner, e.Value) ||
+                     IsSelfOrDescendant(pointer.ScrollCandidate, e.Value)).ToArray())
+        {
+            pointers.Remove(pointer.PointerId);
+            CancelPointer(pointer);
+        }
+
         if (ReferenceEquals(e.Value, composingTextBox))
             ClearCompositionState();
-        Unobserve(e.Value);
+        UnobserveTree(e.Value);
     }
+
+    private void CancelAllPointers(bool invalidate = true)
+    {
+        ThrowIfDisposed();
+        foreach (var pointer in pointers.Values.ToArray())
+            CancelPointer(pointer);
+        pointers.Clear();
+        surfaceRoot.Capture = false;
+        if (invalidate)
+            Invalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void CancelPointer(PointerState pointer)
+    {
+        pointer.CapturedControl?.CancelPointerInteraction();
+        if (!ReferenceEquals(pointer.GestureOwner, pointer.CapturedControl))
+            pointer.GestureOwner?.CancelPointerInteraction();
+    }
+
+    private void UnobserveTree(Control control)
+    {
+        foreach (var child in control.Controls.GetAllControls().ToArray())
+            UnobserveTree(child);
+        Unobserve(control);
+    }
+
+    private static HitTarget? HitTest(Control control, Point localPoint)
+    {
+        foreach (var child in control.Controls.GetAllControls().Reverse())
+        {
+            if (!child.Visible || !child.Enabled || !child.ScaledBounds.Contains(localPoint))
+                continue;
+
+            var childPoint = new Point(localPoint.X - child.ScaledLeft, localPoint.Y - child.ScaledTop);
+            var descendant = HitTest(child, childPoint);
+            if (descendant is not null)
+                return descendant;
+            if (child.GetControlBehavior(ControlBehaviors.ReceivesMouseEvents))
+                return new HitTarget(child);
+        }
+
+        return control.Enabled && control.GetControlBehavior(ControlBehaviors.ReceivesMouseEvents)
+            ? new HitTarget(control)
+            : null;
+    }
+
+    private static ScrollableControl? FindScrollableAncestor(Control? target)
+    {
+        for (var current = target; current is not null; current = current.Parent)
+        {
+            if (current.Parent is ScrollableControl owner && owner.IsInternalScrollControl(current))
+                return null;
+            if (current is ScrollableControl scrollable && scrollable.AutoScroll)
+                return scrollable;
+        }
+
+        return null;
+    }
+
+    private static MouseEventArgs CreateMouseArgs(
+        Control target,
+        Point surfaceLocation,
+        MouseButtons button,
+        int clicks)
+    {
+        var local = SurfaceToControl(target, surfaceLocation);
+        return new MouseEventArgs(
+            button,
+            clicks,
+            local.X,
+            local.Y,
+            Point.Empty,
+            surfaceLocation.X,
+            surfaceLocation.Y);
+    }
+
+    private static Point SurfaceToControl(Control target, Point surfaceLocation)
+    {
+        var result = surfaceLocation;
+        var ancestors = new Stack<Control>();
+        for (var current = target; current.Parent is not null; current = current.Parent)
+            ancestors.Push(current);
+        while (ancestors.TryPop(out var control))
+            result.Offset(-control.ScaledLeft, -control.ScaledTop);
+        return result;
+    }
+
+    private static bool IsSelfOrDescendant(Control? control, Control ancestor)
+    {
+        for (var current = control; current is not null; current = current.Parent)
+            if (ReferenceEquals(current, ancestor))
+                return true;
+        return false;
+    }
+
+    private void WritePointerDiagnostic(
+        int pointerId,
+        ControlSurfacePointerAction action,
+        Point location,
+        Control? hit,
+        PointerState? state,
+        bool clickGenerated,
+        bool cancelled)
+    {
+        if (pointerDiagnosticSink is null)
+            return;
+
+        pointerDiagnosticSink(
+            $"pointer={pointerId} action={action} logical=({location.X},{location.Y}) " +
+            $"hit={DescribeControl(hit)} captured={DescribeControl(state?.CapturedControl)} " +
+            $"gesture={DescribeControl(state?.GestureOwner)} click={clickGenerated} cancelled={cancelled}");
+    }
+
+    private static string DescribeControl(Control? control)
+        => control is null ? "none" : string.IsNullOrWhiteSpace(control.Name)
+            ? control.GetType().Name
+            : $"{control.GetType().Name}#{control.Name}";
 
     private void SelectCompositionForReplacement(TextBox textBox)
         => SetTextSelectionCore(textBox, compositionStart, compositionStart + compositionLength);
@@ -455,5 +696,22 @@ public sealed class SkiaControlSurface : IDisposable
                 // The native surface owns visibility. Child controls still keep their own state.
             }
         }
+    }
+
+    private readonly record struct HitTarget(Control Control);
+
+    private sealed class PointerState(
+        int pointerId,
+        Point downLocation,
+        Control? target,
+        ScrollableControl? scrollCandidate)
+    {
+        public int PointerId { get; } = pointerId;
+        public Point DownLocation { get; } = downLocation;
+        public Point LastLocation { get; set; } = downLocation;
+        public Control? CapturedControl { get; set; } = target;
+        public ScrollableControl? ScrollCandidate { get; } = scrollCandidate;
+        public ScrollableControl? GestureOwner { get; set; }
+        public bool ClickEligible { get; set; } = true;
     }
 }

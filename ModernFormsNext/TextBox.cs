@@ -392,6 +392,12 @@ namespace ModernFormsNext
             Invalidate ();
         }
 
+        internal override void CancelPointerInteraction ()
+        {
+            is_highlighting = false;
+            base.CancelPointerInteraction ();
+        }
+
         /// <inheritdoc/>
         protected override void OnPaint (PaintEventArgs e)
         {

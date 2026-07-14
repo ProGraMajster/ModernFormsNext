@@ -1201,6 +1201,21 @@ namespace ModernFormsNext
             Invalidate();
         }
 
+        internal override void CancelPointerInteraction()
+        {
+            var wasPressed = thumbPressed || dragging;
+            thumbPressed = false;
+            dragging = false;
+
+            if (wasPressed)
+            {
+                AnimateVisualToValue(currentValue, Animate);
+                NotifyAccessibilityClients(AccessibleEvents.StateChange);
+            }
+
+            base.CancelPointerInteraction();
+        }
+
         /// <inheritdoc/>
         protected override void OnPaint(PaintEventArgs e)
         {

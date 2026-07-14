@@ -18,7 +18,11 @@ public sealed class AndroidSurfaceHostState
     /// <summary>Gets a value indicating whether the host may execute a render pass.</summary>
     public bool CanRender => LifecycleState == AndroidSurfaceLifecycleState.Resumed && IsSurfaceAttached;
 
-    /// <summary>Gets the pointer identifier that currently drives the single-pointer framework pipeline.</summary>
+    /// <summary>Gets the pointer identifier Android currently considers primary.</summary>
+    /// <remarks>
+    /// The framework routes every active pointer independently. This value is retained for native
+    /// event metadata and deterministic primary-pointer promotion after a pointer is released.
+    /// </remarks>
     public int? PrimaryPointerId { get; private set; }
 
     /// <summary>Gets the current surface lifecycle state.</summary>
@@ -137,7 +141,7 @@ public sealed class AndroidSurfaceHostState
     /// <summary>Updates the active-pointer set and reports whether input was accepted.</summary>
     /// <param name="pointerId">The stable Android pointer identifier.</param>
     /// <param name="action">The platform-neutral pointer transition.</param>
-    /// <param name="isPrimary">Whether this pointer drives the framework's single-pointer pipeline.</param>
+    /// <param name="isPrimary">Whether Android identifies this transition as the primary pointer.</param>
     /// <returns><see langword="true"/> when the resumed host accepted the transition.</returns>
     public bool TrackPointer(int pointerId, AndroidPointerAction action, bool isPrimary = false)
     {

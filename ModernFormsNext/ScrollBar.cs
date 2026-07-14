@@ -215,6 +215,12 @@ namespace ModernFormsNext
             thumb_pressed = false;
         }
 
+        internal override void CancelPointerInteraction ()
+        {
+            thumb_pressed = false;
+            base.CancelPointerInteraction ();
+        }
+
         /// <inheritdoc/>
         protected override void OnMouseWheel (MouseEventArgs e)
         {

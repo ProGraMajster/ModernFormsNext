@@ -1934,6 +1934,17 @@ namespace ModernFormsNext
             }
         }
 
+        // Platform touch hosts can lose a pointer without receiving a normal mouse-up transition
+        // (for example when Android starts scrolling, detaches a surface, or cancels a gesture).
+        // Keep this internal so the existing public mouse API remains unchanged while built-in
+        // controls still get one deterministic place to clear pressed/drag state.
+        internal virtual void CancelPointerInteraction ()
+        {
+            Capture = false;
+            OnMouseLeave (EventArgs.Empty);
+            Invalidate ();
+        }
+
         /// <summary>
         /// Finds the correct control and calls its OnMouseWheel method.
         /// </summary>
