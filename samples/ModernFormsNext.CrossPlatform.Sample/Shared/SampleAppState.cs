@@ -48,6 +48,15 @@ public sealed class SampleAppState
     /// <summary>Gets a short description of the most recent input transition.</summary>
     public string LastInput { get; internal set; } = "None";
 
+    /// <summary>Gets the most recent shared control action received by the application.</summary>
+    public string LastAction { get; internal set; } = "None";
+
+    /// <summary>Gets the most recent platform service operation invoked by shared code.</summary>
+    public string LastServiceInvocation { get; internal set; } = "None";
+
+    /// <summary>Gets the completion status or controlled failure of the last service operation.</summary>
+    public string LastServiceResult { get; internal set; } = "None";
+
     /// <summary>Gets the name of the last shared control that received focus.</summary>
     public string FocusedControl { get; internal set; } = "None";
 }

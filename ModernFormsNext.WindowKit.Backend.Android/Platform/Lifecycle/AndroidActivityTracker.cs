@@ -16,7 +16,7 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
     private readonly object sync = new();
     private readonly Func<Activity?>? activityProvider;
     private readonly Action<string>? diagnosticSink;
-    private WeakReference<Activity>? currentActivity;
+    private readonly WeakHostReference<Activity> currentActivity = new();
     private AndroidApplicationLifecycleState state = AndroidApplicationLifecycleState.Unknown;
 
     internal AndroidActivityTracker(Func<Activity?>? activityProvider, Action<string>? diagnosticSink)
@@ -40,8 +40,7 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
             lock (sync)
             {
                 if (state != AndroidApplicationLifecycleState.Foreground ||
-                    currentActivity is null ||
-                    !currentActivity.TryGetTarget(out var activity) ||
+                    currentActivity.Target is not { } activity ||
                     !IsUsable(activity))
                 {
                     return null;
@@ -111,11 +110,8 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
     {
         lock (sync)
         {
-            if (currentActivity is not null &&
-                currentActivity.TryGetTarget(out var current) &&
-                ReferenceEquals(current, activity))
+            if (currentActivity.ClearIfCurrent(activity))
             {
-                currentActivity = null;
                 state = AndroidApplicationLifecycleState.NoActivity;
             }
         }
@@ -128,7 +124,7 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
     {
         lock (sync)
         {
-            currentActivity = new WeakReference<Activity>(activity);
+            currentActivity.Set(activity);
             state = newState;
         }
     }
@@ -137,9 +133,7 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
     {
         lock (sync)
         {
-            if (currentActivity is not null &&
-                currentActivity.TryGetTarget(out var current) &&
-                ReferenceEquals(current, activity))
+            if (ReferenceEquals(currentActivity.Target, activity))
             {
                 state = newState;
             }

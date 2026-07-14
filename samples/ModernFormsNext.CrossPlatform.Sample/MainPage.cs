@@ -27,6 +27,9 @@ public sealed class MainPage : Control
     private readonly Label densityLabel;
     private readonly Label renderLabel;
     private readonly Label inputLabel;
+    private readonly Label actionLabel;
+    private readonly Label serviceLabel;
+    private readonly Label serviceResultLabel;
     private readonly Label focusLabel;
     private readonly Label clickLabel;
     private readonly Label unicodeLabel;
@@ -70,6 +73,9 @@ public sealed class MainPage : Control
         densityLabel = CreateLabel(string.Empty);
         renderLabel = CreateLabel(string.Empty);
         inputLabel = CreateLabel(string.Empty);
+        actionLabel = CreateLabel(string.Empty);
+        serviceLabel = CreateLabel(string.Empty);
+        serviceResultLabel = CreateLabel(string.Empty);
         focusLabel = CreateLabel(string.Empty);
         clickLabel = CreateLabel(string.Empty);
         unicodeLabel = CreateLabel("Unicode: Zażółć gęślą jaźń · 你好 · مرحبًا · 👋🏽 🚀");
@@ -111,6 +117,9 @@ public sealed class MainPage : Control
             densityLabel,
             renderLabel,
             inputLabel,
+            actionLabel,
+            serviceLabel,
+            serviceResultLabel,
             focusLabel,
             clickLabel
         ];
@@ -118,6 +127,7 @@ public sealed class MainPage : Control
         clickButton.Click += (_, _) =>
         {
             app.State.ClickCount++;
+            app.State.LastAction = "Run shared action: click received";
             app.State.LastInput = "Shared action button clicked";
             RefreshStatus();
         };
@@ -136,12 +146,26 @@ public sealed class MainPage : Control
         };
         dispatcherButton.Click += (_, _) =>
         {
-            app.PlatformServices.Dispatcher.Post(() =>
+            app.State.LastAction = "Dispatcher button: click received";
+            app.State.LastServiceInvocation = "IPlatformDispatcher.Post invoked";
+            app.State.LastServiceResult = "Pending";
+            RefreshStatus();
+            try
             {
-                app.State.DispatcherCount++;
-                app.State.LastInput = "Dispatcher callback completed";
+                app.PlatformServices.Dispatcher.Post(() =>
+                {
+                    app.State.DispatcherCount++;
+                    app.State.LastInput = "Dispatcher callback completed";
+                    app.State.LastServiceResult =
+                        $"Completed; UI access: {app.PlatformServices.Dispatcher.CheckAccess()}";
+                    RefreshStatus();
+                });
+            }
+            catch (Exception exception)
+            {
+                app.State.LastServiceResult = $"Failed: {exception.Message}";
                 RefreshStatus();
-            });
+            }
         };
         lifecycleButton.Click += (_, _) =>
         {
@@ -192,6 +216,9 @@ public sealed class MainPage : Control
         densityLabel.Text = $"Density: {app.State.Density:0.##}; scaled density: {app.State.ScaledDensity:0.##}";
         renderLabel.Text = $"Shared paints: {app.State.RenderCount}; native paints: {app.State.NativeRenderCount}";
         inputLabel.Text = $"Last input: {app.State.LastInput}";
+        actionLabel.Text = $"Action: {app.State.LastAction}";
+        serviceLabel.Text = $"Service invocation: {app.State.LastServiceInvocation}";
+        serviceResultLabel.Text = $"Service result: {app.State.LastServiceResult}";
         focusLabel.Text = $"Shared focus: {app.State.FocusedControl}";
         clickLabel.Text = $"Shared clicks: {app.State.ClickCount}";
         greetingLabel.Text = $"Label bound to TextBox: Hello, {nameTextBox.Text}!";
@@ -231,7 +258,15 @@ public sealed class MainPage : Control
 
     private async Task RunPermissionActionAsync(bool requestPermission)
     {
+        app.State.LastAction = requestPermission
+            ? "Request camera: click received"
+            : "Check camera: click received";
+        app.State.LastServiceInvocation = requestPermission
+            ? "IPermissionService.RequestAsync invoked"
+            : "IPermissionService.CheckAsync invoked";
+        app.State.LastServiceResult = "Pending";
         SetPermissionButtonsEnabled(false);
+        RefreshStatus();
         try
         {
             var status = requestPermission
@@ -239,10 +274,12 @@ public sealed class MainPage : Control
                 : await app.PlatformServices.CheckSamplePermissionAsync();
             app.State.PermissionStatus = DescribePermissionStatus(status);
             app.State.LastInput = requestPermission ? "Camera permission requested" : "Camera permission checked";
+            app.State.LastServiceResult = $"Completed: {app.State.PermissionStatus}";
         }
         catch (Exception exception)
         {
             app.State.PermissionStatus = $"Error: {exception.Message}";
+            app.State.LastServiceResult = $"Failed: {exception.Message}";
         }
         finally
         {
@@ -253,15 +290,21 @@ public sealed class MainPage : Control
 
     private async Task OpenSettingsAsync()
     {
+        app.State.LastAction = "Open app settings: click received";
+        app.State.LastServiceInvocation = "IPermissionService.OpenApplicationSettingsAsync invoked";
+        app.State.LastServiceResult = "Pending";
         SetPermissionButtonsEnabled(false);
+        RefreshStatus();
         try
         {
             var opened = await app.PlatformServices.OpenApplicationSettingsAsync();
             app.State.LastInput = opened ? "Application settings opened" : "Application settings unavailable";
+            app.State.LastServiceResult = opened ? "Completed: settings opened" : "Completed: unavailable";
         }
         catch (Exception exception)
         {
             app.State.LastInput = $"Settings error: {exception.Message}";
+            app.State.LastServiceResult = $"Failed: {exception.Message}";
         }
         finally
         {

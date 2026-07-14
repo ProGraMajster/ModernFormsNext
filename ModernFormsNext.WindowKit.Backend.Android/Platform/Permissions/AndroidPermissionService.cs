@@ -82,13 +82,8 @@ public sealed class AndroidPermissionService : IPermissionService
             var result = initialResults[index];
             var definition = AndroidPermissionMapper.Map(requested[index], sdkVersion);
 
-            if (result.Status is PlatformPermissionStatus.NotDeclared or
-                PlatformPermissionStatus.NotSupported or
-                PlatformPermissionStatus.Granted or
-                PlatformPermissionStatus.PermanentlyDenied)
-            {
+            if (!AndroidPermissionRequestPlanner.ShouldContinueRequestFlow(result.Status))
                 continue;
-            }
 
             if (definition.RequestKind == PlatformPermissionRequestKind.ApplicationSettings)
             {

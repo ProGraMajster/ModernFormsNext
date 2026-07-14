@@ -28,6 +28,7 @@ public sealed class SampleApplicationTests
         button.PerformClick();
 
         Assert.Equal(1, app.State.ClickCount);
+        Assert.Equal("Run shared action: click received", app.State.LastAction);
     }
 
     [Fact]
@@ -42,6 +43,28 @@ public sealed class SampleApplicationTests
 
         Assert.Equal(1, platform.FakeDispatcher.PostCount);
         Assert.Equal(1, app.State.DispatcherCount);
+        Assert.Equal("Dispatcher button: click received", app.State.LastAction);
+        Assert.Equal("IPlatformDispatcher.Post invoked", app.State.LastServiceInvocation);
+        Assert.Equal("Completed; UI access: True", app.State.LastServiceResult);
+    }
+
+    [Fact]
+    public void NotDeclaredPermissionIsReportedAsServiceResult()
+    {
+        var platform = new FakePlatformServices
+        {
+            RequestStatus = PlatformPermissionStatus.NotDeclared
+        };
+        var app = new App(platform);
+        var button = Descendants(app.Root).OfType<Button>()
+            .Single(button => button.Text == "Request camera");
+
+        button.PerformClick();
+
+        Assert.Equal(1, platform.RequestCount);
+        Assert.Equal("Request camera: click received", app.State.LastAction);
+        Assert.Equal("IPermissionService.RequestAsync invoked", app.State.LastServiceInvocation);
+        Assert.Equal("Completed: Not declared", app.State.LastServiceResult);
     }
 
     [Fact]
@@ -71,12 +94,22 @@ public sealed class SampleApplicationTests
         public string BackendName { get; } = backendName;
         public string HostState => "Test host";
         public FakeDispatcher FakeDispatcher { get; } = new();
+        public PlatformPermissionStatus CheckStatus { get; set; } = PlatformPermissionStatus.Granted;
+        public PlatformPermissionStatus RequestStatus { get; set; } = PlatformPermissionStatus.Granted;
+        public int CheckCount { get; private set; }
+        public int RequestCount { get; private set; }
         public IPlatformDispatcher Dispatcher => FakeDispatcher;
         public bool SupportsPermissionAction => true;
         public Task<PlatformPermissionStatus> CheckSamplePermissionAsync()
-            => Task.FromResult(PlatformPermissionStatus.Granted);
+        {
+            CheckCount++;
+            return Task.FromResult(CheckStatus);
+        }
         public Task<PlatformPermissionStatus> RequestSamplePermissionAsync()
-            => Task.FromResult(PlatformPermissionStatus.Granted);
+        {
+            RequestCount++;
+            return Task.FromResult(RequestStatus);
+        }
         public Task<bool> OpenApplicationSettingsAsync() => Task.FromResult(true);
     }
 
