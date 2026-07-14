@@ -14,6 +14,10 @@ adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the 
 control pipeline. Android support remains experimental and is not yet a complete `Form`/window
 backend.
 
+Touch uses stable pointer IDs, deepest-control hit testing, independent capture, one-click tap
+semantics, drag cancellation, and the real `ScrollableControl` scrollbar state. The diagnostic
+area separates control-action receipt from platform-service invocation and completion.
+
 From the repository root:
 
 ```powershell

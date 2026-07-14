@@ -31,9 +31,11 @@ activity through `WeakReference<Activity>` and reports `Unknown`, `Created`, `Fo
 `Background`, or `NoActivity`. Only a resumed, non-finishing, non-destroyed activity is eligible to
 show permission UI or open settings.
 
-During rotation, destruction clears the old weak reference. A permission request owned by that
-activity completes with a diagnostic instead of hanging; the host can retry after the replacement
-activity is resumed. When initialization occurs inside the first activity's `OnCreate`, call
+During rotation, destruction clears the weak reference only when the destroyed activity is still
+the current host. A delayed callback from the old activity therefore cannot erase a replacement
+activity that has already been created or resumed. A permission request owned by the old activity
+completes with a diagnostic instead of hanging; the host can retry after the replacement activity
+is resumed. When initialization occurs inside the first activity's `OnCreate`, call
 `ObserveHostActivity` once so that activity is immediately available. Subsequent transitions are
 automatic.
 
@@ -72,6 +74,15 @@ Activity state and native view attachment are tracked independently. A detached 
 does not render; one pending invalidation survives until it is attached and resumed. Pointer
 cancellation, pause, stop, detach, and disposal clear all tracked pointers and framework capture.
 
+Every Android pointer ID has independent framework capture. A down transition targets the deepest
+enabled control and supplies coordinates local to that control. A small move remains tap-eligible;
+crossing the logical-pixel drag threshold cancels the child press. If the target has an
+`AutoScroll` ancestor, that ancestor then updates its real horizontal/vertical scrollbar values,
+so content position, scrollbar thumbs, clamping, and `Scroll` notifications stay synchronized.
+Touch movement does not synthesize desktop hover. A valid tap raises exactly one `Click`, before
+`MouseUp`, while release outside capture, scrolling, cancellation, detach, and lifecycle loss do
+not click. This path is shared core behavior and contains no Android API dependency.
+
 The input connection supplies surrounding text, UTF-16 selection, and composition to Android.
 Commit/composition/finish, selection, deletion in UTF-16 or code points, Enter, Delete, Backspace,
 and arrow keys route into the selected framework `TextBox`. Surrogate pairs and complete framework
@@ -101,6 +112,9 @@ public override void OnRequestPermissionsResult(
 Only one native dialog can be active. Later requests wait in a queue. If a caller cancels after a
 dialog is visible, that caller's task is canceled promptly but the native operation keeps the queue
 gate until Android responds, the owning activity is destroyed, or the configured timeout expires.
+`NotDeclared`, `NotSupported`, `Granted`, and `PermanentlyDenied` are terminal results and never
+continue to `RequestPermissions`; in particular, a missing manifest declaration is reported to the
+shared caller without attempting to display a platform dialog.
 
 ## Smoke test
 

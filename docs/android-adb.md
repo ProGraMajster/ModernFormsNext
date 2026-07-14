@@ -83,8 +83,16 @@ script overrides `EmbedAssembliesIntoApk=true`. Installation uses `adb install -
 application data. `-UninstallFirst` removes the package and its data only when explicitly supplied;
 `-AllowDowngrade` adds adb's downgrade flag. Runtime permissions are never silently granted.
 
-Launch uses `am start -W` with the stable component and verifies that `pidof` reports a surviving
-sample process. `-ForceStop` is optional and explicit.
+Launch first asks the installed package manager to resolve the package's launcher activity from
+the merged manifest, uses that component with `am start -W`, and verifies that `pidof` reports a
+surviving sample process. No script duplicates the managed `MainActivity` class name. This keeps
+deployment aligned with the APK that Android actually installed. `-ForceStop` is optional and
+explicit.
+
+If launch resolution fails, confirm that installation succeeded, inspect the merged manifest for
+an exported `MAIN`/`LAUNCHER` activity, and run
+`adb -s <serial> shell cmd package resolve-activity --brief <package>`. The script falls back to
+`pm resolve-activity --brief` for platform versions without the first command.
 
 ## Complete run
 

@@ -68,14 +68,29 @@ remain visible until that native dependency is upgraded.
 
 ## Visual Studio F5 and Ctrl+F5
 
-Select `net10.0-android` and a concrete device/AVD in Visual Studio's debug target selector. F5
-starts the managed debugger; Ctrl+F5 builds, deploys, and launches without attaching it. The stable
-launcher component is:
+Set `ModernFormsNext.CrossPlatform.Sample` as the startup project, select `net10.0-android`, and
+then select a concrete authorized device/AVD in Visual Studio's standard debug target selector. F5
+starts the managed debugger; Ctrl+F5 builds, deploys, and launches without attaching it. The
+project is a normal .NET for Android application (`OutputType=Exe`, `AndroidApplication=true`) and
+uses the SDK's `Mobile`, `Android`, and `AndroidApplication` project capabilities; it does not need
+a desktop launch profile or a custom device selector.
 
-```text
-com.programajster.modernformsnext.sample/
-com.programajster.modernformsnext.sample.MainActivity
-```
+Visual Studio persists the last selected target framework in the ignored per-user
+`ModernFormsNext.CrossPlatform.Sample.csproj.user` file. If the toolbar shows only the Windows
+executable or no Android device list:
+
+1. confirm the Android workload is installed in the same Visual Studio instance;
+2. make the cross-platform sample the startup project;
+3. select `net10.0-android` in the framework selector;
+4. close/reload the project if the per-user state still contains
+   `<ActiveDebugFramework>net10.0-windows</ActiveDebugFramework>`;
+5. choose an `adb devices` entry in state `device` (not `offline` or `unauthorized`).
+
+The repository's ADB launch path does not hard-code a managed activity class. After installation it
+asks Android to resolve the package's launcher intent from the merged manifest, then passes that
+installed component to `am start -W`. The project uses the current plural
+`AndroidPackageFormats=apk` property; Microsoft documents the singular property as deprecated in
+the [.NET for Android build-property reference](https://learn.microsoft.com/dotnet/android/building-apps/build-properties).
 
 The Android target deliberately sets `SupportsHotReload=false`. This is narrowly scoped and does
 not disable debugging. The reason is a project-system capability mismatch observed with Visual
@@ -104,6 +119,12 @@ detached remains coalesced until the surface is both attached and resumed. Pause
 Android pointer cancellation release framework pointer capture. Activity recreation disposes only
 the short-lived host; `SampleApplication` retains the shared `App`, state, and `MainPage` tree.
 
+The host forwards every stable Android pointer ID. Core hit testing captures the deepest control,
+generates one click only for a valid tap, cancels pressed state when a drag wins, and hands content
+drags to the nearest `AutoScroll` ancestor. All gesture distances are logical pixels after density
+conversion. Multiple pointers have independent routing state; touch moves deliberately do not
+manufacture hover.
+
 The IME bridge exposes surrounding text, UTF-16 selection, active composition, commit, finish,
 deletion, and cursor movement. Code-point deletion is converted without splitting surrogate pairs;
 the framework editor additionally deletes complete text elements for emoji/combining safety. There
@@ -113,6 +134,9 @@ is no hidden Android `EditText` and no second Android-specific application model
 
 The stable backend logcat tag is `ModernFormsNext`. Lifecycle, initialization, resize, failure, and
 disposal messages are logged; per-frame logging stays opt-in to avoid flooding logcat.
+`SkiaControlSurface` also accepts an optional pointer diagnostic sink. It is `null` by default, so
+normal rendering and input do not allocate diagnostic strings. When enabled, each transition
+reports pointer ID, logical coordinates, hit target, capture, gesture owner, click, and cancellation.
 
 ```powershell
 .\scripts\android\Watch-ModernFormsNextLogcat.ps1 -DeviceId <serial> -Clear

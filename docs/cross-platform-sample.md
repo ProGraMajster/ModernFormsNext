@@ -37,6 +37,13 @@ framework layout, rendering, hit testing, selection, keyboard, IME, and pointer 
 does not construct an alternate page, native `EditText`, or demonstration renderer that bypasses
 `Control`.
 
+Android forwards every stable pointer ID. The shared surface captures the deepest enabled control,
+keeps small movement tap-eligible, raises exactly one click for a valid release, and cancels the
+child press when movement becomes a drag. A drag inside scrollable content updates the real
+`ScrollableControl` scrollbars and clamps at their limits; it is not a second Android-only scroll
+model. Density conversion happens before routing, so hit tests and the drag threshold use logical
+pixels. Touch moves do not synthesize hover.
+
 `SampleApplication` owns the shared `App`. Each `MainActivity` owns only its current view/adapter,
 and the backend retains activities weakly. Configuration changes refresh density and surface size.
 If Android recreates the activity for another reason, disposal detaches the old surface while the
@@ -54,8 +61,15 @@ Resize the window to exercise the same scrollable layout used by Android.
 
 1. Open `ModernFormsNext.slnx`.
 2. Select the cross-platform sample as startup project.
-3. Select `net10.0-android` and an authorized device/AVD.
+3. Select `net10.0-android`; Visual Studio then exposes the normal .NET for Android device/AVD
+   selector.
 4. Use F5 for managed debugging or Ctrl+F5 for deploy/run.
+
+The last framework is persisted in the ignored `.csproj.user` file. If only the Windows launch
+target is visible, replace a stale `ActiveDebugFramework=net10.0-windows` selection by choosing
+`net10.0-android` (or close the project, update that per-user value, and reload). Do not add a
+desktop `launchSettings.json`: deployment and device discovery come from the installed .NET for
+Android workload.
 
 Android-only Hot Reload is disabled because Visual Studio 18.7 has no applicable
 `IProjectHotReloadLaunchProvider` after the Android SDK removes launch profiles. This does not
@@ -83,7 +97,9 @@ software-rendering diagnostics, and artifact collection.
 
 1. Confirm platform, OS, backend, activity/window lifecycle, logical size, density, attachment,
    active pointer, focus, and render counters in the optional diagnostics area.
-2. Activate the shared action and dispatcher buttons and verify their independent counters.
+2. Activate the shared action and dispatcher buttons. Verify the separate **Action**, **Service
+   invocation**, and **Service result** labels distinguish click receipt, service dispatch, and
+   completion or controlled failure.
 3. Edit both text boxes using Polish text (`zażółć gęślą jaźń`), emoji, combining input, and an IME
    with active composition where available. Verify no composition text is duplicated.
 4. Move the caret, select text, use Backspace/Delete/Enter/arrows, and confirm emoji are not split.
@@ -95,6 +111,9 @@ software-rendering diagnostics, and artifact collection.
    camera; no broad storage or phone-state permission should appear in the merged manifest.
 10. Use **Open app settings** only after the explicit button action, return to the app, and recheck.
 11. Recreate the activity while the process remains alive and verify shared text/counters persist.
+12. Press a button and drag beyond the tap threshold before releasing; verify the content scrolls
+    and the button does not click. Test a small-jitter tap, direct scrollbar dragging, limits in both
+    directions, and two simultaneous touches on distinct controls.
 
 ## Scope
 
