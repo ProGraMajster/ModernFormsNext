@@ -62,7 +62,7 @@ public sealed class AndroidProjectConfigurationTests
     {
         var project = LoadProject();
         Assert.Equal(ApplicationId, Property(project, "ApplicationId").Value);
-        Assert.Equal("apk", Property(project, "AndroidPackageFormat").Value);
+        Assert.Equal("apk", Property(project, "AndroidPackageFormats").Value);
         Assert.Equal("23.0", Property(project, "SupportedOSPlatformVersion").Value);
 
         var mainActivity = File.ReadAllText(Path.Combine(SampleDirectory, "Platforms", "Android", "MainActivity.cs"));

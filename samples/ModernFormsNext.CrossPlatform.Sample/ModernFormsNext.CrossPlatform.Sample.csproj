@@ -17,7 +17,7 @@
     <AndroidApplication>true</AndroidApplication>
     <ApplicationId>com.programajster.modernformsnext.sample</ApplicationId>
     <ApplicationTitle>ModernFormsNext Cross-Platform Sample</ApplicationTitle>
-    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidPackageFormats>apk</AndroidPackageFormats>
     <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
 
     <!-- SupportedOSPlatformVersion becomes minSdkVersion. targetSdkVersion is selected by the

@@ -45,10 +45,12 @@ Assert-Equal 'C:\path with spaces\sample.apk' $install[-1] 'APK path should rema
 Assert-True ($install -contains '-r') 'install should preserve application data by default.'
 Assert-True (-not ($install -contains '-g')) 'install should not silently grant runtime permissions.'
 
-$launch = Get-AdbLaunchArguments -Serial 'emulator-5554'
-Assert-True ($launch -contains 'com.programajster.modernformsnext.sample/com.programajster.modernformsnext.sample.MainActivity') 'launch component should be stable.'
+$resolved = @('priority=0', 'com.programajster.modernformsnext.sample/.MainActivity') | ConvertFrom-AdbResolvedActivity
+Assert-Equal 'com.programajster.modernformsnext.sample/.MainActivity' $resolved 'launcher parser should select the resolved component.'
+$launch = Get-AdbLaunchArguments -Serial 'emulator-5554' -Component $resolved
+Assert-True ($launch -contains $resolved) 'launch arguments should preserve the resolved manifest component.'
 Assert-True (-not ($launch -ccontains '-S')) 'launch should not force-stop unless requested.'
-$forcedLaunch = Get-AdbLaunchArguments -Serial 'emulator-5554' -ForceStop
+$forcedLaunch = Get-AdbLaunchArguments -Serial 'emulator-5554' -Component $resolved -ForceStop
 Assert-True ($forcedLaunch -ccontains '-S') 'explicit force-stop should be represented.'
 
 $scripts = Get-ChildItem -LiteralPath $PSScriptRoot -File -Filter '*.ps1'

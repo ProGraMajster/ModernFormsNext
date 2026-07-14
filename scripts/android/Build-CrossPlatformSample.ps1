@@ -18,7 +18,7 @@ $arguments = @(
     '-f', 'net10.0-android',
     '-c', $Configuration,
     '-t:SignAndroidPackage',
-    '/p:AndroidPackageFormat=apk',
+    '/p:AndroidPackageFormats=apk',
     '/p:EmbedAssembliesIntoApk=true'
 )
 if ($NoRestore) { $arguments += '--no-restore' }

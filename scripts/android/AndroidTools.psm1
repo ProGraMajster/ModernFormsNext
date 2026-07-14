@@ -1,7 +1,6 @@
 Set-StrictMode -Version Latest
 
 $script:SamplePackage = 'com.programajster.modernformsnext.sample'
-$script:SampleActivity = 'com.programajster.modernformsnext.sample.MainActivity'
 
 function Get-AndroidSdkCandidates {
     [CmdletBinding()]
@@ -298,15 +297,51 @@ function Get-AdbLaunchArguments {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Serial,
-        [string]$PackageName = $script:SamplePackage,
-        [string]$ActivityName = $script:SampleActivity,
+        [Parameter(Mandatory)][string]$Component,
         [switch]$ForceStop
     )
 
     $arguments = @('-s', $Serial, 'shell', 'am', 'start', '-W')
     if ($ForceStop) { $arguments += '-S' }
-    $arguments += @('-n', "$PackageName/$ActivityName")
+    $arguments += @('-n', $Component)
     return ,$arguments
+}
+
+function ConvertFrom-AdbResolvedActivity {
+    [CmdletBinding()]
+    param([Parameter(Mandatory, ValueFromPipeline)][AllowEmptyString()][string[]]$Line)
+
+    begin { $lines = [System.Collections.Generic.List[string]]::new() }
+    process { foreach ($item in $Line) { $lines.Add($item) } }
+    end {
+        $component = @($lines |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ -match '^[^\s/]+/[^\s/]+$' } |
+            Select-Object -Last 1)
+        if ($component.Count) { return $component[0] }
+    }
+}
+
+function Resolve-AndroidLaunchActivity {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$AdbPath,
+        [Parameter(Mandatory)][string]$Serial,
+        [string]$PackageName = $script:SamplePackage
+    )
+
+    $output = @(& $AdbPath -s $Serial shell cmd package resolve-activity --brief $PackageName 2>$null)
+    $component = @($output | ConvertFrom-AdbResolvedActivity | Select-Object -First 1)
+    if (-not $component.Count) {
+        $output = @(& $AdbPath -s $Serial shell pm resolve-activity --brief $PackageName 2>$null)
+        $component = @($output | ConvertFrom-AdbResolvedActivity | Select-Object -First 1)
+    }
+
+    if (-not $component.Count) {
+        throw "Android did not resolve a launcher activity for installed package '$PackageName' on '$Serial'. Verify the manifest launcher intent filter and installation result."
+    }
+
+    return $component[0]
 }
 
 function Resolve-CrossPlatformSampleApk {
@@ -356,6 +391,8 @@ Export-ModuleMember -Function @(
     'Wait-AndroidDeviceReady',
     'Get-AdbInstallArguments',
     'Get-AdbLaunchArguments',
+    'ConvertFrom-AdbResolvedActivity',
+    'Resolve-AndroidLaunchActivity',
     'Resolve-CrossPlatformSampleApk',
     'Invoke-CheckedNativeCommand'
 )

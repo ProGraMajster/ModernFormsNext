@@ -34,6 +34,7 @@ public sealed class AndroidToolingContractTests
 
         Assert.Contains("SignAndroidPackage", script, StringComparison.Ordinal);
         Assert.Contains("EmbedAssembliesIntoApk=true", script, StringComparison.Ordinal);
+        Assert.Contains("AndroidPackageFormats=apk", script, StringComparison.Ordinal);
         Assert.Contains("net10.0-android", script, StringComparison.Ordinal);
     }
 
@@ -57,6 +58,17 @@ public sealed class AndroidToolingContractTests
         Assert.Contains("TimeoutSeconds", module, StringComparison.Ordinal);
         Assert.Contains("CancellationToken", module, StringComparison.Ordinal);
         Assert.DoesNotMatch(@"C:\\Users\\[^\\]+", module);
+        Assert.Contains("Resolve-AndroidLaunchActivity", module, StringComparison.Ordinal);
+        Assert.Contains("resolve-activity --brief", module, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LaunchScriptUsesInstalledManifestResolutionInsteadOfHardcodedActivity()
+    {
+        var script = ReadScript("Launch-CrossPlatformSample.ps1");
+
+        Assert.Contains("Resolve-AndroidLaunchActivity", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("MainActivity", script, StringComparison.Ordinal);
     }
 
     [Fact]
