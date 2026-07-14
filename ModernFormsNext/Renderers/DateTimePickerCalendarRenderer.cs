@@ -261,11 +261,14 @@ namespace ModernFormsNext.Renderers
             if (preferred is not null && SupportsText (preferred, text))
                 return preferred;
 
-            var segoe = SKTypeface.FromFamilyName ("Segoe UI");
-            if (segoe is not null && SupportsText (segoe, text))
+            var segoe = Theme.CreateTypefaceOrDefault(
+                "Segoe UI",
+                SKFontStyleWeight.Normal,
+                SKFontStyleSlant.Upright);
+            if (SupportsText (segoe, text))
                 return segoe;
 
-            return SKTypeface.Default;
+            return Theme.UIFont;
         }
 
         private static bool SupportsText (SKTypeface typeface, string text)

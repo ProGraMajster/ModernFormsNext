@@ -196,11 +196,13 @@ namespace ModernFormsNext
 
         private T ResolveValue<T> (TryGetStyleValue<T> tryGetValue, Func<T> getFallback)
         {
+            FontResolutionDiagnostics.RecordStyleResolverCall();
             var remaining = GetInheritanceTraversalLimit ();
             ControlStyle? current = this;
 
             while (current is not null && remaining-- > 0)
             {
+                FontResolutionDiagnostics.RecordStyleNodeVisited();
                 if (tryGetValue(current, out var value))
                     return value;
 

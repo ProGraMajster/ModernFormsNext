@@ -119,7 +119,7 @@ namespace ModernFormsNext
         public bool Underline => Style.HasFlag(FontStyle.Underline);
 
         /// <summary>
-        /// Creates an <see cref="SKTypeface"/> for the family and typeface style represented by this font.
+        /// Gets a shared <see cref="SKTypeface"/> for the family and typeface style represented by this font.
         /// </summary>
         /// <returns>A SkiaSharp typeface suitable for assigning to <see cref="ControlStyle.Font"/>.</returns>
         /// <remarks>
@@ -129,7 +129,9 @@ namespace ModernFormsNext
         /// <see cref="ControlStyle.TextFont"/> when applying a ModernFormsNext font to controls
         /// that should render those text effects. When the requested family is unavailable, the
         /// framework uses the platform's default family with the requested weight and slant, then
-        /// falls back to SkiaSharp's guaranteed non-null default typeface.
+        /// falls back to SkiaSharp's guaranteed non-null default typeface. Returned typefaces are
+        /// held in a bounded process-wide cache and can be shared by many controls. Callers must
+        /// not dispose the returned instance.
         /// </remarks>
         public SKTypeface ToTypeface()
         {

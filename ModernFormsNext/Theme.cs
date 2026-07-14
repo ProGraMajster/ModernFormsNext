@@ -371,21 +371,11 @@ namespace ModernFormsNext
             string? familyName,
             SKFontStyleWeight weight,
             SKFontStyleSlant slant)
-        {
-            var typeface = SKTypeface.FromFamilyName(familyName, weight, SKFontStyleWidth.Normal, slant);
-
-            if (typeface is not null)
-                return typeface;
-
-            if (familyName is not null)
-            {
-                typeface = SKTypeface.FromFamilyName(null, weight, SKFontStyleWidth.Normal, slant);
-
-                if (typeface is not null)
-                    return typeface;
-            }
-
-            return weight >= SKFontStyleWeight.SemiBold ? frameworkDefaultBoldTypeface : frameworkDefaultTypeface;
-        }
+            => TypefaceCache.GetOrCreate(
+                familyName,
+                weight,
+                slant,
+                frameworkDefaultTypeface,
+                frameworkDefaultBoldTypeface);
     }
 }
