@@ -3,7 +3,8 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// <summary>Provides surrounding text, selection, caret, and composition to an Android IME.</summary>
 /// <remarks>
 /// Indexes use UTF-16 code units, matching Android's <c>InputConnection</c> contract. The type
-/// contains no Android objects so bridge behavior can be tested without an emulator.
+/// contains no Android objects so bridge behavior can be tested without an emulator. The revision
+/// identifies the framework document snapshot from which the values were read.
 /// </remarks>
 public readonly struct AndroidTextInputState
 {
@@ -13,12 +14,14 @@ public readonly struct AndroidTextInputState
     /// <param name="selectionEnd">The exclusive selection end, or the caret offset.</param>
     /// <param name="compositionStart">The inclusive composition start, or <c>-1</c>.</param>
     /// <param name="compositionEnd">The exclusive composition end, or <c>-1</c>.</param>
+    /// <param name="revision">The framework document revision.</param>
     public AndroidTextInputState(
         string text,
         int selectionStart,
         int selectionEnd,
         int compositionStart = -1,
-        int compositionEnd = -1)
+        int compositionEnd = -1,
+        long revision = 0)
     {
         ArgumentNullException.ThrowIfNull(text);
         ValidateRange(text, selectionStart, selectionEnd, nameof(selectionStart));
@@ -26,12 +29,14 @@ public readonly struct AndroidTextInputState
             throw new ArgumentOutOfRangeException(nameof(compositionStart), "Both composition indexes must be -1 when composition is inactive.");
         if (compositionStart != -1)
             ValidateRange(text, compositionStart, compositionEnd, nameof(compositionStart));
+        ArgumentOutOfRangeException.ThrowIfNegative(revision);
 
         Text = text;
         SelectionStart = selectionStart;
         SelectionEnd = selectionEnd;
         CompositionStart = compositionStart;
         CompositionEnd = compositionEnd;
+        Revision = revision;
     }
 
     /// <summary>Gets the complete editable text.</summary>
@@ -44,6 +49,8 @@ public readonly struct AndroidTextInputState
     public int CompositionStart { get; }
     /// <summary>Gets the exclusive composition end, or <c>-1</c> when inactive.</summary>
     public int CompositionEnd { get; }
+    /// <summary>Gets the framework document revision captured with this snapshot.</summary>
+    public long Revision { get; }
 
     /// <summary>Gets up to the requested UTF-16 length immediately before the selection.</summary>
     /// <param name="length">The maximum number of UTF-16 code units to return.</param>

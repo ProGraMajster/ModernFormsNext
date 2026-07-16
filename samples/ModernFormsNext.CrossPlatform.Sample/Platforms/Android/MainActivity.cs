@@ -30,7 +30,10 @@ public sealed class MainActivity : Activity
         base.OnCreate(savedInstanceState);
         AndroidWindowKit.ObserveHostActivity(this);
         var application = (SampleApplication)Application!;
-        host = new AndroidAppHost(this, application.SharedApp);
+        var enableInputDiagnostics = Intent?.GetBooleanExtra(
+            AndroidAppHost.EnableInputDiagnosticsIntentExtra,
+            defaultValue: false) == true;
+        host = new AndroidAppHost(this, application.SharedApp, enableInputDiagnostics);
         SetContentView(host.View);
         application.SharedApp.NotifyLifecycle("Activity created");
     }

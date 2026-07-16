@@ -20,9 +20,6 @@ public sealed class SkiaControlSurface : IDisposable
     private readonly SurfaceRootControl surfaceRoot = new();
     private readonly Action<string>? pointerDiagnosticSink;
     private int pointerDragThreshold = 8;
-    private TextBox? composingTextBox;
-    private int compositionStart = -1;
-    private int compositionLength;
     private bool disposed;
 
     /// <summary>
@@ -260,7 +257,15 @@ public sealed class SkiaControlSurface : IDisposable
 
     /// <summary>Routes committed platform text to the selected framework control.</summary>
     /// <param name="text">The complete Unicode text committed by the platform IME.</param>
-    public void CommitText(string text)
+    public void CommitText(string text) => CommitText(text, 1);
+
+    /// <summary>Routes committed platform text and its requested caret position to the selected editor.</summary>
+    /// <param name="text">The complete Unicode text committed by the platform IME.</param>
+    /// <param name="newCursorPosition">
+    /// A position relative to the inserted text: positive values are relative to its end minus one;
+    /// zero or negative values are relative to its start.
+    /// </param>
+    public void CommitText(string text, int newCursorPosition)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(text);
@@ -269,50 +274,54 @@ public sealed class SkiaControlSurface : IDisposable
         if (selected is null)
             return;
 
-        if (ReferenceEquals(selected, composingTextBox))
-            SelectCompositionForReplacement(composingTextBox!);
-
-        if (text.Length > 0)
+        if (selected is TextBox textBox)
+            ApplyImeText(textBox, text, newCursorPosition, keepComposition: false);
+        else if (text.Length > 0)
             selected.RaiseKeyPress(new KeyPressEventArgs(text));
-        else if (ReferenceEquals(selected, composingTextBox))
-            selected.RaiseKeyDown(new KeyEventArgs(Keys.Back));
 
-        ClearCompositionSelection();
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Updates the active IME composition in the selected framework text box.</summary>
     /// <param name="text">The complete current composing text supplied by the platform IME.</param>
     /// <remarks>
-    /// The existing composition is replaced atomically. ModernFormsNext currently represents the
-    /// composing range with its normal text selection until dedicated composition styling exists.
-    /// Call this method on the surface's UI thread.
+    /// The existing composition is replaced atomically. Composition and the visible selection are
+    /// tracked independently in the selected text document. Call this method on the surface's UI
+    /// thread.
     /// </remarks>
-    public void SetComposingText(string text)
+    public void SetComposingText(string text) => SetComposingText(text, 1);
+
+    /// <summary>Replaces the active IME composition and applies the requested caret position.</summary>
+    /// <param name="text">The complete current composing text.</param>
+    /// <param name="newCursorPosition">
+    /// A position relative to the inserted text: positive values are relative to its end minus one;
+    /// zero or negative values are relative to its start.
+    /// </param>
+    public void SetComposingText(string text, int newCursorPosition)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(text);
         if (FindSelectedControl() is not TextBox textBox)
             return;
 
-        if (ReferenceEquals(composingTextBox, textBox))
-            SelectCompositionForReplacement(textBox);
-        else
-        {
-            ClearCompositionSelection();
-            compositionStart = textBox.SelectionStart >= 0 && textBox.SelectionEnd >= 0
-                ? Math.Min(textBox.SelectionStart, textBox.SelectionEnd)
-                : textBox.document.CursorIndex;
-        }
+        ApplyImeText(textBox, text, newCursorPosition, keepComposition: true);
+        Invalidated?.Invoke(this, EventArgs.Empty);
+    }
 
-        if (text.Length > 0)
-            textBox.RaiseKeyPress(new KeyPressEventArgs(text));
-        else if (textBox.SelectionStart >= 0 && textBox.SelectionEnd >= 0)
-            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Back));
+    /// <summary>Marks an existing UTF-16 range as the active IME composition.</summary>
+    /// <param name="start">One edge of the requested range.</param>
+    /// <param name="end">The other edge of the requested range.</param>
+    /// <remarks>
+    /// Values are clipped to the current text. This operation does not change text, caret, or
+    /// selection, matching Android's input-connection contract.
+    /// </remarks>
+    public void SetComposingRegion(int start, int end)
+    {
+        ThrowIfDisposed();
+        if (FindSelectedControl() is not TextBox textBox)
+            return;
 
-        composingTextBox = textBox;
-        compositionLength = text.Length;
-        SetTextSelectionCore(textBox, compositionStart, compositionStart + compositionLength);
+        textBox.document.SetCompositionRegion(start, end);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -320,12 +329,11 @@ public sealed class SkiaControlSurface : IDisposable
     public void FinishComposingText()
     {
         ThrowIfDisposed();
-        if (composingTextBox is null)
+        var textBox = FindComposingTextBox();
+        if (textBox is null)
             return;
 
-        var caret = compositionStart + compositionLength;
-        SetTextSelectionCore(composingTextBox, caret, caret);
-        ClearCompositionState();
+        textBox.document.FinishComposition();
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -340,13 +348,13 @@ public sealed class SkiaControlSurface : IDisposable
         var cursor = textBox.document.CursorIndex;
         var selectionStart = textBox.SelectionStart >= 0 ? textBox.SelectionStart : cursor;
         var selectionEnd = textBox.SelectionEnd >= 0 ? textBox.SelectionEnd : cursor;
-        var composing = ReferenceEquals(composingTextBox, textBox);
         return new ControlSurfaceTextInputState(
             textBox.Text,
             selectionStart,
             selectionEnd,
-            composing ? compositionStart : -1,
-            composing ? compositionStart + compositionLength : -1);
+            textBox.document.CompositionStart,
+            textBox.document.CompositionEnd,
+            textBox.document.Revision);
     }
 
     /// <summary>Sets the selected text range requested by a platform input method.</summary>
@@ -360,7 +368,6 @@ public sealed class SkiaControlSurface : IDisposable
         if (start < 0 || end < 0 || start > textBox.Text.Length || end > textBox.Text.Length)
             throw new ArgumentOutOfRangeException(nameof(start), "Selection indexes must be within the selected text box.");
 
-        ClearCompositionState();
         SetTextSelectionCore(textBox, start, end);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -389,7 +396,7 @@ public sealed class SkiaControlSurface : IDisposable
         var selectionEnd = textBox.SelectionEnd >= 0
             ? Math.Max(textBox.SelectionStart, textBox.SelectionEnd)
             : originalCursor;
-        ClearCompositionState();
+        textBox.document.FinishComposition();
         SetTextSelectionCore(textBox, selectionStart, selectionStart);
         var remainingBefore = beforeLength;
         while (remainingBefore > 0 && !textBox.document.AtBeginning)
@@ -457,10 +464,11 @@ public sealed class SkiaControlSurface : IDisposable
 
         CancelAllPointers(invalidate: false);
         disposed = true;
+        foreach (var textBox in observedControls.OfType<TextBox>())
+            textBox.document.FinishComposition();
         foreach (var control in observedControls.ToArray())
             Unobserve(control);
         observedControls.Clear();
-        ClearCompositionState();
         surfaceRoot.Controls.Remove(Root);
         surfaceRoot.Dispose();
         Invalidated = null;
@@ -524,8 +532,8 @@ public sealed class SkiaControlSurface : IDisposable
             CancelPointer(pointer);
         }
 
-        if (ReferenceEquals(e.Value, composingTextBox))
-            ClearCompositionState();
+        if (e.Value is TextBox textBox)
+            textBox.document.FinishComposition();
         UnobserveTree(e.Value);
     }
 
@@ -646,41 +654,28 @@ public sealed class SkiaControlSurface : IDisposable
             ? control.GetType().Name
             : $"{control.GetType().Name}#{control.Name}";
 
-    private void SelectCompositionForReplacement(TextBox textBox)
-        => SetTextSelectionCore(textBox, compositionStart, compositionStart + compositionLength);
+    private TextBox? FindComposingTextBox()
+        => observedControls.OfType<TextBox>().LastOrDefault(textBox => textBox.document.HasComposition);
 
-    private void ClearCompositionSelection()
+    private static void ApplyImeText(
+        TextBox textBox,
+        string text,
+        int newCursorPosition,
+        bool keepComposition)
     {
-        if (composingTextBox is not null)
-        {
-            var caret = composingTextBox.document.CursorIndex;
-            SetTextSelectionCore(composingTextBox, caret, caret);
-        }
+        var replacement = textBox.document.BeginImeTextReplacement();
+        if (text.Length > 0)
+            textBox.RaiseKeyPress(new KeyPressEventArgs(text));
+        else if (textBox.document.IsTextSelected)
+            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Back));
 
-        ClearCompositionState();
-    }
-
-    private void ClearCompositionState()
-    {
-        composingTextBox = null;
-        compositionStart = -1;
-        compositionLength = 0;
+        textBox.document.CompleteImeTextReplacement(replacement, newCursorPosition, keepComposition);
+        textBox.ScrollToCaret();
     }
 
     private static void SetTextSelectionCore(TextBox textBox, int start, int end)
     {
-        textBox.document.SetCursorToCharIndex(end);
-        if (start == end)
-        {
-            textBox.SelectionStart = -1;
-            textBox.SelectionEnd = -1;
-        }
-        else
-        {
-            textBox.SelectionStart = start;
-            textBox.SelectionEnd = end;
-        }
-
+        textBox.document.SetImeSelection(start, end);
         textBox.ScrollToCaret();
     }
 

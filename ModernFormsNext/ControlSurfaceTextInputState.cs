@@ -6,7 +6,8 @@ namespace ModernFormsNext;
 /// </summary>
 /// <remarks>
 /// All indexes are UTF-16 code-unit offsets, matching .NET strings and Android input-connection
-/// contracts. A composition range of <c>-1, -1</c> means that no composition is active.
+/// contracts. A composition range of <c>-1, -1</c> means that no composition is active. The
+/// revision is a monotonic observation token owned by the selected text document.
 /// </remarks>
 public readonly struct ControlSurfaceTextInputState
 {
@@ -16,12 +17,14 @@ public readonly struct ControlSurfaceTextInputState
     /// <param name="selectionEnd">The exclusive UTF-16 selection end, or the caret offset.</param>
     /// <param name="compositionStart">The inclusive composition start, or <c>-1</c>.</param>
     /// <param name="compositionEnd">The exclusive composition end, or <c>-1</c>.</param>
+    /// <param name="revision">The selected document revision.</param>
     public ControlSurfaceTextInputState(
         string text,
         int selectionStart,
         int selectionEnd,
         int compositionStart = -1,
-        int compositionEnd = -1)
+        int compositionEnd = -1,
+        long revision = 0)
     {
         ArgumentNullException.ThrowIfNull(text);
         ValidateRange(text, selectionStart, selectionEnd, nameof(selectionStart));
@@ -29,12 +32,14 @@ public readonly struct ControlSurfaceTextInputState
             throw new ArgumentOutOfRangeException(nameof(compositionStart), "Both composition indexes must be -1 when composition is inactive.");
         if (compositionStart != -1)
             ValidateRange(text, compositionStart, compositionEnd, nameof(compositionStart));
+        ArgumentOutOfRangeException.ThrowIfNegative(revision);
 
         Text = text;
         SelectionStart = selectionStart;
         SelectionEnd = selectionEnd;
         CompositionStart = compositionStart;
         CompositionEnd = compositionEnd;
+        Revision = revision;
     }
 
     /// <summary>Gets the complete editable text.</summary>
@@ -51,6 +56,9 @@ public readonly struct ControlSurfaceTextInputState
 
     /// <summary>Gets the exclusive composition end, or <c>-1</c> when inactive.</summary>
     public int CompositionEnd { get; }
+
+    /// <summary>Gets the selected document revision captured with this snapshot.</summary>
+    public long Revision { get; }
 
     private static void ValidateRange(string text, int start, int end, string parameterName)
     {

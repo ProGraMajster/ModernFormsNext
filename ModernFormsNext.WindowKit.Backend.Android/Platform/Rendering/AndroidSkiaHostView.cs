@@ -3,6 +3,7 @@ using Android.Views;
 using Android.Views.InputMethods;
 using SkiaSharp;
 using SkiaSharp.Views.Android;
+using System.Text.Json;
 using ICharSequence = Java.Lang.ICharSequence;
 using NativeKeyEvent = Android.Views.KeyEvent;
 
@@ -23,6 +24,10 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     private readonly AndroidSurfaceHostState state = new();
     private readonly Action<string>? diagnosticSink;
     private readonly bool detailedDiagnostics;
+    private SharedInputConnection? activeInputConnection;
+    private KeyEventObservation? lastKeyEvent;
+    private long inputDiagnosticSequence;
+    private bool inputStateNotificationPending;
     private bool disposed;
 
     /// <summary>Creates a Skia host using the supplied Android context.</summary>
@@ -48,13 +53,34 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     public event EventHandler<AndroidPointerEvent>? Pointer;
 
     /// <summary>Occurs when the Android IME commits text to the focused shared editor.</summary>
+    /// <remarks>
+    /// This compatibility event is raised together with <see cref="TextCommitRequested"/>. A host
+    /// should subscribe to only one of them.
+    /// </remarks>
     public event EventHandler<string>? TextCommitted;
 
+    /// <summary>Occurs when the Android IME commits text with an explicit caret position.</summary>
+    /// <remarks>
+    /// New hosts should use this event. <see cref="TextCommitted"/> remains available for hosts
+    /// that predate cursor-position forwarding.
+    /// </remarks>
+    public event EventHandler<AndroidTextEditEvent>? TextCommitRequested;
+
     /// <summary>Occurs when the Android IME changes its composing text.</summary>
+    /// <remarks>
+    /// This compatibility event is raised together with <see cref="ComposingTextUpdateRequested"/>.
+    /// A host should subscribe to only one of them.
+    /// </remarks>
     public event EventHandler<string>? ComposingTextChanged;
+
+    /// <summary>Occurs when the Android IME changes composing text with an explicit caret position.</summary>
+    public event EventHandler<AndroidTextEditEvent>? ComposingTextUpdateRequested;
 
     /// <summary>Occurs when the Android IME finishes its active composition.</summary>
     public event EventHandler? ComposingTextFinished;
+
+    /// <summary>Occurs when the Android IME marks an existing UTF-16 range as composing.</summary>
+    public event EventHandler<AndroidTextSelectionEvent>? ComposingRegionRequested;
 
     /// <summary>Occurs when the Android IME requests deletion around the shared caret.</summary>
     public event EventHandler<AndroidTextDeletionRequest>? DeleteSurroundingTextRequested;
@@ -82,6 +108,23 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     /// block, or mutate the control tree.
     /// </remarks>
     public Func<AndroidTextInputState>? TextInputStateProvider { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether detailed Android input-connection diagnostics are emitted.
+    /// </summary>
+    /// <remarks>
+    /// The default is <see langword="false"/>. Enable this only for a short diagnostic session:
+    /// every IME query and mutation includes the complete editor text and can contain user input.
+    /// Records are written under the <c>MFN.InputConnection</c> logcat tag.
+    /// </remarks>
+    public bool EnableInputConnectionDiagnostics { get; set; }
+
+    /// <summary>Gets or sets an optional destination for enabled input-connection records.</summary>
+    /// <remarks>
+    /// The sink is not called unless <see cref="EnableInputConnectionDiagnostics"/> is enabled.
+    /// Android logcat remains the primary destination when no sink is supplied.
+    /// </remarks>
+    public Action<string>? InputConnectionDiagnosticSink { get; set; }
 
     /// <summary>Gets the deterministic surface state exposed for diagnostics.</summary>
     public AndroidSurfaceHostState HostState => state;
@@ -177,12 +220,55 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             return;
 
         var inputState = GetTextInputState();
+        var batchDepth = activeInputConnection?.BatchDepth ?? 0;
+        if (batchDepth > 0)
+        {
+            inputStateNotificationPending = true;
+            if (EnableInputConnectionDiagnostics)
+            {
+                WriteInputDiagnostic(
+                    "UpdateSelection",
+                    "HostToIme.DeferredBatch",
+                    $"selection={inputState.SelectionStart}..{inputState.SelectionEnd}; " +
+                    $"composition={inputState.CompositionStart}..{inputState.CompositionEnd}",
+                    inputState,
+                    inputState,
+                    batchDepth,
+                    batchDepth,
+                    result: "deferred");
+            }
+
+            return;
+        }
+
+        inputStateNotificationPending = false;
+        if (!EnableInputConnectionDiagnostics)
+        {
+            GetInputMethodManager()?.UpdateSelection(
+                this,
+                inputState.SelectionStart,
+                inputState.SelectionEnd,
+                inputState.CompositionStart,
+                inputState.CompositionEnd);
+            return;
+        }
+
         GetInputMethodManager()?.UpdateSelection(
             this,
             inputState.SelectionStart,
             inputState.SelectionEnd,
             inputState.CompositionStart,
             inputState.CompositionEnd);
+        WriteInputDiagnostic(
+            "UpdateSelection",
+            "HostToIme",
+            $"selection={inputState.SelectionStart}..{inputState.SelectionEnd}; " +
+            $"composition={inputState.CompositionStart}..{inputState.CompositionEnd}",
+            inputState,
+            GetTextInputState(),
+            batchDepth,
+            batchDepth,
+            result: "void");
     }
 
     /// <inheritdoc/>
@@ -201,16 +287,18 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         outAttrs.ImeOptions = ImeFlags.NoExtractUi;
         outAttrs.InitialSelStart = inputState.SelectionStart;
         outAttrs.InitialSelEnd = inputState.SelectionEnd;
-        return new SharedInputConnection(this);
+        inputStateNotificationPending = false;
+        activeInputConnection = new SharedInputConnection(this);
+        return activeInputConnection;
     }
 
     /// <inheritdoc/>
     public override bool OnKeyDown(Keycode keyCode, NativeKeyEvent? e)
-        => PublishKey(keyCode, isDown: true) || base.OnKeyDown(keyCode, e);
+        => ProcessViewKeyEvent(keyCode, e, isDown: true, () => base.OnKeyDown(keyCode, e));
 
     /// <inheritdoc/>
     public override bool OnKeyUp(Keycode keyCode, NativeKeyEvent? e)
-        => PublishKey(keyCode, isDown: false) || base.OnKeyUp(keyCode, e);
+        => ProcessViewKeyEvent(keyCode, e, isDown: false, () => base.OnKeyUp(keyCode, e));
 
     /// <inheritdoc/>
     public override bool OnTouchEvent(MotionEvent? motionEvent)
@@ -336,13 +424,18 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             Render = null;
             Pointer = null;
             TextCommitted = null;
+            TextCommitRequested = null;
             ComposingTextChanged = null;
+            ComposingTextUpdateRequested = null;
             ComposingTextFinished = null;
+            ComposingRegionRequested = null;
             DeleteSurroundingTextRequested = null;
             DeleteBackwardRequested = null;
             KeyInput = null;
             TextSelectionRequested = null;
             TextInputStateProvider = null;
+            activeInputConnection = null;
+            InputConnectionDiagnosticSink = null;
             AndroidLogger.Write("Skia surface disposed.", diagnosticSink);
         }
 
@@ -428,17 +521,22 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         return true;
     }
 
-    private void PublishCommittedText(string text)
+    private void PublishCommittedText(string text, int newCursorPosition)
     {
+        TextCommitRequested?.Invoke(this, new AndroidTextEditEvent(text, newCursorPosition));
         TextCommitted?.Invoke(this, text);
         NotifyTextStateChanged();
     }
 
-    private void PublishComposingText(string text)
+    private void PublishComposingText(string text, int newCursorPosition)
     {
+        ComposingTextUpdateRequested?.Invoke(this, new AndroidTextEditEvent(text, newCursorPosition));
         ComposingTextChanged?.Invoke(this, text);
         NotifyTextStateChanged();
     }
+
+    private void PublishComposingRegion(int start, int end)
+        => ComposingRegionRequested?.Invoke(this, new AndroidTextSelectionEvent(start, end));
 
     private void PublishCompositionFinished()
     {
@@ -473,71 +571,396 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         NotifyTextStateChanged();
     }
 
+    private void FlushTextStateNotification()
+    {
+        if (inputStateNotificationPending && activeInputConnection?.BatchDepth == 0)
+            NotifyTextStateChanged();
+    }
+
+    private bool ProcessViewKeyEvent(
+        Keycode keyCode,
+        NativeKeyEvent? keyEvent,
+        bool isDown,
+        Func<bool> baseHandler)
+    {
+        if (!EnableInputConnectionDiagnostics)
+            return PublishKey(keyCode, isDown) || baseHandler();
+
+        var before = GetTextInputState();
+        var batchDepth = activeInputConnection?.BatchDepth ?? 0;
+        var observation = ObserveKeyEvent(keyCode, isDown, "ViewKeyEvent");
+        var result = PublishKey(keyCode, isDown) || baseHandler();
+        WriteInputDiagnostic(
+            isDown ? "OnKeyDown" : "OnKeyUp",
+            "ViewKeyEvent",
+            $"keyCode={keyCode}; action={keyEvent?.Action.ToString() ?? (isDown ? "Down" : "Up")}; " +
+            $"unicodeChar={keyEvent?.UnicodeChar ?? 0}; deviceId={keyEvent?.DeviceId ?? -1}",
+            before,
+            GetTextInputState(),
+            batchDepth,
+            batchDepth,
+            result.ToString(),
+            operationKeyEvent: observation);
+        return result;
+    }
+
+    private KeyEventObservation ObserveKeyEvent(Keycode keyCode, bool isDown, string source)
+    {
+        var observation = new KeyEventObservation(
+            DateTimeOffset.UtcNow,
+            keyCode,
+            isDown ? KeyEventActions.Down : KeyEventActions.Up,
+            source);
+        lastKeyEvent = observation;
+        return observation;
+    }
+
+    private KeyEventObservation? GetRecentKeyEvent(DateTimeOffset timestamp)
+        => lastKeyEvent is { } value && timestamp - value.Timestamp <= TimeSpan.FromMilliseconds(250)
+            ? value
+            : null;
+
+    private void WriteInputDiagnostic(
+        string method,
+        string source,
+        string arguments,
+        AndroidTextInputState before,
+        AndroidTextInputState after,
+        int batchDepthBefore,
+        int batchDepthAfter,
+        string? result = null,
+        string? argumentText = null,
+        int? newCursorPosition = null,
+        bool sameTextArgumentAsPreviousOperation = false,
+        KeyEventObservation? operationKeyEvent = null,
+        string? exception = null)
+    {
+        if (!EnableInputConnectionDiagnostics)
+            return;
+
+        var timestamp = DateTimeOffset.UtcNow;
+        var recentKeyEvent = operationKeyEvent ?? GetRecentKeyEvent(timestamp);
+        var noOp = SameState(before, after);
+        var sameTextReinserted = DetectSameTextReinsertion(argumentText, before, after);
+        var record = new
+        {
+            sequence = Interlocked.Increment(ref inputDiagnosticSequence),
+            timestamp,
+            managedThreadId = Environment.CurrentManagedThreadId,
+            nativeThreadId = global::Android.OS.Process.MyTid(),
+            batchDepthBefore,
+            batchDepthAfter,
+            method,
+            source,
+            arguments,
+            argumentText,
+            newCursorPosition,
+            before = DescribeState(before),
+            after = DescribeState(after),
+            result,
+            exception,
+            parallelKeyEvent = recentKeyEvent is not null,
+            recentKeyEvent = recentKeyEvent is null ? null : new
+            {
+                timestamp = recentKeyEvent.Value.Timestamp,
+                keyCode = recentKeyEvent.Value.KeyCode.ToString(),
+                action = recentKeyEvent.Value.Action.ToString(),
+                recentKeyEvent.Value.Source,
+                ageMilliseconds = Math.Max(0, (timestamp - recentKeyEvent.Value.Timestamp).TotalMilliseconds)
+            },
+            noOp,
+            sameTextArgumentAsPreviousOperation,
+            sameTextReinserted
+        };
+        var message = JsonSerializer.Serialize(record);
+        global::Android.Util.Log.Info("MFN.InputConnection", message);
+        InputConnectionDiagnosticSink?.Invoke(message);
+    }
+
+    private static object DescribeState(AndroidTextInputState state) => new
+    {
+        document = state.Text,
+        selectionStart = state.SelectionStart,
+        selectionEnd = state.SelectionEnd,
+        selectionLength = Math.Abs(state.SelectionEnd - state.SelectionStart),
+        compositionStart = state.CompositionStart,
+        compositionEnd = state.CompositionEnd,
+        compositionLength = state.CompositionStart < 0 ? 0 : state.CompositionEnd - state.CompositionStart,
+        state.Revision
+    };
+
+    private static bool SameState(AndroidTextInputState left, AndroidTextInputState right)
+        => left.Text == right.Text &&
+           left.SelectionStart == right.SelectionStart &&
+           left.SelectionEnd == right.SelectionEnd &&
+           left.CompositionStart == right.CompositionStart &&
+           left.CompositionEnd == right.CompositionEnd;
+
+    private static bool DetectSameTextReinsertion(
+        string? argumentText,
+        AndroidTextInputState before,
+        AndroidTextInputState after)
+    {
+        if (string.IsNullOrEmpty(argumentText) || after.Text.Length <= before.Text.Length)
+            return false;
+
+        var insertionStart = before.CompositionStart >= 0
+            ? before.CompositionStart
+            : Math.Min(before.SelectionStart, before.SelectionEnd);
+        return insertionStart >= argumentText.Length &&
+            before.Text.AsSpan(insertionStart - argumentText.Length, argumentText.Length)
+                .SequenceEqual(argumentText.AsSpan());
+    }
+
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
     private sealed class SharedInputConnection(AndroidSkiaHostView owner) : BaseInputConnection(owner, false)
     {
+        private string? lastTextArgument;
+
+        // ModernFormsNext owns all editable state in TextBoxDocument. Returning null prevents
+        // inherited helpers from silently creating BaseInputConnection's private fake Editable.
+        public override global::Android.Text.IEditable? Editable => null;
+
+        internal int BatchDepth { get; private set; }
+
+        public override bool BeginBatchEdit()
+            => Trace("BeginBatchEdit", "ImeInputConnection", string.Empty, () =>
+            {
+                BatchDepth++;
+                return true;
+            });
+
+        public override bool EndBatchEdit()
+            => Trace("EndBatchEdit", "ImeInputConnection", string.Empty, () =>
+            {
+                if (BatchDepth == 0)
+                    return false;
+
+                BatchDepth--;
+                owner.FlushTextStateNotification();
+                return BatchDepth > 0;
+            });
+
         public override bool CommitText(ICharSequence? text, int newCursorPosition)
         {
-            owner.PublishCommittedText(text?.ToString() ?? string.Empty);
-            return true;
+            var value = text?.ToString() ?? string.Empty;
+            return Trace(
+                "CommitText",
+                "ImeInputConnection",
+                $"newCursorPosition={newCursorPosition}",
+                () =>
+                {
+                    owner.PublishCommittedText(value, newCursorPosition);
+                    return true;
+                },
+                value,
+                newCursorPosition);
         }
 
         public override bool SetComposingText(ICharSequence? text, int newCursorPosition)
         {
-            owner.PublishComposingText(text?.ToString() ?? string.Empty);
-            return true;
+            var value = text?.ToString() ?? string.Empty;
+            return Trace(
+                "SetComposingText",
+                "ImeInputConnection",
+                $"newCursorPosition={newCursorPosition}",
+                () =>
+                {
+                    owner.PublishComposingText(value, newCursorPosition);
+                    return true;
+                },
+                value,
+                newCursorPosition);
         }
+
+        public override bool SetComposingRegion(int start, int end)
+            => Trace(
+                "SetComposingRegion",
+                "ImeInputConnection",
+                $"start={start}; end={end}",
+                () =>
+                {
+                    owner.PublishComposingRegion(start, end);
+                    return true;
+                });
 
         public override bool FinishComposingText()
-        {
-            owner.PublishCompositionFinished();
-            return true;
-        }
+            => Trace("FinishComposingText", "ImeInputConnection", string.Empty, () =>
+            {
+                owner.PublishCompositionFinished();
+                return true;
+            });
 
         public override bool DeleteSurroundingText(int beforeLength, int afterLength)
-        {
-            if (beforeLength < 0 || afterLength < 0)
-                return false;
+            => Trace(
+                "DeleteSurroundingText",
+                "ImeInputConnection",
+                $"beforeLength={beforeLength}; afterLength={afterLength}",
+                () =>
+                {
+                    if (beforeLength < 0 || afterLength < 0)
+                        return false;
 
-            owner.PublishDeletion(new AndroidTextDeletionRequest(beforeLength, afterLength));
-            return true;
-        }
+                    owner.PublishDeletion(new AndroidTextDeletionRequest(beforeLength, afterLength));
+                    return true;
+                });
 
         public override bool DeleteSurroundingTextInCodePoints(int beforeLength, int afterLength)
-        {
-            if (beforeLength < 0 || afterLength < 0)
-                return false;
+            => Trace(
+                "DeleteSurroundingTextInCodePoints",
+                "ImeInputConnection",
+                $"beforeLength={beforeLength}; afterLength={afterLength}",
+                () =>
+                {
+                    if (beforeLength < 0 || afterLength < 0)
+                        return false;
 
-            owner.PublishDeletion(owner.GetTextInputState().GetUtf16DeletionForCodePoints(beforeLength, afterLength));
-            return true;
-        }
+                    owner.PublishDeletion(owner.GetTextInputState().GetUtf16DeletionForCodePoints(beforeLength, afterLength));
+                    return true;
+                });
 
         public override ICharSequence? GetTextBeforeCursorFormatted(int length, GetTextFlags flags)
-            => new Java.Lang.String(owner.GetTextInputState().GetTextBeforeCursor(Math.Max(0, length)));
+            => Trace(
+                "GetTextBeforeCursor",
+                "ImeInputConnection",
+                $"length={length}; flags={flags}",
+                () => new Java.Lang.String(owner.GetTextInputState().GetTextBeforeCursor(Math.Max(0, length))),
+                resultFormatter: value => value.ToString());
 
         public override ICharSequence? GetTextAfterCursorFormatted(int length, GetTextFlags flags)
-            => new Java.Lang.String(owner.GetTextInputState().GetTextAfterCursor(Math.Max(0, length)));
+            => Trace(
+                "GetTextAfterCursor",
+                "ImeInputConnection",
+                $"length={length}; flags={flags}",
+                () => new Java.Lang.String(owner.GetTextInputState().GetTextAfterCursor(Math.Max(0, length))),
+                resultFormatter: value => value.ToString());
 
         public override ICharSequence? GetSelectedTextFormatted(GetTextFlags flags)
-            => new Java.Lang.String(owner.GetTextInputState().GetSelectedText());
+            => Trace(
+                "GetSelectedText",
+                "ImeInputConnection",
+                $"flags={flags}",
+                () => new Java.Lang.String(owner.GetTextInputState().GetSelectedText()),
+                resultFormatter: value => value.ToString());
+
+        public override ExtractedText? GetExtractedText(ExtractedTextRequest? request, GetTextFlags flags)
+            => Trace(
+                "GetExtractedText",
+                "ImeInputConnection",
+                $"token={request?.Token ?? 0}; flags={flags}; hintMaxChars={request?.HintMaxChars ?? 0}; " +
+                  $"hintMaxLines={request?.HintMaxLines ?? 0}",
+                () =>
+                {
+                    var inputState = owner.GetTextInputState();
+                    return new ExtractedText
+                    {
+                        Text = new Java.Lang.String(inputState.Text),
+                        StartOffset = 0,
+                        PartialStartOffset = -1,
+                        PartialEndOffset = -1,
+                        SelectionStart = inputState.SelectionStart,
+                        SelectionEnd = inputState.SelectionEnd
+                    };
+                },
+                resultFormatter: value => value is null
+                    ? "null"
+                    : $"text={value.Text}; selection={value.SelectionStart}..{value.SelectionEnd}; " +
+                      $"partial={value.PartialStartOffset}..{value.PartialEndOffset}");
+
+        public override bool RequestCursorUpdates(int cursorUpdateMode)
+            => Trace(
+                "RequestCursorUpdates",
+                "ImeInputConnection",
+                $"cursorUpdateMode={cursorUpdateMode}",
+                () => base.RequestCursorUpdates(cursorUpdateMode));
 
         public override bool SetSelection(int start, int end)
-        {
-            var inputState = owner.GetTextInputState();
-            if (start < 0 || end < 0 || start > inputState.Text.Length || end > inputState.Text.Length)
-                return false;
+            => Trace("SetSelection", "ImeInputConnection", $"start={start}; end={end}", () =>
+            {
+                var inputState = owner.GetTextInputState();
+                if (start < 0 || end < 0 || start > inputState.Text.Length || end > inputState.Text.Length)
+                    return false;
 
-            owner.PublishSelection(start, end);
-            return true;
-        }
+                owner.PublishSelection(start, end);
+                return true;
+            });
 
         public override bool SendKeyEvent(NativeKeyEvent? e)
         {
-            if (e is not null && owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down))
-                return true;
+            var observation = e is null
+                ? (KeyEventObservation?)null
+                : owner.ObserveKeyEvent(e.KeyCode, e.Action == KeyEventActions.Down, "InputConnectionKeyEvent");
+            return Trace(
+                "SendKeyEvent",
+                "ImeInputConnectionKeyEvent",
+                e is null
+                    ? "event=null"
+                    : $"keyCode={e.KeyCode}; action={e.Action}; unicodeChar={e.UnicodeChar}; deviceId={e.DeviceId}",
+                () =>
+                {
+                    if (e is not null && owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down))
+                        return true;
 
-            return base.SendKeyEvent(e);
+                    return base.SendKeyEvent(e);
+                },
+                operationKeyEvent: observation);
+        }
+
+        private T Trace<T>(
+            string method,
+            string source,
+            string arguments,
+            Func<T> operation,
+            string? argumentText = null,
+            int? newCursorPosition = null,
+            Func<T, string?>? resultFormatter = null,
+            KeyEventObservation? operationKeyEvent = null)
+        {
+            if (!owner.EnableInputConnectionDiagnostics)
+                return operation();
+
+            var before = owner.GetTextInputState();
+            var batchDepthBefore = BatchDepth;
+            var sameTextArgument = argumentText is not null && argumentText == lastTextArgument;
+            T result = default!;
+            string? exception = null;
+            try
+            {
+                result = operation();
+                return result;
+            }
+            catch (System.Exception error)
+            {
+                exception = error.ToString();
+                throw;
+            }
+            finally
+            {
+                var after = owner.GetTextInputState();
+                owner.WriteInputDiagnostic(
+                    method,
+                    source,
+                    arguments,
+                    before,
+                    after,
+                    batchDepthBefore,
+                    BatchDepth,
+                    exception is null ? resultFormatter?.Invoke(result) ?? result?.ToString() : null,
+                    argumentText,
+                    newCursorPosition,
+                    sameTextArgument,
+                    operationKeyEvent,
+                    exception);
+                if (argumentText is not null)
+                    lastTextArgument = argumentText;
+            }
         }
     }
+
+    private readonly record struct KeyEventObservation(
+        DateTimeOffset Timestamp,
+        Keycode KeyCode,
+        KeyEventActions Action,
+        string Source);
 }

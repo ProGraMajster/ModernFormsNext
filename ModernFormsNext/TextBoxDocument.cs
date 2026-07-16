@@ -18,11 +18,14 @@ namespace ModernFormsNext
         
         private bool enabled = true;
         private int cursor_index = 0;
+        private int composition_start = -1;
+        private int composition_end = -1;
         private bool read_only = false;
         private int selection_start = -1;
         private int selection_end = -1;
         private int max_length = int.MaxValue;
         private bool multiline = false;
+        private long revision;
         private char? password_char;
         private int width = -1;
         private SKTypeface font = Theme.UIFont;
@@ -55,10 +58,18 @@ namespace ModernFormsNext
 
         public int CursorIndex => cursor_index;
 
+        public int CompositionStart => composition_start;
+
+        public int CompositionEnd => composition_end;
+
+        public bool HasComposition => composition_start >= 0 && composition_end >= 0;
+
         public bool DeleteSelection ()
         {
             if (!IsTextSelected || read_only)
                 return false;
+
+            ClearComposition ();
 
             var start = Math.Min (selection_start, selection_end);
             var end = Math.Max (selection_start, selection_end);
@@ -77,6 +88,8 @@ namespace ModernFormsNext
             // TODO: wholeWord not implemented
             if (read_only)
                 return false;
+
+            ClearComposition ();
 
             if (DeleteSelection ())
                 return true;
@@ -110,6 +123,7 @@ namespace ModernFormsNext
 
             selection_start = -1;
             selection_end = -1;
+            revision++;
 
             return true;
         }
@@ -170,6 +184,8 @@ namespace ModernFormsNext
             if (read_only)
                 return false;
 
+            ClearComposition ();
+
             // Delete any currently selected text
             DeleteSelection ();
 
@@ -180,6 +196,8 @@ namespace ModernFormsNext
 
             text = text.Insert (cursor_index, str);
             cached_text_block = null;
+            if (str.Length > 0)
+                revision++;
 
             // Inserted text is kept intact so the cursor remains on the boundary after the
             // complete IME commit, including surrogate pairs and composed text.
@@ -210,6 +228,73 @@ namespace ModernFormsNext
         }
 
         public bool IsTextSelected => selection_start >= 0 && selection_end >= 0 && SelectionLength != 0;
+
+        // Every text, caret, selection, or composition mutation advances this value. Platform input
+        // bridges use it only as an observation token; TextBoxDocument remains the editable owner.
+        public long Revision => revision;
+
+        public ImeTextReplacement BeginImeTextReplacement ()
+        {
+            var start = HasComposition
+                ? Math.Min (composition_start, composition_end)
+                : IsTextSelected
+                    ? Math.Min (selection_start, selection_end)
+                    : cursor_index;
+            var end = HasComposition
+                ? Math.Max (composition_start, composition_end)
+                : IsTextSelected
+                    ? Math.Max (selection_start, selection_end)
+                    : cursor_index;
+
+            ClearComposition ();
+            SetSelectionCore (start, end);
+            return new ImeTextReplacement (start, text.Length - (end - start));
+        }
+
+        public void CompleteImeTextReplacement (
+            ImeTextReplacement replacement,
+            int newCursorPosition,
+            bool keepComposition)
+        {
+            var insertedLength = Math.Clamp (
+                text.Length - replacement.RetainedTextLength,
+                0,
+                text.Length - replacement.Start);
+            var insertedEnd = replacement.Start + insertedLength;
+            var requestedCursor = newCursorPosition > 0
+                ? (long)insertedEnd + newCursorPosition - 1
+                : (long)replacement.Start + newCursorPosition;
+            var cursor = (int)Math.Clamp (requestedCursor, 0, text.Length);
+
+            SetSelectionCore (cursor, cursor);
+            if (keepComposition && insertedLength > 0)
+                SetCompositionCore (replacement.Start, insertedEnd);
+            else
+                ClearComposition ();
+        }
+
+        public bool FinishComposition () => ClearComposition ();
+
+        public bool SetCompositionRegion (int start, int end)
+        {
+            start = Math.Clamp (start, 0, text.Length);
+            end = Math.Clamp (end, 0, text.Length);
+            if (start > end)
+                (start, end) = (end, start);
+
+            if (start == end)
+                return ClearComposition ();
+
+            return SetCompositionCore (start, end);
+        }
+
+        public void SetImeSelection (int start, int end)
+        {
+            if (start < 0 || end < 0 || start > text.Length || end > text.Length)
+                throw new ArgumentOutOfRangeException (nameof (start), "Selection indexes must be within the document text.");
+
+            SetSelectionCore (start, end);
+        }
 
         public int MaxLength {
             get => max_length == int.MaxValue ? 0 : max_length;
@@ -350,14 +435,20 @@ namespace ModernFormsNext
         {
             text = text.Remove (start, length);
             cached_text_block = null;
+            if (length > 0)
+                revision++;
         }
 
         public void Reset () => cached_text_block = null;
 
         public void SelectAll ()
         {
+            ClearComposition ();
+            var changed = selection_start != 0 || selection_end != text.Length;
             selection_start = 0;
             selection_end = text.Length;
+            if (changed)
+                revision++;
 
             Invalidate ();
         }
@@ -378,7 +469,9 @@ namespace ModernFormsNext
             get => selection_end;
             set {
                 if (selection_end != value) {
+                    ClearComposition ();
                     selection_end = value;
+                    revision++;
                     Invalidate ();
                 }
             }
@@ -390,7 +483,9 @@ namespace ModernFormsNext
             get => selection_start;
             set {
                 if (selection_start != value) {
+                    ClearComposition ();
                     selection_start = value;
+                    revision++;
                     Invalidate ();
                 }
             }
@@ -398,10 +493,12 @@ namespace ModernFormsNext
 
         public bool SetCursorToCharIndex (int index)
         {
+            ClearComposition ();
             if (cursor_index == index)
                 return false;
 
             cursor_index = index;
+            revision++;
 
             return true;
         }
@@ -421,8 +518,10 @@ namespace ModernFormsNext
             get => text;
             set {
                 if (text != value) {
+                    ClearComposition ();
                     text = value;
                     cached_text_block = null;
+                    revision++;
 
                     // If the Text property is changed, we need to reset the cursor to the top
                     SetCursorToCharIndex (0);
@@ -441,5 +540,42 @@ namespace ModernFormsNext
                 }
             }
         }
+
+        private bool ClearComposition ()
+        {
+            if (!HasComposition)
+                return false;
+
+            composition_start = -1;
+            composition_end = -1;
+            revision++;
+            return true;
+        }
+
+        private bool SetCompositionCore (int start, int end)
+        {
+            if (composition_start == start && composition_end == end)
+                return false;
+
+            composition_start = start;
+            composition_end = end;
+            revision++;
+            return true;
+        }
+
+        private void SetSelectionCore (int start, int end)
+        {
+            var storedStart = start == end ? -1 : start;
+            var storedEnd = start == end ? -1 : end;
+            if (cursor_index == end && selection_start == storedStart && selection_end == storedEnd)
+                return;
+
+            cursor_index = end;
+            selection_start = storedStart;
+            selection_end = storedEnd;
+            revision++;
+        }
+
+        public readonly record struct ImeTextReplacement (int Start, int RetainedTextLength);
     }
 }

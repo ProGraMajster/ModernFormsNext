@@ -11,6 +11,16 @@ namespace ModernFormsNext.CrossPlatform.Sample;
 /// </remarks>
 public sealed class AndroidAppHost : IDisposable
 {
+    /// <summary>
+    /// Names the optional boolean activity intent extra that enables sensitive IME diagnostics.
+    /// </summary>
+    /// <remarks>
+    /// Normal launches omit the extra, so input text is never logged by default. The switch exists
+    /// only to capture a short, explicitly initiated diagnostic session.
+    /// </remarks>
+    public const string EnableInputDiagnosticsIntentExtra =
+        "com.programajster.modernformsnext.sample.ENABLE_INPUT_DIAGNOSTICS";
+
     private readonly App app;
     private readonly SkiaControlSurface controlSurface;
     private readonly AndroidSkiaHostView nativeSurface;
@@ -19,20 +29,28 @@ public sealed class AndroidAppHost : IDisposable
     /// <summary>Creates an Android adapter for a shared application.</summary>
     /// <param name="activity">The current native activity.</param>
     /// <param name="app">The process-owned shared application.</param>
-    public AndroidAppHost(Activity activity, App app)
+    /// <param name="enableInputConnectionDiagnostics">
+    /// Whether this host should emit sensitive, full-text IME diagnostics. The default is
+    /// <see langword="false"/>.
+    /// </param>
+    public AndroidAppHost(Activity activity, App app, bool enableInputConnectionDiagnostics = false)
     {
         ArgumentNullException.ThrowIfNull(activity);
         this.app = app ?? throw new ArgumentNullException(nameof(app));
         controlSurface = new SkiaControlSurface(app.Root);
-        nativeSurface = new AndroidSkiaHostView(activity);
+        nativeSurface = new AndroidSkiaHostView(activity)
+        {
+            EnableInputConnectionDiagnostics = enableInputConnectionDiagnostics
+        };
         nativeSurface.TextInputStateProvider = GetTextInputState;
 
         controlSurface.Invalidated += OnControlSurfaceInvalidated;
         nativeSurface.Render += OnRender;
         nativeSurface.Pointer += OnPointer;
-        nativeSurface.TextCommitted += OnTextCommitted;
-        nativeSurface.ComposingTextChanged += OnComposingTextChanged;
+        nativeSurface.TextCommitRequested += OnTextCommitRequested;
+        nativeSurface.ComposingTextUpdateRequested += OnComposingTextUpdateRequested;
         nativeSurface.ComposingTextFinished += OnComposingTextFinished;
+        nativeSurface.ComposingRegionRequested += OnComposingRegionRequested;
         nativeSurface.DeleteSurroundingTextRequested += OnDeleteSurroundingTextRequested;
         nativeSurface.KeyInput += OnKeyInput;
         nativeSurface.TextSelectionRequested += OnTextSelectionRequested;
@@ -97,9 +115,10 @@ public sealed class AndroidAppHost : IDisposable
         controlSurface.Invalidated -= OnControlSurfaceInvalidated;
         nativeSurface.Render -= OnRender;
         nativeSurface.Pointer -= OnPointer;
-        nativeSurface.TextCommitted -= OnTextCommitted;
-        nativeSurface.ComposingTextChanged -= OnComposingTextChanged;
+        nativeSurface.TextCommitRequested -= OnTextCommitRequested;
+        nativeSurface.ComposingTextUpdateRequested -= OnComposingTextUpdateRequested;
         nativeSurface.ComposingTextFinished -= OnComposingTextFinished;
+        nativeSurface.ComposingRegionRequested -= OnComposingRegionRequested;
         nativeSurface.DeleteSurroundingTextRequested -= OnDeleteSurroundingTextRequested;
         nativeSurface.KeyInput -= OnKeyInput;
         nativeSurface.TextSelectionRequested -= OnTextSelectionRequested;
@@ -144,22 +163,28 @@ public sealed class AndroidAppHost : IDisposable
         UpdateDiagnostics();
     }
 
-    private void OnTextCommitted(object? sender, string text)
+    private void OnTextCommitRequested(object? sender, AndroidTextEditEvent e)
     {
-        controlSurface.CommitText(text);
-        app.UpdateLastInput($"IME committed {text.Length} UTF-16 unit(s)");
+        controlSurface.CommitText(e.Text, e.NewCursorPosition);
+        app.UpdateLastInput($"IME committed {e.Text.Length} UTF-16 unit(s)");
     }
 
-    private void OnComposingTextChanged(object? sender, string text)
+    private void OnComposingTextUpdateRequested(object? sender, AndroidTextEditEvent e)
     {
-        controlSurface.SetComposingText(text);
-        app.UpdateLastInput($"IME composition changed ({text.Length} UTF-16 unit(s))");
+        controlSurface.SetComposingText(e.Text, e.NewCursorPosition);
+        app.UpdateLastInput($"IME composition changed ({e.Text.Length} UTF-16 unit(s))");
     }
 
     private void OnComposingTextFinished(object? sender, EventArgs e)
     {
         controlSurface.FinishComposingText();
         app.UpdateLastInput("IME composition finished");
+    }
+
+    private void OnComposingRegionRequested(object? sender, AndroidTextSelectionEvent e)
+    {
+        controlSurface.SetComposingRegion(e.Start, e.End);
+        app.UpdateLastInput($"IME composition region: {e.Start}..{e.End}");
     }
 
     private void OnDeleteSurroundingTextRequested(object? sender, AndroidTextDeletionRequest e)
@@ -212,7 +237,8 @@ public sealed class AndroidAppHost : IDisposable
                 state.Value.SelectionStart,
                 state.Value.SelectionEnd,
                 state.Value.CompositionStart,
-                state.Value.CompositionEnd);
+                state.Value.CompositionEnd,
+                state.Value.Revision);
     }
 
     private void UpdateDiagnostics()

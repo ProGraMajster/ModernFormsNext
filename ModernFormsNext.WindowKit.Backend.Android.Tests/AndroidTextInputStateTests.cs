@@ -32,4 +32,15 @@ public sealed class AndroidTextInputStateTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new AndroidTextInputState("abc", 0, 4));
         Assert.Throws<ArgumentOutOfRangeException>(() => new AndroidTextInputState("abc", 0, 0, 0, -1));
     }
+
+    [Fact]
+    public void CompositionDoesNotChangeSurroundingTextSelectionSemantics()
+    {
+        var state = new AndroidTextInputState("Qwerty", 6, 6, 0, 6, revision: 42);
+
+        Assert.Equal("Qwerty", state.GetTextBeforeCursor(20));
+        Assert.Equal(string.Empty, state.GetSelectedText());
+        Assert.Equal((0, 6), (state.CompositionStart, state.CompositionEnd));
+        Assert.Equal(42, state.Revision);
+    }
 }

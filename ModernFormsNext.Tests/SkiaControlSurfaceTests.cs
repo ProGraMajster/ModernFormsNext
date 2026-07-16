@@ -77,6 +77,128 @@ public sealed class SkiaControlSurfaceTests
     }
 
     [Fact]
+    public void RecordedGboardCompositionRecoverySequenceProducesQwertyOnce()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            var prefixes = new[] { "Q", "Qw", "Qwe", "Qwer", "Qwert", "Qwerty" };
+            foreach (var prefix in prefixes)
+            {
+                adapter.SetComposingText(prefix, 1);
+
+                var state = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+                Assert.Equal(prefix, state.Text);
+                Assert.Equal((prefix.Length, prefix.Length), (state.SelectionStart, state.SelectionEnd));
+                Assert.Equal((0, prefix.Length), (state.CompositionStart, state.CompositionEnd));
+
+                // This is the sequence captured from Gboard: it finishes the span, then marks the
+                // current word as composing again before sending the next complete prefix.
+                adapter.FinishComposingText();
+                adapter.SetComposingRegion(0, prefix.Length);
+            }
+
+            adapter.FinishComposingText();
+
+            Assert.Equal("Qwerty", textBox.Text);
+            var committed = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal((6, 6), (committed.SelectionStart, committed.SelectionEnd));
+            Assert.Equal((-1, -1), (committed.CompositionStart, committed.CompositionEnd));
+        }
+    }
+
+    [Fact]
+    public void FinishComposingTextKeepsTextAndCaretUnchanged()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            var textChangedCount = 0;
+            textBox.TextChanged += (_, _) => textChangedCount++;
+            adapter.SetComposingText("test", 1);
+            var before = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+
+            adapter.FinishComposingText();
+
+            var after = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal(before.Text, after.Text);
+            Assert.Equal((before.SelectionStart, before.SelectionEnd), (after.SelectionStart, after.SelectionEnd));
+            Assert.Equal((-1, -1), (after.CompositionStart, after.CompositionEnd));
+            Assert.Equal(1, textChangedCount);
+        }
+    }
+
+    [Fact]
+    public void SelectionAndCompositionRemainIndependent()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            adapter.SetComposingText("abcd", 1);
+
+            adapter.SetTextSelection(1, 1);
+
+            var state = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal((1, 1), (state.SelectionStart, state.SelectionEnd));
+            Assert.Equal((0, 4), (state.CompositionStart, state.CompositionEnd));
+            Assert.Equal("abcd", textBox.Text);
+        }
+    }
+
+    [Fact]
+    public void CommitTextReplacesCompositionAndAppliesCursorPosition()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            adapter.SetComposingText("prefix", 1);
+
+            adapter.CommitText("done", 0);
+
+            var state = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal("done", textBox.Text);
+            Assert.Equal((0, 0), (state.SelectionStart, state.SelectionEnd));
+            Assert.Equal((-1, -1), (state.CompositionStart, state.CompositionEnd));
+        }
+    }
+
+    [Fact]
+    public void CompositionSupportsMultilinePolishAndEmojiText()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            textBox.MultiLine = true;
+            adapter.SetComposingText("Zażółć\n👋🏽", 1);
+            adapter.SetComposingText("Zażółć\n👋🏽 rakietę 🚀", 1);
+            adapter.CommitText("Zażółć\n👋🏽 rakietę 🚀", 1);
+
+            Assert.Equal("Zażółć\n👋🏽 rakietę 🚀", textBox.Text);
+            var state = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal(state.Text.Length, state.SelectionEnd);
+            Assert.Equal((-1, -1), (state.CompositionStart, state.CompositionEnd));
+        }
+    }
+
+    [Fact]
+    public void ComposingRegionIsClippedAndDoesNotMoveSelection()
+    {
+        var textBox = CreateSelectedTextBox(out var adapter);
+        using (adapter)
+        {
+            adapter.CommitText("abcdef", 1);
+            adapter.SetTextSelection(2, 2);
+
+            adapter.SetComposingRegion(99, -4);
+
+            var state = Assert.IsType<ControlSurfaceTextInputState>(adapter.GetTextInputState());
+            Assert.Equal((2, 2), (state.SelectionStart, state.SelectionEnd));
+            Assert.Equal((0, 6), (state.CompositionStart, state.CompositionEnd));
+            Assert.Equal("abcdef", textBox.Text);
+        }
+    }
+
+    [Fact]
     public void DeleteSurroundingTextPreservesUnicodeTextElementBoundaries()
     {
         var textBox = CreateSelectedTextBox(out var adapter);
