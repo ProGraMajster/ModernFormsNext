@@ -52,6 +52,8 @@ as a production-ready platform.
 - Fixed Unicode text editing by keeping document positions in UTF-16 while converting explicitly at
   the RichTextKit layout boundary. Caret movement, hit testing, selection, rendering, Backspace, and
   Delete now preserve emoji, supplementary characters, combining text, and IME composition.
+- Fixed local Markdown image reload/disposal so an in-flight asynchronous read does not keep an
+  image or its temporary directory locked while the host replaces or removes the asset.
 - Fixed Android pointer routing with stable multi-touch IDs, deepest enabled-control hit testing,
   independent capture, tap/click semantics, drag cancellation, and real `ScrollableControl`
   scrolling rather than an Android-only scroll model.

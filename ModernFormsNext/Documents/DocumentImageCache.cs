@@ -344,7 +344,17 @@ internal sealed class DocumentImageCache : IDisposable
         if (info.Exists && info.Length > limits.MaxDownloadBytes)
             return Array.Empty<byte>();
 
-        await using var stream = File.OpenRead(path);
+        // Local Markdown assets can be regenerated or atomically replaced while a previous load
+        // is being cancelled. Share write/delete access so an in-flight asynchronous read does not
+        // keep the source file or its temporary directory locked during reload or viewer disposal.
+        await using var stream = new FileStream(path, new FileStreamOptions
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.ReadWrite | FileShare.Delete,
+            Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+            BufferSize = 16 * 1024
+        });
         return await ReadLimitedAsync(stream, limits.MaxDownloadBytes, cancellationToken).ConfigureAwait(false);
     }
 
