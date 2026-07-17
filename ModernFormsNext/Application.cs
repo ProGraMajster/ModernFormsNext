@@ -31,6 +31,21 @@ namespace ModernFormsNext
         private static bool is_exiting;
         private static FormCollection? open_forms;
         private static string? startup_path;
+        private static readonly ResourceDictionary resources = new();
+
+        /// <summary>
+        /// Gets the resources available to every ModernFormsNext window and control in the application.
+        /// </summary>
+        /// <remarks>
+        /// Application resources are the final fallback after control, ancestor-control, and window
+        /// scopes. Update resources used by live controls on the UI/dispatcher thread.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// Application.Resources["Spacing.Medium"] = 12;
+        /// </code>
+        /// </example>
+        public static ResourceDictionary Resources => resources;
 
         /// <summary>
         /// Gets or sets the currently active top-level menu, if one is open.

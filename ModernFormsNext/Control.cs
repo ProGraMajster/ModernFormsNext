@@ -89,6 +89,7 @@ namespace ModernFormsNext
 
             // Update the parent
             parent = value;
+            RefreshResourceBindingsForSubtree ();
             OnParentChanged (EventArgs.Empty);
 
             if (GetAnyDisposingInHierarchy ())
@@ -2382,6 +2383,7 @@ namespace ModernFormsNext
         protected override void Dispose (bool disposing)
         {
             if (!disposedValue) {
+                DisposeResourceReferences ();
                 FreeBackBuffer ();
 
                 foreach (var c in Controls.GetAllControls (true))
