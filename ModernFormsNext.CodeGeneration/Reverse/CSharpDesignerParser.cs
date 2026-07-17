@@ -211,14 +211,16 @@ public sealed class CSharpDesignerParser
         if (assignment.IsKind(SyntaxKind.SimpleAssignmentExpression))
         {
             if (TryReadObjectCreationType(assignment.Right, out var createdType)
-                && syntaxReader.GetObjectReferenceName(assignment.Left) is { } createdName)
+                && syntaxReader.GetObjectReferenceName(assignment.Left) is { } createdName
+                && fields.TryGetValue(createdName, out var field))
             {
-                var field = fields.TryGetValue(createdName, out var definition)
-                    ? definition
-                    : new FieldDefinition(createdType, DesignerMemberVisibility.Private);
                 EnsureNode(createdName, createdType, field.Visibility, assignment);
                 return;
             }
+
+            // Object-valued properties such as this.Size and control.Bounds also use a `new ...`
+            // expression. Only declared designer fields represent control construction; all other
+            // targets must continue to property parsing so form geometry survives reverse sync.
 
             if (TryReadPropertyAccess(assignment.Left, out var ownerName, out var propertyPath))
             {
@@ -336,8 +338,11 @@ public sealed class CSharpDesignerParser
 
                 break;
 
-            case "Size":
+            // ClientSize is the current generated contract because a design document describes
+            // the usable form surface. Keep accepting Size from early designer builds so reverse
+            // import remains compatible without persisting window-decoration dimensions.
             case "ClientSize":
+            case "Size":
                 if (TryReadSize(valueExpression, out var width, out var height))
                     document.Size = new DesignSize(width, height);
                 else
