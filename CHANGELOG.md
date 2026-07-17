@@ -34,7 +34,8 @@ set is versioned `1.8.0`; the independently versioned Visual Studio extension is
 - Fixed designer rendering, hit testing, drag/resize behavior, selection adorners, grid spacing,
   panel chrome, and runtime control previews on High DPI displays.
 - Fixed designer code reverse parsing so object-valued property assignments remain geometry
-  properties, while current `ClientSize` and legacy `Size` assignments both round-trip safely.
+  properties. New `.Designer.cs` files emit `Size`, while reverse import also accepts legacy
+  `ClientSize` assignments so existing files round-trip safely.
 - Fixed duplicate native borders around managed-decoration Windows forms.
 - Fixed ControlGallery to target the Windows desktop framework explicitly.
 

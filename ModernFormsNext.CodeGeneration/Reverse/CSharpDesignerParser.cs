@@ -338,11 +338,11 @@ public sealed class CSharpDesignerParser
 
                 break;
 
-            // ClientSize is the current generated contract because a design document describes
-            // the usable form surface. Keep accepting Size from early designer builds so reverse
-            // import remains compatible without persisting window-decoration dimensions.
-            case "ClientSize":
+            // Size is the canonical generated contract. Keep accepting ClientSize from earlier
+            // designer builds so existing .Designer.cs files can still be imported and rewritten
+            // in the current canonical form.
             case "Size":
+            case "ClientSize":
                 if (TryReadSize(valueExpression, out var width, out var height))
                     document.Size = new DesignSize(width, height);
                 else

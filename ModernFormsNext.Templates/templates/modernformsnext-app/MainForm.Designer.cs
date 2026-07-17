@@ -23,6 +23,6 @@ public sealed partial class MainForm
 
         this.Name = "MainForm";
         this.Text = "ModernFormsNext App";
-        this.ClientSize = new System.Drawing.Size(900, 600);
+        this.Size = new System.Drawing.Size(900, 600);
     }
 }

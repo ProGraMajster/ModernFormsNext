@@ -155,9 +155,9 @@ into a detached control's `PaintEventArgs` would scale fonts and renderer metric
 `ClientRectangle`, which creates the smaller-control-inside-a-larger-rectangle artifact.
 
 Saving `.mfdesign` or generating `.Designer.cs` never uses device-pixel or preview-scaled values.
-The generated form size is assigned through `Form.ClientSize`, because the design document describes
-the usable content surface without managed window decorations. Reverse import also accepts `Size`
-from earlier generated files, but new code consistently emits `ClientSize`.
+The generated form size is assigned through `Form.Size`, matching the canonical WinForms-like
+designer contract. Reverse import also accepts `ClientSize` from earlier generated files, but new
+code and shipped `.Designer.cs` templates consistently emit `Size`.
 
 Auto-save is enabled by default in the shared designer options. Hosts can disable it through
 `ModernFormsDesignerOptions.AutoSaveEnabled`, but when it is enabled the active `.mfdesign`

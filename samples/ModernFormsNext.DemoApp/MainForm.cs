@@ -17,7 +17,7 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text = "ModernFormsNext App";
-        this.ClientSize = new System.Drawing.Size(900, 600);
+        this.Size = new System.Drawing.Size(900, 600);
 
         var button = new Button
         {

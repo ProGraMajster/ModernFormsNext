@@ -8,22 +8,23 @@ namespace ModernFormsNext.Designer.Tests;
 public sealed class CSharpDesignerRoundTripTests
 {
     [Fact]
-    public void GeneratorUsesClientSizeAndNeverEmitsDecoratedWindowSize()
+    public void GeneratorUsesSizeAndNeverEmitsClientSize()
     {
         var document = CreateDocument();
+        document.Properties["Size"] = DesignPropertyValue.FromInt32(456);
         document.Properties["ClientSize"] = DesignPropertyValue.FromInt32(123);
 
         var result = new CSharpDesignerGenerator().Generate(document);
 
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Validation.Errors));
-        Assert.Contains("this.ClientSize = new System.Drawing.Size(900, 600);", result.Code);
-        Assert.DoesNotContain("this.Size =", result.Code);
+        Assert.Contains("this.Size = new System.Drawing.Size(900, 600);", result.Code);
+        Assert.DoesNotContain("this.ClientSize =", result.Code);
     }
 
     [Theory]
     [InlineData("Size")]
     [InlineData("ClientSize")]
-    public void ParserAcceptsCurrentAndLegacyFormSizeAssignments(string propertyName)
+    public void ParserAcceptsCanonicalAndLegacyFormSizeAssignments(string propertyName)
     {
         var source = $$"""
             using ModernFormsNext;
@@ -60,8 +61,8 @@ public sealed class CSharpDesignerRoundTripTests
             document = serializer.Deserialize(serializer.Serialize(document));
             var generated = service.Generate(document);
             Assert.True(generated.Succeeded, string.Join(Environment.NewLine, generated.Validation.Errors));
-            Assert.Contains("this.ClientSize = new System.Drawing.Size(900, 600);", generated.Code);
-            Assert.DoesNotContain("this.Size =", generated.Code);
+            Assert.Contains("this.Size = new System.Drawing.Size(900, 600);", generated.Code);
+            Assert.DoesNotContain("this.ClientSize =", generated.Code);
 
             var parsed = service.ParseDesignerCode(generated.Code);
             Assert.True(parsed.Success, string.Join(Environment.NewLine, parsed.Diagnostics.Select(diagnostic => diagnostic.Message)));
