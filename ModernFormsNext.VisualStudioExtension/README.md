@@ -2,9 +2,11 @@
 
 This project builds the Visual Studio extension that registers the ModernFormsNext designer.
 
-The extension is versioned with the repository package version. Check
-`ModernFormsNext.VisualStudioExtension.Vsix\source.extension.vsixmanifest` for
-the exact local VSIX version.
+The extension has an independent patch version stored as
+`ModernFormsNextVisualStudioExtensionVersion` in `Directory.Build.props`. The
+same version must be kept in
+`ModernFormsNext.VisualStudioExtension.Vsix\source.extension.vsixmanifest` and
+the two `InstalledProductRegistration` attributes.
 
 The local VSIX uses `InstallationTarget Version="[17.0,)"` and
 `Microsoft.VisualStudio.Component.CoreEditor Version="[17.0,)"`. Visual Studio

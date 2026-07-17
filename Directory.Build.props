@@ -1,5 +1,25 @@
 <Project>
 	<PropertyGroup>
 		<ModernFormsNextPackageVersion>1.7.0</ModernFormsNextPackageVersion>
+		<ModernFormsNextVisualStudioExtensionVersion>1.7.5</ModernFormsNextVisualStudioExtensionVersion>
+
+		<!-- Shared assembly and publication identity. Project-specific package names,
+		     descriptions, products, and tags remain in the owning project. -->
+		<Authors>ProGraMajster</Authors>
+		<Company>ProGraMajster</Company>
+		<Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
+		<RepositoryType>git</RepositoryType>
+		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReleaseNotes>https://github.com/ProGraMajster/ModernFormsNext/blob/master/CHANGELOG.md</PackageReleaseNotes>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<NeutralLanguage>en</NeutralLanguage>
 	</PropertyGroup>
 </Project>

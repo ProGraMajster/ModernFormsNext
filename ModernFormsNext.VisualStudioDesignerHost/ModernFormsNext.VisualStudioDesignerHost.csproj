@@ -10,14 +10,8 @@
     <RootNamespace>ModernFormsNext.VisualStudioDesignerHost</RootNamespace>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <Version>$(ModernFormsNextPackageVersion)</Version>
-    <Authors>ProGraMajster</Authors>
-    <Company>ModernFormsNext</Company>
     <Product>ModernFormsNext.VisualStudioDesignerHost</Product>
-    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
     <Description>Out-of-process ModernFormsNext designer host launched by the Visual Studio extension.</Description>
-    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>

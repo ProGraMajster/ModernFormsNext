@@ -12,26 +12,12 @@
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		
 
-		<PackageIcon>icon.png</PackageIcon>
 		<PackageId>ModernFormsNext</PackageId>
+		<Title>ModernFormsNext</Title>
 		<Version>$(ModernFormsNextPackageVersion)</Version>
-		<Authors>ProGraMajster</Authors>
-		<Company>ModernFormsNext</Company>
 		<Product>ModernFormsNext</Product>
-		<Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
 		<Description>ModernFormsNext is a modern high-performance UI framework inspired by WinForms, powered by SkiaSharp. Designed for speed, flexibility and full control over rendering.</Description>
 		<PackageTags>ui;winforms;skia;desktop;framework;modernforms</PackageTags>
-		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
-		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
-		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<NeutralLanguage>en</NeutralLanguage>
 	</PropertyGroup>
 
 	<!-- Assets -->

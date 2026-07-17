@@ -8,21 +8,14 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AnalysisLevel>latest</AnalysisLevel>
-    <ModernFormsNextVisualStudioExtensionVersion>1.7.5</ModernFormsNextVisualStudioExtensionVersion>
     <Version>$(ModernFormsNextVisualStudioExtensionVersion)</Version>
     <AssemblyVersion>$(ModernFormsNextVisualStudioExtensionVersion).0</AssemblyVersion>
     <FileVersion>$(ModernFormsNextVisualStudioExtensionVersion).0</FileVersion>
     <IsPackable>false</IsPackable>
     <AssemblyName>ModernFormsNext.VisualStudioExtension</AssemblyName>
     <RootNamespace>ModernFormsNext.VisualStudioExtension</RootNamespace>
-    <Authors>ProGraMajster</Authors>
-    <Company>ModernFormsNext</Company>
     <Product>ModernFormsNext.VisualStudioExtension</Product>
-    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
     <Description>Visual Studio designer support for ModernFormsNext .mfdesign files.</Description>
-    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <NeutralLanguage>en</NeutralLanguage>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <CreateVsixContainer>true</CreateVsixContainer>
     <DeployExtension>false</DeployExtension>

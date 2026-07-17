@@ -15,16 +15,9 @@
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <ModernFormsNextVisualStudioExtensionVersion>1.7.5</ModernFormsNextVisualStudioExtensionVersion>
     <Version>$(ModernFormsNextVisualStudioExtensionVersion)</Version>
-    <Authors>ProGraMajster</Authors>
-    <Company>ModernFormsNext</Company>
     <Product>ModernFormsNext.VisualStudioExtension</Product>
-    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
     <Description>Visual Studio designer integration for ModernFormsNext .mfdesign files.</Description>
-    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>

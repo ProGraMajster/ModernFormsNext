@@ -2,24 +2,20 @@
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
+		<IsPackable>true</IsPackable>
 		<PackageId>ModernFormsNext.Templates</PackageId>
 		<Version>$(ModernFormsNextPackageVersion)</Version>
 		<Title>ModernFormsNext Templates</Title>
-		<Authors>ProGraMajster</Authors>
-		<Company>ProGraMajster</Company>
+		<Product>ModernFormsNext.Templates</Product>
 		<Description>Project templates for ModernFormsNext.</Description>
 		<PackageTags>ModernFormsNext;Templates;dotnet-new;CSharp;Desktop;UI;Windows</PackageTags>
 		<PackageType>Template</PackageType>
 		<IncludeContentInPack>true</IncludeContentInPack>
 		<IncludeBuildOutput>false</IncludeBuildOutput>
 
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		
+		<IncludeSymbols>false</IncludeSymbols>
+
 		<NoWarn>$(NoWarn);NU5128</NoWarn>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -27,6 +23,7 @@
 		<!-- Template source files are packaged as content and must not be compiled into the template package assembly. -->
 		<Compile Remove="templates\**\*.cs" />
 		<Content Include="README.md" Pack="true" PackagePath="\" />
+		<Content Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
 	</ItemGroup>
 
 </Project>

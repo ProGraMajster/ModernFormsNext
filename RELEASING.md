@@ -22,6 +22,19 @@ v1.4.0
 
 Do not put the `v` prefix in `.csproj`, `Directory.Build.props`, template package references, or NuGet metadata. The `v` prefix belongs only to the Git tag.
 
+### Assembly and VSIX versions
+
+Library projects rely on the .NET SDK version defaults. `Version` and `FileVersion`
+follow the package release, while `InformationalVersion` may also contain the source
+revision. `AssemblyVersion` remains at `major.minor.0.0` for patch releases so a
+compatible patch does not create an unnecessary binary binding break.
+
+The Visual Studio extension has an independent patch cycle. Its version is stored in
+`ModernFormsNextVisualStudioExtensionVersion` in `Directory.Build.props` and must be
+synchronized with the VSIX manifest and both `InstalledProductRegistration`
+attributes. The VSIX assembly and file versions use the four-part form
+`major.minor.patch.0`.
+
 ## Choosing the next version
 
 Use SemVer:

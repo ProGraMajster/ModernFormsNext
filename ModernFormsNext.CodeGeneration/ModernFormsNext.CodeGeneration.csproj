@@ -8,26 +8,12 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <IsPackable>true</IsPackable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageIcon>icon.png</PackageIcon>
     <PackageId>ModernFormsNext.CodeGeneration</PackageId>
+    <Title>ModernFormsNext Code Generation</Title>
     <Version>$(ModernFormsNextPackageVersion)</Version>
-    <Authors>ProGraMajster</Authors>
-    <Company>ModernFormsNext</Company>
     <Product>ModernFormsNext.CodeGeneration</Product>
-    <Copyright>Copyright (c) 2026 ProGraMajster</Copyright>
     <Description>C# designer code generation and conservative reverse parsing for ModernFormsNext .mfdesign documents.</Description>
     <PackageTags>ui;designer;code-generation;roslyn;forms;desktop;framework;modernforms;mfdesign</PackageTags>
-    <RepositoryUrl>https://github.com/ProGraMajster/ModernFormsNext</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/ProGraMajster/ModernFormsNext</PackageProjectUrl>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>
