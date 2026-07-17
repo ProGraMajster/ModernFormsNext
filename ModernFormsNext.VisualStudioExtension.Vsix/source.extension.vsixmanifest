@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="ModernFormsNext.Designer" Version="1.7.6" Language="en-US" Publisher="ProGraMajster" />
+    <Identity Id="ModernFormsNext.Designer" Version="1.8.0" Language="en-US" Publisher="ProGraMajster" />
     <DisplayName>ModernFormsNext Designer</DisplayName>
     <Description xml:space="preserve">Visual Studio designer support for ModernFormsNext.</Description>
     <MoreInfo>https://github.com/ProGraMajster/ModernFormsNext</MoreInfo>
