@@ -959,8 +959,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 borderCaptionThickness.top = 1;
             }
 
-            //using a default margin of 0 when using WinUiComp removes artefacts when resizing. See issue #8316
-            var defaultMargin = _isUsingComposition ? 0 : 1;
+            // A one-device-pixel DWM margin is useful for system chrome on the framebuffer
+            // backend, but it must not leak into a window that explicitly requested NoChrome.
+            // ModernFormsNext draws its managed border inside the client area; extending DWM in
+            // that mode produces a second bright line along the right and bottom window edges.
+            // WinUI composition also requires zero here to avoid resize artefacts (issue #8316).
+            var defaultMargin = _isUsingComposition || _extendChromeHints == ExtendClientAreaChromeHints.NoChrome
+                ? 0
+                : 1;
 
             MARGINS margins = new MARGINS();
             margins.cxLeftWidth = defaultMargin;
