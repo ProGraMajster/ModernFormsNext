@@ -1,5 +1,10 @@
 # Android development
 
+> [!WARNING]
+> Android support in ModernFormsNext 1.8.0 is **Experimental**. APIs, project structure, and
+> runtime behavior may change, and production use is not yet recommended. Start with the
+> [Android platform status](platforms/android.md).
+
 Android support is an experimental vertical slice. Windows remains the primary and most complete
 runtime. The cross-platform sample is intentionally a normal .NET multi-target project; it does
 not use MAUI, XAML, AndroidX, or native Android controls as framework widgets.

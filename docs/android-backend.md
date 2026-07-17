@@ -1,5 +1,10 @@
 # Android backend
 
+> [!WARNING]
+> Android support in ModernFormsNext 1.8.0 is **Experimental** and is not recommended for
+> production applications. See the [Android platform status](platforms/android.md) for the
+> supported vertical slice and current limitations.
+
 The Android backend is an early platform foundation with an experimental shared-control Skia
 surface, not a complete ModernFormsNext window backend.
 Windows remains the primary and best-supported runtime. The Android project targets

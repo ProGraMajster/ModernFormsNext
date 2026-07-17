@@ -1,5 +1,9 @@
 # Cross-platform sample
 
+> [!WARNING]
+> The Android target is **Experimental** in ModernFormsNext 1.8.0. This sample validates the
+> current shared-control vertical slice; it does not represent complete Android platform parity.
+
 `samples/ModernFormsNext.CrossPlatform.Sample` is intentionally one application project, organized
 like a .NET MAUI project but without MAUI, XAML, AndroidX, or a second shared library.
 
@@ -120,4 +124,5 @@ software-rendering diagnostics, and artifact collection.
 This sample proves a real shared-control vertical slice, not complete Android parity. Android still
 lacks general `Application.Run(Form)`, multiple framework windows, full accessibility semantics,
 native dialogs, clipboard, file pickers, drag-and-drop, and several backend services. Windows
-remains the primary and best-supported target.
+remains the primary and best-supported target. See the canonical
+[Android platform status](platforms/android.md) for the complete 1.8.0 support matrix.
