@@ -645,7 +645,7 @@ namespace ModernFormsNext
             if (document.Text.Length == 0)
                 return 0;
 
-            return document.GetCharIndexFromPosition (pt.X - TextOrigin.X, pt.Y - TextOrigin.Y).ClosestCodePointIndex;
+            return document.GetUtf16IndexFromPosition (pt.X - TextOrigin.X, pt.Y - TextOrigin.Y);
         }
 
         /// <summary>
@@ -710,7 +710,11 @@ namespace ModernFormsNext
         public Point GetPositionFromCharIndex (int index)
         {
             var block = document.GetTextBlock ();
-            var caret = TextMeasurer.GetCursorLocation (block, TextOrigin, Math.Clamp (index, 0, document.Text.Length), CurrentFontSize);
+            var caret = TextMeasurer.GetCursorLocation (
+                block,
+                TextOrigin,
+                document.GetLayoutCodePointIndex (Math.Clamp (index, 0, document.Text.Length)),
+                CurrentFontSize);
             return caret.IsEmpty ? Point.Empty : caret.Location;
         }
 

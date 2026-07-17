@@ -30,7 +30,7 @@ internal sealed class MarkdownEditorTextBoxRenderer : Renderer<MarkdownEditorTex
             var caret = TextMeasurer.GetCursorLocation(
                 block,
                 textOrigin,
-                control.document.CursorIndex,
+                control.document.CursorLayoutCodePointIndex,
                 control.CurrentFontSize);
             DrawCaret(control, e, caret);
         }

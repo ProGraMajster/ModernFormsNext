@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using SkiaSharp;
 using Topten.RichTextKit;
 
@@ -15,6 +16,7 @@ namespace ModernFormsNext
         private string placeholder = string.Empty;
 
         private TextBlock? cached_text_block;
+        private int[]? code_point_to_utf16_offsets;
         
         private bool enabled = true;
         private int cursor_index = 0;
@@ -57,6 +59,10 @@ namespace ModernFormsNext
         public bool AtEnd => cursor_index == text.Length;
 
         public int CursorIndex => cursor_index;
+
+        // The document and public TextBox API use UTF-16 offsets. RichTextKit shapes UTF-32 code
+        // points, so every index crossing that boundary must be translated explicitly.
+        public int CursorLayoutCodePointIndex => GetLayoutCodePointIndex (cursor_index);
 
         public int CompositionStart => composition_start;
 
@@ -154,14 +160,24 @@ namespace ModernFormsNext
             }
         }
 
-        public HitTestResult GetCharIndexFromPosition (int x, int y)
+        public int GetUtf16IndexFromPosition (int x, int y)
         {
             var hit = GetTextBlock ().HitTest (x, y);
-
-            return hit;
+            return GetUtf16IndexFromLayoutCodePointIndex (hit.ClosestCodePointIndex);
         }
 
-        public TextSelection GetTextSelection () => new TextSelection (selection_start, selection_end, selection_color);
+        public TextSelection GetTextSelection ()
+        {
+            if (!IsTextSelected)
+                return TextSelection.Empty;
+
+            var start = Math.Min (selection_start, selection_end);
+            var end = Math.Max (selection_start, selection_end);
+            return new TextSelection (
+                GetLayoutCodePointIndex (start),
+                GetLayoutCodePointIndex (end),
+                selection_color);
+        }
 
         public TextBlock GetTextBlock ()
         {
@@ -196,6 +212,7 @@ namespace ModernFormsNext
 
             text = text.Insert (cursor_index, str);
             cached_text_block = null;
+            code_point_to_utf16_offsets = null;
             if (str.Length > 0)
                 revision++;
 
@@ -310,23 +327,25 @@ namespace ModernFormsNext
 
             var new_index = -1;
             var block = GetTextBlock ();
-            var current_caret = block.GetCaretInfo (new CaretPosition (cursor_index));
+            var current_code_point = CursorLayoutCodePointIndex;
+            var current_caret = block.GetCaretInfo (new CaretPosition (current_code_point));
             
             switch (direction) {
                 case ArrowDirection.Left:
 
                     // Ctrl-Home - Go to the beginning of the document
                     if (end && wholeWord)
-                        new_index = block.CaretIndicies.First ();
+                        new_index = GetUtf16IndexFromLayoutCodePointIndex (block.CaretIndicies.First ());
                     // Home - Go to the beginning of the current line
                     else if (end)
-                        new_index = block.HitTest (0, current_caret.CaretRectangle.MidY).ClosestCodePointIndex;
+                        new_index = GetUtf16IndexFromLayoutCodePointIndex (
+                            block.HitTest (0, current_caret.CaretRectangle.MidY).ClosestCodePointIndex);
                     // Ctrl-Left - Go left one word
                     else if (wholeWord)
                         new_index = TextMeasurer.FindNextSeparator (text, cursor_index, false);
                     // Left - Go left one character
                     else
-                        new_index = block.CaretIndicies.ElementAt (Math.Max (cursor_index - 1, 0));
+                        new_index = GetAdjacentCaretUtf16Index (block, current_code_point, forward: false);
 
                     break;
 
@@ -334,10 +353,12 @@ namespace ModernFormsNext
 
                     // Multiline - Go up one line
                     if (multiline)
-                        new_index = GetCharIndexFromPosition ((int)current_caret.CaretXCoord, (int)current_caret.CaretRectangle.MidY - textbox.CurrentFontSize).ClosestCodePointIndex;
+                        new_index = GetUtf16IndexFromPosition (
+                            (int)current_caret.CaretXCoord,
+                            (int)current_caret.CaretRectangle.MidY - textbox.CurrentFontSize);
                     // Single line - Go left one character
                     else
-                        new_index = block.CaretIndicies.ElementAt (Math.Max (cursor_index - 1, 0));
+                        new_index = GetAdjacentCaretUtf16Index (block, current_code_point, forward: false);
 
                     break;
 
@@ -345,16 +366,17 @@ namespace ModernFormsNext
 
                     // Ctrl-End - Go to the end of the document
                     if (end && wholeWord)
-                        new_index = block.CaretIndicies.Last ();
+                        new_index = GetUtf16IndexFromLayoutCodePointIndex (block.CaretIndicies.Last ());
                     // End - Go to the end of the current line
                     else if (end)
-                        new_index = block.HitTest (int.MaxValue, current_caret.CaretRectangle.MidY).ClosestCodePointIndex;
+                        new_index = GetUtf16IndexFromLayoutCodePointIndex (
+                            block.HitTest (int.MaxValue, current_caret.CaretRectangle.MidY).ClosestCodePointIndex);
                     // Ctrl-Right - Go right one word
                     else if (wholeWord)
                         new_index = TextMeasurer.FindNextSeparator (text, cursor_index, true);
                     // Right - Go right one character
                     else
-                        new_index = block.CaretIndicies.ElementAt (Math.Min (cursor_index + 1, block.CaretIndicies.Count - 1));
+                        new_index = GetAdjacentCaretUtf16Index (block, current_code_point, forward: true);
 
                     break;
 
@@ -362,10 +384,12 @@ namespace ModernFormsNext
 
                     // Multiline - Go down one line
                     if (multiline)
-                        new_index = GetCharIndexFromPosition ((int)current_caret.CaretXCoord, (int)current_caret.CaretRectangle.MidY + textbox.CurrentFontSize).ClosestCodePointIndex;
+                        new_index = GetUtf16IndexFromPosition (
+                            (int)current_caret.CaretXCoord,
+                            (int)current_caret.CaretRectangle.MidY + textbox.CurrentFontSize);
                     // Single line - Go left one character
                     else
-                        new_index = block.CaretIndicies.ElementAt (Math.Min (cursor_index + 1, block.CaretIndicies.Count - 1));
+                        new_index = GetAdjacentCaretUtf16Index (block, current_code_point, forward: true);
 
                     break;
             }
@@ -435,6 +459,7 @@ namespace ModernFormsNext
         {
             text = text.Remove (start, length);
             cached_text_block = null;
+            code_point_to_utf16_offsets = null;
             if (length > 0)
                 revision++;
         }
@@ -521,6 +546,7 @@ namespace ModernFormsNext
                     ClearComposition ();
                     text = value;
                     cached_text_block = null;
+                    code_point_to_utf16_offsets = null;
                     revision++;
 
                     // If the Text property is changed, we need to reset the cursor to the top
@@ -574,6 +600,70 @@ namespace ModernFormsNext
             selection_start = storedStart;
             selection_end = storedEnd;
             revision++;
+        }
+
+        public int GetLayoutCodePointIndex (int utf16Index)
+        {
+            utf16Index = Math.Clamp (utf16Index, 0, text.Length);
+
+            // Password rendering currently emits one mask glyph per UTF-16 unit. Preserve that
+            // established display contract while normal text is translated to UTF-32 indices.
+            if (password_char.HasValue)
+                return utf16Index;
+
+            var offsets = GetCodePointToUtf16Offsets ();
+            var position = Array.BinarySearch (offsets, utf16Index);
+            return position >= 0 ? position : Math.Max (0, ~position - 1);
+        }
+
+        public int GetUtf16IndexFromLayoutCodePointIndex (int codePointIndex)
+        {
+            if (password_char.HasValue)
+                return Math.Clamp (codePointIndex, 0, text.Length);
+
+            var offsets = GetCodePointToUtf16Offsets ();
+            return offsets[Math.Clamp (codePointIndex, 0, offsets.Length - 1)];
+        }
+
+        private int GetAdjacentCaretUtf16Index (TextBlock block, int currentCodePoint, bool forward)
+        {
+            // CaretIndicies is ordered by logical code-point index. Binary search keeps a single
+            // arrow-key press logarithmic even in large RichTextBox and Markdown documents.
+            var low = 0;
+            var high = block.CaretIndicies.Count - 1;
+            while (low <= high) {
+                var middle = low + ((high - low) / 2);
+                if (block.CaretIndicies[middle] <= currentCodePoint)
+                    low = middle + 1;
+                else
+                    high = middle - 1;
+            }
+
+            if (!forward && high >= 0 && block.CaretIndicies[high] == currentCodePoint)
+                high--;
+
+            var adjacentIndex = forward ? low : high;
+            if (adjacentIndex < 0)
+                return 0;
+            if (adjacentIndex >= block.CaretIndicies.Count)
+                return text.Length;
+
+            return GetUtf16IndexFromLayoutCodePointIndex (block.CaretIndicies[adjacentIndex]);
+        }
+
+        private int[] GetCodePointToUtf16Offsets ()
+        {
+            if (code_point_to_utf16_offsets is not null)
+                return code_point_to_utf16_offsets;
+
+            var offsets = new List<int> { 0 };
+            var utf16Offset = 0;
+            foreach (var rune in text.EnumerateRunes ()) {
+                utf16Offset += rune.Utf16SequenceLength;
+                offsets.Add (utf16Offset);
+            }
+
+            return code_point_to_utf16_offsets = offsets.ToArray ();
         }
 
         public readonly record struct ImeTextReplacement (int Start, int RetainedTextLength);

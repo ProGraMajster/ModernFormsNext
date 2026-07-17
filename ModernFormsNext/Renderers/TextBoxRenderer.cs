@@ -58,9 +58,9 @@ namespace ModernFormsNext.Renderers
         protected int GetCurrentFontSize (TextBox control) => control.CurrentFontSize;
 
         /// <summary>
-        /// Gets the current index of the TextBox cursor.
+        /// Gets the RichTextKit layout code-point index of the TextBox cursor.
         /// </summary>
-        protected int GetCursorIndex (TextBox control) => control.document.CursorIndex;
+        protected int GetCursorIndex (TextBox control) => control.document.CursorLayoutCodePointIndex;
 
         /// <summary>
         /// Gets the TextBox's text block.

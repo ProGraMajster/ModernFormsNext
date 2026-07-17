@@ -98,7 +98,7 @@ namespace ModernFormsNext
             if (!document.Text.HasValue ())
                 return 0;
 
-            return document.GetCharIndexFromPosition (location.X - TextOrigin.X, location.Y - TextOrigin.Y).ClosestCodePointIndex;
+            return document.GetUtf16IndexFromPosition (location.X - TextOrigin.X, location.Y - TextOrigin.Y);
         }
 
         /// <summary>
@@ -467,7 +467,11 @@ namespace ModernFormsNext
         /// </summary>
         public void ScrollToCaret ()
         {
-            var caret = TextMeasurer.GetCursorLocation (document.GetTextBlock (), TextOrigin, document.CursorIndex, CurrentFontSize);
+            var caret = TextMeasurer.GetCursorLocation (
+                document.GetTextBlock (),
+                TextOrigin,
+                document.CursorLayoutCodePointIndex,
+                CurrentFontSize);
 
             if (caret.IsEmpty)
                 return;

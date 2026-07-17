@@ -35,7 +35,11 @@ namespace ModernFormsNext.Renderers
                 e.Canvas.DrawTextBlock(block, textOrigin, control.document.GetTextSelection());
 
             if (control.Selected) {
-                var caret = TextMeasurer.GetCursorLocation(block, textOrigin, control.document.CursorIndex, control.CurrentFontSize);
+                var caret = TextMeasurer.GetCursorLocation(
+                    block,
+                    textOrigin,
+                    control.document.CursorLayoutCodePointIndex,
+                    control.CurrentFontSize);
                 DrawCaret(e, caret);
             }
 
