@@ -15,6 +15,7 @@ internal static class RuntimeControlPainter
     public static bool TryPaint(
         PaintEventArgs target,
         Control control,
+        Size logicalSize,
         Rectangle destination,
         out RuntimeControlPaintDiagnostics diagnostics,
         out string? error)
@@ -22,16 +23,26 @@ internal static class RuntimeControlPainter
         diagnostics = default;
         error = null;
 
-        if (destination.Width <= 0 || destination.Height <= 0)
+        if (logicalSize.Width <= 0 || logicalSize.Height <= 0 || destination.Width <= 0 || destination.Height <= 0)
             return true;
 
-        var imageInfo = new SKImageInfo(destination.Width, destination.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+        var deviceImageInfo = new SKImageInfo(destination.Width, destination.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+        var logicalImageInfo = new SKImageInfo(logicalSize.Width, logicalSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
 
-        using var bitmap = new SKBitmap(imageInfo);
+        using var bitmap = new SKBitmap(deviceImageInfo);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Transparent);
 
-        var controlPaintArgs = new PaintEventArgs(imageInfo, canvas, target.Scaling);
+        // Runtime preview controls are intentionally detached from a real window, so their
+        // ScaleFactor is 1. Keep their entire layout and paint pass in logical 96-DPI units and
+        // scale the canvas once to the preview's device-pixel destination. Passing the monitor DPI
+        // through PaintEventArgs would scale fonts and paint metrics while ClientRectangle stayed
+        // unscaled, producing the smaller control visible inside a larger high-DPI rectangle.
+        canvas.Scale(
+            destination.Width / (float)logicalSize.Width,
+            destination.Height / (float)logicalSize.Height);
+
+        var controlPaintArgs = new PaintEventArgs(logicalImageInfo, canvas, scaling: 1d);
 
         try
         {

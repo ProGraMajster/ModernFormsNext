@@ -2,6 +2,7 @@ using System.Drawing;
 using ModernFormsNext;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using SkiaSharp;
 
@@ -114,10 +115,12 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
     {
         base.OnMouseDown(e);
 
-        if (e.Y < TreeTop)
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+
+        if (logicalPoint.Y < TreeTop)
             return;
 
-        var row = GetRowAt(e.Y);
+        var row = GetRowAt(logicalPoint.Y);
 
         if (row is null)
             return;
@@ -151,7 +154,7 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
 
         state.SelectNode(row.Node);
         dragNode = DesignerSpecialContainers.IsSpecialGeneratedPart(row.Node) ? null : row.Node;
-        dragStartY = e.Y;
+        dragStartY = logicalPoint.Y;
         dropIndex = -1;
         isDragging = false;
     }
@@ -166,13 +169,15 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         if (dragNode is null)
             return;
 
-        if (!isDragging && Math.Abs(e.Y - dragStartY) >= DragThreshold)
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+
+        if (!isDragging && Math.Abs(logicalPoint.Y - dragStartY) >= DragThreshold)
             isDragging = true;
 
         if (!isDragging)
             return;
 
-        dropIndex = GetRowIndexAt(e.Y);
+        dropIndex = GetRowIndexAt(logicalPoint.Y);
         Invalidate();
     }
 
@@ -223,9 +228,8 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaintContent(PaintEventArgs e)
     {
-        base.OnPaint(e);
         LayoutToolbar();
         BuildRows();
         ClampScrollOffset();

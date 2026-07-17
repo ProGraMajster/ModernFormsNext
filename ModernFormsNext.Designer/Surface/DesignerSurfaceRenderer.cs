@@ -23,19 +23,27 @@ internal sealed class DesignerSurfaceRenderer
         LogFrameDiagnostics(state, width, height);
 
         var view = coordinateMapper.GetView(state, width, height);
-        var formBounds = ToDevice(e, new System.Drawing.Rectangle(view.FormX, view.FormY, view.FormWidth, view.FormHeight));
-        var clientBounds = ToDevice(e, new System.Drawing.Rectangle(view.ClientX, view.ClientY, view.ClientWidth, view.ClientHeight));
+        var formBounds = DesignerDpiCoordinateConverter.LogicalToDevice(
+            new System.Drawing.Rectangle(view.FormX, view.FormY, view.FormWidth, view.FormHeight),
+            e.Scaling);
+        var clientBounds = DesignerDpiCoordinateConverter.LogicalToDevice(
+            new System.Drawing.Rectangle(view.ClientX, view.ClientY, view.ClientWidth, view.ClientHeight),
+            e.Scaling);
+        var previewPaintArgs = new PaintEventArgs(
+            e.Info,
+            e.Canvas,
+            DesignerDpiCoordinateConverter.CombineWithPreviewScale(e.Scaling, view.Scale));
 
         e.Canvas.FillRectangle(new System.Drawing.Rectangle(0, 0, e.LogicalToDeviceUnits(width), e.LogicalToDeviceUnits(height)), DesignerColors.Workspace);
         var layout = layoutEngine.Layout(state.Document);
 
-        DrawForm(e, state, formBounds, clientBounds, view);
+        DrawForm(e, previewPaintArgs, state, formBounds, clientBounds, view);
 
         e.Canvas.Save();
         e.Canvas.ClipRect(clientBounds.ToSKRect());
 
         foreach (var node in state.Document.Controls)
-            DrawNode(e, state, layout, node, view);
+            DrawNode(e, previewPaintArgs, state, layout, node, view);
 
         e.Canvas.Restore();
 
@@ -53,24 +61,29 @@ internal sealed class DesignerSurfaceRenderer
         => coordinateMapper.TryMapToDocument(state, width, height, x, y, out point);
 
     private static void DrawForm(
-        PaintEventArgs e,
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
         DesignerSession state,
         System.Drawing.Rectangle formBounds,
         System.Drawing.Rectangle clientBounds,
         DesignerSurfaceView view)
     {
-        e.Canvas.FillRectangle(formBounds, DesignerColors.FormBorder);
-        e.Canvas.FillRectangle(
-            new System.Drawing.Rectangle(formBounds.Left, formBounds.Top, formBounds.Width, e.LogicalToDeviceUnits(view.TitleHeight)),
+        surfacePaintArgs.Canvas.FillRectangle(formBounds, DesignerColors.FormBorder);
+        surfacePaintArgs.Canvas.FillRectangle(
+            new System.Drawing.Rectangle(formBounds.Left, formBounds.Top, formBounds.Width, surfacePaintArgs.LogicalToDeviceUnits(view.TitleHeight)),
             new SKColor(218, 232, 246));
-        e.Canvas.FillRectangle(clientBounds, new SKColor(245, 245, 245));
-        e.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), e.LogicalToDeviceUnits(1));
-        DrawGrid(e, clientBounds);
-        e.Canvas.DrawText(
+        surfacePaintArgs.Canvas.FillRectangle(clientBounds, new SKColor(245, 245, 245));
+        surfacePaintArgs.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), surfacePaintArgs.LogicalToDeviceUnits(1));
+        DrawGrid(previewPaintArgs, clientBounds);
+        surfacePaintArgs.Canvas.DrawText(
             state.Document.FormName,
             Theme.UIFont,
-            e.LogicalToDeviceUnits(Theme.FontSize),
-            new System.Drawing.Rectangle(formBounds.Left + e.LogicalToDeviceUnits(12), formBounds.Top, formBounds.Width - e.LogicalToDeviceUnits(24), e.LogicalToDeviceUnits(view.TitleHeight)),
+            surfacePaintArgs.LogicalToDeviceUnits(Theme.FontSize),
+            new System.Drawing.Rectangle(
+                formBounds.Left + surfacePaintArgs.LogicalToDeviceUnits(12),
+                formBounds.Top,
+                formBounds.Width - surfacePaintArgs.LogicalToDeviceUnits(24),
+                surfacePaintArgs.LogicalToDeviceUnits(view.TitleHeight)),
             new SKColor(15, 32, 44),
             ContentAlignment.MiddleLeft,
             maxLines: 1,
@@ -86,7 +99,8 @@ internal sealed class DesignerSurfaceRenderer
             IsAntialias = false
         };
 
-        var step = e.LogicalToDeviceUnits(8);
+        // Grid intervals are document units, so they use the composed preview+DPI scale.
+        var step = Math.Max(1, e.LogicalToDeviceUnits(8));
 
         for (var x = bounds.Left + step; x < bounds.Right; x += step)
         {
@@ -96,7 +110,8 @@ internal sealed class DesignerSurfaceRenderer
     }
 
     private void DrawNode(
-        PaintEventArgs e,
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
         DesignerSession state,
         DesignerLayoutResult layout,
         DesignControlNode node,
@@ -107,36 +122,36 @@ internal sealed class DesignerSurfaceRenderer
 
         var absolute = layout.GetEffectiveBounds(node);
         var surfaceBounds = coordinateMapper.ToSurfaceBounds(absolute, view);
-        var bounds = ToDevice(e, surfaceBounds);
+        var bounds = DesignerDpiCoordinateConverter.LogicalToDevice(surfaceBounds, surfacePaintArgs.Scaling);
         var selected = ReferenceEquals(state.SelectedNode, node);
 
         if (ShouldUseSpecialDesignerRendering(node))
         {
-            DrawSpecialContainer(e, node, layout, view, bounds);
+            DrawSpecialContainer(surfacePaintArgs, previewPaintArgs, node, layout, view, bounds);
         }
         else if (state.ControlRenderMode == DesignerControlRenderMode.Runtime)
         {
-            DrawRuntimeControl(e, state, node, surfaceBounds, bounds);
+            DrawRuntimeControl(surfacePaintArgs, previewPaintArgs, state, node, absolute, bounds);
         }
         else
         {
             LogPlaceholderRenderDiagnostics(state, node, bounds);
-            DrawPlaceholder(e, node, bounds);
+            DrawPlaceholder(previewPaintArgs, node, bounds);
         }
 
         if (node.Children.Count > 0)
         {
-            e.Canvas.Save();
-            e.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
+            surfacePaintArgs.Canvas.Save();
+            surfacePaintArgs.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
 
             foreach (var child in GetRenderableChildren(node))
-                DrawNode(e, state, layout, child, view);
+                DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, child, view);
 
-            e.Canvas.Restore();
+            surfacePaintArgs.Canvas.Restore();
         }
 
         if (selected)
-            DesignerSelectionAdorner.Draw(e, bounds, DesignerLayoutProperties.GetResizeHandles(node));
+            DesignerSelectionAdorner.Draw(surfacePaintArgs, bounds, DesignerLayoutProperties.GetResizeHandles(node));
     }
 
     private static void DrawPlaceholder(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds)
@@ -171,7 +186,8 @@ internal sealed class DesignerSurfaceRenderer
         || DesignerSpecialContainers.IsSplitPanel(node);
 
     private void DrawSpecialContainer(
-        PaintEventArgs e,
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
         DesignControlNode node,
         DesignerLayoutResult layout,
         DesignerSurfaceView view,
@@ -179,24 +195,24 @@ internal sealed class DesignerSurfaceRenderer
     {
         if (DesignerSpecialContainers.IsSplitContainer(node))
         {
-            DrawPanel(e, bounds);
+            DrawPanel(previewPaintArgs, bounds);
             var splitter = coordinateMapper.ToSurfaceBounds(DesignerSpecialContainers.GetSplitterBounds(node, layout.GetEffectiveBounds(node)), view);
-            var splitterBounds = ToDevice(e, splitter);
-            e.Canvas.FillRectangle(splitterBounds, new SKColor(190, 190, 190));
-            e.Canvas.DrawRectangle(splitterBounds, new SKColor(115, 115, 115));
+            var splitterBounds = DesignerDpiCoordinateConverter.LogicalToDevice(splitter, surfacePaintArgs.Scaling);
+            surfacePaintArgs.Canvas.FillRectangle(splitterBounds, new SKColor(190, 190, 190));
+            surfacePaintArgs.Canvas.DrawRectangle(splitterBounds, new SKColor(115, 115, 115));
             return;
         }
 
         if (DesignerSpecialContainers.IsTabControl(node))
         {
-            DrawTabControl(e, node, bounds);
+            DrawTabControl(previewPaintArgs, node, bounds);
             return;
         }
 
         if (DesignerSpecialContainers.IsTableLayoutPanel(node))
         {
-            DrawPanel(e, bounds);
-            DrawTableGrid(e, node, bounds);
+            DrawPanel(previewPaintArgs, bounds);
+            DrawTableGrid(previewPaintArgs, node, bounds);
             return;
         }
 
@@ -204,7 +220,7 @@ internal sealed class DesignerSurfaceRenderer
             || DesignerSpecialContainers.IsSplitPanel(node)
             || DesignerSpecialContainers.IsTabPage(node))
         {
-            DrawPanel(e, bounds);
+            DrawPanel(previewPaintArgs, bounds);
         }
     }
 
@@ -267,9 +283,11 @@ internal sealed class DesignerSurfaceRenderer
         using var paint = new SKPaint
         {
             Color = new SKColor(165, 165, 165),
-            StrokeWidth = e.LogicalToDeviceUnits(1),
+            StrokeWidth = Math.Max(1, e.LogicalToDeviceUnits(1)),
             IsAntialias = false,
-            PathEffect = SKPathEffect.CreateDash(new[] { 3f, 3f }, 0)
+            PathEffect = SKPathEffect.CreateDash(
+                new[] { (float)Math.Max(1, e.LogicalToDeviceUnits(3)), (float)Math.Max(1, e.LogicalToDeviceUnits(3)) },
+                0)
         };
 
         for (var column = 1; column < columns; column++)
@@ -286,10 +304,11 @@ internal sealed class DesignerSurfaceRenderer
     }
 
     private void DrawRuntimeControl(
-        PaintEventArgs e,
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
         DesignerSession state,
         DesignControlNode node,
-        System.Drawing.Rectangle surfaceBounds,
+        DesignBounds logicalBounds,
         System.Drawing.Rectangle deviceBounds)
     {
         var saved = false;
@@ -301,24 +320,25 @@ internal sealed class DesignerSurfaceRenderer
                 || Activator.CreateInstance(controlType) is not Control control)
             {
                 LogRuntimeRenderFailure(state, node, $"Could not create runtime control for type '{node.TypeName}'.");
-                DrawUnknown(e, node, deviceBounds);
+                DrawUnknown(previewPaintArgs, node, deviceBounds);
                 return;
             }
 
             control.Name = node.Name;
-            control.Bounds = new System.Drawing.Rectangle(0, 0, Math.Max(1, surfaceBounds.Width), Math.Max(1, surfaceBounds.Height));
+            var logicalSize = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
+            control.Bounds = new System.Drawing.Rectangle(System.Drawing.Point.Empty, logicalSize);
             var propertyErrors = new List<string>();
             var appliedPropertyCount = ApplyNodeProperties(control, node, propertyErrors);
             ApplyDesignTimePreviewState(control, node);
 
-            e.Canvas.Save();
+            surfacePaintArgs.Canvas.Save();
             saved = true;
-            e.Canvas.ClipRect(deviceBounds.ToSKRect());
+            surfacePaintArgs.Canvas.ClipRect(deviceBounds.ToSKRect());
 
-            if (!RuntimeControlPainter.TryPaint(e, control, deviceBounds, out var diagnostics, out var error))
+            if (!RuntimeControlPainter.TryPaint(surfacePaintArgs, control, logicalSize, deviceBounds, out var diagnostics, out var error))
             {
                 LogRuntimeRenderFailure(state, node, error ?? "Unknown renderer failure.");
-                DrawUnknown(e, node, deviceBounds);
+                DrawUnknown(previewPaintArgs, node, deviceBounds);
             }
             else
             {
@@ -328,16 +348,16 @@ internal sealed class DesignerSurfaceRenderer
             foreach (var propertyError in propertyErrors)
                 LogRuntimePropertyFailure(state, node, propertyError);
 
-            e.Canvas.Restore();
+            surfacePaintArgs.Canvas.Restore();
             saved = false;
         }
         catch (Exception ex)
         {
             if (saved)
-                e.Canvas.Restore();
+                surfacePaintArgs.Canvas.Restore();
 
             LogRuntimeRenderFailure(state, node, $"{ex.GetType().Name}: {ex.Message}");
-            DrawUnknown(e, node, deviceBounds);
+            DrawUnknown(previewPaintArgs, node, deviceBounds);
         }
     }
 
@@ -375,10 +395,9 @@ internal sealed class DesignerSurfaceRenderer
     {
         var root = path.Split('.', 2)[0];
 
-        // The designer surface has already resolved authored bounds into a preview
-        // rectangle before this runtime control is created. Reapplying X/Y/Bounds here
-        // moves the temporary preview control inside its own bitmap and can make the
-        // real renderer paint outside the isolated surface.
+        // The designer surface has already resolved authored bounds into the logical size used
+        // by the detached preview control. Reapplying X/Y/Bounds here moves the temporary control
+        // inside its isolated bitmap or bypasses the uniform preview+DPI canvas transform.
         return root is
             "Bounds" or
             "Location" or
@@ -612,8 +631,10 @@ internal sealed class DesignerSurfaceRenderer
             Color = new SKColor(126, 126, 126),
             IsAntialias = false,
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = e.LogicalToDeviceUnits(1),
-            PathEffect = SKPathEffect.CreateDash(new[] { 4f, 3f }, 0)
+            StrokeWidth = Math.Max(1, e.LogicalToDeviceUnits(1)),
+            PathEffect = SKPathEffect.CreateDash(
+                new[] { (float)Math.Max(1, e.LogicalToDeviceUnits(4)), (float)Math.Max(1, e.LogicalToDeviceUnits(3)) },
+                0)
         };
 
         e.Canvas.DrawRect(bounds.ToSKRect(), paint);
@@ -680,10 +701,4 @@ internal sealed class DesignerSurfaceRenderer
     private static System.Drawing.Rectangle GetChildClipBounds(System.Drawing.Rectangle bounds)
         => bounds;
 
-    private static System.Drawing.Rectangle ToDevice(PaintEventArgs e, System.Drawing.Rectangle bounds)
-        => new(
-            e.LogicalToDeviceUnits(bounds.X),
-            e.LogicalToDeviceUnits(bounds.Y),
-            e.LogicalToDeviceUnits(bounds.Width),
-            e.LogicalToDeviceUnits(bounds.Height));
 }

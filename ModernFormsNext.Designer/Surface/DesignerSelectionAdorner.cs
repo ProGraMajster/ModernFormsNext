@@ -25,9 +25,14 @@ internal static class DesignerSelectionAdorner
 
     private static void DrawResizeHandles(PaintEventArgs e, System.Drawing.Rectangle bounds, IEnumerable<DesignerResizeHandle> resizeHandles)
     {
+        var handleSize = Math.Max(1, e.LogicalToDeviceUnits(DesignerHitTestService.ResizeHandleSize));
+
         foreach (var handle in resizeHandles)
         {
-            var rect = DesignerHitTestService.GetHandleBounds(bounds, handle);
+            // Bounds are device pixels during rendering, so the logical handle size must cross
+            // the same DPI boundary as the selection rectangle. Hit testing uses the unscaled
+            // logical size after pointer coordinates have been converted back to logical units.
+            var rect = DesignerHitTestService.GetHandleBounds(bounds, handle, handleSize);
             e.Canvas.FillRectangle(rect, SKColors.White);
             e.Canvas.DrawRectangle(rect, DesignerColors.Accent);
         }

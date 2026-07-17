@@ -2,6 +2,7 @@ using System.Drawing;
 using ModernFormsNext;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Properties;
@@ -136,7 +137,9 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         if (!EndEdit())
             return;
 
-        if (controller.HandleMouseDown(this, e, scrollOffset))
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+
+        if (controller.HandleMouseDown(this, logicalPoint.X, logicalPoint.Y, scrollOffset))
             Invalidate();
     }
 
@@ -144,14 +147,16 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     {
         base.OnDoubleClick(e);
 
-        if (controller.TryCreateDefaultEventHandler(e.X, e.Y, Width, scrollOffset, out var eventDescriptor, out var handlerName))
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+
+        if (controller.TryCreateDefaultEventHandler(logicalPoint.X, logicalPoint.Y, Width, scrollOffset, out var eventDescriptor, out var handlerName))
         {
             EnsureEventHandlerMethod(eventDescriptor, handlerName);
             Invalidate();
             return;
         }
 
-        if (controller.TryBeginEdit(this, e.X, e.Y, scrollOffset))
+        if (controller.TryBeginEdit(this, logicalPoint.X, logicalPoint.Y, scrollOffset))
             Invalidate();
     }
 
@@ -189,9 +194,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaintContent(PaintEventArgs e)
     {
-        base.OnPaint(e);
         renderer.Render(e, state, Width, Height, scrollOffset);
     }
 

@@ -26,8 +26,6 @@ internal sealed class DesignerStatusBar : Panel
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);
-
         var selection = state.SelectedNode is null ? state.Document.FormName : state.SelectedNode.Name;
         var layout = layoutEngine.Layout(state.Document);
         var selectedBounds = state.SelectedNode is null ? default : layout.GetEffectiveBounds(state.SelectedNode);
@@ -44,16 +42,26 @@ internal sealed class DesignerStatusBar : Panel
             : System.IO.Path.GetFileName(state.CurrentDocumentPath);
         var text = $"{saveState} | {document} | {T("Render")}: {state.ControlRenderMode} | {T("Selection")}: {selection} | {T("Position")}: {position} | {T("Size")}: {size}{dockText} | {T("Pointer")}: {pointer}";
 
-        e.Canvas.FillRectangle(ClientRectangle, new SKColor(0, 99, 177));
-        e.Canvas.DrawText(
-            text,
-            Theme.UIFont,
-            e.LogicalToDeviceUnits(Theme.FontSize),
-            new System.Drawing.Rectangle(e.LogicalToDeviceUnits(10), 0, e.LogicalToDeviceUnits(Math.Max(1, Width - 20)), e.LogicalToDeviceUnits(Height)),
-            SKColors.White,
-            ContentAlignment.MiddleLeft,
-            maxLines: 1,
-            ellipsis: true);
+        using (var logicalPaintScope = DesignerLogicalPaintScope.Begin(e))
+        {
+            var logicalPaintArgs = logicalPaintScope.PaintArgs;
+            logicalPaintArgs.Canvas.FillRectangle(0, 0, Width, Height, new SKColor(0, 99, 177));
+            logicalPaintArgs.Canvas.DrawText(
+                text,
+                Theme.UIFont,
+                logicalPaintArgs.LogicalToDeviceUnits(Theme.FontSize),
+                new System.Drawing.Rectangle(
+                    logicalPaintArgs.LogicalToDeviceUnits(10),
+                    0,
+                    logicalPaintArgs.LogicalToDeviceUnits(Math.Max(1, Width - 20)),
+                    logicalPaintArgs.LogicalToDeviceUnits(Height)),
+                SKColors.White,
+                ContentAlignment.MiddleLeft,
+                maxLines: 1,
+                ellipsis: true);
+        }
+
+        base.OnPaint(e);
     }
 
     private string T(string key) => DesignerText.Get(key, options.Language);

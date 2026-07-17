@@ -23,9 +23,16 @@ internal sealed class DesignerToolbar : Panel
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Canvas.FillRectangle(ClientRectangle, new SKColor(34, 39, 45));
+        using (var logicalPaintScope = DesignerLogicalPaintScope.Begin(e))
+        {
+            var logicalPaintArgs = logicalPaintScope.PaintArgs;
+            logicalPaintArgs.Canvas.FillRectangle(0, 0, Width, Height, new SKColor(34, 39, 45));
+            logicalPaintArgs.Canvas.DrawLine(0, Height - 1, Width, Height - 1, DesignerColors.PanelBorder);
+        }
+
+        // Buttons are rendered into device-pixel buffers by ModernFormsNext. Keeping their
+        // composition outside the logical paint scope makes visual and pointer bounds identical.
         base.OnPaint(e);
-        e.Canvas.DrawLine(0, Height - 1, Width, Height - 1, DesignerColors.PanelBorder);
     }
 
     private void CreateButtons()

@@ -4,6 +4,14 @@ using ModernFormsNext.Designing;
 
 namespace ModernFormsNext.Designer.Surface;
 
+/// <summary>
+/// Maps logical coordinates between the design document and the logical designer surface.
+/// </summary>
+/// <remarks>
+/// This mapper never applies monitor DPI. <see cref="DesignerSurfaceView.Scale"/> is only the
+/// preview zoom needed to fit the logical document in the logical surface viewport. Device-pixel
+/// conversion is performed separately by <see cref="DesignerDpiCoordinateConverter"/>.
+/// </remarks>
 internal sealed class DesignerCoordinateMapper
 {
     private const int WorkspacePadding = 42;
@@ -37,7 +45,7 @@ internal sealed class DesignerCoordinateMapper
     {
         var view = GetView(state, width, height);
 
-        if (x < view.ClientX || y < view.ClientY || x > view.ClientX + view.ClientWidth || y > view.ClientY + view.ClientHeight)
+        if (x < view.ClientX || y < view.ClientY || x >= view.ClientX + view.ClientWidth || y >= view.ClientY + view.ClientHeight)
         {
             point = default;
             return false;
@@ -53,11 +61,16 @@ internal sealed class DesignerCoordinateMapper
             (int)Math.Floor((y - view.ClientY) / view.Scale));
 
     public Rectangle ToSurfaceBounds(DesignBounds bounds, DesignerSurfaceView view)
-        => new(
-            view.ClientX + (int)Math.Round(bounds.X * view.Scale),
-            view.ClientY + (int)Math.Round(bounds.Y * view.Scale),
-            Math.Max(1, (int)Math.Round(bounds.Width * view.Scale)),
-            Math.Max(1, (int)Math.Round(bounds.Height * view.Scale)));
+    {
+        var left = view.ClientX + (int)Math.Round(bounds.X * view.Scale);
+        var top = view.ClientY + (int)Math.Round(bounds.Y * view.Scale);
+        var right = view.ClientX + (int)Math.Round(bounds.Right * view.Scale);
+        var bottom = view.ClientY + (int)Math.Round(bounds.Bottom * view.Scale);
+
+        // Scale edges rather than location and size independently. This gives adjacent controls,
+        // selection borders, and resize handles one shared rounded boundary at fractional zoom.
+        return Rectangle.FromLTRB(left, top, Math.Max(left + 1, right), Math.Max(top + 1, bottom));
+    }
 
     public DesignBounds GetAbsoluteBounds(DesignDocument document, DesignControlNode node)
         => TryGetAbsoluteBounds(document.Controls, node, offsetX: 0, offsetY: 0, out var bounds)

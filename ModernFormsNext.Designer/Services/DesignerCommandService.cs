@@ -285,6 +285,7 @@ internal sealed class DesignerCommandService
             if (!RuntimeControlPainter.TryPaint(
                 args,
                 control,
+                new Size(width, height),
                 new Rectangle(0, 0, width, height),
                 out var diagnostics,
                 out var error))

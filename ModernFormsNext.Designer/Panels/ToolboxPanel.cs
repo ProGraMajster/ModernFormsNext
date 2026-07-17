@@ -1,6 +1,7 @@
 using ModernFormsNext;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Panels;
@@ -54,10 +55,12 @@ internal sealed class ToolboxPanel : DesignerPanelBase
     {
         base.OnMouseDown(e);
 
-        if (e.Y < ListTop)
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+
+        if (logicalPoint.Y < ListTop)
             return;
 
-        var index = rows.FindIndex(row => e.Y >= row.Top && e.Y < row.Top + RowHeight);
+        var index = rows.FindIndex(row => logicalPoint.Y >= row.Top && logicalPoint.Y < row.Top + RowHeight);
 
         if (index < 0)
             return;
@@ -87,14 +90,11 @@ internal sealed class ToolboxPanel : DesignerPanelBase
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaintContent(PaintEventArgs e)
     {
-        base.OnPaint(e);
-
         searchBox.Visible = options.ShowToolboxSearch;
         if (searchBox.Visible)
             searchBox.SetBounds(8, SearchTop, Math.Max(1, Width - 16), SearchHeight);
-
         rows.Clear();
 
         var filter = GetFilterText();

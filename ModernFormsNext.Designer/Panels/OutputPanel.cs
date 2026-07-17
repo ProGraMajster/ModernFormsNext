@@ -19,10 +19,8 @@ internal sealed class OutputPanel : DesignerPanelBase
         SizeChanged += (_, _) => Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaintContent(PaintEventArgs e)
     {
-        base.OnPaint(e);
-
         var availableHeight = Math.Max(1, Height - HeaderHeight - (ContentPadding * 2));
         var maxLines = Math.Max(1, availableHeight / LineHeight);
         var lines = state.OutputLines.TakeLast(maxLines).ToArray();

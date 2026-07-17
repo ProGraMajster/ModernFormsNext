@@ -1,6 +1,7 @@
 using ModernFormsNext;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using SkiaSharp;
 
@@ -70,7 +71,8 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
 
         BuildRows();
 
-        var rowIndex = (e.Y - TreeTop + scrollOffset) / RowHeight;
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+        var rowIndex = (logicalPoint.Y - TreeTop + scrollOffset) / RowHeight;
 
         if (rowIndex < 0 || rowIndex >= rows.Count)
             return;
@@ -78,9 +80,8 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         TryOpenRow(rows[rowIndex]);
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaintContent(PaintEventArgs e)
     {
-        base.OnPaint(e);
         BuildRows();
         ClampScrollOffset();
 

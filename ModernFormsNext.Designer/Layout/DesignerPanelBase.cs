@@ -32,24 +32,52 @@ internal abstract class DesignerPanelBase : Control
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected sealed override void OnPaint(PaintEventArgs e)
     {
-        e.Canvas.FillRectangle(ClientRectangle, DesignerColors.PanelBackground);
-        e.Canvas.FillRectangle(0, 0, Width, HeaderHeight, DesignerColors.PanelHeader);
-        e.Canvas.DrawText(
-            Title,
-            Theme.UIFont,
-            e.LogicalToDeviceUnits(Theme.FontSize),
-            new System.Drawing.Rectangle(e.LogicalToDeviceUnits(10), 0, e.LogicalToDeviceUnits(Math.Max(1, Width - 20)), e.LogicalToDeviceUnits(HeaderHeight)),
-            DesignerColors.Text,
-            ContentAlignment.MiddleLeft,
-            maxLines: 1,
-            ellipsis: true);
+        using (var logicalPaintScope = DesignerLogicalPaintScope.Begin(e))
+        {
+            var logicalPaintArgs = logicalPaintScope.PaintArgs;
 
-        // Child controls such as search boxes and toolbar buttons must be painted after the
-        // panel chrome. Otherwise the background fill hides them completely.
+            // Width, Height, and all panel metrics are logical values. The scope transforms the
+            // device-pixel backing canvas once so derived panels cannot accidentally scale text but
+            // leave backgrounds, clipping rectangles, or hit-test geometry unscaled.
+            logicalPaintArgs.Canvas.FillRectangle(0, 0, Width, Height, DesignerColors.PanelBackground);
+            logicalPaintArgs.Canvas.FillRectangle(0, 0, Width, HeaderHeight, DesignerColors.PanelHeader);
+            logicalPaintArgs.Canvas.DrawText(
+                Title,
+                Theme.UIFont,
+                logicalPaintArgs.LogicalToDeviceUnits(Theme.FontSize),
+                new System.Drawing.Rectangle(
+                    logicalPaintArgs.LogicalToDeviceUnits(10),
+                    0,
+                    logicalPaintArgs.LogicalToDeviceUnits(Math.Max(1, Width - 20)),
+                    logicalPaintArgs.LogicalToDeviceUnits(HeaderHeight)),
+                DesignerColors.Text,
+                ContentAlignment.MiddleLeft,
+                maxLines: 1,
+                ellipsis: true);
+
+            OnPaintContent(logicalPaintArgs);
+        }
+
+        // Child controls already own device-pixel backing bitmaps. Compose them only after the
+        // logical transform has been restored; otherwise DPI would be applied for a second time.
         base.OnPaint(e);
 
-        e.Canvas.DrawRectangle(0, 0, Width, Height, DesignerColors.PanelBorder);
+        // Keep the border above child composition, matching the established designer chrome
+        // order while still drawing it in the same logical coordinate system as the panel.
+        using var borderPaintScope = DesignerLogicalPaintScope.Begin(e);
+        borderPaintScope.PaintArgs.Canvas.DrawRectangle(0, 0, Width, Height, DesignerColors.PanelBorder);
+    }
+
+    /// <summary>
+    /// Paints panel-specific content using logical designer pixels.
+    /// </summary>
+    /// <param name="e">
+    /// Paint arguments whose canvas is already transformed from logical pixels to device pixels
+    /// and whose <see cref="PaintEventArgs.Scaling"/> is 1.
+    /// </param>
+    protected virtual void OnPaintContent(PaintEventArgs e)
+    {
     }
 }

@@ -119,6 +119,46 @@ MainForm.cs
 
 Both the standalone playground and the Visual Studio extension must follow this same flow.
 
+## DPI and Coordinate Contract
+
+Designer documents store form and control geometry in logical pixels. The layout engine,
+hit-testing service, drag/resize operations, and `DesignerCoordinateMapper` also operate only in
+logical document or logical designer-surface coordinates. The scale used to fit a form preview in
+the available surface is a preview zoom; it is not Windows monitor DPI and is never persisted.
+
+The Windows input pipeline routes mouse positions through scaled control bounds as device pixels.
+`DesignerDpiCoordinateConverter` converts those positions to logical surface coordinates once,
+before preview zoom is removed by `DesignerCoordinateMapper`. In the opposite direction, logical
+surface rectangles cross the DPI boundary once immediately before they are sent to the Skia canvas,
+whose coordinates are device pixels. Selection handle rendering uses the same boundary, while its
+hit target remains a constant logical size.
+
+Designer shell controls, including Toolbox, Document Outline, Solution Explorer, Property Grid,
+Output, document tabs, toolbar, and status bar, also define their layout metrics in logical pixels.
+`DesignerLogicalPaintScope` scales each panel's device-pixel backing canvas once and then exposes
+paint arguments with a scale of 1. This keeps backgrounds, clipping rectangles, rows, scroll
+indicators, and text in the same logical coordinate space instead of scaling only the text. Mouse
+positions are converted back to logical panel pixels once before row, toolbar, tab, or editor hit
+testing.
+
+The logical paint scope covers only custom designer chrome. ModernFormsNext child controls already
+own device-pixel backing bitmaps, so panels restore the scope before `base.OnPaint` composes buttons,
+text boxes, and editors. Extending the scope across that composition would apply monitor DPI twice
+and separate the visible control from its pointer hit bounds. On Windows the managed-decoration
+form also requests `NoChrome`; the backend consequently uses zero DWM client-frame margin so the
+native compositor does not add a second one-pixel edge outside the framework-drawn border.
+
+Runtime preview controls are detached from a platform window and therefore report a runtime
+`ScaleFactor` of 1. They are laid out and painted entirely in logical 96-DPI units. A single canvas
+transform then composes preview zoom and monitor DPI for the destination bitmap. Passing monitor DPI
+into a detached control's `PaintEventArgs` would scale fonts and renderer metrics without scaling its
+`ClientRectangle`, which creates the smaller-control-inside-a-larger-rectangle artifact.
+
+Saving `.mfdesign` or generating `.Designer.cs` never uses device-pixel or preview-scaled values.
+The generated form size is assigned through `Form.ClientSize`, because the design document describes
+the usable content surface without managed window decorations. Reverse import also accepts `Size`
+from earlier generated files, but new code consistently emits `ClientSize`.
+
 Auto-save is enabled by default in the shared designer options. Hosts can disable it through
 `ModernFormsDesignerOptions.AutoSaveEnabled`, but when it is enabled the active `.mfdesign`
 document and generated `.Designer.cs` file stay synchronized as edits happen.

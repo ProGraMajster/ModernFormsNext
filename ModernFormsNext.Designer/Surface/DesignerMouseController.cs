@@ -331,8 +331,10 @@ internal sealed class DesignerMouseController
 
     private static (float X, float Y) ToSurfacePoint(Control surface, MouseEventArgs e)
     {
-        var logicalX = (float)(e.X / surface.ScaleFactor.Width);
-        var logicalY = (float)(e.Y / surface.ScaleFactor.Height);
-        return (logicalX, logicalY);
+        // WindowBase converts backend DIPs to device pixels before routing mouse events through
+        // scaled control bounds. Convert back exactly once here; all remaining designer interaction
+        // code works in logical surface/document coordinates and must not apply DPI again.
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogical(e.X, e.Y, surface.Scaling);
+        return (logicalPoint.X, logicalPoint.Y);
     }
 }

@@ -1,5 +1,6 @@
 using ModernFormsNext;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Layout;
@@ -27,9 +28,10 @@ internal sealed class DesignerDocumentTab : Panel
         if (e.Button != MouseButtons.Left)
             return;
 
-        var index = Math.Max(0, e.X / TabWidth);
+        var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+        var index = Math.Max(0, logicalPoint.X / TabWidth);
 
-        if (IsCloseButtonHit(index, e.X, e.Y))
+        if (IsCloseButtonHit(index, logicalPoint.X, logicalPoint.Y))
             state.CloseDocument(index);
         else
             state.SwitchDocument(index);
@@ -39,38 +41,46 @@ internal sealed class DesignerDocumentTab : Panel
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        base.OnPaint(e);
-
-        e.Canvas.FillRectangle(ClientRectangle, DesignerColors.Workspace);
-
-        for (var index = 0; index < state.OpenDocuments.Count; index++)
+        using (var logicalPaintScope = DesignerLogicalPaintScope.Begin(e))
         {
-            var document = state.OpenDocuments[index];
-            var x = index * TabWidth;
-            var active = index == state.ActiveDocumentIndex;
+            var logicalPaintArgs = logicalPaintScope.PaintArgs;
+            logicalPaintArgs.Canvas.FillRectangle(0, 0, Width, Height, DesignerColors.Workspace);
 
-            if (x >= Width)
-                break;
+            for (var index = 0; index < state.OpenDocuments.Count; index++)
+            {
+                var document = state.OpenDocuments[index];
+                var x = index * TabWidth;
+                var active = index == state.ActiveDocumentIndex;
 
-            e.Canvas.FillRectangle(x, 0, Math.Min(TabWidth, Width - x), Height, active ? new SKColor(42, 47, 54) : new SKColor(32, 37, 43));
-            e.Canvas.DrawRectangle(x, 0, Math.Min(TabWidth, Width - x), Height, active ? new SKColor(92, 102, 114) : DesignerColors.PanelBorder);
+                if (x >= Width)
+                    break;
 
-            var dirtyMarker = document.IsDirty ? "*" : string.Empty;
-            e.Canvas.DrawText(
-                $"{document.DisplayName}{dirtyMarker} [Design]",
-                Theme.UIFont,
-                e.LogicalToDeviceUnits(Theme.FontSize),
-                new System.Drawing.Rectangle(e.LogicalToDeviceUnits(x + 10), 0, e.LogicalToDeviceUnits(TabWidth - 42), e.LogicalToDeviceUnits(Height)),
-                active ? DesignerColors.Text : DesignerColors.MutedText,
-                ContentAlignment.MiddleLeft,
-                maxLines: 1,
-                ellipsis: true);
+                logicalPaintArgs.Canvas.FillRectangle(x, 0, Math.Min(TabWidth, Width - x), Height, active ? new SKColor(42, 47, 54) : new SKColor(32, 37, 43));
+                logicalPaintArgs.Canvas.DrawRectangle(x, 0, Math.Min(TabWidth, Width - x), Height, active ? new SKColor(92, 102, 114) : DesignerColors.PanelBorder);
 
-            var closeBounds = GetCloseButtonBounds(index);
-            var closeColor = active ? DesignerColors.Text : DesignerColors.MutedText;
-            e.Canvas.DrawLine(closeBounds.Left + 4, closeBounds.Top + 4, closeBounds.Right - 4, closeBounds.Bottom - 4, closeColor);
-            e.Canvas.DrawLine(closeBounds.Right - 4, closeBounds.Top + 4, closeBounds.Left + 4, closeBounds.Bottom - 4, closeColor);
+                var dirtyMarker = document.IsDirty ? "*" : string.Empty;
+                logicalPaintArgs.Canvas.DrawText(
+                    $"{document.DisplayName}{dirtyMarker} [Design]",
+                    Theme.UIFont,
+                    logicalPaintArgs.LogicalToDeviceUnits(Theme.FontSize),
+                    new System.Drawing.Rectangle(
+                        logicalPaintArgs.LogicalToDeviceUnits(x + 10),
+                        0,
+                        logicalPaintArgs.LogicalToDeviceUnits(TabWidth - 42),
+                        logicalPaintArgs.LogicalToDeviceUnits(Height)),
+                    active ? DesignerColors.Text : DesignerColors.MutedText,
+                    ContentAlignment.MiddleLeft,
+                    maxLines: 1,
+                    ellipsis: true);
+
+                var closeBounds = GetCloseButtonBounds(index);
+                var closeColor = active ? DesignerColors.Text : DesignerColors.MutedText;
+                logicalPaintArgs.Canvas.DrawLine(closeBounds.Left + 4, closeBounds.Top + 4, closeBounds.Right - 4, closeBounds.Bottom - 4, closeColor);
+                logicalPaintArgs.Canvas.DrawLine(closeBounds.Right - 4, closeBounds.Top + 4, closeBounds.Left + 4, closeBounds.Bottom - 4, closeColor);
+            }
         }
+
+        base.OnPaint(e);
     }
 
     private bool IsCloseButtonHit(int index, int x, int y)

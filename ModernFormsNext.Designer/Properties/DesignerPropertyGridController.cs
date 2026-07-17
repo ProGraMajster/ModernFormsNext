@@ -14,18 +14,18 @@ internal sealed class DesignerPropertyGridController
         this.renderer = renderer;
     }
 
-    public bool HandleMouseDown(DesignerPropertyGrid grid, MouseEventArgs e, int scrollOffset)
+    public bool HandleMouseDown(DesignerPropertyGrid grid, int x, int y, int scrollOffset)
     {
-        if (TryHandleToolbar(e.X, e.Y, grid.Width))
+        if (TryHandleToolbar(x, y, grid.Width))
             return true;
 
-        if (!TryGetRowAt(e.Y, scrollOffset, out var row, out var rowBounds))
+        if (!TryGetRowAt(y, scrollOffset, out var row, out var rowBounds))
             return false;
 
         if (row.Kind == DesignerPropertyGridRowKind.Category)
             return true;
 
-        if (row.Property is { HasChildren: true } property && IsExpansionGlyphHit(property, e.X))
+        if (row.Property is { HasChildren: true } property && IsExpansionGlyphHit(property, x))
         {
             state.SelectRow(row);
             state.ToggleExpansion(property);
@@ -34,7 +34,7 @@ internal sealed class DesignerPropertyGridController
 
         state.SelectRow(row);
 
-        if (row.Property?.HasDialogEditor == true && IsDialogButtonHit(grid.Width, rowBounds, e.X))
+        if (row.Property?.HasDialogEditor == true && IsDialogButtonHit(grid.Width, rowBounds, x))
         {
             grid.OpenDialogEditor(row);
             return true;

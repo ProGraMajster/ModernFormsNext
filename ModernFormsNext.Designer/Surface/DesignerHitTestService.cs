@@ -6,7 +6,7 @@ namespace ModernFormsNext.Designer.Surface;
 
 internal sealed class DesignerHitTestService
 {
-    private const int ResizeHandleSize = 7;
+    internal const int ResizeHandleSize = 7;
 
     private readonly DesignerCoordinateMapper coordinateMapper;
     private readonly DesignerLayoutEngine layoutEngine = new();
@@ -87,9 +87,14 @@ internal sealed class DesignerHitTestService
         yield return DesignerResizeHandle.Left;
     }
 
-    public static Rectangle GetHandleBounds(Rectangle bounds, DesignerResizeHandle handle)
+    public static Rectangle GetHandleBounds(
+        Rectangle bounds,
+        DesignerResizeHandle handle,
+        int handleSize = ResizeHandleSize)
     {
-        var half = ResizeHandleSize / 2;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(handleSize);
+
+        var half = handleSize / 2;
         var x = handle switch
         {
             DesignerResizeHandle.TopLeft or DesignerResizeHandle.Left or DesignerResizeHandle.BottomLeft => bounds.Left,
@@ -105,7 +110,7 @@ internal sealed class DesignerHitTestService
             _ => bounds.Bottom
         };
 
-        return new Rectangle(x - half, y - half, ResizeHandleSize, ResizeHandleSize);
+        return new Rectangle(x - half, y - half, handleSize, handleSize);
     }
 
     private static IEnumerable<DesignerResizeHandle> GetHandlesInHitTestOrder()
@@ -122,9 +127,9 @@ internal sealed class DesignerHitTestService
 
     private static bool Contains(Rectangle bounds, float x, float y)
         => x >= bounds.Left
-        && x <= bounds.Right
+        && x < bounds.Right
         && y >= bounds.Top
-        && y <= bounds.Bottom;
+        && y < bounds.Bottom;
 
     private static DesignerHitTestResult? HitTestControls(
         IEnumerable<DesignControlNode> controls,
