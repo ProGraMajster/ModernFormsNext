@@ -4,7 +4,7 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
-## [1.8.0] - Unreleased
+## [1.8.0] - 2026-07-17
 
 ModernFormsNext 1.8.0 expands the framework and designer substantially while keeping Windows as
 the primary platform. Android is introduced as an experimental shared-control vertical slice, not
@@ -355,7 +355,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
-[1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...HEAD
+[1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.5.0
