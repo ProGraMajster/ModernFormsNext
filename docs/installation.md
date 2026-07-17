@@ -15,7 +15,7 @@ designer extension. The framework remains code-first, but the designer can edit 
 For an existing application, reference the framework package:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.7.0
+dotnet add package ModernFormsNext --version 1.8.0
 ```
 
 The package provides the runtime controls, forms, rendering, layout, input, dialogs, and
@@ -26,7 +26,7 @@ Windows backend integration used by ModernFormsNext applications.
 Install the template package:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.7.0
+dotnet new install ModernFormsNext.Templates::1.8.0
 ```
 
 Create a new app:

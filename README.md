@@ -92,8 +92,8 @@ Android support remains experimental and Windows remains the primary target. See
 For packaged app development:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.7.0
-dotnet new install ModernFormsNext.Templates::1.7.0
+dotnet add package ModernFormsNext --version 1.8.0
+dotnet new install ModernFormsNext.Templates::1.8.0
 dotnet new mfn-app -n MyApp
 ```
 

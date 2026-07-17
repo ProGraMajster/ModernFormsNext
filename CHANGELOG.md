@@ -4,6 +4,47 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.8.0] - 2026-07-17
+
+This release consolidates the work completed after `1.7.0`, including dynamic
+resources, Unicode text editing corrections, and High DPI designer support. The NuGet package
+set is versioned `1.8.0`; the independently versioned Visual Studio extension is `1.7.6`.
+
+### Added
+
+- Added hierarchical application, window, and control resource dictionaries with live CLR
+  property references, weak change listeners, error reporting, tests, and usage documentation.
+- Added designer coordinate conversion and rendering tests at 100%, 125%, 150%, 175%, and 200%
+  DPI, including logical/device round trips, panel painting, resize handles, and runtime previews.
+- Added architecture decisions and a staged framework roadmap for themes, localization,
+  navigation, optional feature packages, documents, and visualization.
+
+### Changed
+
+- Centralized shared package authorship, company, repository, license, Source Link, symbol,
+  README, icon, and release-note metadata in `Directory.Build.props`.
+- Marked tests, generated applications, smoke tests, and sample applications explicitly
+  non-packable while keeping the template package explicitly packable.
+- Documented the package, assembly, and independent VSIX versioning strategy.
+
+### Fixed
+
+- Fixed UTF-16/code-point conversion in text hit testing, selection, caret rendering, arrow
+  navigation, and deletion for emoji, supplementary characters, and composed text.
+- Fixed designer rendering, hit testing, drag/resize behavior, selection adorners, grid spacing,
+  panel chrome, and runtime control previews on High DPI displays.
+- Fixed designer code reverse parsing so object-valued property assignments remain geometry
+  properties, while current `ClientSize` and legacy `Size` assignments both round-trip safely.
+- Fixed duplicate native borders around managed-decoration Windows forms.
+- Fixed ControlGallery to target the Windows desktop framework explicitly.
+
+### Compatibility Notes
+
+- Dynamic resources are additive and do not replace the existing style or renderer APIs.
+- High DPI conversions remain isolated at input and Skia device-pixel boundaries; design
+  documents continue to persist logical coordinates.
+- No package IDs, VSIX identity, publisher, or Visual Studio installation target were changed.
+
 ## [1.7.0] - 2026-07-02
 
 Compared with [1.6.0], this release adds the first ModernFormsNext designer stack, Visual Studio
@@ -233,6 +274,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
+[1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.6.0
 [1.5.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.5.0
