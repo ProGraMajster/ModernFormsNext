@@ -19,7 +19,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<Content Include="templates\**\*" Pack="true" PackagePath="content" />
+		<!-- Keep generated build and IDE state out of the user-facing template even when
+		     contributors restore or build the template source in place before packing. -->
+		<Content Include="templates\**\*"
+		         Exclude="templates\**\bin\**;templates\**\obj\**;templates\**\.vs\**;templates\**\*.user;templates\**\*.suo;templates\**\*.tmp;templates\**\*.cache"
+		         Pack="true"
+		         PackagePath="content" />
 		<!-- Template source files are packaged as content and must not be compiled into the template package assembly. -->
 		<Compile Remove="templates\**\*.cs" />
 		<Content Include="README.md" Pack="true" PackagePath="\" />
