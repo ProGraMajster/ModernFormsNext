@@ -1,104 +1,155 @@
 # Releasing ModernFormsNext
 
-This repository creates GitHub Releases from version tags, not from ordinary pushes to `master`.
+This repository creates releases from Git tags, not from ordinary pushes to `master`.
 
-The regular `.NET` workflow validates pushes and pull requests to `master`. The `Release` workflow in `.github/workflows/release.yml` runs only after a Git tag matching `v*.*.*` is pushed, for example `v1.3.0`.
+> [!WARNING]
+> Pushing a tag that matches `v*.*.*` starts `.github/workflows/release.yml`. That workflow creates
+> a GitHub Release and publishes `.nupkg` packages to NuGet. A release tag is therefore a publication
+> action, not a harmless marker.
 
-The current `Release` workflow also publishes `.nupkg` packages to NuGet after creating the GitHub Release. Pushing a release tag is therefore both the GitHub Release trigger and the NuGet publish trigger.
+## Release versions
 
-## Version numbers
-
-NuGet package versions use SemVer without a `v` prefix:
+NuGet package versions use SemVer without a `v` prefix. The shared value is stored in
+`Directory.Build.props`:
 
 ```xml
-<ModernFormsNextPackageVersion>1.4.0</ModernFormsNextPackageVersion>
+<ModernFormsNextPackageVersion>1.8.0</ModernFormsNextPackageVersion>
 ```
 
-GitHub tags use the same version with a `v` prefix:
+Git tags use the same version with a `v` prefix:
 
 ```text
-v1.4.0
+v1.8.0
 ```
 
-Do not put the `v` prefix in `.csproj`, `Directory.Build.props`, template package references, or NuGet metadata. The `v` prefix belongs only to the Git tag.
+The Visual Studio extension version is stored separately so an emergency extension-only patch
+remains possible:
 
-### Assembly and VSIX versions
+```xml
+<ModernFormsNextVisualStudioExtensionVersion>1.8.0</ModernFormsNextVisualStudioExtensionVersion>
+```
 
-Library projects rely on the .NET SDK version defaults. `Version` and `FileVersion`
-follow the package release, while `InformationalVersion` may also contain the source
-revision. `AssemblyVersion` remains at `major.minor.0.0` for patch releases so a
-compatible patch does not create an unnecessary binary binding break.
+For coordinated framework minor/major releases, the VSIX version must match the framework release.
+An intentionally independent VSIX patch is permitted only when it is documented in the changelog
+and does not imply a mismatched framework compatibility claim.
 
-The Visual Studio extension has an independent patch cycle. Its version is stored in
-`ModernFormsNextVisualStudioExtensionVersion` in `Directory.Build.props` and must be
-synchronized with the VSIX manifest and both `InstalledProductRegistration`
-attributes. The VSIX assembly and file versions use the four-part form
-`major.minor.patch.0`.
+Keep the VSIX value synchronized with:
 
-## Choosing the next version
+- `ModernFormsNext.VisualStudioExtension.Vsix/source.extension.vsixmanifest`;
+- `InstalledProductRegistration` in `ModernFormsNext.VisualStudioExtension/ModernFormsDesignerPackage.cs`;
+- `InstalledProductRegistration` in `ModernFormsNext.VisualStudioExtension.Vsix/ModernFormsDesignerPackage.cs`.
+
+The VSIX packaging project derives `Version`, `AssemblyVersion`, and `FileVersion` from the central
+property and validates the final archive against it. Do not change the VSIX Identity, Product ID,
+publisher, Package ID, or Marketplace identity during an ordinary release.
+
+## Assembly version strategy
+
+Library projects use the .NET SDK version defaults. Package `Version` and `FileVersion` follow the
+release; `InformationalVersion` may also include source revision information. `AssemblyVersion`
+remains at `major.minor.0.0` for compatible patch releases to avoid unnecessary binary binding
+breaks. The VSIX assembly/file versions use the four-part form `major.minor.patch.0`.
+
+## Choose the next version
 
 Use SemVer:
 
-- `1.0.0 -> 1.0.1` for a bug fix, CI fix, documentation fix, or other small compatible change.
-- `1.0.0 -> 1.1.0` for a new backward-compatible feature or public API.
-- `1.0.0 -> 2.0.0` for a breaking public API change.
-- `1.1.0 -> 1.2.0-preview.1` for a preview or test release.
+- `1.0.0 -> 1.0.1` for a compatible bug or documentation fix;
+- `1.0.0 -> 1.1.0` for backward-compatible features or public API additions;
+- `1.0.0 -> 2.0.0` for intentional breaking public API changes;
+- `1.1.0 -> 1.2.0-preview.1` for a prerelease following the repository's existing convention.
 
-NuGet package versions cannot be published again. If `1.0.0` has already been published, the next fix release must use a new version such as `1.0.1`. Do not push a release tag until the package version is final and ready to publish.
+NuGet versions cannot be republished. Confirm that the intended version is unused before creating
+the tag.
 
-## Release workflow
+## Prepare the release commit
 
-1. Update the package version in the project metadata. In this repository the shared package version is stored in `Directory.Build.props` as `ModernFormsNextPackageVersion`.
-2. Update template package references and documentation if they mention the released package version.
-3. Restore, build, and pack locally if needed.
-4. Commit the version change and push it to `master`.
-5. Wait until the regular `.NET` workflow is green for that commit.
-6. Create a Git tag in the format `vX.Y.Z`, for example `v1.0.1`.
-7. Push the tag.
-8. The `Release` workflow starts only after the tag is pushed.
-9. The `Release` workflow builds the solution in Release mode, runs `dotnet pack`, creates a GitHub Release, uploads `.nupkg` and `.snupkg` assets, and publishes `.nupkg` packages to NuGet.
+1. Set `ModernFormsNextPackageVersion` and the coordinated VSIX version.
+2. Synchronize the application template package reference and any versioned installation examples.
+3. Write the release section in `CHANGELOG.md` from the last release tag to the intended release
+   commit. Keep it `Unreleased` until a publication date is deliberately chosen.
+4. Confirm package metadata, license, README/icon inclusion, Source Link, XML documentation, and
+   symbol-package policy.
+5. Confirm the VSIX manifest, registration attributes, assets, prerequisites, and Visual Studio
+   installation targets.
+6. Review platform claims. For 1.8.0, Android must remain explicitly **Experimental** and must not
+   be described as a complete `Application.Run(Form)` or WindowKit implementation.
+7. Review `git diff`, stage only the intended files, and create focused commits. Do not use
+   `git add .` without auditing the entire worktree.
 
-## Commands
+## Local validation
 
-Example for a patch release from `1.0.0` to `1.0.1`:
+Use `ModernFormsNext.slnx`:
 
 ```powershell
-git add .
-git commit -m "chore: release 1.0.1"
-git push
-
-git tag v1.0.1
-git push origin v1.0.1
+dotnet restore .\ModernFormsNext.slnx
+dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
+dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
+dotnet test .\ModernFormsNext.slnx --configuration Debug --no-restore
 ```
 
-The tag must match the `v*.*.*` pattern. Examples of valid release tags:
+For 1.8.0, additionally validate:
 
-```text
-v1.0.1
-v1.2.0
-v2.0.0
+- `net10.0-windows` framework and samples;
+- the `net10.0-android` backend, cross-platform sample, and Android backend tests when the workload
+  is installed;
+- designer and dynamic-resource test suites;
+- VSIX Debug and Release builds and the embedded manifest version;
+- all intended `.nupkg` and `.snupkg` outputs;
+- package IDs/versions, README, icon, XML documentation, Source Link metadata, and the absence of
+  `bin`, `obj`, IDE state, and temporary files;
+- the Windows template output and, when a device is available, Android touch/IME/lifecycle behavior.
+
+Package into a clean, ignored output directory:
+
+```powershell
+dotnet pack .\ModernFormsNext.slnx --configuration Release --no-build --output .\.codex-pack
 ```
 
-Examples that should not be used for a release:
+The template package intentionally has no `.snupkg`; published library packages should have one.
 
-```text
-1.0.1
-release-1.0.1
-v1.0
+## Publication workflow
+
+After the release commit is reviewed and the normal `.NET` workflow is green:
+
+1. Replace `Unreleased` with the actual release date in `CHANGELOG.md` and update the 1.8.0 link
+   from a comparison URL to the final tag URL.
+2. Commit that final release-note change and push it through the normal review path.
+3. Create the annotated or lightweight `vX.Y.Z` tag on the exact reviewed commit.
+4. Push the tag only when GitHub Release and NuGet publication are intended.
+5. Monitor the `Release` workflow until GitHub Release creation and every NuGet push succeed.
+6. Attach the matching `ModernFormsNextDesigner.vsix` to the GitHub Release. The current workflow
+   uploads NuGet packages and symbols but does not upload the VSIX automatically.
+7. Verify the public NuGet indexes, package contents, GitHub assets, and VSIX version after
+   publication.
+
+Example commands are intentionally explicit:
+
+```powershell
+git status
+git log --oneline --decorate -n 20
+git tag v1.8.0
+git push origin v1.8.0
 ```
+
+Do not run the tag or push commands until the release is approved. Never force-push or move a
+published release tag. If publication fails after a package reaches NuGet, prepare a new patch
+version rather than trying to reuse the published version.
 
 ## Diagnostics
 
 List local tags:
 
 ```powershell
-git tag
+git tag --list
 ```
 
-List tags that exist on GitHub:
+List tags on GitHub:
 
 ```powershell
 git ls-remote --tags origin
 ```
 
-If the release workflow did not start, verify that the tag was pushed to `origin` and that it matches `v*.*.*`.
+If the workflow did not start, verify that the tag exists on `origin` and matches `v*.*.*`. If the
+workflow starts unexpectedly, do not delete/recreate the tag blindly: first inspect whether a
+GitHub Release or NuGet package was already published.

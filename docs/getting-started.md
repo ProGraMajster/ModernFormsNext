@@ -21,6 +21,10 @@ dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:Enable
 
 The main framework project targets both `net10.0` and `net10.0-windows`. Generated application templates target `net10.0-windows`.
 
+The repository also contains an experimental `net10.0-android` backend and cross-platform sample.
+Android is not yet a general `Application.Run(Form)` target; see
+[Android platform status](platforms/android.md) for the current hosting model and limitations.
+
 ## Run the Sample Applications
 
 `ControlGallery` is the main manual visual test app for controls, rendering, layout, focus, input, and theme behavior.
@@ -49,6 +53,7 @@ dotnet run --project .\samples\Outlaw\Outlaw.csproj
 The repository contains a template package project in `ModernFormsNext.Templates`. After packing and installing that template package, create a new app with:
 
 ```powershell
+dotnet new install ModernFormsNext.Templates::1.8.0
 dotnet new mfn-app -n MyApp
 ```
 
@@ -85,7 +90,8 @@ For packaged usage, reference the package version produced by this repository:
 
 ## Visual Designer
 
-ModernFormsNext 1.7.0 adds the first reusable designer stack. The generated template includes
+ModernFormsNext 1.8.0 includes the reusable designer stack introduced in 1.7.0 and adds coordinated
+High DPI rendering/input fixes plus `Size`-based form generation. The generated template includes
 three related files:
 
 ```text
@@ -100,6 +106,9 @@ designable ModernFormsNext files and opens the companion `.mfdesign` document.
 
 The template uses `ModernFormsNextDesigner=true` project metadata instead of `SubType=Form`, so
 Visual Studio does not launch the built-in Windows Forms designer for ModernFormsNext forms.
+
+New `.Designer.cs` output assigns `Size`; reverse parsing remains compatible with older
+`ClientSize` assignments.
 
 After installing the VSIX, additional forms can be created from Visual Studio through
 **Add** > **New Item** > **ModernFormsNext Form**. That item template creates the code file,
@@ -147,6 +156,7 @@ internal static class Program
 
 - The project is early-stage and APIs may change before a stable release.
 - Windows is currently the best-supported backend.
+- Android support is Experimental and is not yet recommended for production applications.
 - `ControlGallery` is the right place for visible control experiments and manual regressions.
 - `ModernFormsNext.DemoApp` should remain aligned with the generated template experience.
 

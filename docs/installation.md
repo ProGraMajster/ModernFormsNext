@@ -4,6 +4,9 @@ ModernFormsNext is distributed as NuGet packages, project templates, and a Visua
 designer extension. The framework remains code-first, but the designer can edit the companion
 `.mfdesign` document and regenerate the matching `.Designer.cs` file.
 
+The commands below target the coordinated 1.8.0 release. They become publicly available after the
+NuGet packages and GitHub release assets are published.
+
 ## Requirements
 
 - .NET SDK `10.0.201` or a compatible .NET 10 SDK feature band.
@@ -66,7 +69,10 @@ as a classic Windows Forms marker and may try to open the built-in WinForms desi
 
 ## Install the Visual Studio Designer
 
-Install `ModernFormsNextDesigner.vsix` from the matching release assets when available. During
+Install `ModernFormsNextDesigner.vsix` version `1.8.0` from the matching 1.8.0 release assets when
+available. The extension version matches the framework because this release includes High DPI,
+code-generation, and form-size round-trip changes. Do not install an older `1.7.x` VSIX when
+validating the 1.8.0 designer workflow. During
 local repository development, build the VSIX project first:
 
 ```powershell
@@ -110,6 +116,10 @@ after repeated local installs. The equivalent manual install command is:
 The designer opens the companion `MainForm.mfdesign` document but treats `MainForm.cs` as the
 user-facing project item. Saving the designer writes `MainForm.mfdesign` and regenerates
 `MainForm.Designer.cs`. It does not rewrite `MainForm.cs`.
+
+New generated code assigns the form through `Size`. Reverse parsing still accepts `ClientSize`
+from older generated files, so opening and saving a pre-1.8.0 form does not require a manual source
+edit solely for this change.
 
 Auto-save is enabled by default in the designer settings. It can be disabled from the designer
 settings dialog if manual saves are preferred.
@@ -159,6 +169,13 @@ the generated `.mfdesign` companion file contains ModernFormsNext design metadat
 The designer and Visual Studio extension currently include English and Polish UI strings. Use
 the designer settings dialog to switch the standalone designer shell language. The Visual Studio
 extension follows the current Visual Studio UI culture where possible.
+
+## Android
+
+The packaged project template and Visual Studio designer are Windows-first. Android support in
+ModernFormsNext 1.8.0 is **Experimental**, uses an explicit activity/shared-surface host, and is not
+part of the default `mfn-app` template. See [Android platform status](platforms/android.md) before
+creating an Android evaluation project.
 
 ## Troubleshooting
 
