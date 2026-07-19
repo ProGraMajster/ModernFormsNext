@@ -31,6 +31,25 @@ public sealed class BrushRenderingTests
     }
 
     [Fact]
+    public void BackgroundBrushOverridesLegacyBackColorAndNullRestoresIt()
+    {
+        using var control = new Control
+        {
+            BackColor = SKColors.Red,
+            BackgroundBrush = new SolidColorBrush(Color.Blue)
+        };
+        using var adapter = new SkiaControlSurface(control);
+        using var bitmap = new SKBitmap(12, 12, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(bitmap);
+        adapter.Resize(12, 12);
+
+        Assert.Equal(SKColors.Blue, RenderControlPixel(adapter, canvas, bitmap));
+
+        control.BackgroundBrush = null;
+        Assert.Equal(SKColors.Red, RenderControlPixel(adapter, canvas, bitmap));
+    }
+
+    [Fact]
     public void OneStopAndZeroRadiusGradientsHaveDeterministicSolidResults()
     {
         var oneStop = new LinearGradientBrush();
@@ -138,5 +157,13 @@ public sealed class BrushRenderingTests
         SkiaExtensions.RenderBrushBackground(canvas, new SKRect(0, 0, width, height), brush, SKColors.Magenta);
         canvas.Flush();
         return bitmap.GetPixel(x, y);
+    }
+
+    private static SKColor RenderControlPixel(SkiaControlSurface adapter, SKCanvas canvas, SKBitmap bitmap)
+    {
+        canvas.Clear(SKColors.Transparent);
+        adapter.Render(canvas);
+        canvas.Flush();
+        return bitmap.GetPixel(6, 6);
     }
 }
