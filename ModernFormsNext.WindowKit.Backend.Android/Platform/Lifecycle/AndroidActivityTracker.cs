@@ -1,5 +1,6 @@
 using Android.App;
 using Android.OS;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Lifecycle;
 
@@ -11,7 +12,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Lifecycle;
 /// weakly for diagnostics but is not returned as an active UI host. Rotation clears the destroyed
 /// instance and allows the next created activity to become current.
 /// </remarks>
-public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActivityLifecycleCallbacks
+public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActivityLifecycleCallbacks, IPlatformApplicationLifecycle
 {
     private readonly object sync = new();
     private readonly Func<Activity?>? activityProvider;
@@ -65,6 +66,18 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
 
     internal event Action<Activity>? ActivityDestroyed;
 
+    /// <inheritdoc/>
+    event EventHandler<PlatformApplicationLifecycleChangedEventArgs>? IPlatformApplicationLifecycle.StateChanged
+    {
+        add => LifecycleStateChanged += value;
+        remove => LifecycleStateChanged -= value;
+    }
+
+    /// <inheritdoc/>
+    PlatformApplicationLifecycleState IPlatformApplicationLifecycle.State => ToPlatformState(State);
+
+    private event EventHandler<PlatformApplicationLifecycleChangedEventArgs>? LifecycleStateChanged;
+
     internal void ObserveHostActivity(Activity activity)
     {
         ArgumentNullException.ThrowIfNull(activity);
@@ -108,37 +121,74 @@ public sealed class AndroidActivityTracker : Java.Lang.Object, Application.IActi
     /// <inheritdoc/>
     public void OnActivityDestroyed(Activity activity)
     {
+        AndroidApplicationLifecycleState previousState;
+        bool changed = false;
         lock (sync)
         {
+            previousState = state;
             if (currentActivity.ClearIfCurrent(activity))
             {
                 state = AndroidApplicationLifecycleState.NoActivity;
+                changed = previousState != state;
             }
         }
 
+        if (changed)
+            RaiseLifecycleStateChanged(previousState, AndroidApplicationLifecycleState.NoActivity);
         ActivityDestroyed?.Invoke(activity);
         AndroidLogger.Write($"Activity destroyed: {activity.GetType().FullName}.", diagnosticSink);
     }
 
     private void SetActivity(Activity activity, AndroidApplicationLifecycleState newState)
     {
+        AndroidApplicationLifecycleState previousState;
         lock (sync)
         {
+            previousState = state;
             currentActivity.Set(activity);
             state = newState;
         }
+
+        if (previousState != newState)
+            RaiseLifecycleStateChanged(previousState, newState);
     }
 
     private void SetStateIfCurrent(Activity activity, AndroidApplicationLifecycleState newState)
     {
+        AndroidApplicationLifecycleState previousState;
+        bool changed = false;
         lock (sync)
         {
+            previousState = state;
             if (ReferenceEquals(currentActivity.Target, activity))
             {
                 state = newState;
+                changed = previousState != newState;
             }
         }
+
+        if (changed)
+            RaiseLifecycleStateChanged(previousState, newState);
     }
+
+    private void RaiseLifecycleStateChanged(
+        AndroidApplicationLifecycleState previousState,
+        AndroidApplicationLifecycleState currentState)
+        => LifecycleStateChanged?.Invoke(
+            this,
+            new PlatformApplicationLifecycleChangedEventArgs(
+                ToPlatformState(previousState),
+                ToPlatformState(currentState)));
+
+    private static PlatformApplicationLifecycleState ToPlatformState(AndroidApplicationLifecycleState value)
+        => value switch
+        {
+            AndroidApplicationLifecycleState.Foreground => PlatformApplicationLifecycleState.Foreground,
+            AndroidApplicationLifecycleState.Background or AndroidApplicationLifecycleState.Created =>
+                PlatformApplicationLifecycleState.Background,
+            AndroidApplicationLifecycleState.NoActivity => PlatformApplicationLifecycleState.NoHost,
+            _ => PlatformApplicationLifecycleState.Unknown
+        };
 
     private static bool IsUsable(Activity? activity)
         => activity is not null && !activity.IsFinishing && !activity.IsDestroyed;

@@ -1,6 +1,7 @@
 using ModernFormsNext.WindowKit.Backend.Android.Dispatching;
 using ModernFormsNext.WindowKit.Backend.Android.Lifecycle;
 using ModernFormsNext.WindowKit.Backend.Android.Permissions;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 using ModernFormsNext.WindowKit.Platform.Permissions;
 using ModernFormsNext.WindowKit.Threading;
 
@@ -94,6 +95,7 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             // Register only services that are genuinely implemented. In particular, there is no
             // IWindowingPlatform or clipboard registration until Android UI/rendering support exists.
             PlatformServiceRegistry.Register<IPlatformDispatcher>(Dispatcher);
+            PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(ActivityTracker);
             PlatformServiceRegistry.Register<IPermissionService>(Permissions);
 
             IsInitialized = true;

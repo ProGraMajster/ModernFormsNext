@@ -9,12 +9,49 @@ namespace ModernFormsNext.Animations
     public static class ControlAnimationExtensions
     {
         /// <summary>
+        /// Runs a custom eased-progress animation owned by a control.
+        /// </summary>
+        /// <param name="control">The control that owns the animation lifecycle and replacement key.</param>
+        /// <param name="key">The non-empty owner-local animation channel.</param>
+        /// <param name="duration">The non-negative unscaled duration.</param>
+        /// <param name="update">The UI-thread callback receiving finite eased progress.</param>
+        /// <param name="easing">Optional easing function. The default is <see cref="Easings.Linear"/>.</param>
+        /// <returns>A handle for cancellation, pause/resume, state, and completion.</returns>
+        /// <remarks>
+        /// Starting a second animation with the same control and key cancels the first. The control
+        /// automatically cancels owned animations when disposed or detached from an established
+        /// parent. Use a property setter that performs the correct render or layout invalidation.
+        /// This API uses the same scheduler and UI dispatcher on Windows and Android.
+        /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="control"/> or <paramref name="update"/> is null.</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="duration"/> is negative.</exception>
+        public static AnimationHandle Animate(
+            this Control control,
+            string key,
+            TimeSpan duration,
+            Action<float> update,
+            Func<float, float>? easing = null)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            return AnimationScheduler.Default.Start(
+                control,
+                key,
+                update,
+                new AnimationOptions
+                {
+                    Duration = duration,
+                    Easing = easing ?? Easings.Linear
+                });
+        }
+
+        /// <summary>
         /// Cancels all animations running on the control.
         /// </summary>
         /// <param name="control">The target control.</param>
         public static void CancelAnimations (this Control control)
         {
-            AnimationManager.CancelAll (control);
+            ArgumentNullException.ThrowIfNull(control);
+            AnimationScheduler.Default.CancelAll(control);
         }
 
         /// <summary>
@@ -29,16 +66,14 @@ namespace ModernFormsNext.Animations
         {
             opacity = Math.Clamp (opacity, 0f, 1f);
 
-            var animation = new Animation (
+            return AnimationScheduler.Default.Animate(
                 control,
                 "Opacity",
                 control.Opacity,
                 opacity,
-                duration,
+                AnimationInterpolators.Float,
                 value => control.Opacity = value,
-                easing);
-
-            return AnimationManager.AddOrReplace (animation);
+                CreateOptions(duration, easing)).Completion;
         }
 
         /// <summary>
@@ -52,27 +87,25 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task TranslateToAsync (this Control control, float x, float y, int duration = 250, Func<float, float>? easing = null)
         {
-            var xAnimation = new Animation (
+            AnimationHandle xAnimation = AnimationScheduler.Default.Animate(
                 control,
                 "TranslationX",
                 control.TranslationX,
                 x,
-                duration,
+                AnimationInterpolators.Float,
                 value => control.TranslationX = value,
-                easing);
+                CreateOptions(duration, easing));
 
-            var yAnimation = new Animation (
+            AnimationHandle yAnimation = AnimationScheduler.Default.Animate(
                 control,
                 "TranslationY",
                 control.TranslationY,
                 y,
-                duration,
+                AnimationInterpolators.Float,
                 value => control.TranslationY = value,
-                easing);
+                CreateOptions(duration, easing));
 
-            return Task.WhenAll (
-                AnimationManager.AddOrReplace (xAnimation),
-                AnimationManager.AddOrReplace (yAnimation));
+            return Task.WhenAll(xAnimation.Completion, yAnimation.Completion);
         }
 
         /// <summary>
@@ -99,27 +132,25 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task ScaleToAsync (this Control control, float scaleX, float scaleY, int duration = 250, Func<float, float>? easing = null)
         {
-            var xAnimation = new Animation (
+            AnimationHandle xAnimation = AnimationScheduler.Default.Animate(
                 control,
                 "ScaleX",
                 control.ScaleX,
                 scaleX,
-                duration,
+                AnimationInterpolators.Float,
                 value => control.ScaleX = value,
-                easing);
+                CreateOptions(duration, easing));
 
-            var yAnimation = new Animation (
+            AnimationHandle yAnimation = AnimationScheduler.Default.Animate(
                 control,
                 "ScaleY",
                 control.ScaleY,
                 scaleY,
-                duration,
+                AnimationInterpolators.Float,
                 value => control.ScaleY = value,
-                easing);
+                CreateOptions(duration, easing));
 
-            return Task.WhenAll (
-                AnimationManager.AddOrReplace (xAnimation),
-                AnimationManager.AddOrReplace (yAnimation));
+            return Task.WhenAll(xAnimation.Completion, yAnimation.Completion);
         }
 
         /// <summary>
@@ -132,16 +163,26 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task RotateToAsync (this Control control, float rotation, int duration = 250, Func<float, float>? easing = null)
         {
-            var animation = new Animation (
+            return AnimationScheduler.Default.Animate(
                 control,
                 "Rotation",
                 control.Rotation,
                 rotation,
-                duration,
+                AnimationInterpolators.Float,
                 value => control.Rotation = value,
-                easing);
+                CreateOptions(duration, easing)).Completion;
+        }
 
-            return AnimationManager.AddOrReplace (animation);
+        private static AnimationOptions CreateOptions(int duration, Func<float, float>? easing)
+        {
+            if (duration < 0)
+                throw new ArgumentOutOfRangeException(nameof(duration), duration, "Animation duration cannot be negative.");
+
+            return new AnimationOptions
+            {
+                Duration = TimeSpan.FromMilliseconds(duration),
+                Easing = easing ?? Easings.Linear
+            };
         }
     }
 }

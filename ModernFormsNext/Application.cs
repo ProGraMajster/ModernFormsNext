@@ -117,6 +117,8 @@ namespace ModernFormsNext
         {
             is_exiting = true;
 
+            Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
+
             OnExit?.Invoke(null, EventArgs.Empty);
 
             _mainLoopCancellationTokenSource?.Cancel();
@@ -199,6 +201,8 @@ namespace ModernFormsNext
             _mainLoopCancellationTokenSource = new CancellationTokenSource();
 
             Dispatcher.UIThread.MainLoop(_mainLoopCancellationTokenSource.Token);
+
+            Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
 
             if (!is_exiting)
                 OnExit?.Invoke(null, EventArgs.Empty);
