@@ -1,5 +1,7 @@
 using System.Drawing;
 using System.Numerics;
+using ModernFormsNext.Drawing;
+using MfnBrush = ModernFormsNext.Drawing.Brush;
 
 namespace ModernFormsNext.Animations;
 
@@ -78,6 +80,35 @@ public static class AnimationInterpolators
             Lerp(from.M31, to.M31, progress),
             Lerp(from.M32, to.M32, progress)));
 
+    /// <summary>
+    /// Creates an animation-local interpolator that reuses one observable
+    /// <see cref="GradientStop"/> result instance.
+    /// </summary>
+    /// <returns>A new interpolator intended for one scheduled animation.</returns>
+    /// <remarks>
+    /// The returned interpolator is not thread-safe and should not be shared between concurrent
+    /// animations. It allocates its result once, then mutates its color and offset on the UI
+    /// thread. Use <see cref="GradientStopAnimationExtensions.AnimateTo"/> to mutate an existing
+    /// stop directly.
+    /// </remarks>
+    public static IAnimationInterpolator<GradientStop> CreateGradientStopInterpolator()
+        => new ReusableGradientStopInterpolator();
+
+    /// <summary>
+    /// Creates an animation-local interpolator for compatible built-in brushes.
+    /// </summary>
+    /// <returns>A new stateful interpolator intended for one scheduled animation.</returns>
+    /// <remarks>
+    /// The interpolator creates one local working brush from the start value and mutates it on
+    /// subsequent calls. It supports solid, linear, radial, and sweep brushes. Gradient types must
+    /// match and contain the same number of stops. Source and target brushes are not mutated, which
+    /// prevents a local transition from unexpectedly changing other consumers of a shared dynamic
+    /// resource. Use <see cref="BrushAnimationExtensions.AnimateTo"/> for intentional in-place
+    /// resource animation.
+    /// </remarks>
+    public static IAnimationInterpolator<MfnBrush> CreateBrushInterpolator()
+        => new ReusableBrushInterpolator();
+
     private static float Lerp(float from, float to, float progress) => from + ((to - from) * progress);
 
     private static int LerpChannel(byte from, byte to, float progress)
@@ -90,6 +121,54 @@ public static class AnimationInterpolators
             if (!float.IsFinite(progress))
                 throw new ArgumentOutOfRangeException(nameof(progress), progress, "Interpolation progress must be finite.");
             return interpolate(from, to, progress);
+        }
+    }
+
+    private sealed class ReusableGradientStopInterpolator : IAnimationInterpolator<GradientStop>
+    {
+        private GradientStop? result;
+
+        public GradientStop Interpolate(GradientStop from, GradientStop to, float progress)
+        {
+            ArgumentNullException.ThrowIfNull(from);
+            ArgumentNullException.ThrowIfNull(to);
+            if (!float.IsFinite(progress))
+                throw new ArgumentOutOfRangeException(nameof(progress), progress, "Interpolation progress must be finite.");
+
+            result ??= new GradientStop(from.PaintColor, from.Offset);
+            result.PaintColor = Color.Interpolate(from.PaintColor, to.PaintColor, progress);
+            result.Offset = Math.Clamp(Float.Interpolate(from.Offset, to.Offset, progress), 0f, 1f);
+            return result;
+        }
+    }
+
+    private sealed class ReusableBrushInterpolator : IAnimationInterpolator<MfnBrush>
+    {
+        private BrushAnimationPlan? plan;
+        private MfnBrush? fromBrush;
+        private MfnBrush? toBrush;
+
+        public MfnBrush Interpolate(MfnBrush from, MfnBrush to, float progress)
+        {
+            ArgumentNullException.ThrowIfNull(from);
+            ArgumentNullException.ThrowIfNull(to);
+            if (!float.IsFinite(progress))
+                throw new ArgumentOutOfRangeException(nameof(progress), progress, "Interpolation progress must be finite.");
+
+            if (plan is null)
+            {
+                MfnBrush workingBrush = BrushAnimationPlan.CloneSupportedBrush(from);
+                plan = BrushAnimationPlan.Create(from, to, workingBrush);
+                fromBrush = from;
+                toBrush = to;
+            }
+            else if (!ReferenceEquals(fromBrush, from) || !ReferenceEquals(toBrush, to))
+            {
+                throw new InvalidOperationException("A brush interpolator instance can be used for only one source and target pair.");
+            }
+
+            plan.Apply(progress);
+            return plan.Destination;
         }
     }
 }
