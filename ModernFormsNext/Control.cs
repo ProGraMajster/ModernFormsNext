@@ -241,13 +241,7 @@ namespace ModernFormsNext
         /// </example>
         public ModernFormsNext.Drawing.Brush? BackgroundBrush {
             get => backgroundBrush;
-            set {
-                if (backgroundBrush == value)
-                    return;
-
-                backgroundBrush = value;
-                Invalidate ();
-            }
+            set => SetBrushField(ref backgroundBrush, value);
         }
 
         /// <summary>
@@ -333,13 +327,7 @@ namespace ModernFormsNext
         /// </example>
         public ModernFormsNext.Drawing.Brush? TextBrush {
             get => textBrush;
-            set {
-                if (textBrush == value)
-                    return;
-
-                textBrush = value;
-                Invalidate ();
-            }
+            set => SetBrushField(ref textBrush, value);
         }
 
         /// <summary>
@@ -2384,6 +2372,7 @@ namespace ModernFormsNext
         {
             if (!disposedValue) {
                 DisposeResourceReferences ();
+                DisposeBrushInvalidationSubscriptions ();
                 FreeBackBuffer ();
 
                 foreach (var c in Controls.GetAllControls (true))

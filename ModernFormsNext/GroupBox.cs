@@ -172,14 +172,7 @@ namespace ModernFormsNext
         public ModernFormsNext.Drawing.Brush? CaptionBackgroundBrush
         {
             get => captionBackgroundBrush;
-            set
-            {
-                if (captionBackgroundBrush == value)
-                    return;
-
-                captionBackgroundBrush = value;
-                Invalidate();
-            }
+            set => SetBrushField(ref captionBackgroundBrush, value);
         }
 
         /// <summary>
@@ -369,14 +362,7 @@ namespace ModernFormsNext
         public ModernFormsNext.Drawing.Brush? ContentBackgroundBrush
         {
             get => contentBackgroundBrush;
-            set
-            {
-                if (contentBackgroundBrush == value)
-                    return;
-
-                contentBackgroundBrush = value;
-                Invalidate();
-            }
+            set => SetBrushField(ref contentBackgroundBrush, value);
         }
 
         /// <summary>
