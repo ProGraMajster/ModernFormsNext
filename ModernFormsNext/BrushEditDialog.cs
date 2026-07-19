@@ -23,7 +23,7 @@ namespace ModernFormsNext
     /// <code>
     /// var dialog = new BrushEditDialog
     /// {
-    ///     Brush = new SolidColorBrush(SKColors.SteelBlue)
+    ///     Brush = new SolidColorBrush(System.Drawing.Color.SteelBlue)
     /// };
     ///
     /// if (await dialog.ShowDialog(this) == DialogResult.OK)

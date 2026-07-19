@@ -26,6 +26,31 @@ Application.Resources["Button.Primary.Background"] = SKColors.MediumSeaGreen;
 Resources may contain any assignable type, not just colors. Brushes, fonts, `Thickness`, styles,
 animation configuration, and localized strings can use the same mechanism.
 
+### Observable brushes
+
+Brushes are observable resource values. Once a brush is assigned to a standard brush-valued control
+property, changing its color, opacity, transform, gradient geometry, stop collection, or an
+individual stop invalidates only controls that still consume it. Replacing the dictionary entry is
+not required:
+
+```csharp
+var brush = new LinearGradientBrush();
+brush.GradientStops.AddRange([
+    new GradientStop(System.Drawing.Color.MidnightBlue, 0f),
+    new GradientStop(System.Drawing.Color.CornflowerBlue, 1f)
+]);
+
+Application.Resources["Card.Background"] = brush;
+card.SetResourceReference(nameof(Control.BackgroundBrush), "Card.Background");
+
+brush.GradientStops[0].PaintColor = System.Drawing.Color.Teal;
+```
+
+Control subscriptions are weak and reference-counted. Replacing a brush, applying a fallback,
+clearing a reference, or disposing a control detaches the obsolete subscription. Other arbitrary
+mutable resource objects do not become observable automatically; they still need replacement or a
+future type-specific change contract.
+
 ## Lookup order and fallback
 
 For a control, lookup proceeds from the most specific scope to the broadest:
@@ -89,5 +114,7 @@ worker thread.
   must be settled before enabling aggressive member trimming for applications.
 - Merged dictionaries, explicit dictionary inheritance, resource factories, and transition
   animation are future ThemeManager work.
+- In-place updates are currently observed for the framework brush hierarchy only, not for every
+  mutable resource object.
 - Resource values are applied directly. General-purpose implicit conversion is intentionally not
   performed because it would make theme errors dependent on culture and converter availability.

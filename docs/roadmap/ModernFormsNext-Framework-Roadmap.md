@@ -1,6 +1,7 @@
 # ModernFormsNext framework roadmap
 
 - Baseline audited: 2026-07-17
+- Paint/gradient foundation implemented: 2026-07-19
 - SDK baseline: .NET 10 (`10.0.201`)
 - Runtime priority: Windows first; Android is an experimental shared-control Skia vertical slice
 - Purpose: architecture and delivery sequence, not a promise that every listed API is implemented
@@ -19,13 +20,14 @@ or the complete WindowKit service set.
 The architecture should therefore be extended, not replaced. The implementation order is:
 
 1. dynamic resources (first vertical slice implemented with this roadmap);
-2. paint/brush contracts and theme tokens;
-3. ThemeManager and localization;
-4. page lifecycle, navigation, routing, tabs, flyout, and shell;
-5. virtualized data controls and SearchBar;
-6. shapes and path geometry;
-7. modular document providers and viewers;
-8. charts, then diagrams.
+2. paint/brush contracts (implemented foundation; theme tokens remain ThemeManager work);
+3. UI animation scheduler hardening;
+4. ThemeManager and localization;
+5. page lifecycle, navigation, routing, tabs, flyout, and shell;
+6. virtualized data controls and SearchBar;
+7. shapes and path geometry;
+8. modular document providers and viewers;
+9. charts, then diagrams.
 
 The most important change from the suggested order is document work: provider/viewport contracts and
 compatibility planning for the existing `DocumentViewer` must precede a PDF engine. Implementing
@@ -43,7 +45,7 @@ already exist.
 | Properties | CLR properties plus compact internal `PropertyStore` | Dynamic resources and future generated descriptors invoke existing setters. No dependency-property clone. |
 | Layout | `LayoutEngine`, `DefaultLayout`, `FlowLayoutPanel`, `TableLayoutPanel`, `Dock`, `Anchor`, margin/padding/min/max/AutoSize | Page hosts, collection presenters, shell panes, and shapes must use these transactions and constraints. |
 | Styles | `ControlStyle`, parent-style fallback, normal/hover state, compatibility `BackColor`/`ForeColor` | Extend state/style representation incrementally; preserve renderer-facing style objects. |
-| Paints | `Drawing.Brush`, solid, glass, linear/radial/sweep gradient brushes, gradient stops, Skia extension renderers | Define lifetime, opacity, transforms, spread/tile behavior, immutability/notification, and JSON contracts. |
+| Paints | Observable `Drawing.Brush`; solid, glass, no-fill, linear/radial/sweep gradients; typed stops; opacity/transform/spread; shared Skia adapter | Reuse for ThemeManager and future shapes/charts. Version and implement the documented JSON direction only with ThemeManager validation. |
 | Rendering | Per-control `SKBitmap` back buffers, renderer classes, `PaintEventArgs`, Skia canvas helpers | Shapes/charts/documents render through Skia and existing clipping/invalidation. Avoid native control substitution. |
 | Invalidation | Property setters call `Invalidate`, layout setters use layout transactions; windows invalidate platform surfaces | Dynamic values call normal setters and do not globally repaint. Add dirty-region precision later. |
 | Animation | `AnimationManager`, easing functions, opacity/translation/scale/rotation extensions | Reuse interpolation concepts, but move callbacks onto UI dispatcher before theme/shape transitions. |
@@ -63,8 +65,8 @@ already exist.
   validation, inheritance, scoped overrides, state styles, system-theme adapter, or atomic update.
 - `ControlStyle` has only a small normal/hover model. It lacks pressed/selected/disabled/focused state
   resolution, brushes for every surface, typography records, shadow, radius, and transitions.
-- Existing brushes are mutable data objects with no standard opacity/transform/change notification,
-  frozen lifetime, tile mode, or serializer.
+- Brush mutation, opacity, transforms, stable stop ordering, spread modes, and targeted invalidation
+  are implemented. A batch update scope, advanced interpolation, and a versioned JSON loader remain.
 - The animation loop can resume on a worker thread and invoke control setters there. It is not yet a
   safe scheduler for theme transitions or arbitrary animated properties.
 - No localization catalog/provider, plural rules, missing-key diagnostics, dynamic culture change,
@@ -100,6 +102,7 @@ already exist.
 ```text
 Dynamic resources
   -> Paint/brush value contracts
+  -> UI animation scheduler hardening
   -> ThemeManager -> state styles -> every visual feature
   -> Localization -> pages and shell labels
 
@@ -191,22 +194,27 @@ serialization, factories, and transitions remain later work.
 
 ### Stage 1 — visual values, themes, and localization
 
-#### 2. Paint and gradient contracts — difficulty: Medium
+#### 2. Paint and gradient contracts — implemented foundation
 
 Purpose: harden the existing brush hierarchy into reusable theme/shape/chart values rather than add
-a duplicate `Paint` abstraction immediately.
+a duplicate `Paint` abstraction. The foundation is implemented.
 
-Proposed API: evolve `Brush` with `Opacity`, optional transform, immutable/frozen snapshots or
-change notification; add gradient spread/tile mode and typed stop collection. Consider a `Paint`
-name only if stroke/fill semantics cannot be expressed without breaking existing `Brush` APIs.
+Implemented API: observable, shared `Brush` values with `Opacity`, `Matrix3x2` transform,
+`NoBrush`, platform-neutral color/point members, `GradientStopCollection`, stable stop ordering,
+radial focal origin, and `Pad`/`Repeat`/`Reflect`. Existing Skia members remain compatibility views
+of the same backing values.
 
-Dependencies: dynamic resources, current Skia extension renderers.
+Dependencies: dynamic resources and the shared Skia renderer; both are integrated.
 
-Risks/platform: mutable resources need invalidation; shared Skia behavior must match on GPU/CPU
-surfaces; shader ownership and allocation in paint loops. Windows/Android should share all math.
+Risks/platform: bounds-dependent shaders remain short-lived allocations. Windows and Android share
+the model, coordinate math, and shader factory, but physical-device Android GPU validation remains
+manual while the backend is experimental.
 
-Done/tests: solid/linear/radial/sweep rendering golden tests; opacity/transform/tile tests; invalid
-stops rejected; no per-frame shader leaks; JSON round trip deferred until ThemeManager schema.
+Done/tests: solid/linear/radial/focal/sweep/no-fill rendering, opacity, transform, tile modes,
+bounds, strict offsets, stable duplicate offsets, mutation, resource precedence/fallback, weak
+subscriptions, Designer round-trip, and scoped shader disposal are covered. ControlGallery provides
+manual visual checks. A versioned JSON converter, batch notifications, absolute mapping, and advanced
+color interpolation are explicitly deferred.
 
 #### 3. ThemeManager — difficulty: Very high
 
@@ -582,7 +590,8 @@ when specialized render models are clearer.
 Exact semantic versions are intentionally not assigned until release capacity is known. Use these
 dependency-based bands:
 
-- Foundation release: dynamic resources, paint hardening, non-animated ThemeManager core.
+- Foundation work: dynamic resources and paint hardening are implemented; a non-animated
+  ThemeManager core remains after scheduler affinity is safe.
 - Globalization release: JSON themes, system variants, localization and diagnostics.
 - Navigation preview: Page/ContentPage/NavigationPage/routing; Windows host plus Android surface host.
 - Shell preview: TabbedPage/FlyoutPage/AppShell after lifecycle/back tests are stable.
@@ -609,7 +618,8 @@ dependency-based bands:
 
 ## Recommended next stage
 
-Harden the existing brush/gradient model and fix animation dispatcher affinity, then implement the
-non-animated ThemeManager core on dynamic resources. This validates arbitrary typed values, atomic
-theme publication, compatibility with `Theme`/`ControlStyle`, and targeted invalidation before page
-and control work multiplies the number of consumers.
+**UI animation scheduler hardening.** Move frame callbacks and property mutation onto the UI
+dispatcher, define cancellation/interruption and exception behavior, and add deterministic tests
+before any public theme or shape transition API is promised. After that, implement the non-animated
+ThemeManager core on dynamic resources and the completed brush foundation. Full ThemeManager and
+Shape remain unimplemented.

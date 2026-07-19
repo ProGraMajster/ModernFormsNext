@@ -58,8 +58,9 @@ weak registrations prevent a missed disposal from retaining a control.
 - Direct property assignment does not automatically clear a reference; callers must use
   `ClearResourceReference`.
 - Updates run synchronously on the mutation thread, so live resources have UI-thread affinity.
-- A resource object mutated in place does not generate a dictionary change. Replace the value or add
-  a future observable resource type when in-place updates are required.
+- A resource object mutated in place does not generate a dictionary change. The observable `Brush`
+  hierarchy handles this through its own weak control subscriptions; arbitrary mutable values still
+  require replacement or a future type-specific observation contract.
 
 ## Rejected alternatives
 

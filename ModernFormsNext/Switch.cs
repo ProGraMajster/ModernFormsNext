@@ -477,12 +477,12 @@ namespace ModernFormsNext
         /// <code>
         /// var thumbGradient = new ModernFormsNext.Drawing.LinearGradientBrush
         /// {
-        ///     StartPoint = new SKPoint(0, 0),
-        ///     EndPoint = new SKPoint(1, 1)
+        ///     Start = new System.Drawing.PointF(0, 0),
+        ///     End = new System.Drawing.PointF(1, 1)
         /// };
         ///
-        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.White, 0f));
-        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.SteelBlue, 1f));
+        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.White, 0f));
+        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.SteelBlue, 1f));
         ///
         /// var control = new Switch
         /// {
