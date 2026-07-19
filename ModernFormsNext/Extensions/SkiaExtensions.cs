@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Drawing;
-using System.Linq;
 using System.Runtime.Versioning;
 using ModernFormsNext.Drawing;
+using ModernFormsNext.Rendering.Skia;
 using SkiaSharp;
 
 namespace ModernFormsNext
@@ -25,9 +25,6 @@ namespace ModernFormsNext
         /// </summary>
         public static void Clip (this SKCanvas canvas, Rectangle rectangle) => canvas.ClipRect (rectangle.ToSKRect ());
 
-        /// <summary>
-        /// Draws a control's background.
-        /// </summary>
         /// <summary>
         /// Draws a control's background.
         /// </summary>
@@ -74,149 +71,56 @@ namespace ModernFormsNext
             canvas.Clear (style.GetBackgroundColor ());
         }
 
-        private static void RenderLinearGradient (SKCanvas canvas, SKRect bounds, LinearGradientBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
+        private static void RenderGradient(SKCanvas canvas, SKRect bounds, GradientBrush brush, SKBlendMode blendMode)
         {
-            if (brush.GradientStops.Count == 0)
+            GradientStop[] stops = brush.GetOrderedStops();
+            if (stops.Length == 0 || brush.Opacity <= 0f)
                 return;
 
-            if (brush.GradientStops.Count == 1) {
-                using var singlePaint = new SKPaint {
-                    Color = brush.GradientStops[0].Color,
+            // A one-stop gradient is a solid fill. A zero-radius radial gradient also has no
+            // spatial interval, so the final stop is the only well-defined area color.
+            if (stops.Length == 1 || brush is RadialGradientBrush { Radius: 0f })
+            {
+                using var singlePaint = new SKPaint
+                {
+                    Color = SkiaBrushFactory.ApplyOpacity(stops[^1].Color, brush.Opacity),
                     IsAntialias = true,
                     BlendMode = blendMode
                 };
 
-                canvas.DrawRect (bounds, singlePaint);
+                canvas.DrawRect(bounds, singlePaint);
                 return;
             }
 
-            var start = new SKPoint (
-                bounds.Left + bounds.Width * brush.StartPoint.X,
-                bounds.Top + bounds.Height * brush.StartPoint.Y);
+            using SKShader? shader = SkiaBrushFactory.CreateGradientShader(brush, bounds);
+            if (shader is null)
+                return;
 
-            var end = new SKPoint (
-                bounds.Left + bounds.Width * brush.EndPoint.X,
-                bounds.Top + bounds.Height * brush.EndPoint.Y);
-
-            var orderedStops = brush.GradientStops
-    .OrderBy (x => x.Offset)
-    .ToArray ();
-
-            var colors = orderedStops.Select (x => x.Color).ToArray ();
-            var positions = orderedStops.Select (x => x.Offset).ToArray ();
-
-            using var shader = SKShader.CreateLinearGradient (
-                start,
-                end,
-                colors,
-                positions,
-                SKShaderTileMode.Clamp);
-
-            using var paint = new SKPaint {
+            using var paint = new SKPaint
+            {
                 Shader = shader,
                 IsAntialias = true,
                 BlendMode = blendMode
             };
 
-            canvas.DrawRect (bounds, paint);
-        }
-
-        private static void RenderRadialGradient (SKCanvas canvas, SKRect bounds, RadialGradientBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
-        {
-            if (brush.GradientStops.Count == 0)
-                return;
-
-            if (brush.GradientStops.Count == 1) {
-                using var singlePaint = new SKPaint {
-                    Color = brush.GradientStops[0].Color,
-                    IsAntialias = true,
-                    BlendMode = blendMode
-                };
-
-                canvas.DrawRect (bounds, singlePaint);
-                return;
-            }
-
-            var center = new SKPoint (
-                bounds.Left + bounds.Width * brush.Center.X,
-                bounds.Top + bounds.Height * brush.Center.Y);
-
-            var radius = MathF.Min (bounds.Width, bounds.Height) * brush.Radius;
-
-            var orderedStops = brush.GradientStops.OrderBy (x => x.Offset).ToArray ();
-
-            var colors = orderedStops.Select (x => x.Color).ToArray ();
-            var positions = orderedStops.Select (x => x.Offset).ToArray ();
-
-            using var shader = SKShader.CreateRadialGradient (
-                center,
-                radius,
-                colors,
-                positions,
-                SKShaderTileMode.Clamp);
-
-            using var paint = new SKPaint {
-                Shader = shader,
-                IsAntialias = true,
-                BlendMode = blendMode
-            };
-
-            canvas.DrawRect (bounds, paint);
-        }
-
-        private static void RenderSweepGradient (SKCanvas canvas, SKRect bounds, SweepGradientBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
-        {
-            if (brush.GradientStops.Count == 0)
-                return;
-
-            if (brush.GradientStops.Count == 1) {
-                using var singlePaint = new SKPaint {
-                    Color = brush.GradientStops[0].Color,
-                    IsAntialias = true,
-                    BlendMode = blendMode
-                };
-
-                canvas.DrawRect (bounds, singlePaint);
-                return;
-            }
-
-            var orderedStops = brush.GradientStops
-                .OrderBy (x => x.Offset)
-                .ToArray ();
-
-            var colors = orderedStops.Select (x => x.Color).ToArray ();
-            var positions = orderedStops.Select (x => x.Offset).ToArray ();
-
-            var center = new SKPoint (
-                bounds.Left + (bounds.Width * brush.Center.X),
-                bounds.Top + (bounds.Height * brush.Center.Y));
-
-            using var shader = SKShader.CreateSweepGradient (
-                center,
-                colors,
-                positions,
-                SKShaderTileMode.Clamp,
-                brush.StartAngle,
-                brush.EndAngle);
-
-            using var paint = new SKPaint {
-                Shader = shader,
-                IsAntialias = true,
-                BlendMode = blendMode
-            };
-
-            canvas.DrawRect (bounds, paint);
+            canvas.DrawRect(bounds, paint);
         }
 
         private static void RenderGlassBackground (SKCanvas canvas, SKRect bounds, GlassBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             // Base translucent fill with a very subtle vertical depth gradient
-            using (var shader = SKShader.CreateLinearGradient (
-                new SKPoint (bounds.Left, bounds.Top),
-                new SKPoint (bounds.Left, bounds.Bottom),
-                new[] { brush.HighlightColor, brush.TintColor, brush.SecondaryTintColor },
-                new[] { 0f, 0.28f, 1f },
-                SKShaderTileMode.Clamp))
+            using (var shader = SkiaBrushFactory.ApplyTransform(
+                SKShader.CreateLinearGradient (
+                    new SKPoint (bounds.Left, bounds.Top),
+                    new SKPoint (bounds.Left, bounds.Bottom),
+                    new[] {
+                        SkiaBrushFactory.ApplyOpacity(brush.HighlightColor, brush.Opacity),
+                        SkiaBrushFactory.ApplyOpacity(brush.TintColor, brush.Opacity),
+                        SkiaBrushFactory.ApplyOpacity(brush.SecondaryTintColor, brush.Opacity)
+                    },
+                    new[] { 0f, 0.28f, 1f },
+                    SKShaderTileMode.Clamp),
+                brush.Transform))
             using (var paint = new SKPaint {
                 Shader = shader,
                 IsAntialias = true,
@@ -229,15 +133,18 @@ namespace ModernFormsNext
             if (brush.ShowHighlight) {
                 var highlightHeight = MathF.Max (8f, bounds.Height * 0.32f);
 
-                using var highlightShader = SKShader.CreateLinearGradient (
-                    new SKPoint (bounds.Left, bounds.Top),
-                    new SKPoint (bounds.Left, bounds.Top + highlightHeight),
-                    new[] {
-                brush.HighlightColor,
-                new SKColor (brush.HighlightColor.Red, brush.HighlightColor.Green, brush.HighlightColor.Blue, 0)
-                    },
-                    new[] { 0f, 1f },
-                    SKShaderTileMode.Clamp);
+                SKColor highlightColor = SkiaBrushFactory.ApplyOpacity(brush.HighlightColor, brush.Opacity);
+                using var highlightShader = SkiaBrushFactory.ApplyTransform(
+                    SKShader.CreateLinearGradient (
+                        new SKPoint (bounds.Left, bounds.Top),
+                        new SKPoint (bounds.Left, bounds.Top + highlightHeight),
+                        new[] {
+                            highlightColor,
+                            new SKColor (highlightColor.Red, highlightColor.Green, highlightColor.Blue, 0)
+                        },
+                        new[] { 0f, 1f },
+                        SKShaderTileMode.Clamp),
+                    brush.Transform);
 
                 using var highlightPaint = new SKPaint {
                     Shader = highlightShader,
@@ -252,7 +159,7 @@ namespace ModernFormsNext
 
             // Outer border
             using (var borderPaint = new SKPaint {
-                Color = brush.BorderColor,
+                Color = SkiaBrushFactory.ApplyOpacity(brush.BorderColor, brush.Opacity),
                 IsStroke = true,
                 StrokeWidth = 1f,
                 IsAntialias = true,
@@ -269,7 +176,7 @@ namespace ModernFormsNext
             // Optional inner border for a more glass-like edge
             if (brush.ShowInnerBorder) {
                 using var innerBorderPaint = new SKPaint {
-                    Color = new SKColor (255, 255, 255, 20),
+                    Color = SkiaBrushFactory.ApplyOpacity(new SKColor (255, 255, 255, 20), brush.Opacity),
                     IsStroke = true,
                     StrokeWidth = 1f,
                     IsAntialias = true,
@@ -298,21 +205,28 @@ namespace ModernFormsNext
                 return;
             }
 
+            if (brush is NoBrush || brush.Opacity <= 0f)
+                return;
+
             switch (brush) {
                 case SolidColorBrush solid:
-                    using (var paint = new SKPaint { Color = solid.Color, IsAntialias = true, BlendMode = blendMode })
+                    using (var paint = new SKPaint {
+                        Color = SkiaBrushFactory.ApplyOpacity(solid.Color, solid.Opacity),
+                        IsAntialias = true,
+                        BlendMode = blendMode
+                    })
                         canvas.DrawRect (bounds, paint);
                     break;
 
                 case LinearGradientBrush linear:
-                    RenderLinearGradient (canvas, bounds, linear, blendMode);
+                    RenderGradient (canvas, bounds, linear, blendMode);
                     break;
 
                 case RadialGradientBrush radial:
-                    RenderRadialGradient (canvas, bounds, radial, blendMode);
+                    RenderGradient (canvas, bounds, radial, blendMode);
                     break;
                 case SweepGradientBrush sweep:
-                    RenderSweepGradient (canvas, bounds, sweep, blendMode);
+                    RenderGradient (canvas, bounds, sweep, blendMode);
                     break;
 
                 case GlassBrush glass:
