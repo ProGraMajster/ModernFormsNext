@@ -229,25 +229,19 @@ namespace ModernFormsNext
         /// <code>
         /// var brush = new ModernFormsNext.Drawing.LinearGradientBrush
         /// {
-        ///     StartPoint = new SKPoint(0, 0),
-        ///     EndPoint = new SKPoint(1, 1)
+        ///     Start = new System.Drawing.PointF(0, 0),
+        ///     End = new System.Drawing.PointF(1, 1)
         /// };
         ///
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.White, 0));
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor, 1));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.White, 0));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.CornflowerBlue, 1));
         ///
         /// label.BackgroundBrush = brush;
         /// </code>
         /// </example>
         public ModernFormsNext.Drawing.Brush? BackgroundBrush {
             get => backgroundBrush;
-            set {
-                if (backgroundBrush == value)
-                    return;
-
-                backgroundBrush = value;
-                Invalidate ();
-            }
+            set => SetBrushField(ref backgroundBrush, value);
         }
 
         /// <summary>
@@ -321,25 +315,19 @@ namespace ModernFormsNext
         /// <code>
         /// var brush = new ModernFormsNext.Drawing.LinearGradientBrush
         /// {
-        ///     StartPoint = new SKPoint(0, 0),
-        ///     EndPoint = new SKPoint(1, 0)
+        ///     Start = new System.Drawing.PointF(0, 0),
+        ///     End = new System.Drawing.PointF(1, 0)
         /// };
         ///
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor, 0));
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor2, 1));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.RoyalBlue, 0));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.MediumPurple, 1));
         ///
         /// label.TextBrush = brush;
         /// </code>
         /// </example>
         public ModernFormsNext.Drawing.Brush? TextBrush {
             get => textBrush;
-            set {
-                if (textBrush == value)
-                    return;
-
-                textBrush = value;
-                Invalidate ();
-            }
+            set => SetBrushField(ref textBrush, value);
         }
 
         /// <summary>
@@ -2384,6 +2372,7 @@ namespace ModernFormsNext
         {
             if (!disposedValue) {
                 DisposeResourceReferences ();
+                DisposeBrushInvalidationSubscriptions ();
                 FreeBackBuffer ();
 
                 foreach (var c in Controls.GetAllControls (true))

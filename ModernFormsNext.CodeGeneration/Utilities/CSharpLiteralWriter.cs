@@ -89,6 +89,17 @@ public static class CSharpLiteralWriter
         if (IsType(typeName, "System.Drawing.Point"))
             return $"new System.Drawing.Point({ReadInt(properties, "X")}, {ReadInt(properties, "Y")})";
 
+        if (IsType(typeName, "System.Drawing.PointF"))
+            return $"new System.Drawing.PointF({ReadFloat(properties, "X")}, {ReadFloat(properties, "Y")})";
+
+        if (IsType(typeName, "System.Numerics.Matrix3x2"))
+        {
+            return "new System.Numerics.Matrix3x2("
+                + $"{ReadFloat(properties, "M11", 1)}, {ReadFloat(properties, "M12")}, "
+                + $"{ReadFloat(properties, "M21")}, {ReadFloat(properties, "M22", 1)}, "
+                + $"{ReadFloat(properties, "M31")}, {ReadFloat(properties, "M32")})";
+        }
+
         if (IsType(typeName, "System.Drawing.Rectangle"))
         {
             return $"new System.Drawing.Rectangle({ReadInt(properties, "X")}, {ReadInt(properties, "Y")}, {ReadInt(properties, "Width")}, {ReadInt(properties, "Height")})";
@@ -132,7 +143,7 @@ public static class CSharpLiteralWriter
             var color = properties.TryGetValue("Color", out var colorValue)
                 ? WriteValue(colorValue)
                 : "new SkiaSharp.SKColor(255, 255, 255, 255)";
-            return $"new ModernFormsNext.Drawing.SolidColorBrush({color})";
+            return $"new ModernFormsNext.Drawing.SolidColorBrush({color}) {{ {WriteBrushProperties(properties)} }}";
         }
 
         if (IsType(typeName, "ModernFormsNext.Drawing.GlassBrush"))
@@ -144,7 +155,8 @@ public static class CSharpLiteralWriter
                 + $"HighlightColor = {ReadValue(properties, "HighlightColor", "new SkiaSharp.SKColor(255, 255, 255, 38)")}, "
                 + $"BorderColor = {ReadValue(properties, "BorderColor", "new SkiaSharp.SKColor(255, 255, 255, 65)")}, "
                 + $"ShowHighlight = {ReadBoolLiteral(properties, "ShowHighlight", fallback: true)}, "
-                + $"ShowInnerBorder = {ReadBoolLiteral(properties, "ShowInnerBorder", fallback: true)}"
+                + $"ShowInnerBorder = {ReadBoolLiteral(properties, "ShowInnerBorder", fallback: true)}, "
+                + WriteBrushProperties(properties)
                 + " }";
         }
 
@@ -154,6 +166,7 @@ public static class CSharpLiteralWriter
                 + " { "
                 + $"StartPoint = {ReadValue(properties, "StartPoint", "new SkiaSharp.SKPoint(0f, 0f)")}, "
                 + $"EndPoint = {ReadValue(properties, "EndPoint", "new SkiaSharp.SKPoint(1f, 1f)")}"
+                + WriteGradientBrushProperties(properties)
                 + WriteGradientStopsInitializer(properties)
                 + " }";
         }
@@ -164,6 +177,8 @@ public static class CSharpLiteralWriter
                 + " { "
                 + $"Center = {ReadValue(properties, "Center", "new SkiaSharp.SKPoint(0.5f, 0.5f)")}, "
                 + $"Radius = {ReadFloat(properties, "Radius", 0.5)}"
+                + WriteOptionalProperty(properties, "GradientOrigin")
+                + WriteGradientBrushProperties(properties)
                 + WriteGradientStopsInitializer(properties)
                 + " }";
         }
@@ -175,6 +190,7 @@ public static class CSharpLiteralWriter
                 + $"Center = {ReadValue(properties, "Center", "new SkiaSharp.SKPoint(0.5f, 0.5f)")}, "
                 + $"StartAngle = {ReadFloat(properties, "StartAngle")}, "
                 + $"EndAngle = {ReadFloat(properties, "EndAngle", 360)}"
+                + WriteGradientBrushProperties(properties)
                 + WriteGradientStopsInitializer(properties)
                 + " }";
         }
@@ -200,7 +216,7 @@ public static class CSharpLiteralWriter
             : fallback;
 
     private static string ReadFloat(IReadOnlyDictionary<string, DesignPropertyValue> properties, string name, double fallback = 0)
-        => ReadDouble(properties, name, fallback).ToString("R", CultureInfo.InvariantCulture) + "f";
+        => ((float)ReadDouble(properties, name, fallback)).ToString("R", CultureInfo.InvariantCulture) + "f";
 
     private static string ReadString(IReadOnlyDictionary<string, DesignPropertyValue> properties, string name, string fallback = "")
         => properties.TryGetValue(name, out var value) && value is not null
@@ -222,6 +238,21 @@ public static class CSharpLiteralWriter
         => properties.TryGetValue(name, out var value) && value is not null
             ? WriteValue(value)
             : fallback ? "true" : "false";
+
+    private static string WriteBrushProperties(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+        => $"Opacity = {ReadFloat(properties, "Opacity", 1)}, "
+            + $"Transform = {ReadValue(properties, "Transform", "System.Numerics.Matrix3x2.Identity")}";
+
+    private static string WriteGradientBrushProperties(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+        => $", {WriteBrushProperties(properties)}, SpreadMode = "
+            + ReadValue(properties, "SpreadMode", "ModernFormsNext.Drawing.GradientSpreadMode.Pad");
+
+    private static string WriteOptionalProperty(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name)
+        => properties.TryGetValue(name, out DesignPropertyValue? value) && value is not null
+            ? $", {name} = {WriteValue(value)}"
+            : string.Empty;
 
     private static string WriteGradientStopsInitializer(IReadOnlyDictionary<string, DesignPropertyValue> properties)
     {

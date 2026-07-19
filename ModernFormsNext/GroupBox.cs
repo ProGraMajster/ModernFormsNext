@@ -159,12 +159,12 @@ namespace ModernFormsNext
         /// <code>
         /// var brush = new ModernFormsNext.Drawing.LinearGradientBrush
         /// {
-        ///     StartPoint = new SKPoint(0, 0),
-        ///     EndPoint = new SKPoint(1, 0)
+        ///     Start = new System.Drawing.PointF(0, 0),
+        ///     End = new System.Drawing.PointF(1, 0)
         /// };
         ///
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor, 0));
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor2, 1));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.RoyalBlue, 0));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.MediumPurple, 1));
         ///
         /// groupBox.CaptionBackgroundBrush = brush;
         /// </code>
@@ -172,14 +172,7 @@ namespace ModernFormsNext
         public ModernFormsNext.Drawing.Brush? CaptionBackgroundBrush
         {
             get => captionBackgroundBrush;
-            set
-            {
-                if (captionBackgroundBrush == value)
-                    return;
-
-                captionBackgroundBrush = value;
-                Invalidate();
-            }
+            set => SetBrushField(ref captionBackgroundBrush, value);
         }
 
         /// <summary>
@@ -356,12 +349,12 @@ namespace ModernFormsNext
         /// <code>
         /// var brush = new ModernFormsNext.Drawing.LinearGradientBrush
         /// {
-        ///     StartPoint = new SKPoint(0, 0),
-        ///     EndPoint = new SKPoint(1, 1)
+        ///     Start = new System.Drawing.PointF(0, 0),
+        ///     End = new System.Drawing.PointF(1, 1)
         /// };
         ///
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.White, 0));
-        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(Theme.AccentColor, 1));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.White, 0));
+        /// brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.CornflowerBlue, 1));
         ///
         /// groupBox.ContentBackgroundBrush = brush;
         /// </code>
@@ -369,14 +362,7 @@ namespace ModernFormsNext
         public ModernFormsNext.Drawing.Brush? ContentBackgroundBrush
         {
             get => contentBackgroundBrush;
-            set
-            {
-                if (contentBackgroundBrush == value)
-                    return;
-
-                contentBackgroundBrush = value;
-                Invalidate();
-            }
+            set => SetBrushField(ref contentBackgroundBrush, value);
         }
 
         /// <summary>

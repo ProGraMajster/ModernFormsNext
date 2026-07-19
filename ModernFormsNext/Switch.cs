@@ -359,7 +359,7 @@ namespace ModernFormsNext
         public MfnBrush? OffTrackBrush
         {
             get => offTrackBrush;
-            set => SetInvalidatingField(ref offTrackBrush, value);
+            set => SetBrushField(ref offTrackBrush, value);
         }
 
         /// <summary>
@@ -368,7 +368,7 @@ namespace ModernFormsNext
         public MfnBrush? NegativeTrackBrush
         {
             get => negativeTrackBrush;
-            set => SetInvalidatingField(ref negativeTrackBrush, value);
+            set => SetBrushField(ref negativeTrackBrush, value);
         }
 
         /// <summary>
@@ -377,7 +377,7 @@ namespace ModernFormsNext
         public MfnBrush? OnTrackBrush
         {
             get => onTrackBrush;
-            set => SetInvalidatingField(ref onTrackBrush, value);
+            set => SetBrushField(ref onTrackBrush, value);
         }
 
         /// <summary>
@@ -477,12 +477,12 @@ namespace ModernFormsNext
         /// <code>
         /// var thumbGradient = new ModernFormsNext.Drawing.LinearGradientBrush
         /// {
-        ///     StartPoint = new SKPoint(0, 0),
-        ///     EndPoint = new SKPoint(1, 1)
+        ///     Start = new System.Drawing.PointF(0, 0),
+        ///     End = new System.Drawing.PointF(1, 1)
         /// };
         ///
-        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.White, 0f));
-        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(SKColors.SteelBlue, 1f));
+        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.White, 0f));
+        /// thumbGradient.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(System.Drawing.Color.SteelBlue, 1f));
         ///
         /// var control = new Switch
         /// {
@@ -493,7 +493,7 @@ namespace ModernFormsNext
         public MfnBrush? ThumbBrush
         {
             get => thumbBrush;
-            set => SetInvalidatingField(ref thumbBrush, value);
+            set => SetBrushField(ref thumbBrush, value);
         }
 
         /// <summary>
@@ -502,7 +502,7 @@ namespace ModernFormsNext
         public MfnBrush? OffThumbBrush
         {
             get => offThumbBrush;
-            set => SetInvalidatingField(ref offThumbBrush, value);
+            set => SetBrushField(ref offThumbBrush, value);
         }
 
         /// <summary>
@@ -511,7 +511,7 @@ namespace ModernFormsNext
         public MfnBrush? NegativeThumbBrush
         {
             get => negativeThumbBrush;
-            set => SetInvalidatingField(ref negativeThumbBrush, value);
+            set => SetBrushField(ref negativeThumbBrush, value);
         }
 
         /// <summary>
@@ -520,7 +520,7 @@ namespace ModernFormsNext
         public MfnBrush? OnThumbBrush
         {
             get => onThumbBrush;
-            set => SetInvalidatingField(ref onThumbBrush, value);
+            set => SetBrushField(ref onThumbBrush, value);
         }
 
         /// <summary>

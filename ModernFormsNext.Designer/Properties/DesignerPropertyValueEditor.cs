@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using ModernFormsNext.Designing;
 using SkiaSharp;
 
@@ -26,6 +27,7 @@ internal static class DesignerPropertyValueEditor
             DesignPoint point => $"{point.X}, {point.Y}",
             System.Drawing.Size size => $"{size.Width}, {size.Height}",
             System.Drawing.Point point => $"{point.X}, {point.Y}",
+            System.Drawing.PointF point => $"{point.X.ToString("R", CultureInfo.InvariantCulture)}, {point.Y.ToString("R", CultureInfo.InvariantCulture)}",
             System.Drawing.Rectangle rectangle => $"{rectangle.X}, {rectangle.Y}, {rectangle.Width}, {rectangle.Height}",
             SKPoint point => $"{point.X.ToString("R", CultureInfo.InvariantCulture)}, {point.Y.ToString("R", CultureInfo.InvariantCulture)}",
             SKSize size => $"{size.Width.ToString("R", CultureInfo.InvariantCulture)}, {size.Height.ToString("R", CultureInfo.InvariantCulture)}",
@@ -219,6 +221,24 @@ internal static class DesignerPropertyValueEditor
                 ["Y"] = DesignPropertyValue.FromInt32(point.Y)
             });
 
+        if (value is System.Drawing.PointF pointF)
+            return DesignPropertyValue.FromStructuredObject(typeof(System.Drawing.PointF).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+            {
+                ["X"] = DesignPropertyValue.FromDouble(pointF.X),
+                ["Y"] = DesignPropertyValue.FromDouble(pointF.Y)
+            });
+
+        if (value is Matrix3x2 matrix)
+            return DesignPropertyValue.FromStructuredObject(typeof(Matrix3x2).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+            {
+                ["M11"] = DesignPropertyValue.FromDouble(matrix.M11),
+                ["M12"] = DesignPropertyValue.FromDouble(matrix.M12),
+                ["M21"] = DesignPropertyValue.FromDouble(matrix.M21),
+                ["M22"] = DesignPropertyValue.FromDouble(matrix.M22),
+                ["M31"] = DesignPropertyValue.FromDouble(matrix.M31),
+                ["M32"] = DesignPropertyValue.FromDouble(matrix.M32)
+            });
+
         if (value is DesignPoint designPoint)
             return DesignPropertyValue.FromStructuredObject(typeof(DesignPoint).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
             {
@@ -281,10 +301,12 @@ internal static class DesignerPropertyValueEditor
 
         if (value is ModernFormsNext.Drawing.SolidColorBrush solidBrush)
         {
-            return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.SolidColorBrush).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+            var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
             {
                 ["Color"] = ToColorPropertyValue(solidBrush.Color)
-            });
+            };
+            AddBrushProperties(properties, solidBrush);
+            return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.SolidColorBrush).FullName!, properties);
         }
 
         if (value is ModernFormsNext.Drawing.GlassBrush glassBrush)
@@ -349,7 +371,8 @@ internal static class DesignerPropertyValueEditor
         });
 
     private static DesignPropertyValue ToGlassBrushPropertyValue(ModernFormsNext.Drawing.GlassBrush brush)
-        => DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.GlassBrush).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
         {
             ["TintColor"] = ToColorPropertyValue(brush.TintColor),
             ["SecondaryTintColor"] = ToColorPropertyValue(brush.SecondaryTintColor),
@@ -357,7 +380,10 @@ internal static class DesignerPropertyValueEditor
             ["BorderColor"] = ToColorPropertyValue(brush.BorderColor),
             ["ShowHighlight"] = DesignPropertyValue.FromBoolean(brush.ShowHighlight),
             ["ShowInnerBorder"] = DesignPropertyValue.FromBoolean(brush.ShowInnerBorder)
-        });
+        };
+        AddBrushProperties(properties, brush);
+        return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.GlassBrush).FullName!, properties);
+    }
 
     private static DesignPropertyValue ToLinearGradientBrushPropertyValue(ModernFormsNext.Drawing.LinearGradientBrush brush)
     {
@@ -367,7 +393,7 @@ internal static class DesignerPropertyValueEditor
             ["EndPoint"] = ToDesignPropertyValue(brush.EndPoint, typeof(SKPoint))
         };
 
-        AddGradientStops(properties, brush);
+        AddGradientProperties(properties, brush);
         return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.LinearGradientBrush).FullName!, properties);
     }
 
@@ -376,10 +402,11 @@ internal static class DesignerPropertyValueEditor
         var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
         {
             ["Center"] = ToDesignPropertyValue(brush.Center, typeof(SKPoint)),
+            ["GradientOrigin"] = ToDesignPropertyValue(brush.GradientOrigin, typeof(System.Drawing.PointF)),
             ["Radius"] = DesignPropertyValue.FromDouble(brush.Radius)
         };
 
-        AddGradientStops(properties, brush);
+        AddGradientProperties(properties, brush);
         return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.RadialGradientBrush).FullName!, properties);
     }
 
@@ -392,8 +419,27 @@ internal static class DesignerPropertyValueEditor
             ["EndAngle"] = DesignPropertyValue.FromDouble(brush.EndAngle)
         };
 
-        AddGradientStops(properties, brush);
+        AddGradientProperties(properties, brush);
         return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.SweepGradientBrush).FullName!, properties);
+    }
+
+    private static void AddBrushProperties(
+        SortedDictionary<string, DesignPropertyValue> properties,
+        ModernFormsNext.Drawing.Brush brush)
+    {
+        properties["Opacity"] = DesignPropertyValue.FromDouble(brush.Opacity);
+        properties["Transform"] = ToDesignPropertyValue(brush.Transform, typeof(Matrix3x2));
+    }
+
+    private static void AddGradientProperties(
+        SortedDictionary<string, DesignPropertyValue> properties,
+        ModernFormsNext.Drawing.GradientBrush brush)
+    {
+        AddBrushProperties(properties, brush);
+        properties["SpreadMode"] = DesignPropertyValue.FromEnum(
+            typeof(ModernFormsNext.Drawing.GradientSpreadMode).FullName!,
+            brush.SpreadMode.ToString());
+        AddGradientStops(properties, brush);
     }
 
     private static void AddGradientStops(
@@ -431,6 +477,18 @@ internal static class DesignerPropertyValueEditor
         if (targetType == typeof(System.Drawing.Point))
             return new System.Drawing.Point(ReadInt(properties, "X"), ReadInt(properties, "Y"));
 
+        if (targetType == typeof(System.Drawing.PointF))
+            return new System.Drawing.PointF((float)ReadDouble(properties, "X"), (float)ReadDouble(properties, "Y"));
+
+        if (targetType == typeof(Matrix3x2))
+            return new Matrix3x2(
+                (float)ReadDouble(properties, "M11", 1),
+                (float)ReadDouble(properties, "M12"),
+                (float)ReadDouble(properties, "M21"),
+                (float)ReadDouble(properties, "M22", 1),
+                (float)ReadDouble(properties, "M31"),
+                (float)ReadDouble(properties, "M32"));
+
         if (targetType == typeof(DesignPoint))
             return new DesignPoint(ReadInt(properties, "X"), ReadInt(properties, "Y"));
 
@@ -462,12 +520,14 @@ internal static class DesignerPropertyValueEditor
                 ? FromDesignPropertyValue(colorValue, typeof(SKColor))
                 : new SKColor(255, 255, 255);
 
-            return new ModernFormsNext.Drawing.SolidColorBrush(color is SKColor skColor ? skColor : new SKColor(255, 255, 255));
+            var brush = new ModernFormsNext.Drawing.SolidColorBrush(color is SKColor skColor ? skColor : new SKColor(255, 255, 255));
+            ApplyBrushProperties(properties, brush);
+            return brush;
         }
 
         if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.GlassBrush)))
         {
-            return new ModernFormsNext.Drawing.GlassBrush
+            var brush = new ModernFormsNext.Drawing.GlassBrush
             {
                 TintColor = ReadColor(properties, "TintColor", new SKColor(255, 255, 255, 28)),
                 SecondaryTintColor = ReadColor(properties, "SecondaryTintColor", new SKColor(255, 255, 255, 12)),
@@ -476,6 +536,8 @@ internal static class DesignerPropertyValueEditor
                 ShowHighlight = ReadBool(properties, "ShowHighlight", fallback: true),
                 ShowInnerBorder = ReadBool(properties, "ShowInnerBorder", fallback: true)
             };
+            ApplyBrushProperties(properties, brush);
+            return brush;
         }
 
         if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.LinearGradientBrush)))
@@ -486,18 +548,23 @@ internal static class DesignerPropertyValueEditor
                 EndPoint = ReadSkPoint(properties, "EndPoint", new SKPoint(1f, 1f))
             };
 
+            ApplyGradientProperties(properties, brush);
             ReadGradientStops(properties, brush);
             return brush;
         }
 
         if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.RadialGradientBrush)))
         {
-            var brush = new ModernFormsNext.Drawing.RadialGradientBrush
+            var brush = new ModernFormsNext.Drawing.RadialGradientBrush();
+            brush.Center = ReadSkPoint(properties, "Center", new SKPoint(0.5f, 0.5f));
+            if (properties.TryGetValue("GradientOrigin", out DesignPropertyValue? originValue) &&
+                FromDesignPropertyValue(originValue, typeof(System.Drawing.PointF)) is System.Drawing.PointF origin)
             {
-                Center = ReadSkPoint(properties, "Center", new SKPoint(0.5f, 0.5f)),
-                Radius = (float)ReadDouble(properties, "Radius", 0.5)
-            };
+                brush.GradientOrigin = origin;
+            }
+            brush.Radius = (float)ReadDouble(properties, "Radius", 0.5);
 
+            ApplyGradientProperties(properties, brush);
             ReadGradientStops(properties, brush);
             return brush;
         }
@@ -511,6 +578,7 @@ internal static class DesignerPropertyValueEditor
                 EndAngle = (float)ReadDouble(properties, "EndAngle", 360)
             };
 
+            ApplyGradientProperties(properties, brush);
             ReadGradientStops(properties, brush);
             return brush;
         }
@@ -872,6 +940,30 @@ internal static class DesignerPropertyValueEditor
             var color = ReadColor(value.ObjectProperties, "Color", SKColors.Transparent);
             var offset = (float)ReadDouble(value.ObjectProperties, "Offset");
             brush.GradientStops.Add(new ModernFormsNext.Drawing.GradientStop(color, offset));
+        }
+    }
+
+    private static void ApplyBrushProperties(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        ModernFormsNext.Drawing.Brush brush)
+    {
+        brush.Opacity = (float)ReadDouble(properties, "Opacity", 1);
+        if (properties.TryGetValue("Transform", out DesignPropertyValue? transformValue) &&
+            FromDesignPropertyValue(transformValue, typeof(Matrix3x2)) is Matrix3x2 transform)
+        {
+            brush.Transform = transform;
+        }
+    }
+
+    private static void ApplyGradientProperties(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        ModernFormsNext.Drawing.GradientBrush brush)
+    {
+        ApplyBrushProperties(properties, brush);
+        if (properties.TryGetValue("SpreadMode", out DesignPropertyValue? spreadValue) &&
+            FromDesignPropertyValue(spreadValue, typeof(ModernFormsNext.Drawing.GradientSpreadMode)) is ModernFormsNext.Drawing.GradientSpreadMode spreadMode)
+        {
+            brush.SpreadMode = spreadMode;
         }
     }
 
