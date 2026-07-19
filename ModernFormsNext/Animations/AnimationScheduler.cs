@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.Animations;
 
@@ -69,13 +70,16 @@ public sealed partial class AnimationScheduler : IDisposable
         IAnimationClock clock,
         IAnimationDispatcher dispatcher,
         IAnimationTickSource tickSource,
-        AnimationPolicy policy)
+        AnimationPolicy policy,
+        IPlatformApplicationLifecycle? platformLifecycle = null)
     {
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         this.tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
         Policy = policy ?? throw new ArgumentNullException(nameof(policy));
         Policy.Changed += HandlePolicyChanged;
+        if (platformLifecycle is not null)
+            BindPlatformLifecycle(platformLifecycle);
     }
 
     /// <summary>

@@ -18,10 +18,22 @@ public sealed partial class AnimationScheduler
             lifecycle = PlatformServiceRegistry.GetService<IPlatformApplicationLifecycle>();
             if (lifecycle is null)
                 return;
+        }
+
+        BindPlatformLifecycle(lifecycle);
+    }
+
+    private void BindPlatformLifecycle(IPlatformApplicationLifecycle lifecycle)
+    {
+        lock (sync)
+        {
+            if (platformLifecycle is not null || isShutdown)
+                return;
+
+            lifecycle.StateChanged += HandlePlatformLifecycleChanged;
             platformLifecycle = lifecycle;
         }
 
-        lifecycle.StateChanged += HandlePlatformLifecycleChanged;
         ApplyPlatformLifecycleState(lifecycle.State);
     }
 

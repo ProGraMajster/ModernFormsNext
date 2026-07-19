@@ -83,6 +83,66 @@ public sealed class BrushAnimationTests
     }
 
     [Fact]
+    public void CancellationCausesNoFurtherBrushMutationOrRepaint()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var brush = new SolidColorBrush(Color.Red);
+        using var control = new InvalidationProbeControl { BackgroundBrush = brush };
+        using var surface = new SkiaControlSurface(control);
+        AnimationHandle handle = brush.AnimateTo(
+            new SolidColorBrush(Color.Blue),
+            TimeSpan.FromMilliseconds(100),
+            scheduler: harness.Scheduler);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(25));
+        Color canceledColor = brush.PaintColor;
+        control.ResetCounters();
+
+        handle.Cancel();
+        harness.AdvanceAndTick(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(canceledColor.ToArgb(), brush.PaintColor.ToArgb());
+        Assert.Equal(0, control.Invalidations);
+        Assert.Equal(AnimationState.Canceled, handle.State);
+    }
+
+    [Fact]
+    public void AnimatingBoundsUsesLayoutInvalidationWhileRenderTransformDoesNot()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        using var parent = new InvalidationProbeControl();
+        using var child = new Control { Width = 20, Height = 20 };
+        parent.Controls.Add(child);
+        using var surface = new SkiaControlSurface(parent);
+        parent.ResetCounters();
+
+        harness.Scheduler.Animate(
+            child,
+            "Width",
+            child.Width,
+            80,
+            AnimationInterpolators.Int32,
+            value => child.Width = value,
+            new AnimationOptions { Duration = TimeSpan.FromMilliseconds(100) });
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        Assert.True(parent.LayoutPasses > 0);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        int layoutPasses = parent.LayoutPasses;
+
+        harness.Scheduler.Animate(
+            child,
+            "TranslationX",
+            child.TranslationX,
+            40f,
+            AnimationInterpolators.Float,
+            value => child.TranslationX = value,
+            new AnimationOptions { Duration = TimeSpan.FromMilliseconds(100) });
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(25));
+
+        Assert.Equal(layoutPasses, parent.LayoutPasses);
+    }
+
+    [Fact]
     public void ReplacingDynamicResourceDetachesControlFromStillAnimatingOldBrush()
     {
         using var harness = new AnimationSchedulerTestHarness();

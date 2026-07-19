@@ -1,16 +1,19 @@
 using ModernFormsNext.Animations;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.Tests;
 
 internal sealed class AnimationSchedulerTestHarness : IDisposable
 {
-    public AnimationSchedulerTestHarness(IAnimationDispatcher? dispatcher = null)
+    public AnimationSchedulerTestHarness(
+        IAnimationDispatcher? dispatcher = null,
+        IPlatformApplicationLifecycle? lifecycle = null)
     {
         Clock = new ManualAnimationClock();
         Dispatcher = dispatcher ?? new ImmediateAnimationDispatcher();
         TickSource = new ManualAnimationTickSource();
         Policy = new AnimationPolicy();
-        Scheduler = new AnimationScheduler(Clock, Dispatcher, TickSource, Policy);
+        Scheduler = new AnimationScheduler(Clock, Dispatcher, TickSource, Policy, lifecycle);
     }
 
     public ManualAnimationClock Clock { get; }
@@ -30,6 +33,44 @@ internal sealed class AnimationSchedulerTestHarness : IDisposable
     }
 
     public void Dispose() => Scheduler.Dispose();
+}
+
+internal sealed class TestPlatformApplicationLifecycle : IPlatformApplicationLifecycle
+{
+    private EventHandler<PlatformApplicationLifecycleChangedEventArgs>? stateChanged;
+
+    public TestPlatformApplicationLifecycle(PlatformApplicationLifecycleState initialState)
+    {
+        State = initialState;
+    }
+
+    public PlatformApplicationLifecycleState State { get; private set; }
+
+    public int SubscriberCount { get; private set; }
+
+    public event EventHandler<PlatformApplicationLifecycleChangedEventArgs>? StateChanged
+    {
+        add
+        {
+            stateChanged += value;
+            SubscriberCount++;
+        }
+        remove
+        {
+            stateChanged -= value;
+            SubscriberCount--;
+        }
+    }
+
+    public void SetState(PlatformApplicationLifecycleState state)
+    {
+        PlatformApplicationLifecycleState previous = State;
+        if (previous == state)
+            return;
+
+        State = state;
+        stateChanged?.Invoke(this, new PlatformApplicationLifecycleChangedEventArgs(previous, state));
+    }
 }
 
 internal sealed class ManualAnimationClock : IAnimationClock

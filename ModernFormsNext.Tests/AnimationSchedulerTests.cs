@@ -1,4 +1,5 @@
 using ModernFormsNext.Animations;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 using Xunit;
 
 namespace ModernFormsNext.Tests;
@@ -79,6 +80,51 @@ public sealed class AnimationSchedulerTests
 
         Assert.Equal([0f, 0.5f, 1f], values);
         Assert.Equal(AnimationState.Completed, handle.State);
+    }
+
+    [Fact]
+    public async Task CancellationBeforeFirstUpdateAndDuringDelayNeverReportsCompletion()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        int updates = 0;
+        AnimationHandle beforeFirstUpdate = harness.Scheduler.Start(
+            new object(),
+            "BeforeFirstUpdate",
+            _ => updates++,
+            Options(100));
+        AnimationHandle duringDelay = harness.Scheduler.Start(
+            new object(),
+            "DuringDelay",
+            _ => updates++,
+            new AnimationOptions
+            {
+                Delay = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromMilliseconds(100)
+            });
+
+        beforeFirstUpdate.Cancel();
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        duringDelay.Cancel();
+        harness.AdvanceAndTick(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(0, updates);
+        Assert.Equal(AnimationState.Canceled, await beforeFirstUpdate.Completion);
+        Assert.Equal(AnimationState.Canceled, await duringDelay.Completion);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
+    public void CancelAfterCompletionDoesNotChangeTerminalStateOrCounters()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        AnimationHandle handle = harness.Scheduler.Start(new object(), "Completed", _ => { }, Options(100));
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        handle.Cancel();
+
+        Assert.Equal(AnimationState.Completed, handle.State);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().CompletedCount);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().CanceledCount);
     }
 
     [Fact]
@@ -214,6 +260,33 @@ public sealed class AnimationSchedulerTests
     }
 
     [Fact]
+    public void PlatformBackgroundLifecyclePausesTimeAndShutdownUnsubscribes()
+    {
+        var lifecycle = new TestPlatformApplicationLifecycle(PlatformApplicationLifecycleState.Foreground);
+        var harness = new AnimationSchedulerTestHarness(lifecycle: lifecycle);
+        var values = new List<float>();
+        AnimationHandle handle = harness.Scheduler.Start(new object(), "Lifecycle", values.Add, Options(100));
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(40));
+
+        lifecycle.SetState(PlatformApplicationLifecycleState.Background);
+        harness.Clock.Advance(TimeSpan.FromSeconds(20));
+
+        Assert.Equal(AnimationState.Paused, handle.State);
+        Assert.False(harness.TickSource.IsRunning);
+
+        lifecycle.SetState(PlatformApplicationLifecycleState.Foreground);
+        harness.TickSource.Fire();
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(60));
+
+        Assert.Equal([0.4f, 0.4f, 1f], values);
+        Assert.Equal(AnimationState.Completed, handle.State);
+        Assert.Equal(1, lifecycle.SubscriberCount);
+
+        harness.Dispose();
+        Assert.Equal(0, lifecycle.SubscriberCount);
+    }
+
+    [Fact]
     public void IndividualPauseFreezesOnlyThatHandle()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -321,6 +394,27 @@ public sealed class AnimationSchedulerTests
 
         Assert.Equal(AnimationState.Faulted, handle.State);
         Assert.IsType<InvalidOperationException>(handle.Exception);
+    }
+
+    [Fact]
+    public void ThrowingEasingIsCapturedOnTheFaultedHandle()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var expected = new ArithmeticException("Expected easing failure.");
+        AnimationHandle handle = harness.Scheduler.Start(
+            new object(),
+            "ThrowingEasing",
+            _ => { },
+            new AnimationOptions
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                Easing = _ => throw expected
+            });
+
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        Assert.Equal(AnimationState.Faulted, handle.State);
+        Assert.Same(expected, handle.Exception);
     }
 
     [Fact]
