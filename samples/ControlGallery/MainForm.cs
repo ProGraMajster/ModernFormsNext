@@ -20,6 +20,7 @@ namespace ControlGallery
             tree.Style.Border.Right.Width = 1;
 
             tree.Items.Add ("Button", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Animations", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("CheckBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("CheckedListBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ComboBox", ImageLoader.Get ("button.png"));
@@ -100,6 +101,8 @@ namespace ControlGallery
         private Panel? CreatePanel (string text)
         {
             switch (text) {
+                case "Animations":
+                    return new AnimationSchedulerPanel ();
                 case "Button":
                     return new ButtonPanel ();
                 case "CheckBox":
