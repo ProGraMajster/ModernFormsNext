@@ -11,7 +11,7 @@
 ModernFormsNext already has more reusable foundation than the feature list initially suggests. The
 main package contains a WinForms-like `Control` tree, mature dock/anchor/flow/table layout,
 `ControlStyle`, solid and gradient brushes, renderer classes, Skia invalidation/back buffers, input
-routing, a data-binding stack, basic animations, `NavigationPane`, `TabControl`, `DateTimePicker`, a
+routing, a shared UI animation scheduler, `NavigationPane`, `TabControl`, `DateTimePicker`, a
 document model, Markdown parser/editor, and a substantial `DocumentViewer`. Windows has the complete
 windowing backend. Android has lifecycle, dispatcher, permission infrastructure, and one real shared
 control tree rendered by `AndroidSkiaHostView`, but not general `Application.Run(Form)`, multi-window,
@@ -21,7 +21,7 @@ The architecture should therefore be extended, not replaced. The implementation 
 
 1. dynamic resources (first vertical slice implemented with this roadmap);
 2. paint/brush contracts (implemented foundation; theme tokens remain ThemeManager work);
-3. UI animation scheduler hardening;
+3. UI animation scheduler hardening (implemented foundation);
 4. ThemeManager and localization;
 5. page lifecycle, navigation, routing, tabs, flyout, and shell;
 6. virtualized data controls and SearchBar;
@@ -48,7 +48,7 @@ already exist.
 | Paints | Observable `Drawing.Brush`; solid, glass, no-fill, linear/radial/sweep gradients; typed stops; opacity/transform/spread; shared Skia adapter | Reuse for ThemeManager and future shapes/charts. Version and implement the documented JSON direction only with ThemeManager validation. |
 | Rendering | Per-control `SKBitmap` back buffers, renderer classes, `PaintEventArgs`, Skia canvas helpers | Shapes/charts/documents render through Skia and existing clipping/invalidation. Avoid native control substitution. |
 | Invalidation | Property setters call `Invalidate`, layout setters use layout transactions; windows invalidate platform surfaces | Dynamic values call normal setters and do not globally repaint. Add dirty-region precision later. |
-| Animation | `AnimationManager`, easing functions, opacity/translation/scale/rotation extensions | Reuse interpolation concepts, but move callbacks onto UI dispatcher before theme/shape transitions. |
+| Animation | Shared monotonic `AnimationScheduler`, handles, owner/key replacement, typed interpolators, Brush transitions, motion policy, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; keep layout invalidation explicit and add native reduced-motion discovery later. |
 | Input | Framework mouse/keyboard/text/IME pipeline, capture, hit testing, touch scrolling in `SkiaControlSurface` | Collection, SearchBar, pages, charts, and shapes share the same input path. |
 | Data binding | `IBindableComponent`, `Binding`, `BindingContext`, `BindingSource`, list managers and converters | Reuse for items sources and selected values; add collection-change/virtualization contracts instead of a parallel binding engine. |
 | Serialization | `System.Text.Json` in designer and binding conversion; stable design document serializer | Reuse conventions and converters, but keep theme/localization runtime schemas separate from designer files. |
@@ -67,8 +67,9 @@ already exist.
   resolution, brushes for every surface, typography records, shadow, radius, and transitions.
 - Brush mutation, opacity, transforms, stable stop ordering, spread modes, and targeted invalidation
   are implemented. A batch update scope, advanced interpolation, and a versioned JSON loader remain.
-- The animation loop can resume on a worker thread and invoke control setters there. It is not yet a
-  safe scheduler for theme transitions or arbitrary animated properties.
+- The shared scheduler now marshals callbacks to the UI dispatcher, uses elapsed monotonic time,
+  stops while idle, and pauses over Android background lifecycle. Native reduced-motion discovery
+  and physical-device Android frame-pacing validation remain future work.
 - No localization catalog/provider, plural rules, missing-key diagnostics, dynamic culture change,
   or verified end-to-end RTL layout behavior.
 - Lists and grids are retained collections; there is no shared item-container generator,
@@ -102,7 +103,7 @@ already exist.
 ```text
 Dynamic resources
   -> Paint/brush value contracts
-  -> UI animation scheduler hardening
+  -> Shared UI animation scheduler (implemented foundation)
   -> ThemeManager -> state styles -> every visual feature
   -> Localization -> pages and shell labels
 
@@ -216,6 +217,28 @@ subscriptions, Designer round-trip, and scoped shader disposal are covered. Cont
 manual visual checks. A versioned JSON converter, batch notifications, absolute mapping, and advanced
 color interpolation are explicitly deferred.
 
+#### UI animation scheduler — implemented foundation
+
+Purpose: provide one platform-neutral, monotonic UI scheduler for control, value, Brush, future
+theme, shape, and navigation transitions without a timer per animation.
+
+Implemented API: `AnimationScheduler`, `AnimationHandle`, `AnimationState`, `AnimationOptions`,
+owner/key replacement, `AnimationPolicy`, `AnimationSchedulerDiagnostics`, built-in easing, typed
+interpolators, explicit in-place Brush/GradientStop transitions, and the existing control helpers as
+compatibility adapters. Callbacks use the Windows or experimental Android UI dispatcher.
+
+Lifecycle and performance: the shared tick source runs only while work is active; Android
+background time is paused and excluded; control detach/dispose and application exit cancel owned
+work. Progress uses elapsed `Stopwatch` time, tick requests are coalesced, and the hot path reuses
+its active-entry buffer rather than allocating a LINQ snapshot each frame.
+
+Done/tests: deterministic manual clock/tick tests cover progress, delay, dropped frames, pause,
+replacement, cancellation, faults, policy modes, dispatcher affinity, high animation counts,
+interpolation, Brush/dynamic-resource invalidation, and owner lifetime without `Thread.Sleep`.
+ControlGallery provides opt-in manual checks and cancels all work on unload. Native display-link
+pacing, OS reduced-motion discovery, repeat/auto-reverse/groups, and a general animated-layout layer
+are explicitly deferred.
+
 #### 3. ThemeManager — difficulty: Very high
 
 Purpose: validated themes containing colors, brushes/gradients, typography, spacing, sizes, radii,
@@ -225,7 +248,7 @@ Proposed API: `ThemeDefinition`, `ThemeVariant`, `ThemeManager.Current`, `LoadJs
 `ThemeValidationResult`, typed `ThemeKeys`, window/control resource overrides, and optional
 `ThemeTransitionOptions`.
 
-Dependencies: items 1–2; a UI-dispatcher animation scheduler; backend system-theme service.
+Dependencies: items 1–2; the implemented UI animation scheduler; backend system-theme service.
 
 Risks/platform: compatibility with static `Theme`; atomic update/event order; JSON versioning;
 strong static event leaks; animation interruption; missing fonts; Android system theme/activity
@@ -590,8 +613,8 @@ when specialized render models are clearer.
 Exact semantic versions are intentionally not assigned until release capacity is known. Use these
 dependency-based bands:
 
-- Foundation work: dynamic resources and paint hardening are implemented; a non-animated
-  ThemeManager core remains after scheduler affinity is safe.
+- Foundation work: dynamic resources, paint hardening, and the shared UI animation scheduler are
+  implemented; ThemeManager JSON, validation, atomic application, and transitions remain.
 - Globalization release: JSON themes, system variants, localization and diagnostics.
 - Navigation preview: Page/ContentPage/NavigationPage/routing; Windows host plus Android surface host.
 - Shell preview: TabbedPage/FlyoutPage/AppShell after lifecycle/back tests are stable.
@@ -611,15 +634,15 @@ dependency-based bands:
   and explicit reset APIs before broad parallel execution.
 - Reflection-based CLR property references need a trimming/source-generation strategy before AOT is
   advertised.
-- Existing animation dispatch must be corrected before any public API promises UI-thread-safe
-  arbitrary or theme animation.
+- Native reduced-motion discovery and Android physical-device pacing remain open even though shared
+  animation callbacks now use the platform UI dispatcher.
 - Virtualization, document rendering, and charts compete for cache/memory budgets. Introduce shared
   diagnostics and bounded caches rather than independent unbounded stores.
 
 ## Recommended next stage
 
-**UI animation scheduler hardening.** Move frame callbacks and property mutation onto the UI
-dispatcher, define cancellation/interruption and exception behavior, and add deterministic tests
-before any public theme or shape transition API is promised. After that, implement the non-animated
-ThemeManager core on dynamic resources and the completed brush foundation. Full ThemeManager and
-Shape remain unimplemented.
+**ThemeManager with JSON serialization and animated theme transitions.** Build versioned,
+validated theme documents and atomic dynamic-resource application on the completed Brush and
+scheduler foundations. Transition replacement, rollback on invalid JSON, compatibility with the
+existing static `Theme`, and Windows-first system-theme mapping must be explicit. ThemeManager and
+Shape remain unimplemented until that work is delivered and tested.

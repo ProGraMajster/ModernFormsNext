@@ -8,9 +8,10 @@ Android. The scope is scheduling, time, cancellation, replacement, interpolation
 diagnostics. It deliberately excludes ThemeManager, Shape controls, navigation transitions, and a
 complete animated-layout system.
 
-## Current state
+## Pre-change state
 
-ModernFormsNext already has a small animation surface under `ModernFormsNext.Animations`:
+Before this stage, ModernFormsNext had a small animation surface under
+`ModernFormsNext.Animations`:
 
 - `ControlAnimationExtensions` exposes fade, translation, scale, and rotation helpers;
 - `ControlAnimationEffects` composes those helpers into shake, pulse, and hover effects;
@@ -156,13 +157,13 @@ cover `float`, `double`, `int`, `PointF`, `SizeF`, `RectangleF`, `Color` includi
 results use explicit midpoint rounding. Color channels interpolate independently in the current
 sRGB byte representation; linear-light interpolation is deferred.
 
-Brush animation uses the recently introduced observable model instead of returning a new brush on
-every tick. A compatible source brush is mutated in place from a captured snapshot to the target
-snapshot. Solid, linear, radial, and sweep brushes are supported. Gradient brushes require the same
-concrete type and stop count. Incompatible types or stop structures are rejected before scheduling.
-Discrete spread mode changes at completion. Because brush mutation is intentional, animating a
-brush stored in a dynamic resource updates every consumer; callers wanting local behavior must use
-a control-local brush instance.
+Brush animation uses the recently introduced observable model without allocating a new brush on
+every tick. The generic Brush interpolator clones the source once and mutates that animation-local
+working value, leaving shared source and target instances unchanged. An explicit `AnimateTo` helper
+instead mutates an existing Brush in place when shared-resource animation is intended. Solid,
+linear, radial, and sweep brushes are supported. Gradient brushes require the same concrete type
+and stop count. Incompatible types or stop structures are rejected before scheduling. Discrete
+spread mode changes at completion.
 
 ## Invalidation
 
@@ -177,11 +178,12 @@ invalidation remain separate concerns.
 
 ## Paint/Brush, resources, and future themes
 
-The owner of a brush animation is normally the brush itself. Its synchronous `Changed` event
-continues through the weak, reference-counted subscriptions introduced with dynamic resources.
-Replacing a resource while its previous brush is animating does not transfer the animation to the
-new object: consumers rebind to the replacement, and the old animation can be canceled by its
-handle or owner key. A future ThemeManager should retain and cancel handles for all transition
+The owner of an explicit in-place brush animation is the brush itself. Its synchronous `Changed`
+event continues through the weak, reference-counted subscriptions introduced with dynamic
+resources. A local transition normally uses its control as owner and assigns the cloned working
+brush. Replacing a resource while its previous brush is animating does not transfer the animation
+to the new object: consumers rebind to the replacement, and the old animation can be canceled by
+its handle or owner key. A future ThemeManager should retain and cancel handles for all transition
 participants when a newer theme replaces a transition.
 
 The JSON ThemeManager should serialize target theme values, not live scheduler state or native

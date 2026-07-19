@@ -197,6 +197,7 @@ declared as a publishable NuGet package.
 - [Designer architecture](docs/designer-architecture.md)
 - [Dynamic resources](docs/dynamic-resources.md)
 - [Paint and gradients](docs/paint-and-gradients.md)
+- [UI animations](docs/animations.md)
 - [Markdown viewing](docs/markdown.md) and [Markdown editing](docs/markdown-editor.md)
 - [Data binding](docs/data-binding.md)
 - [Styling](docs/styling.md)
