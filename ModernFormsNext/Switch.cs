@@ -921,7 +921,7 @@ namespace ModernFormsNext
             var effectiveDuration = GetEffectiveAnimationDuration();
 
             if (!animateChange || effectiveDuration == 0 || Math.Abs(visualPosition - target) < 0.0001f) {
-                AnimationManager.Cancel(this, VisualPositionAnimationKey);
+                AnimationScheduler.Default.Cancel(this, VisualPositionAnimationKey);
                 ClearVisualTransition();
                 SetVisualPosition(target);
                 return;
@@ -933,16 +933,18 @@ namespace ModernFormsNext
                 visualPosition,
                 target);
 
-            var animation = new Animation(
+            _ = AnimationScheduler.Default.Animate(
                 this,
                 VisualPositionAnimationKey,
                 visualPosition,
                 target,
-                effectiveDuration,
+                AnimationInterpolators.Float,
                 SetVisualPosition,
-                AnimationEasing ?? Easings.EaseOutCubic);
-
-            _ = AnimationManager.AddOrReplace(animation);
+                new AnimationOptions
+                {
+                    Duration = TimeSpan.FromMilliseconds(effectiveDuration),
+                    Easing = AnimationEasing ?? Easings.EaseOutCubic
+                });
         }
 
         private int GetEffectiveAnimationDuration()
@@ -1161,7 +1163,7 @@ namespace ModernFormsNext
 
             if (!dragging) {
                 dragging = true;
-                AnimationManager.Cancel(this, VisualPositionAnimationKey);
+                AnimationScheduler.Default.Cancel(this, VisualPositionAnimationKey);
                 ClearVisualTransition();
             }
 

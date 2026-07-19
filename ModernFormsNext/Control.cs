@@ -87,8 +87,12 @@ namespace ModernFormsNext
             var old_enabled = Enabled;
             var old_visible = Visible;
 
+            Control? previousParent = parent;
+
             // Update the parent
             parent = value;
+            if (previousParent is not null && value is null)
+                Animations.AnimationScheduler.CancelOwnedIfInitialized(this);
             RefreshResourceBindingsForSubtree ();
             OnParentChanged (EventArgs.Empty);
 
@@ -2371,6 +2375,7 @@ namespace ModernFormsNext
         protected override void Dispose (bool disposing)
         {
             if (!disposedValue) {
+                Animations.AnimationScheduler.CancelOwnedIfInitialized(this);
                 DisposeResourceReferences ();
                 DisposeBrushInvalidationSubscriptions ();
                 FreeBackBuffer ();
