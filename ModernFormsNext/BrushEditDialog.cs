@@ -69,10 +69,12 @@ namespace ModernFormsNext
         private readonly TextBox alphaText;
         private readonly BrushPreviewPanel preview;
         private readonly List<EditableGradientStop> stops = [];
+        private readonly MfnBrush? initialBrush;
         private bool updatingFields;
 
         public BrushEditDialogForm(MfnBrush? initialBrush)
         {
+            this.initialBrush = initialBrush;
             Text = "Brush Editor";
             Name = "BrushEditDialog";
             Size = new Size(560, 500);
@@ -492,14 +494,18 @@ namespace ModernFormsNext
             var primary = orderedStops.Length > 0 ? orderedStops[0].Color : SKColors.Transparent;
 
             if (brushType.SelectedIndex == 0)
-                return new SolidColorBrush(primary);
+                return CopyCommonProperties(initialBrush, new SolidColorBrush(primary));
 
             var brush = brushType.SelectedIndex switch
             {
-                2 => (GradientBrush)new RadialGradientBrush(),
-                3 => new SweepGradientBrush(),
-                _ => new LinearGradientBrush()
+                2 => (GradientBrush)CreateRadialGradientBrush(),
+                3 => CreateSweepGradientBrush(),
+                _ => CreateLinearGradientBrush()
             };
+
+            CopyCommonProperties(initialBrush, brush);
+            if (initialBrush is GradientBrush initialGradient)
+                brush.SpreadMode = initialGradient.SpreadMode;
 
             if (orderedStops.Length == 0)
                 brush.GradientStops.Add(new GradientStop(SKColors.Transparent, 0f));
@@ -510,6 +516,43 @@ namespace ModernFormsNext
             }
 
             return brush;
+        }
+
+        private LinearGradientBrush CreateLinearGradientBrush()
+            => initialBrush is LinearGradientBrush source
+                ? new LinearGradientBrush { Start = source.Start, End = source.End }
+                : new LinearGradientBrush();
+
+        private RadialGradientBrush CreateRadialGradientBrush()
+            => initialBrush is RadialGradientBrush source
+                ? new RadialGradientBrush
+                {
+                    CenterPoint = source.CenterPoint,
+                    GradientOrigin = source.GradientOrigin,
+                    Radius = source.Radius
+                }
+                : new RadialGradientBrush();
+
+        private SweepGradientBrush CreateSweepGradientBrush()
+            => initialBrush is SweepGradientBrush source
+                ? new SweepGradientBrush
+                {
+                    CenterPoint = source.CenterPoint,
+                    StartAngle = source.StartAngle,
+                    EndAngle = source.EndAngle
+                }
+                : new SweepGradientBrush();
+
+        private static TBrush CopyCommonProperties<TBrush>(MfnBrush? source, TBrush target)
+            where TBrush : MfnBrush
+        {
+            if (source is not null)
+            {
+                target.Opacity = source.Opacity;
+                target.Transform = source.Transform;
+            }
+
+            return target;
         }
 
         private static string ToHex(SKColor color)

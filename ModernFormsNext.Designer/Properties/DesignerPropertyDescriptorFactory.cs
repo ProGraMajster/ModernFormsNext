@@ -643,7 +643,13 @@ internal static class DesignerPropertyDescriptorFactory
                     if (color is null)
                         node.Properties[path] = DesignPropertyValue.FromNull();
                     else
-                        SetStoredValue(node, path, new ModernFormsNext.Drawing.SolidColorBrush(color.Value), valueType);
+                        SetStoredValue(
+                            node,
+                            path,
+                            CreateSolidBrushPreservingCommonProperties(
+                                GetStoredBrush(node, path, valueType, fallbackBrush),
+                                color.Value),
+                            valueType);
 
                     return (true, null);
                 },
@@ -1806,6 +1812,15 @@ internal static class DesignerPropertyDescriptorFactory
     private static SKColor? GetBrushColor(object? brush)
         => brush is ModernFormsNext.Drawing.SolidColorBrush solidBrush ? solidBrush.Color : null;
 
+    private static ModernFormsNext.Drawing.SolidColorBrush CreateSolidBrushPreservingCommonProperties(
+        ModernFormsNext.Drawing.Brush? source,
+        SKColor color)
+        => new(color)
+        {
+            Opacity = source?.Opacity ?? 1f,
+            Transform = source?.Transform ?? System.Numerics.Matrix3x2.Identity
+        };
+
     private static ModernFormsNext.Drawing.GlassBrush CloneGlassBrush(ModernFormsNext.Drawing.Brush? brush)
     {
         var source = brush as ModernFormsNext.Drawing.GlassBrush ?? new ModernFormsNext.Drawing.GlassBrush();
@@ -1816,7 +1831,9 @@ internal static class DesignerPropertyDescriptorFactory
             HighlightColor = source.HighlightColor,
             BorderColor = source.BorderColor,
             ShowHighlight = source.ShowHighlight,
-            ShowInnerBorder = source.ShowInnerBorder
+            ShowInnerBorder = source.ShowInnerBorder,
+            Opacity = source.Opacity,
+            Transform = source.Transform
         };
     }
 
@@ -1826,7 +1843,10 @@ internal static class DesignerPropertyDescriptorFactory
         var clone = new ModernFormsNext.Drawing.LinearGradientBrush
         {
             StartPoint = source.StartPoint,
-            EndPoint = source.EndPoint
+            EndPoint = source.EndPoint,
+            SpreadMode = source.SpreadMode,
+            Opacity = source.Opacity,
+            Transform = source.Transform
         };
 
         CopyGradientStops(source, clone);
@@ -1839,7 +1859,11 @@ internal static class DesignerPropertyDescriptorFactory
         var clone = new ModernFormsNext.Drawing.RadialGradientBrush
         {
             Center = source.Center,
-            Radius = source.Radius
+            GradientOrigin = source.GradientOrigin,
+            Radius = source.Radius,
+            SpreadMode = source.SpreadMode,
+            Opacity = source.Opacity,
+            Transform = source.Transform
         };
 
         CopyGradientStops(source, clone);
@@ -1853,7 +1877,10 @@ internal static class DesignerPropertyDescriptorFactory
         {
             Center = source.Center,
             StartAngle = source.StartAngle,
-            EndAngle = source.EndAngle
+            EndAngle = source.EndAngle,
+            SpreadMode = source.SpreadMode,
+            Opacity = source.Opacity,
+            Transform = source.Transform
         };
 
         CopyGradientStops(source, clone);
