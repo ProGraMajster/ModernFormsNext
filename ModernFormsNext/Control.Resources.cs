@@ -14,9 +14,10 @@ public partial class Control
     /// Gets the resources defined directly on this control.
     /// </summary>
     /// <remarks>
-    /// Resource lookup starts here, then walks parent controls, the owning window, and finally
-    /// <see cref="Application.Resources"/>. The dictionary is created lazily so controls that do
-    /// not define resources keep the normal lightweight storage profile.
+    /// Resource lookup starts here, then walks parent controls, the owning window,
+    /// <see cref="Application.Resources"/>, and finally manager-owned theme resources. The
+    /// dictionary is created lazily so controls that do not define resources keep the normal
+    /// lightweight storage profile.
     /// </remarks>
     public ResourceDictionary Resources
     {
@@ -139,8 +140,8 @@ public partial class Control
     }
 
     /// <summary>
-    /// Searches this control, its parent controls, its owning window, and application resources for
-    /// the specified key.
+    /// Searches this control, its parents, owning window, application resources, and theme-resource
+    /// fallback for the specified key.
     /// </summary>
     /// <param name="resourceKey">The non-null resource key to find.</param>
     /// <param name="value">Receives the nearest resource value when found.</param>
@@ -159,7 +160,10 @@ public partial class Control
         if (FindWindow()?.ResourcesInternal?.TryGetValue(resourceKey, out value) == true)
             return true;
 
-        return Application.Resources.TryGetValue(resourceKey, out value);
+        if (Application.Resources.TryGetValue(resourceKey, out value))
+            return true;
+
+        return Application.ThemeResourcesInternal.TryGetValue(resourceKey, out value);
     }
 
     /// <summary>
@@ -190,7 +194,8 @@ public partial class Control
         if (ReferenceEquals(FindWindow()?.ResourcesInternal, source))
             return true;
 
-        return ReferenceEquals(Application.Resources, source);
+        return ReferenceEquals(Application.Resources, source) ||
+            ReferenceEquals(Application.ThemeResourcesInternal, source);
     }
 
     internal void RefreshResourceBindingsForSubtree()

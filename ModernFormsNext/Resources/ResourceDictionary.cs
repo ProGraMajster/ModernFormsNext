@@ -269,6 +269,70 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
             return entries.TryGetValue(key, out value);
     }
 
+    /// <summary>
+    /// Replaces the complete dictionary state under one lock and returns deferred notifications.
+    /// ThemeManager uses the deferred form so its resource and legacy-theme state become visible
+    /// together before any dynamic property setter runs.
+    /// </summary>
+    internal ResourceDictionaryChange[] ReplaceSnapshot(IReadOnlyDictionary<object, object?> replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        var changes = new List<ResourceDictionaryChange>();
+
+        lock (syncRoot)
+        {
+            foreach ((object key, object? oldValue) in entries)
+            {
+                if (!replacement.ContainsKey(key))
+                    changes.Add(new ResourceDictionaryChange(key, oldValue, null, ResourceChangeKind.Removed));
+            }
+
+            foreach ((object key, object? newValue) in replacement)
+            {
+                if (entries.TryGetValue(key, out object? oldValue))
+                {
+                    if (!Equals(oldValue, newValue))
+                        changes.Add(new ResourceDictionaryChange(key, oldValue, newValue, ResourceChangeKind.Replaced));
+                }
+                else
+                {
+                    changes.Add(new ResourceDictionaryChange(key, null, newValue, ResourceChangeKind.Added));
+                }
+            }
+
+            entries.Clear();
+            foreach ((object key, object? value) in replacement)
+                entries.Add(key, value);
+        }
+
+        return changes.ToArray();
+    }
+
+    internal Dictionary<object, object?> GetSnapshot()
+    {
+        lock (syncRoot)
+            return new Dictionary<object, object?>(entries);
+    }
+
+    internal void PublishChanges(IEnumerable<ResourceDictionaryChange> changes)
+    {
+        List<Exception>? failures = null;
+        foreach (ResourceDictionaryChange change in changes)
+        {
+            try
+            {
+                RaiseResourceChanged(change.Key, change.OldValue, change.NewValue, change.Kind);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is { Count: > 0 })
+            throw new AggregateException("One or more resource observers rejected an atomic theme update.", failures);
+    }
+
     private void RaiseResourceChanged(
         object key,
         object? oldValue,
@@ -279,3 +343,9 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
         ResourceChanged?.Invoke(this, new ResourceChangedEventArgs(key, oldValue, newValue, changeKind));
     }
 }
+
+internal readonly record struct ResourceDictionaryChange(
+    object Key,
+    object? OldValue,
+    object? NewValue,
+    ResourceChangeKind Kind);

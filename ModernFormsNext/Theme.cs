@@ -20,7 +20,7 @@ namespace ModernFormsNext
 
         static Theme ()
         {
-            SetBuiltInTheme (BuiltInTheme.Default);
+            SetBuiltInThemeCore(BuiltInTheme.Default);
 
             values[nameof (UIFont)] = CreateTypefaceOrDefault("Segoe UI Emoji", SKFontStyleWeight.Normal, SKFontStyleSlant.Upright);
             values[nameof (UIFontBold)] = CreateTypefaceOrDefault("Segoe UI Emoji", SKFontStyleWeight.Bold, SKFontStyleSlant.Upright);
@@ -207,10 +207,17 @@ namespace ModernFormsNext
             set => SetValue (nameof (ForegroundDisabledColor), value);
         }
 
-        private static T GetValue<T> (string name) => (T)values[name];
+        private static T GetValue<T> (string name)
+        {
+            lock (_lock)
+                return (T)values[name];
+        }
 
         private static T GetValueOrDefault<T> (string name, T fallback)
-            => values.TryGetValue(name, out var value) && value is T typedValue ? typedValue : fallback;
+        {
+            lock (_lock)
+                return values.TryGetValue(name, out var value) && value is T typedValue ? typedValue : fallback;
+        }
 
         /// <summary>
         /// A smaller font size generally used for lists of items.
@@ -240,15 +247,41 @@ namespace ModernFormsNext
         /// <summary>
         /// Changes or resets the application theme to a set of built-in defaults.
         /// </summary>
-        /// <param name="theme"></param>
+        /// <param name="theme">The legacy built-in theme selection.</param>
+        /// <remarks>
+        /// The change is applied immediately through <see cref="ThemeManager"/>. The
+        /// <see cref="BuiltInTheme.Default"/> value resolves the current platform preference and
+        /// falls back to Light when the platform does not provide one.
+        /// </remarks>
         public static void SetBuiltInTheme (BuiltInTheme theme)
+        {
+            ThemeVariant variant = theme switch
+            {
+                BuiltInTheme.Dark => ThemeVariant.Dark,
+                BuiltInTheme.Light => ThemeVariant.Light,
+                BuiltInTheme.Default => ThemeManager.Current.ResolveSystemVariant(ThemeVariant.Light),
+                _ => throw new ArgumentOutOfRangeException(nameof(theme), theme, "The built-in theme is not defined.")
+            };
+            ThemeApplyResult result = ThemeManager.Current.Apply(
+                BuiltInThemes.Get(variant),
+                new ThemeApplyOptions
+                {
+                    Transition = new ThemeTransitionOptions { Enabled = false }
+                });
+            if (!result.Success)
+                throw new InvalidOperationException("The built-in theme could not be applied.", result.Exception);
+        }
+
+        private static void SetBuiltInThemeCore(BuiltInTheme theme)
         {
             // We always reset the colors, even if we were already using the current theme.
             // This resets any modification the user made, which feels like the expected behavior.
 
             BeginUpdate ();
 
-            // TODO: BuiltInTheme.Default should detect the OS setting. Currently it just uses Light.
+            // Static initialization runs before a platform provider necessarily exists, so the
+            // internal bootstrap uses the stable light baseline. Public SetBuiltInTheme(Default)
+            // resolves the current platform preference through ThemeManager.
             switch (theme) {
                 case BuiltInTheme.Dark:
                     values[nameof (BackgroundColor)] = SKColor.Parse ("#FF282828");
@@ -328,10 +361,29 @@ namespace ModernFormsNext
 
         private static void SetValue (string key, object value)
         {
-            values[key] = value;
+            lock (_lock)
+                values[key] = value;
 
             RaiseThemeChanged ();
         }
+
+        internal static Dictionary<string, object> GetValueSnapshot()
+        {
+            lock (_lock)
+                return new Dictionary<string, object>(values, StringComparer.Ordinal);
+        }
+
+        internal static void ReplaceValuesWithoutNotification(IReadOnlyDictionary<string, object> replacement)
+        {
+            lock (_lock)
+            {
+                values.Clear();
+                foreach ((string key, object value) in replacement)
+                    values[key] = value;
+            }
+        }
+
+        internal static void NotifyChanged() => InvokeThemeChanged();
 
         /// <summary>
         /// Raised when a theme color is changed. Controls listen

@@ -32,13 +32,17 @@ namespace ModernFormsNext
         private static FormCollection? open_forms;
         private static string? startup_path;
         private static readonly ResourceDictionary resources = new();
+        private static readonly ResourceDictionary themeResources = new();
+        private static readonly IReadOnlyDictionary<object, object?> themeResourcesView =
+            new System.Collections.ObjectModel.ReadOnlyDictionary<object, object?>(themeResources);
 
         /// <summary>
         /// Gets the resources available to every ModernFormsNext window and control in the application.
         /// </summary>
         /// <remarks>
-        /// Application resources are the final fallback after control, ancestor-control, and window
-        /// scopes. Update resources used by live controls on the UI/dispatcher thread.
+        /// Application resources are checked after control, ancestor-control, and window scopes,
+        /// and before manager-owned theme defaults. Update resources used by live controls on the
+        /// UI/dispatcher thread.
         /// </remarks>
         /// <example>
         /// <code>
@@ -46,6 +50,17 @@ namespace ModernFormsNext
         /// </code>
         /// </example>
         public static ResourceDictionary Resources => resources;
+
+        /// <summary>
+        /// Gets the resolved resources owned by <see cref="ThemeManager.Current"/>.
+        /// </summary>
+        /// <remarks>
+        /// Theme resources are the final fallback after <see cref="Resources"/>. Applications
+        /// should use the manager and its typed tokens instead of mutating this dictionary.
+        /// </remarks>
+        public static IReadOnlyDictionary<object, object?> ThemeResources => themeResourcesView;
+
+        internal static ResourceDictionary ThemeResourcesInternal => themeResources;
 
         /// <summary>
         /// Gets or sets the currently active top-level menu, if one is open.
