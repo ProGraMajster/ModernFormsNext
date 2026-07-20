@@ -94,6 +94,14 @@ Responsibilities:
 
 This keeps rendering separated from platform-specific code as much as possible.
 
+## Themes and resources
+
+`ThemeManager` resolves validated theme definitions into immutable snapshots and publishes cloned
+working values through the existing dynamic-resource lookup. Application/window/control overrides
+remain higher precedence than manager-owned defaults. Compatible transitions use the one shared UI
+animation scheduler; platform theme and reduced-motion discovery stay behind backend services. See
+[Themes](themes.md) and the [ThemeManager ADR](architecture/decisions/ADR-Theme-System.md).
+
 ---
 
 ## Event Flow

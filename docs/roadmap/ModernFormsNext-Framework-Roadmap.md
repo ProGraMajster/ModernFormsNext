@@ -239,26 +239,28 @@ ControlGallery provides opt-in manual checks and cancels all work on unload. Nat
 pacing, OS reduced-motion discovery, repeat/auto-reverse/groups, and a general animated-layout layer
 are explicitly deferred.
 
-#### 3. ThemeManager — difficulty: Very high
+#### 3. ThemeManager — implemented foundation
 
-Purpose: validated themes containing colors, brushes/gradients, typography, spacing, sizes, radii,
-borders, shadows, control/state styles, motion duration/easing, and platform variants.
+Purpose: validated themes containing colors, brushes/gradients, typography, spacing, padding,
+sizes, radii, borders, motion duration/easing, custom resources, and platform variants.
 
-Proposed API: `ThemeDefinition`, `ThemeVariant`, `ThemeManager.Current`, `LoadJson`, `Apply`,
-`ThemeValidationResult`, typed `ThemeKeys`, window/control resource overrides, and optional
-`ThemeTransitionOptions`.
+Implemented API: `ThemeDefinition`, `ThemeResolvedSnapshot`, `ThemeVariant`,
+`ThemeManager.Current`, `ThemeJsonSerializer`, `Apply`/`ApplyAsync`, `ThemeValidationResult`, typed
+`ThemeTokens`, dedicated theme-resource fallback, diagnostics, and `ThemeTransitionOptions`.
 
-Dependencies: items 1–2; the implemented UI animation scheduler; backend system-theme service.
+Dependencies: dynamic resources, Brush contracts, the shared UI animation scheduler, and a small
+optional backend system-theme service.
 
-Risks/platform: compatibility with static `Theme`; atomic update/event order; JSON versioning;
-strong static event leaks; animation interruption; missing fonts; Android system theme/activity
-recreation. Windows implements system change first; Android maps `uiMode` after host lifecycle is
-stable.
+Platform status: static `Theme` remains a compatibility projection. Windows reads system
+light/dark and reduced-motion settings on apply. Android remains experimental and uses an explicit
+System fallback; its existing lifecycle service pauses shared scheduler time. Live OS-theme change
+notifications and an Android theme provider remain future work.
 
-Done/tests: light/dark/system, inheritance/cycles, resource fallback, application/window/control
-overrides, JSON round trip and schema validation, hot-reload rollback on invalid file, runtime switch
-without rebuilding controls, optional transition cancellation, system change simulation, Windows
-manual DPI check and Android configuration-change check.
+Done/tests: light/dark/system/fallback, inheritance/cycles/depth/type validation, immutable Brush
+ownership, resource precedence and rollback, JSON round trip/allow-list/security limits, runtime
+switch without rebuilding controls, transition replacement/cancellation/motion policy/lifecycle,
+Designer isolation, and ControlGallery diagnostics. Hot reload, automatic system-change reapply,
+shadow tokens, and Android device/emulator validation remain explicit follow-up work.
 
 #### 4. Localization — difficulty: High
 
@@ -613,9 +615,10 @@ when specialized render models are clearer.
 Exact semantic versions are intentionally not assigned until release capacity is known. Use these
 dependency-based bands:
 
-- Foundation work: dynamic resources, paint hardening, and the shared UI animation scheduler are
-  implemented; ThemeManager JSON, validation, atomic application, and transitions remain.
-- Globalization release: JSON themes, system variants, localization and diagnostics.
+- Foundation work: dynamic resources, paint hardening, the shared UI animation scheduler, and the
+  ThemeManager/JSON/atomic-transition foundation are implemented.
+- Globalization release: localization, culture fallback, live resource updates, and diagnostics on
+  the completed theme foundation.
 - Navigation preview: Page/ContentPage/NavigationPage/routing; Windows host plus Android surface host.
 - Shell preview: TabbedPage/FlyoutPage/AppShell after lifecycle/back tests are stable.
 - Data controls preview: virtualization foundation, CollectionView, then carousel/refresh/search/time.
@@ -641,8 +644,7 @@ dependency-based bands:
 
 ## Recommended next stage
 
-**ThemeManager with JSON serialization and animated theme transitions.** Build versioned,
-validated theme documents and atomic dynamic-resource application on the completed Brush and
-scheduler foundations. Transition replacement, rollback on invalid JSON, compatibility with the
-existing static `Theme`, and Windows-first system-theme mapping must be explicit. ThemeManager and
-Shape remain unimplemented until that work is delivered and tested.
+**Localization on the completed resource/theme foundation.** Build JSON-first localization
+providers, culture fallback, formatting/plurals, live resource updates, safe diagnostics, and RTL
+metadata without duplicating the property or resource systems. Shape remains a separate later
+stage; theme shadows should wait for a shared rendering contract.
