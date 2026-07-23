@@ -29,7 +29,7 @@ namespace ModernFormsNext
                 maxLines,
                 ellipsis,
                 control.CurrentStyle.GetFontStyle (),
-                control.Enabled ? control.TextBrush : null);
+                control.Enabled ? control.EffectiveTextBrush : null);
 
         /// <summary>
         /// Draws a string of text.
@@ -111,6 +111,6 @@ namespace ModernFormsNext
                 maxLines: 1,
                 ellipsis: ellipsis,
                 fontStyle: control.CurrentStyle.GetFontStyle (),
-                brush: control.Enabled ? control.TextBrush : null);
+                brush: control.Enabled ? control.EffectiveTextBrush : null);
     }
 }
