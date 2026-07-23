@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ModernFormsNext.Animations
@@ -44,6 +45,107 @@ namespace ModernFormsNext.Animations
                 });
         }
 
+        /// <summary>Runs a typed control animation on the shared scheduler.</summary>
+        /// <typeparam name="T">The value type produced on each UI-dispatcher frame.</typeparam>
+        /// <param name="control">The target and owner of the animation.</param>
+        /// <param name="key">The owner-local replacement channel.</param>
+        /// <param name="from">The captured start value.</param>
+        /// <param name="to">The target value.</param>
+        /// <param name="interpolator">The typed value interpolator.</param>
+        /// <param name="options">Optional duration, delay, easing, and replacement settings.</param>
+        /// <param name="update">The UI-thread callback that applies the value.</param>
+        /// <param name="cancellationToken">A token that cancels only this scheduled handle.</param>
+        /// <returns>The terminal scheduler state.</returns>
+        public static async Task<AnimationState> AnimateAsync<T>(
+            this Control control,
+            string key,
+            T from,
+            T to,
+            IAnimationInterpolator<T> interpolator,
+            AnimationOptions? options,
+            Action<T> update,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            AnimationHandle handle = AnimationScheduler.Default.Animate(
+                control,
+                key,
+                from,
+                to,
+                interpolator,
+                update,
+                options);
+            using CancellationTokenRegistration registration =
+                cancellationToken.CanBeCanceled ? cancellationToken.Register(handle.Cancel) : default;
+            return await handle.Completion.ConfigureAwait(false);
+        }
+
+        /// <summary>Creates a reusable opacity animation bound to the control.</summary>
+        public static PropertyAnimation<float> FadeTo(
+            this Control control,
+            float opacity,
+            AnimationOptions? options = null)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            var definition = new PropertyAnimation<float>(
+                control,
+                "Opacity",
+                () => control.Opacity,
+                Math.Clamp(opacity, 0f, 1f),
+                AnimationInterpolators.Float,
+                value => control.Opacity = value);
+            ApplyOptions(definition, options);
+            return definition;
+        }
+
+        /// <summary>Creates a reusable translation animation bound to the control.</summary>
+        public static AnimationDefinition TranslateTo(
+            this Control control,
+            float x,
+            float y,
+            AnimationOptions? options = null)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            var xAnimation = CreateFloatProperty(
+                control, "TranslationX", () => control.TranslationX, x, value => control.TranslationX = value, options);
+            var yAnimation = CreateFloatProperty(
+                control, "TranslationY", () => control.TranslationY, y, value => control.TranslationY = value, options);
+            return Animation.Parallel(xAnimation, yAnimation);
+        }
+
+        /// <summary>Creates a reusable uniform scale animation bound to the control.</summary>
+        public static AnimationDefinition ScaleTo(
+            this Control control,
+            float scale,
+            AnimationOptions? options = null)
+            => ScaleTo(control, scale, scale, options);
+
+        /// <summary>Creates a reusable two-axis scale animation bound to the control.</summary>
+        public static AnimationDefinition ScaleTo(
+            this Control control,
+            float scaleX,
+            float scaleY,
+            AnimationOptions? options = null)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            var xAnimation = CreateFloatProperty(
+                control, "ScaleX", () => control.ScaleX, scaleX, value => control.ScaleX = value, options);
+            var yAnimation = CreateFloatProperty(
+                control, "ScaleY", () => control.ScaleY, scaleY, value => control.ScaleY = value, options);
+            return Animation.Parallel(xAnimation, yAnimation);
+        }
+
+        /// <summary>Creates a reusable rotation animation bound to the control.</summary>
+        public static PropertyAnimation<float> RotateTo(
+            this Control control,
+            float rotation,
+            AnimationOptions? options = null)
+        {
+            ArgumentNullException.ThrowIfNull(control);
+            return CreateFloatProperty(
+                control, "Rotation", () => control.Rotation, rotation, value => control.Rotation = value, options);
+        }
+
         /// <summary>
         /// Cancels all animations running on the control.
         /// </summary>
@@ -64,16 +166,7 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task FadeToAsync (this Control control, float opacity, int duration = 250, Func<float, float>? easing = null)
         {
-            opacity = Math.Clamp (opacity, 0f, 1f);
-
-            return AnimationScheduler.Default.Animate(
-                control,
-                "Opacity",
-                control.Opacity,
-                opacity,
-                AnimationInterpolators.Float,
-                value => control.Opacity = value,
-                CreateOptions(duration, easing)).Completion;
+            return control.FadeTo(opacity, CreateOptions(duration, easing)).RunAsync();
         }
 
         /// <summary>
@@ -87,25 +180,7 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task TranslateToAsync (this Control control, float x, float y, int duration = 250, Func<float, float>? easing = null)
         {
-            AnimationHandle xAnimation = AnimationScheduler.Default.Animate(
-                control,
-                "TranslationX",
-                control.TranslationX,
-                x,
-                AnimationInterpolators.Float,
-                value => control.TranslationX = value,
-                CreateOptions(duration, easing));
-
-            AnimationHandle yAnimation = AnimationScheduler.Default.Animate(
-                control,
-                "TranslationY",
-                control.TranslationY,
-                y,
-                AnimationInterpolators.Float,
-                value => control.TranslationY = value,
-                CreateOptions(duration, easing));
-
-            return Task.WhenAll(xAnimation.Completion, yAnimation.Completion);
+            return control.TranslateTo(x, y, CreateOptions(duration, easing)).RunAsync();
         }
 
         /// <summary>
@@ -132,25 +207,7 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task ScaleToAsync (this Control control, float scaleX, float scaleY, int duration = 250, Func<float, float>? easing = null)
         {
-            AnimationHandle xAnimation = AnimationScheduler.Default.Animate(
-                control,
-                "ScaleX",
-                control.ScaleX,
-                scaleX,
-                AnimationInterpolators.Float,
-                value => control.ScaleX = value,
-                CreateOptions(duration, easing));
-
-            AnimationHandle yAnimation = AnimationScheduler.Default.Animate(
-                control,
-                "ScaleY",
-                control.ScaleY,
-                scaleY,
-                AnimationInterpolators.Float,
-                value => control.ScaleY = value,
-                CreateOptions(duration, easing));
-
-            return Task.WhenAll(xAnimation.Completion, yAnimation.Completion);
+            return control.ScaleTo(scaleX, scaleY, CreateOptions(duration, easing)).RunAsync();
         }
 
         /// <summary>
@@ -163,14 +220,36 @@ namespace ModernFormsNext.Animations
         /// <returns>A task that completes when the animation finishes.</returns>
         public static Task RotateToAsync (this Control control, float rotation, int duration = 250, Func<float, float>? easing = null)
         {
-            return AnimationScheduler.Default.Animate(
+            return control.RotateTo(rotation, CreateOptions(duration, easing)).RunAsync();
+        }
+
+        private static PropertyAnimation<float> CreateFloatProperty(
+            Control control,
+            string key,
+            Func<float> from,
+            float to,
+            Action<float> update,
+            AnimationOptions? options)
+        {
+            var definition = new PropertyAnimation<float>(
                 control,
-                "Rotation",
-                control.Rotation,
-                rotation,
+                key,
+                from,
+                to,
                 AnimationInterpolators.Float,
-                value => control.Rotation = value,
-                CreateOptions(duration, easing)).Completion;
+                update);
+            ApplyOptions(definition, options);
+            return definition;
+        }
+
+        private static void ApplyOptions(AnimationDefinition definition, AnimationOptions? options)
+        {
+            if (options is null)
+                return;
+            definition.Duration = options.Duration;
+            definition.Delay = options.Delay;
+            definition.Easing = options.Easing;
+            definition.ReplacementMode = options.ReplacementMode;
         }
 
         private static AnimationOptions CreateOptions(int duration, Func<float, float>? easing)
