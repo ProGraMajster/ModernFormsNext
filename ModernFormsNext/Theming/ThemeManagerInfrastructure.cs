@@ -229,6 +229,9 @@ internal sealed class ThemeTransitionPlan
         ResourceDictionary resourceDictionary,
         IThemeLegacyStore legacyStore)
     {
+        using Application.ThemeTransitionFrameScope transitionFrame = Application.BeginThemeTransitionFrame();
+        using Application.VisualInvalidationBatchScope batch = Application.BeginVisualInvalidationBatch();
+
         foreach (BrushAnimationPlan brushPlan in brushPlans)
             brushPlan.Apply(progress);
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using ModernFormsNext.WindowKit;
 using ModernFormsNext.WindowKit.Threading;
@@ -35,6 +36,10 @@ namespace ModernFormsNext
         private static readonly ResourceDictionary themeResources = new();
         private static readonly IReadOnlyDictionary<object, object?> themeResourcesView =
             new System.Collections.ObjectModel.ReadOnlyDictionary<object, object?>(themeResources);
+        [ThreadStatic]
+        private static VisualInvalidationBatchState? visualInvalidationBatch;
+        [ThreadStatic]
+        private static int themeTransitionFrameDepth;
 
         /// <summary>
         /// Gets the resources available to every ModernFormsNext window and control in the application.
@@ -111,8 +116,114 @@ namespace ModernFormsNext
         /// </remarks>
         internal static void DoThemeChanged()
         {
+            var windows = new List<WindowBase>();
             foreach (Form form in OpenForms)
-                form.OnThemeChanged(EventArgs.Empty);
+                windows.Add(form);
+
+            if (ActivePopupWindow is { Visible: true } popup)
+                windows.Add(popup);
+
+            DoThemeChanged(windows);
+        }
+
+        internal static void DoThemeChanged(IEnumerable<WindowBase> windows)
+        {
+            ArgumentNullException.ThrowIfNull(windows);
+
+            // Theme defaults are already updated when this method runs. Refresh each complete
+            // visual tree before scheduling one repaint per window so normal and interaction
+            // states all resolve against the same committed theme snapshot.
+            using VisualInvalidationBatchScope batch = BeginVisualInvalidationBatch();
+            foreach (WindowBase window in windows)
+            {
+                if (themeTransitionFrameDepth > 0)
+                    window.RefreshThemeFrameVisuals();
+                else if (window is Form form)
+                    form.OnThemeChanged(EventArgs.Empty);
+                else
+                    window.RefreshThemeVisuals(EventArgs.Empty);
+            }
+        }
+
+        internal static ThemeTransitionFrameScope BeginThemeTransitionFrame()
+        {
+            themeTransitionFrameDepth++;
+            return new ThemeTransitionFrameScope();
+        }
+
+        internal static VisualInvalidationBatchScope BeginVisualInvalidationBatch()
+        {
+            VisualInvalidationBatchState state = visualInvalidationBatch ??= new VisualInvalidationBatchState();
+            state.Depth++;
+            return new VisualInvalidationBatchScope();
+        }
+
+        internal static void RequestVisualInvalidation(WindowBase window)
+        {
+            ArgumentNullException.ThrowIfNull(window);
+
+            if (visualInvalidationBatch is { Depth: > 0 } state)
+            {
+                state.Windows.Add(window);
+                return;
+            }
+
+            window.InvalidateCore();
+        }
+
+        internal static bool HasPendingVisualInvalidations
+            => visualInvalidationBatch is { Depth: > 0 } || visualInvalidationBatch?.Windows.Count > 0;
+
+        private static void EndVisualInvalidationBatch()
+        {
+            VisualInvalidationBatchState? state = visualInvalidationBatch;
+            if (state is null || state.Depth <= 0)
+                throw new InvalidOperationException("A visual invalidation batch was disposed on the wrong thread or out of order.");
+
+            state.Depth--;
+            if (state.Depth != 0)
+                return;
+
+            var windows = new List<WindowBase>(state.Windows);
+            state.Windows.Clear();
+
+            List<Exception>? failures = null;
+            foreach (WindowBase window in windows)
+            {
+                try
+                {
+                    window.InvalidateCore();
+                }
+                catch (Exception exception)
+                {
+                    (failures ??= []).Add(exception);
+                }
+            }
+
+            if (failures is { Count: > 0 })
+                throw new AggregateException("One or more windows rejected a batched visual invalidation.", failures);
+        }
+
+        internal readonly struct VisualInvalidationBatchScope : IDisposable
+        {
+            public void Dispose() => EndVisualInvalidationBatch();
+        }
+
+        internal readonly struct ThemeTransitionFrameScope : IDisposable
+        {
+            public void Dispose()
+            {
+                if (themeTransitionFrameDepth <= 0)
+                    throw new InvalidOperationException("A theme transition frame was disposed on the wrong thread or out of order.");
+
+                themeTransitionFrameDepth--;
+            }
+        }
+
+        private sealed class VisualInvalidationBatchState
+        {
+            public int Depth { get; set; }
+            public HashSet<WindowBase> Windows { get; } = [];
         }
 
         /// <summary>

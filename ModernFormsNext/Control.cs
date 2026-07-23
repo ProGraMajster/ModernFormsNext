@@ -1094,6 +1094,10 @@ namespace ModernFormsNext
         /// <summary>
         /// Marks the entire control as needing to be redrawn.
         /// </summary>
+        /// <remarks>
+        /// Theme commits can coalesce requests from many controls into one platform-window
+        /// invalidation while each control remains marked dirty.
+        /// </remarks>
         public void Invalidate () => Invalidate (Bounds);
 
         /// <summary>
@@ -1107,7 +1111,8 @@ namespace ModernFormsNext
 
             SetState (States.IsDirty, true);
 
-            FindWindow ()?.Invalidate (rectangle);
+            if (FindWindow () is { } window)
+                Application.RequestVisualInvalidation (window);
 
             OnInvalidated (new EventArgs<Rectangle> (rectangle));
         }
@@ -1623,9 +1628,50 @@ namespace ModernFormsNext
         /// <summary>
         /// Called when the theme changes.
         /// </summary>
+        /// <remarks>
+        /// The base implementation requests visual invalidation without changing layout or the
+        /// current hover, pressed, focus, enabled, or selection state. Derived controls should call
+        /// the base implementation and request layout only when theme-dependent measurements or
+        /// cached content require it. The framework invokes this method on the UI thread.
+        /// </remarks>
         protected internal virtual void OnThemeChanged (EventArgs e)
         {
-            SetState (States.IsDirty, true);
+            // CurrentStyle is resolved lazily from the control's existing interaction state.
+            // Repaint without changing hover, pressed, focus, enabled, or selection state.
+            InvalidateThemeVisual ();
+        }
+
+        internal void NotifyThemeChangedForSubtree (EventArgs e)
+        {
+            OnThemeChanged (e);
+
+            // Snapshot the collection because an override may update its visual children while
+            // responding to the theme change. Both explicit and framework-owned implicit controls
+            // must participate so nested content and window chrome refresh together.
+            if (Properties.GetObject (s_controlsCollectionProperty) is ControlCollection children)
+            {
+                foreach (Control child in children.GetAllControls ().ToArray ())
+                    child.NotifyThemeChangedForSubtree (e);
+            }
+        }
+
+        internal void InvalidateThemeVisualForSubtree ()
+        {
+            InvalidateThemeVisual ();
+
+            if (Properties.GetObject (s_controlsCollectionProperty) is ControlCollection children)
+            {
+                foreach (Control child in children.GetAllControls ().ToArray ())
+                    child.InvalidateThemeVisualForSubtree ();
+            }
+        }
+
+        private void InvalidateThemeVisual ()
+        {
+            if (Created)
+                Invalidate ();
+            else
+                SetState (States.IsDirty, true);
         }
 
         /// <summary>

@@ -171,6 +171,17 @@ Event order is:
 4. `ThemeChanged`, meaning the target was committed;
 5. `ThemeTransitionCompleted` when animation completes, is canceled, or faults.
 
+Before the repaint request is flushed, the legacy style projection refreshes every open form,
+the active popup, and each complete nested control tree on the UI thread. The current Normal,
+Hover, Pressed, Focused, Disabled, and control-specific interaction state is preserved; renderers
+resolve that state again against the committed style values. Dynamic-resource setters and control
+theme handlers can issue multiple visual invalidations, but ThemeManager coalesces them into one
+platform repaint request per affected window for each commit or animation tick. Generic theme
+refresh does not force layout; controls whose cached measurements depend on theme typography or
+metrics may request their existing targeted layout path from `OnThemeChanged`. Animation ticks
+bypass those layout/cache hooks and perform visual-only subtree invalidation because layout tokens
+have already committed before the transition starts.
+
 `ThemeApplyResult.Transition` exposes state, explicit cancellation, and a completion task. Explicit
 cancel snaps to the committed target. A rapid newer apply replaces the old transition from its
 current interpolated values. A stale handle cannot cancel the newer transition. `ReplacementMode`

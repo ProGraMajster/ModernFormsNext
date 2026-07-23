@@ -385,8 +385,11 @@ public sealed class ThemeManager
                 activeSnapshot = snapshot;
             }
 
-            resources.PublishChanges(resourceChanges);
-            legacyStore.NotifyChanged();
+            using (Application.BeginVisualInvalidationBatch())
+            {
+                resources.PublishChanges(resourceChanges);
+                legacyStore.NotifyChanged();
+            }
 
             if (plan is not null)
             {
@@ -447,8 +450,11 @@ public sealed class ThemeManager
                         currentTransition = null;
                     transitionState = ThemeTransitionStatus.Failed;
                 }
-                resources.PublishChanges(rollbackChanges);
-                legacyStore.NotifyChanged();
+                using (Application.BeginVisualInvalidationBatch())
+                {
+                    resources.PublishChanges(rollbackChanges);
+                    legacyStore.NotifyChanged();
+                }
             }
             catch (Exception exception)
             {
@@ -536,8 +542,17 @@ public sealed class ThemeManager
                 failedSwitches++;
         }
 
-        runtime.PublicHandle.Complete(status);
-        ThemeTransitionCompleted?.Invoke(this, new ThemeTransitionCompletedEventArgs(runtime.ThemeId, status));
+        try
+        {
+            // Complete the public task only after synchronous completion observers have run. Code
+            // awaiting the handle can then safely inspect event-driven state without racing the
+            // final callback on the UI dispatcher.
+            ThemeTransitionCompleted?.Invoke(this, new ThemeTransitionCompletedEventArgs(runtime.ThemeId, status));
+        }
+        finally
+        {
+            runtime.PublicHandle.Complete(status);
+        }
     }
 
     private ThemeApplyResult CancelResult(IReadOnlyList<ThemeDiagnostic> diagnostics, TimeSpan duration)

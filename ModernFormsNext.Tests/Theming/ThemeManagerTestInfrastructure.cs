@@ -11,20 +11,22 @@ internal sealed class ThemeManagerTestHarness : IDisposable
         bool designMode = false,
         IThemeDispatcher? dispatcher = null,
         IPlatformApplicationLifecycle? lifecycle = null,
-        ResourceDictionary? resources = null)
+        ResourceDictionary? resources = null,
+        IThemeLegacyStore? legacyStore = null)
     {
         SchedulerHarness = new AnimationSchedulerTestHarness(lifecycle: lifecycle);
         Dispatcher = dispatcher ?? new ImmediateThemeDispatcher();
         Environment = new TestThemeEnvironment(systemVariant, reducedMotion, designMode);
         Resources = resources ?? new ResourceDictionary();
         LegacyStore = new TestThemeLegacyStore();
+        AppliedLegacyStore = legacyStore ?? LegacyStore;
         Manager = new ThemeManager(
             SchedulerHarness.Scheduler,
             Dispatcher,
             Environment,
             new ThemeSecurityLimits(),
             Resources,
-            LegacyStore);
+            AppliedLegacyStore);
     }
 
     public AnimationSchedulerTestHarness SchedulerHarness { get; }
@@ -32,6 +34,7 @@ internal sealed class ThemeManagerTestHarness : IDisposable
     public TestThemeEnvironment Environment { get; }
     public ResourceDictionary Resources { get; }
     public TestThemeLegacyStore LegacyStore { get; }
+    public IThemeLegacyStore AppliedLegacyStore { get; }
     public ThemeManager Manager { get; }
 
     public void Dispose() => SchedulerHarness.Dispose();
