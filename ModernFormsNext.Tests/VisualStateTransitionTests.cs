@@ -163,6 +163,64 @@ public sealed class VisualStateTransitionTests
         Assert.False(harness.TickSource.IsRunning);
     }
 
+    [Fact]
+    public void StateStylesInheritBrushesAndTransformsTheyDoNotOverride()
+    {
+        var control = new TestButton();
+        var background = new SolidColorBrush(SKColors.Orange);
+        var foreground = new SolidColorBrush(SKColors.White);
+        var border = new SolidColorBrush(SKColors.Black);
+        control.Style.BackgroundBrush = background;
+        control.Style.ForegroundBrush = foreground;
+        control.Style.BorderBrush = border;
+        control.Style.Opacity = 0.8f;
+        control.Style.ScaleX = 1.1f;
+        control.Style.TranslationX = 4f;
+
+        control.FocusForTest();
+
+        Assert.Equal(VisualState.Focused, control.VisualState);
+        Assert.Same(background, control.EffectiveBackgroundBrush);
+        Assert.Same(foreground, control.EffectiveTextBrush);
+        Assert.Same(border, control.EffectiveBorderBrush);
+        Assert.Equal(0.8f, control.EffectiveOpacity, 3);
+        Assert.Equal(1.1f, control.EffectiveScaleX, 3);
+        Assert.Equal(4f, control.EffectiveTranslationX, 3);
+    }
+
+    [Fact]
+    public void ActiveStateBrushMutationInvalidatesWithoutAnotherPointerEvent()
+    {
+        using var control = new TestButton();
+        using var surface = new SkiaControlSurface(control);
+        var hoverBrush = new SolidColorBrush(SKColors.Blue);
+        control.StyleHover.BackgroundBrush = hoverBrush;
+        control.EnterForTest();
+
+        Assert.Same(hoverBrush, control.EffectiveBackgroundBrush);
+        control.ResetInvalidations();
+        hoverBrush.Color = SKColors.Purple;
+
+        Assert.Equal(1, control.InvalidationCount);
+        Assert.Equal(VisualState.Hover, control.VisualState);
+        Assert.Same(control.StyleHover, control.CurrentStyle);
+    }
+
+    [Fact]
+    public void DisposingControlCancelsActiveStateTransitionBeforeAnotherRepaint()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = CreateTransitionButton(harness);
+        control.EnterForTest();
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+
+        control.Dispose();
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
     private static TestButton CreateTransitionButton(AnimationSchedulerTestHarness harness)
     {
         var control = new TestButton { AnimationSchedulerOverride = harness.Scheduler };
@@ -184,6 +242,10 @@ public sealed class VisualStateTransitionTests
 
     private sealed class TestButton : Button
     {
+        public int InvalidationCount { get; private set; }
+
+        public void ResetInvalidations() => InvalidationCount = 0;
+
         public void EnterForTest()
             => OnMouseEnter(new MouseEventArgs(MouseButtons.None, 0, 0, 0, System.Drawing.Point.Empty));
 
@@ -193,5 +255,11 @@ public sealed class VisualStateTransitionTests
         public void FocusForTest() => OnGotFocus(EventArgs.Empty);
 
         public void ThemeChangedForTest() => OnThemeChanged(EventArgs.Empty);
+
+        protected override void OnInvalidated(EventArgs<System.Drawing.Rectangle> e)
+        {
+            InvalidationCount++;
+            base.OnInvalidated(e);
+        }
     }
 }

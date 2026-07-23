@@ -207,6 +207,33 @@ namespace ModernFormsNext
         public SKColor GetForegroundColor ()
             => ResolveValue(TryGetForegroundColor, static () => Theme.ForegroundColor);
 
+        internal Brush? GetResolvedBackgroundBrush()
+            => ResolveReferenceValue(static style => style.BackgroundBrush);
+
+        internal Brush? GetResolvedForegroundBrush()
+            => ResolveReferenceValue(static style => style.ForegroundBrush);
+
+        internal Brush? GetResolvedBorderBrush()
+            => ResolveReferenceValue(static style => style.BorderBrush);
+
+        internal float? GetResolvedOpacity()
+            => ResolveNullableValue(static style => style.Opacity);
+
+        internal float? GetResolvedTranslationX()
+            => ResolveNullableValue(static style => style.TranslationX);
+
+        internal float? GetResolvedTranslationY()
+            => ResolveNullableValue(static style => style.TranslationY);
+
+        internal float? GetResolvedScaleX()
+            => ResolveNullableValue(static style => style.ScaleX);
+
+        internal float? GetResolvedScaleY()
+            => ResolveNullableValue(static style => style.ScaleY);
+
+        internal float? GetResolvedRotation()
+            => ResolveNullableValue(static style => style.Rotation);
+
         internal int GetInheritanceTraversalLimit ()
             => StyleInheritanceTraversal.GetLimit(this, static style => style.ParentStyle);
 
@@ -242,6 +269,34 @@ namespace ModernFormsNext
             }
 
             return getFallback ();
+        }
+
+        private T? ResolveReferenceValue<T>(Func<ControlStyle, T?> getValue)
+            where T : class
+        {
+            var remaining = GetInheritanceTraversalLimit();
+            ControlStyle? current = this;
+            while (current is not null && remaining-- > 0)
+            {
+                if (getValue(current) is { } value)
+                    return value;
+                current = current.ParentStyle;
+            }
+            return null;
+        }
+
+        private T? ResolveNullableValue<T>(Func<ControlStyle, T?> getValue)
+            where T : struct
+        {
+            var remaining = GetInheritanceTraversalLimit();
+            ControlStyle? current = this;
+            while (current is not null && remaining-- > 0)
+            {
+                if (getValue(current) is { } value)
+                    return value;
+                current = current.ParentStyle;
+            }
+            return null;
         }
 
         private static bool TryGetBackgroundColor (ControlStyle style, out SKColor value)

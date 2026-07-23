@@ -437,8 +437,9 @@ while radius uses the configured easing.
 Waves are clipped to control bounds and the current corner radius. `AboveBackgroundBelowContent`
 keeps content legible; `AboveContent` is available for stronger feedback. Active waves are bounded
 from 1 through 32 and `Oldest` explicitly cancels the oldest wave when the limit is reached.
-Disabled controls do not start waves. Cancel, removal, disable, detach, and disposal clear all
-effect-owned work. Decorative ripple is omitted under reduced motion.
+Disabled controls do not start waves. A touch cancel removes waves for that pointer ID; global
+cancel, removal, disable, detach, and disposal clear all effect-owned work. Decorative ripple is
+omitted under reduced motion.
 
 ### Press, hover, and focus
 
@@ -466,8 +467,8 @@ focus ring
 Ripple is not implemented by individual renderers. `IInteractionEffectClip` can provide a custom
 Skia clip for future shape/geometry controls. The built-in
 `ControlBoundsInteractionEffectClip.Instance` clips to scaled bounds and the resolved border
-radius. `InteractionEffectRenderContext` borrows the target-local canvas for the current render
-call; effects must never retain it.
+radius. Each effect reuses its `InteractionEffectRenderContext` between frames; it borrows the
+target-local canvas for the current render call, so effects must never retain either object.
 
 ## Lifecycle and thread safety
 

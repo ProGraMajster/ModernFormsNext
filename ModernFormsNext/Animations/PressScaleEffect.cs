@@ -65,9 +65,17 @@ public sealed class PressScaleEffect : InteractionEffect
     }
 
     /// <inheritdoc/>
-    protected override void OnPointerCanceled()
+    protected override void OnPointerCanceled(int? pointerId)
     {
-        pointers.Clear();
+        if (pointerId is { } id)
+            pointers.Remove(id);
+        else
+        {
+            pointers.Clear();
+            keyboardPressed = false;
+        }
+        if (pointers.Count > 0 || keyboardPressed)
+            return;
         if (Target?.Enabled == true)
             AnimateTo(1f, ReleaseDuration);
         else

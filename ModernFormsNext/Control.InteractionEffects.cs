@@ -88,6 +88,14 @@ public partial class Control
             effects.Render(layer, e);
     }
 
+    internal void NotifyInteractionEffectDetached(InteractionEffect effect)
+    {
+        if (ReferenceEquals(Properties.GetObject(s_rippleEffectProperty), effect))
+            Properties.RemoveObject(s_rippleEffectProperty);
+        if (ReferenceEquals(Properties.GetObject(s_pressEffectProperty), effect))
+            Properties.RemoveObject(s_pressEffectProperty);
+    }
+
     internal void NotifyInteractionKeyUp(KeyEventArgs e)
     {
         SetKeyboardVisualPressed(false);
@@ -107,10 +115,10 @@ public partial class Control
             effects.PointerUp(e);
     }
 
-    private void NotifyInteractionPointerCanceled()
+    private void NotifyInteractionPointerCanceled(int? pointerId = null)
     {
         if (Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects)
-            effects.PointerCanceled();
+            effects.PointerCanceled(pointerId);
     }
 
     private void NotifyInteractionKeyDown(KeyEventArgs e)
@@ -122,7 +130,7 @@ public partial class Control
     private void NotifyInteractionEffectsDisabled()
     {
         if (Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects)
-            effects.PointerCanceled();
+            effects.PointerCanceled(pointerId: null);
     }
 
     private void DisposeInteractionEffects()

@@ -92,7 +92,7 @@ namespace ModernFormsNext
             // Update the parent
             parent = value;
             if (previousParent is not null && value is null)
-                Animations.AnimationScheduler.CancelOwnedIfInitialized(this);
+                CancelOwnedControlAnimations();
             RefreshResourceBindingsForSubtree ();
             OnParentChanged (EventArgs.Empty);
 
@@ -1365,6 +1365,7 @@ namespace ModernFormsNext
             keyboardPressed = false;
             // A control can lose focus before the matching activation-key release reaches it.
             // Treat that as cancellation so keyboard-driven press effects cannot stay held.
+            ClearPointerVisualPressed();
             NotifyInteractionPointerCanceled();
             SetVisualFocus (false);
             (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
@@ -2015,11 +2016,11 @@ namespace ModernFormsNext
         // (for example when Android starts scrolling, detaches a surface, or cancels a gesture).
         // Keep this internal so the existing public mouse API remains unchanged while built-in
         // controls still get one deterministic place to clear pressed/drag state.
-        internal virtual void CancelPointerInteraction ()
+        internal virtual void CancelPointerInteraction (int? pointerId = null)
         {
             Capture = false;
-            ClearPointerVisualPressed();
-            NotifyInteractionPointerCanceled ();
+            ClearPointerVisualPressed(pointerId);
+            NotifyInteractionPointerCanceled (pointerId);
             OnMouseLeave (EventArgs.Empty);
             Invalidate ();
         }
@@ -2481,7 +2482,7 @@ namespace ModernFormsNext
         {
             if (!disposedValue) {
                 DisposeInteractionEffects ();
-                Animations.AnimationScheduler.CancelOwnedIfInitialized(this);
+                CancelOwnedControlAnimations();
                 DisposeResourceReferences ();
                 DisposeBrushInvalidationSubscriptions ();
                 FreeBackBuffer ();

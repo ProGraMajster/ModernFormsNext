@@ -27,8 +27,24 @@ public partial class Control
     private float visualStateScaleX = 1f;
     private float visualStateScaleY = 1f;
     private float visualStateRotation;
+    private Brush? subscribedStateBackgroundBrush;
+    private Brush? subscribedStateForegroundBrush;
+    private Brush? subscribedStateBorderBrush;
 
     internal AnimationScheduler? AnimationSchedulerOverride { get; set; }
+
+    internal void CancelOwnedControlAnimations()
+    {
+        if (AnimationSchedulerOverride is { } scheduler)
+            scheduler.CancelAll(this);
+        else
+            AnimationScheduler.CancelOwnedIfInitialized(this);
+        if (transitionStyle is not null)
+        {
+            transitionStyle = null;
+            ApplyStateTransforms(GetStyleForState(currentVisualState));
+        }
+    }
 
     /// <summary>Gets the style used while pointer or keyboard activation is held.</summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
@@ -75,12 +91,16 @@ public partial class Control
     internal float EffectiveScaleX => ScaleX * GetVisualScaleX() * InteractionScale;
     internal float EffectiveScaleY => ScaleY * GetVisualScaleY() * InteractionScale;
     internal float EffectiveRotation => Rotation + GetVisualRotation();
-    internal Brush? EffectiveBackgroundBrush => BackgroundBrush ?? CurrentStyle.BackgroundBrush;
-    internal Brush? EffectiveTextBrush => TextBrush ?? CurrentStyle.ForegroundBrush;
-    internal Brush? EffectiveBorderBrush => CurrentStyle.BorderBrush;
+    internal Brush? EffectiveBackgroundBrush => BackgroundBrush ?? CurrentStyle.GetResolvedBackgroundBrush();
+    internal Brush? EffectiveTextBrush => TextBrush ?? CurrentStyle.GetResolvedForegroundBrush();
+    internal Brush? EffectiveBorderBrush => CurrentStyle.GetResolvedBorderBrush();
 
     internal ControlStyle ResolveCurrentStyle()
-        => transitionStyle ?? GetStyleForState(currentVisualState);
+    {
+        ControlStyle style = transitionStyle ?? GetStyleForState(currentVisualState);
+        UpdateStateBrushInvalidationSubscriptions(style);
+        return style;
+    }
 
     internal void SetPointerVisualPressed(bool value, int pointerId = 0)
     {
@@ -95,12 +115,17 @@ public partial class Control
         UpdateVisualState();
     }
 
-    internal void ClearPointerVisualPressed()
+    internal void ClearPointerVisualPressed(int? pointerId = null)
     {
         if (!pointerPressed)
             return;
-        pressedPointerIds?.Clear();
-        pointerPressed = false;
+        if (pointerId is { } id)
+            pressedPointerIds?.Remove(id);
+        else
+            pressedPointerIds?.Clear();
+        pointerPressed = pressedPointerIds is { Count: > 0 };
+        if (pointerPressed)
+            return;
         UpdateVisualState();
     }
 
@@ -195,32 +220,32 @@ public partial class Control
     private float GetVisualOpacity()
         => transitionStyle is not null
             ? visualStateOpacity
-            : Math.Clamp(GetStyleForState(currentVisualState).Opacity ?? 1f, 0f, 1f);
+            : Math.Clamp(GetStyleForState(currentVisualState).GetResolvedOpacity() ?? 1f, 0f, 1f);
 
     private float GetVisualTranslationX()
         => transitionStyle is not null
             ? visualStateTranslationX
-            : GetStyleForState(currentVisualState).TranslationX ?? 0f;
+            : GetStyleForState(currentVisualState).GetResolvedTranslationX() ?? 0f;
 
     private float GetVisualTranslationY()
         => transitionStyle is not null
             ? visualStateTranslationY
-            : GetStyleForState(currentVisualState).TranslationY ?? 0f;
+            : GetStyleForState(currentVisualState).GetResolvedTranslationY() ?? 0f;
 
     private float GetVisualScaleX()
         => transitionStyle is not null
             ? visualStateScaleX
-            : GetStyleForState(currentVisualState).ScaleX ?? 1f;
+            : GetStyleForState(currentVisualState).GetResolvedScaleX() ?? 1f;
 
     private float GetVisualScaleY()
         => transitionStyle is not null
             ? visualStateScaleY
-            : GetStyleForState(currentVisualState).ScaleY ?? 1f;
+            : GetStyleForState(currentVisualState).GetResolvedScaleY() ?? 1f;
 
     private float GetVisualRotation()
         => transitionStyle is not null
             ? visualStateRotation
-            : GetStyleForState(currentVisualState).Rotation ?? 0f;
+            : GetStyleForState(currentVisualState).GetResolvedRotation() ?? 0f;
 
     private ControlStyle GetStyleForState(VisualState state)
         => state switch
@@ -244,12 +269,29 @@ public partial class Control
 
     private void ApplyStateTransforms(ControlStyle style)
     {
-        visualStateOpacity = Math.Clamp(style.Opacity ?? 1f, 0f, 1f);
-        visualStateTranslationX = style.TranslationX ?? 0f;
-        visualStateTranslationY = style.TranslationY ?? 0f;
-        visualStateScaleX = style.ScaleX ?? 1f;
-        visualStateScaleY = style.ScaleY ?? 1f;
-        visualStateRotation = style.Rotation ?? 0f;
+        visualStateOpacity = Math.Clamp(style.GetResolvedOpacity() ?? 1f, 0f, 1f);
+        visualStateTranslationX = style.GetResolvedTranslationX() ?? 0f;
+        visualStateTranslationY = style.GetResolvedTranslationY() ?? 0f;
+        visualStateScaleX = style.GetResolvedScaleX() ?? 1f;
+        visualStateScaleY = style.GetResolvedScaleY() ?? 1f;
+        visualStateRotation = style.GetResolvedRotation() ?? 0f;
+    }
+
+    private void UpdateStateBrushInvalidationSubscriptions(ControlStyle style)
+    {
+        // State styles are plain code-first objects rather than dependency properties. Keep the
+        // brushes selected by the last style resolution in the control's existing weak,
+        // reference-counted subscription table so an in-place Brush mutation repaints the
+        // active state without requiring another pointer or focus transition.
+        ReplaceBrushInvalidationReference(
+            ref subscribedStateBackgroundBrush,
+            style.GetResolvedBackgroundBrush());
+        ReplaceBrushInvalidationReference(
+            ref subscribedStateForegroundBrush,
+            style.GetResolvedForegroundBrush());
+        ReplaceBrushInvalidationReference(
+            ref subscribedStateBorderBrush,
+            style.GetResolvedBorderBrush());
     }
 
     private sealed class VisualStateTransitionRuntime
@@ -364,14 +406,14 @@ public partial class Control
                 style.GetBackgroundColor(),
                 style.GetForegroundColor(),
                 style.Border.GetColor(),
-                style.BackgroundBrush,
-                style.ForegroundBrush,
-                style.BorderBrush,
-                useCurrentTransform ? control.GetVisualOpacity() : Math.Clamp(style.Opacity ?? 1f, 0f, 1f),
-                useCurrentTransform ? control.GetVisualTranslationX() : style.TranslationX ?? 0f,
-                useCurrentTransform ? control.GetVisualTranslationY() : style.TranslationY ?? 0f,
-                useCurrentTransform ? control.GetVisualScaleX() : style.ScaleX ?? 1f,
-                useCurrentTransform ? control.GetVisualScaleY() : style.ScaleY ?? 1f,
-                useCurrentTransform ? control.GetVisualRotation() : style.Rotation ?? 0f);
+                style.GetResolvedBackgroundBrush(),
+                style.GetResolvedForegroundBrush(),
+                style.GetResolvedBorderBrush(),
+                useCurrentTransform ? control.GetVisualOpacity() : Math.Clamp(style.GetResolvedOpacity() ?? 1f, 0f, 1f),
+                useCurrentTransform ? control.GetVisualTranslationX() : style.GetResolvedTranslationX() ?? 0f,
+                useCurrentTransform ? control.GetVisualTranslationY() : style.GetResolvedTranslationY() ?? 0f,
+                useCurrentTransform ? control.GetVisualScaleX() : style.GetResolvedScaleX() ?? 1f,
+                useCurrentTransform ? control.GetVisualScaleY() : style.GetResolvedScaleY() ?? 1f,
+                useCurrentTransform ? control.GetVisualRotation() : style.GetResolvedRotation() ?? 0f);
     }
 }

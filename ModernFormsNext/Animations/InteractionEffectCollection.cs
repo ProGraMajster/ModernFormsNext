@@ -32,6 +32,7 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
             value.Attach(owner);
             effects[index] = value;
             previous.Detach();
+            owner.NotifyInteractionEffectDetached(previous);
             owner.Invalidate();
         }
     }
@@ -51,7 +52,10 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
     public void Clear()
     {
         foreach (InteractionEffect effect in effects)
+        {
             effect.Detach();
+            owner.NotifyInteractionEffectDetached(effect);
+        }
         effects.Clear();
         owner.Invalidate();
     }
@@ -85,6 +89,7 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
         if (!effects.Remove(item))
             return false;
         item.Detach();
+        owner.NotifyInteractionEffectDetached(item);
         owner.Invalidate();
         return true;
     }
@@ -95,6 +100,7 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
         InteractionEffect effect = effects[index];
         effects.RemoveAt(index);
         effect.Detach();
+        owner.NotifyInteractionEffectDetached(effect);
         owner.Invalidate();
     }
 
@@ -112,10 +118,10 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
             effect.DispatchPointerUp(e);
     }
 
-    internal void PointerCanceled()
+    internal void PointerCanceled(int? pointerId)
     {
         foreach (InteractionEffect effect in effects)
-            effect.DispatchPointerCanceled();
+            effect.DispatchPointerCanceled(pointerId);
     }
 
     internal void KeyDown(KeyEventArgs e)

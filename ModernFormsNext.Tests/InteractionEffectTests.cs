@@ -160,13 +160,18 @@ public sealed class InteractionEffectTests
     public void TouchPointersRemainIndependentAndCancelClearsEffectState()
     {
         using var harness = new AnimationSchedulerTestHarness();
-        var control = new TestButton { AnimationSchedulerOverride = harness.Scheduler };
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Size = new Size(80, 30)
+        };
         control.PressEffect = new PressScaleEffect
         {
             PressedScale = 0.8f,
             PressDuration = TimeSpan.Zero,
             ReleaseDuration = TimeSpan.Zero
         };
+        control.Ripple = new RippleEffect { Duration = TimeSpan.FromMilliseconds(100) };
 
         MouseEventArgs first = Mouse(2, 2, 11, PointerDeviceKind.Touch);
         MouseEventArgs second = Mouse(3, 3, 12, PointerDeviceKind.Touch);
@@ -176,9 +181,14 @@ public sealed class InteractionEffectTests
 
         control.UpForTest(first);
         Assert.Equal(VisualState.Pressed, control.VisualState);
-        control.CancelPointerForTest();
+        Assert.Equal(2, control.Ripple.ActiveRippleCount);
+        control.CancelPointerForTest(11);
+        Assert.Equal(VisualState.Pressed, control.VisualState);
+        Assert.Equal(1, control.Ripple.ActiveRippleCount);
+        control.CancelPointerForTest(12);
 
         Assert.NotEqual(VisualState.Pressed, control.VisualState);
+        Assert.Equal(0, control.Ripple.ActiveRippleCount);
         Assert.Equal(1f, control.EffectiveScaleX, 3);
         Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
     }
@@ -233,6 +243,24 @@ public sealed class InteractionEffectTests
     }
 
     [Fact]
+    public void RemovingConvenienceEffectClearsPropertyAndAllowsReattachment()
+    {
+        var control = new TestButton();
+        var ripple = new RippleEffect();
+        control.Ripple = ripple;
+
+        Assert.True(control.InteractionEffects.Remove(ripple));
+        Assert.Null(control.Ripple);
+        Assert.Null(ripple.Target);
+
+        control.Ripple = ripple;
+
+        Assert.Same(ripple, control.Ripple);
+        Assert.Same(control, ripple.Target);
+        Assert.Single(control.InteractionEffects);
+    }
+
+    [Fact]
     public void DisabledAndDesignerTargetsDoNotStartRuntimeRippleWork()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -267,6 +295,12 @@ public sealed class InteractionEffectTests
         designer.UpForTest(Mouse(4, 4));
         Assert.Equal(1f, designer.EffectiveScaleX, 3);
         Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+
+        var custom = new DesignerSchedulerProbeEffect();
+        designer.InteractionEffects.Add(custom);
+        designer.DownForTest(Mouse(5, 5));
+        Assert.Equal(1, custom.UpdateCount);
         Assert.False(harness.TickSource.IsRunning);
     }
 
@@ -391,7 +425,7 @@ public sealed class InteractionEffectTests
         public void KeyDownForTest(Keys key) => OnKeyDown(new KeyEventArgs(key));
         public void KeyUpForTest(Keys key) => OnKeyUp(new KeyEventArgs(key));
         public void LostFocusForTest() => OnLostFocus(EventArgs.Empty);
-        public void CancelPointerForTest() => CancelPointerInteraction();
+        public void CancelPointerForTest(int? pointerId = null) => CancelPointerInteraction(pointerId);
     }
 
     private sealed class InvalidationCountingButton : TestButton
@@ -420,6 +454,18 @@ public sealed class InteractionEffectTests
         public override InteractionEffectLayer RenderLayer => layer;
 
         protected override void OnRender(InteractionEffectRenderContext context) => render();
+    }
+
+    private sealed class DesignerSchedulerProbeEffect : InteractionEffect
+    {
+        public int UpdateCount { get; private set; }
+
+        protected override void OnPointerDown(MouseEventArgs e)
+            => Scheduler.Start(
+                this,
+                "DesignerProbe",
+                _ => UpdateCount++,
+                new AnimationOptions { Duration = TimeSpan.FromSeconds(1) });
     }
 
     private sealed class DesignModeSite(IComponent component) : ISite

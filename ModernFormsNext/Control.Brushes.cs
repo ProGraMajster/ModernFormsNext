@@ -27,15 +27,22 @@ public partial class Control
         if (ReferenceEquals(field, value))
             return false;
 
+        ReplaceBrushInvalidationReference(ref field, value);
+        Invalidate();
+        return true;
+    }
+
+    private void ReplaceBrushInvalidationReference(ref Brush? field, Brush? value)
+    {
+        if (ReferenceEquals(field, value))
+            return;
+
         Brush? previous = field;
         field = value;
         if (previous is not null)
             ReleaseBrushInvalidation(previous);
         if (value is not null)
             AcquireBrushInvalidation(value);
-
-        Invalidate();
-        return true;
     }
 
     private void AcquireBrushInvalidation(Brush brush)

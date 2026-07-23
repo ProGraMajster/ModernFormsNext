@@ -123,8 +123,9 @@ while radius grows. A bounded active list enforces the explicit oldest-first evi
 Each ripple is a scheduler entry, never a timer; scheduler tick batching coalesces repaint
 requests per window.
 
-Keyboard activation starts a centered ripple. Disabled controls do not start effects. Pointer
-cancel clears the active ripple gesture state. Detach/dispose cancels all remaining ripple handles.
+Keyboard activation starts a centered ripple. Disabled controls do not start effects. A
+platform-specific pointer cancel removes only waves owned by that pointer; global cancellation
+clears the entire gesture state. Detach/dispose cancels all remaining ripple handles.
 Reduced motion may omit this decorative effect entirely.
 
 `PressScaleEffect` tracks independent pointer and keyboard presses. It animates a dedicated

@@ -14,6 +14,7 @@ public abstract class InteractionEffect : IDisposable
 {
     private bool enabled = true;
     private Control? target;
+    private InteractionEffectRenderContext? renderContext;
     private bool disposed;
 
     /// <summary>Gets or sets whether this effect handles input and renders.</summary>
@@ -76,8 +77,11 @@ public abstract class InteractionEffect : IDisposable
     {
     }
 
-    /// <summary>Called when an active pointer sequence is canceled.</summary>
-    protected virtual void OnPointerCanceled()
+    /// <summary>Called when one pointer or the entire active pointer sequence is canceled.</summary>
+    /// <param name="pointerId">
+    /// The canceled platform pointer identifier, or <see langword="null"/> for global cancellation.
+    /// </param>
+    protected virtual void OnPointerCanceled(int? pointerId)
     {
     }
 
@@ -141,10 +145,10 @@ public abstract class InteractionEffect : IDisposable
             OnPointerUp(e);
     }
 
-    internal void DispatchPointerCanceled()
+    internal void DispatchPointerCanceled(int? pointerId)
     {
         if (enabled)
-            OnPointerCanceled();
+            OnPointerCanceled(pointerId);
     }
 
     internal void DispatchKeyDown(KeyEventArgs e)
@@ -168,7 +172,11 @@ public abstract class InteractionEffect : IDisposable
         {
             var bounds = new System.Drawing.Rectangle(0, 0, target.ScaledWidth, target.ScaledHeight);
             Clip?.Apply(e.Canvas, target, bounds);
-            OnRender(new InteractionEffectRenderContext(target, e.Canvas, bounds, e.Scaling));
+            if (renderContext is null)
+                renderContext = new InteractionEffectRenderContext(target, e.Canvas, bounds, e.Scaling);
+            else
+                renderContext.Reset(target, e.Canvas, bounds, e.Scaling);
+            OnRender(renderContext);
         }
         finally
         {
@@ -181,5 +189,6 @@ public abstract class InteractionEffect : IDisposable
         CancelCore();
         OnDetached();
         target = null;
+        renderContext = null;
     }
 }

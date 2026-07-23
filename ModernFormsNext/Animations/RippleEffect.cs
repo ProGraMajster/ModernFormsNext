@@ -134,7 +134,26 @@ public sealed class RippleEffect : InteractionEffect
     }
 
     /// <inheritdoc/>
-    protected override void OnPointerCanceled() => CancelCore();
+    protected override void OnPointerCanceled(int? pointerId)
+    {
+        if (pointerId is null)
+        {
+            CancelCore();
+            return;
+        }
+
+        bool removed = false;
+        foreach (RippleInstance ripple in ripples
+            .Where(item => item.PointerId == pointerId.Value)
+            .ToArray())
+        {
+            ripples.Remove(ripple);
+            ripple.Handle?.Cancel();
+            removed = true;
+        }
+        if (removed)
+            InvalidateTarget();
+    }
 
     /// <inheritdoc/>
     protected override void OnKeyUp(KeyEventArgs e)
