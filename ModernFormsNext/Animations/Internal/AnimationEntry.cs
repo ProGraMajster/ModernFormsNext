@@ -4,16 +4,31 @@ internal sealed class AnimationEntry
 {
     private readonly TaskCompletionSource<AnimationState> completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly CancellationTokenSource cancellation = new();
     private int state = (int)AnimationState.Created;
     private Exception? exception;
+    private object? owner;
+    private Action<AnimationFrame>? update;
 
-    public required object Owner { get; init; }
+    public required object Owner
+    {
+        get => Volatile.Read(ref owner)
+            ?? throw new InvalidOperationException("A terminal animation no longer has an owner.");
+        init => owner = value;
+    }
+
+    public object? OwnerOrNull => Volatile.Read(ref owner);
 
     public required string Key { get; init; }
 
     public required AnimationOptionsSnapshot Options { get; init; }
 
-    public required Action<float> Update { get; init; }
+    public required Action<AnimationFrame> Update
+    {
+        get => Volatile.Read(ref update)
+            ?? throw new InvalidOperationException("A terminal animation no longer has an update callback.");
+        init => update = value;
+    }
 
     public required AnimationScheduler Scheduler { get; init; }
 
@@ -35,11 +50,16 @@ internal sealed class AnimationEntry
 
     public Exception? Exception => Volatile.Read(ref exception);
 
+    public CancellationToken CancellationToken => cancellation.Token;
+
     public bool IsTerminal => State is AnimationState.Completed or AnimationState.Canceled or AnimationState.Faulted;
 
     public void SetState(AnimationState value) => Volatile.Write(ref state, (int)value);
 
-    public bool TrySetTerminal(AnimationState terminalState, Exception? fault = null)
+    public void Invoke(AnimationFrame frame)
+        => Volatile.Read(ref update)?.Invoke(frame);
+
+    public bool TryBeginTerminal(AnimationState terminalState, Exception? fault = null)
     {
         while (true)
         {
@@ -52,8 +72,33 @@ internal sealed class AnimationEntry
 
             if (fault is not null)
                 Volatile.Write(ref exception, fault);
-            completion.TrySetResult(terminalState);
             return true;
         }
+    }
+
+    public void FinishTerminal(bool signalCancellation)
+    {
+        AnimationState terminalState = State;
+        if (terminalState is not (AnimationState.Completed or AnimationState.Canceled or AnimationState.Faulted))
+            throw new InvalidOperationException("Only a terminal animation can release its retained references.");
+
+        if (signalCancellation)
+        {
+            try
+            {
+                cancellation.Cancel(throwOnFirstException: false);
+            }
+            catch (AggregateException exception)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "An animation cancellation callback faulted after terminal transition: {0}",
+                    exception);
+            }
+        }
+
+        Volatile.Write(ref update, null);
+        Volatile.Write(ref owner, null);
+        completion.TrySetResult(terminalState);
+        cancellation.Dispose();
     }
 }

@@ -114,6 +114,16 @@ public sealed partial class AnimationScheduler : IDisposable
         Action<float> update,
         AnimationOptions? options = null)
     {
+        ArgumentNullException.ThrowIfNull(update);
+        return StartFrames(owner, key, frame => update(frame.EasedProgress), options);
+    }
+
+    internal AnimationHandle StartFrames(
+        object owner,
+        string key,
+        Action<AnimationFrame> update,
+        AnimationOptions? options = null)
+    {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentNullException.ThrowIfNull(update);
@@ -138,7 +148,7 @@ public sealed partial class AnimationScheduler : IDisposable
                     return existing.Handle;
 
                 RemoveEntryLocked(existing);
-                if (existing.TrySetTerminal(AnimationState.Canceled))
+                if (existing.TryBeginTerminal(AnimationState.Canceled))
                 {
                     canceledCount++;
                     replaced = existing;
@@ -181,11 +191,15 @@ public sealed partial class AnimationScheduler : IDisposable
             else
             {
                 entry.SetState(AnimationState.Running);
+                keyedAnimations.Add(identity, entry);
             }
         }
 
         if (replaced is not null)
+        {
+            replaced.FinishTerminal(signalCancellation: true);
             StopTickSourceIfIdle();
+        }
 
         if (shouldCompleteImmediately)
             PostImmediateCompletion(entry);
@@ -250,11 +264,24 @@ public sealed partial class AnimationScheduler : IDisposable
             for (int index = activeAnimations.Count - 1; index >= 0; index--)
             {
                 AnimationEntry entry = activeAnimations[index];
-                if (!ReferenceEquals(entry.Owner, owner))
+                if (!ReferenceEquals(entry.OwnerOrNull, owner))
                     continue;
 
                 RemoveEntryLocked(entry);
-                if (entry.TrySetTerminal(AnimationState.Canceled))
+                if (entry.TryBeginTerminal(AnimationState.Canceled))
+                {
+                    canceledCount++;
+                    (canceled ??= []).Add(entry);
+                }
+            }
+
+            foreach (AnimationEntry entry in keyedAnimations.Values.ToArray())
+            {
+                if (!ReferenceEquals(entry.OwnerOrNull, owner) || activeAnimations.Contains(entry))
+                    continue;
+
+                RemoveEntryLocked(entry);
+                if (entry.TryBeginTerminal(AnimationState.Canceled))
                 {
                     canceledCount++;
                     (canceled ??= []).Add(entry);
@@ -263,7 +290,11 @@ public sealed partial class AnimationScheduler : IDisposable
         }
 
         if (canceled is not null)
+        {
+            foreach (AnimationEntry entry in canceled)
+                entry.FinishTerminal(signalCancellation: true);
             StopTickSourceIfIdle();
+        }
     }
 
     /// <summary>
@@ -363,6 +394,7 @@ public sealed partial class AnimationScheduler : IDisposable
     /// </remarks>
     public void Shutdown()
     {
+        List<AnimationEntry> canceled = [];
         lock (sync)
         {
             if (isShutdown)
@@ -373,12 +405,28 @@ public sealed partial class AnimationScheduler : IDisposable
             {
                 AnimationEntry entry = activeAnimations[index];
                 RemoveEntryLocked(entry);
-                if (entry.TrySetTerminal(AnimationState.Canceled))
+                if (entry.TryBeginTerminal(AnimationState.Canceled))
+                {
                     canceledCount++;
+                    canceled.Add(entry);
+                }
+            }
+
+            foreach (AnimationEntry entry in keyedAnimations.Values.ToArray())
+            {
+                RemoveEntryLocked(entry);
+                if (entry.TryBeginTerminal(AnimationState.Canceled))
+                {
+                    canceledCount++;
+                    canceled.Add(entry);
+                }
             }
             activeAnimations.Clear();
             keyedAnimations.Clear();
         }
+
+        foreach (AnimationEntry entry in canceled)
+            entry.FinishTerminal(signalCancellation: true);
 
         Policy.Changed -= HandlePolicyChanged;
         UnbindPlatformLifecycle();
@@ -407,13 +455,16 @@ public sealed partial class AnimationScheduler : IDisposable
         lock (sync)
         {
             RemoveEntryLocked(entry);
-            canceled = entry.TrySetTerminal(AnimationState.Canceled);
+            canceled = entry.TryBeginTerminal(AnimationState.Canceled);
             if (canceled)
                 canceledCount++;
         }
 
         if (canceled)
+        {
+            entry.FinishTerminal(signalCancellation: true);
             StopTickSourceIfIdle();
+        }
     }
 
     internal void Pause(AnimationEntry entry)
@@ -495,6 +546,7 @@ public sealed partial class AnimationScheduler : IDisposable
 
         try
         {
+            using Application.VisualInvalidationBatchScope batch = Application.BeginVisualInvalidationBatch();
             foreach (AnimationEntry entry in tickBuffer)
             {
                 AnimationState state = entry.State;
@@ -530,7 +582,18 @@ public sealed partial class AnimationScheduler : IDisposable
 
                     if (entry.State == AnimationState.Canceled)
                         continue;
-                    entry.Update(easedProgress);
+                    TimeSpan animationElapsed = elapsed - entry.Options.Delay;
+                    if (animationElapsed < TimeSpan.Zero)
+                        animationElapsed = TimeSpan.Zero;
+                    if (animationElapsed > entry.Options.Duration)
+                        animationElapsed = entry.Options.Duration;
+
+                    entry.Invoke(new AnimationFrame(
+                        rawProgress,
+                        easedProgress,
+                        animationElapsed,
+                        entry.Options.Duration,
+                        entry.CancellationToken));
 
                     if (rawProgress >= 1f)
                         Complete(entry);
@@ -555,25 +618,36 @@ public sealed partial class AnimationScheduler : IDisposable
 
     private void Complete(AnimationEntry entry)
     {
+        bool completed;
         lock (sync)
         {
             RemoveEntryLocked(entry);
-            if (entry.TrySetTerminal(AnimationState.Completed))
+            completed = entry.TryBeginTerminal(AnimationState.Completed);
+            if (completed)
                 completedCount++;
         }
+
+        if (completed)
+            entry.FinishTerminal(signalCancellation: false);
     }
 
     private void Fault(AnimationEntry entry, Exception exception)
     {
+        string ownerType = entry.OwnerOrNull?.GetType().FullName ?? "<released>";
+        bool faulted;
         lock (sync)
         {
             RemoveEntryLocked(entry);
-            if (!entry.TrySetTerminal(AnimationState.Faulted, exception))
-                return;
-            faultedCount++;
+            faulted = entry.TryBeginTerminal(AnimationState.Faulted, exception);
+            if (faulted)
+                faultedCount++;
         }
 
-        Trace.TraceError("Animation '{0}' owned by '{1}' faulted: {2}", entry.Key, entry.Owner.GetType().FullName, exception);
+        if (!faulted)
+            return;
+
+        entry.FinishTerminal(signalCancellation: false);
+        Trace.TraceError("Animation '{0}' owned by '{1}' faulted: {2}", entry.Key, ownerType, exception);
     }
 
     private void PostImmediateCompletion(AnimationEntry entry)
@@ -595,7 +669,13 @@ public sealed partial class AnimationScheduler : IDisposable
 
         try
         {
-            entry.Update(1f);
+            using Application.VisualInvalidationBatchScope batch = Application.BeginVisualInvalidationBatch();
+            entry.Invoke(new AnimationFrame(
+                1f,
+                1f,
+                entry.Options.Duration,
+                entry.Options.Duration,
+                entry.CancellationToken));
             Complete(entry);
         }
         catch (Exception exception)
@@ -634,7 +714,10 @@ public sealed partial class AnimationScheduler : IDisposable
     private void RemoveEntryLocked(AnimationEntry entry)
     {
         activeAnimations.Remove(entry);
-        var identity = new AnimationIdentity(entry.Owner, entry.Key);
+        if (entry.OwnerOrNull is not { } owner)
+            return;
+
+        var identity = new AnimationIdentity(owner, entry.Key);
         if (keyedAnimations.TryGetValue(identity, out AnimationEntry? current) && ReferenceEquals(current, entry))
             keyedAnimations.Remove(identity);
     }
@@ -670,7 +753,7 @@ public sealed partial class AnimationScheduler : IDisposable
         List<AnimationEntry> entries;
         lock (sync)
         {
-            entries = [.. activeAnimations];
+            entries = keyedAnimations.Values.Distinct().ToList();
             activeAnimations.Clear();
             keyedAnimations.Clear();
         }
