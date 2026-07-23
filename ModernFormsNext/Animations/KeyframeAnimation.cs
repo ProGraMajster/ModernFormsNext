@@ -1,3 +1,6 @@
+using System.Drawing;
+using System.Numerics;
+
 namespace ModernFormsNext.Animations;
 
 /// <summary>
@@ -79,6 +82,7 @@ public sealed class KeyframeAnimation<T> : AnimationDefinition
         Func<float, float>? easing = null)
     {
         ValidateProgress(position, nameof(position));
+        ValidateFiniteValue(value, nameof(value));
         if (keyframes.Count >= MaximumKeyframeCount)
             throw new InvalidOperationException(
                 $"A keyframe animation cannot contain more than {MaximumKeyframeCount} frames.");
@@ -176,7 +180,9 @@ public sealed class KeyframeAnimation<T> : AnimationDefinition
             : right.Easing(segmentProgress);
         if (!float.IsFinite(easedProgress))
             throw new InvalidOperationException("A keyframe easing function returned NaN or infinity.");
-        return interpolator.Interpolate(left.Value, right.Value, easedProgress);
+        T result = interpolator.Interpolate(left.Value, right.Value, easedProgress);
+        ValidateFiniteValue(result, "interpolatedValue");
+        return result;
     }
 
     private void EnsureFrames()
@@ -192,6 +198,35 @@ public sealed class KeyframeAnimation<T> : AnimationDefinition
                 parameterName,
                 progress,
                 "Keyframe progress must be finite and in the inclusive range 0 through 1.");
+    }
+
+    private static void ValidateFiniteValue(T value, string parameterName)
+    {
+        bool finite = value switch
+        {
+            float number => float.IsFinite(number),
+            double number => double.IsFinite(number),
+            PointF point => float.IsFinite(point.X) && float.IsFinite(point.Y),
+            SizeF size => float.IsFinite(size.Width) && float.IsFinite(size.Height),
+            RectangleF rectangle =>
+                float.IsFinite(rectangle.X) &&
+                float.IsFinite(rectangle.Y) &&
+                float.IsFinite(rectangle.Width) &&
+                float.IsFinite(rectangle.Height),
+            Matrix3x2 matrix =>
+                float.IsFinite(matrix.M11) &&
+                float.IsFinite(matrix.M12) &&
+                float.IsFinite(matrix.M21) &&
+                float.IsFinite(matrix.M22) &&
+                float.IsFinite(matrix.M31) &&
+                float.IsFinite(matrix.M32),
+            _ => true
+        };
+        if (!finite)
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                "Built-in numeric and geometric keyframe values must contain only finite components.");
     }
 
     private readonly record struct Frame(

@@ -58,7 +58,7 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
         AnimationExecutionScope scope,
         bool reverse = false)
     {
-        T start = from();
+        var start = new StartValueCapture(from);
         int iteration = 0;
         bool collapseInfinite = RepeatsForever && scope.Scheduler.Policy.ShouldCompleteImmediately;
 
@@ -67,14 +67,14 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
             scope.CancellationToken.ThrowIfCancellationRequested();
             AnimationExecutionResult forward =
                 await ExecutePropertyLegAsync(scope, start, reverse).ConfigureAwait(false);
-            if (forward.State != AnimationState.Completed)
+            if (forward.State != AnimationState.Completed || forward.WasIgnored)
                 return forward;
 
             if (IsAutoReversed)
             {
                 AnimationExecutionResult backward =
                     await ExecutePropertyLegAsync(scope, start, !reverse).ConfigureAwait(false);
-                if (backward.State != AnimationState.Completed)
+                if (backward.State != AnimationState.Completed || backward.WasIgnored)
                     return backward;
             }
 
@@ -90,13 +90,13 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
         AnimationExecutionScope scope,
         bool reverse)
     {
-        T start = from();
+        var start = new StartValueCapture(from);
         return ExecutePropertyLegAsync(scope, start, reverse);
     }
 
     private Task<AnimationExecutionResult> ExecutePropertyLegAsync(
         AnimationExecutionScope scope,
-        T start,
+        StartValueCapture start,
         bool reverse)
     {
         return ScheduleAsync(
@@ -104,6 +104,22 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
             target,
             ResolveKey(),
             reverse,
-            (_, progress) => update(interpolator.Interpolate(start, to, progress)));
+            (_, progress) => update(interpolator.Interpolate(start.GetValue(), to, progress)));
+    }
+
+    private sealed class StartValueCapture(Func<T> getValue)
+    {
+        private bool captured;
+        private T? value;
+
+        public T GetValue()
+        {
+            if (!captured)
+            {
+                value = getValue();
+                captured = true;
+            }
+            return value!;
+        }
     }
 }

@@ -216,6 +216,29 @@ public sealed class AnimationSchedulerTests
     }
 
     [Fact]
+    public void OwnerCancellationSuppressesPolicyCompletionAlreadyQueuedToDispatcher()
+    {
+        var dispatcher = new QueuedAnimationDispatcher();
+        using var harness = new AnimationSchedulerTestHarness(dispatcher);
+        var owner = new object();
+        int updates = 0;
+        AnimationHandle handle = harness.Scheduler.Start(
+            owner,
+            "PolicyCompletion",
+            _ => updates++,
+            Options(100));
+
+        harness.Policy.ReducedMotion = true;
+        harness.Scheduler.CancelAll(owner);
+        dispatcher.Drain();
+
+        Assert.Equal(AnimationState.Canceled, handle.State);
+        Assert.Equal(0, updates);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void CancelAndCancelAllAreIdempotentAndLeaveOtherOwnersRunning()
     {
         using var harness = new AnimationSchedulerTestHarness();

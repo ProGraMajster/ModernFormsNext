@@ -123,6 +123,14 @@ public sealed partial class AnimationScheduler : IDisposable
         string key,
         Action<AnimationFrame> update,
         AnimationOptions? options = null)
+        => StartFrames(owner, key, update, options, out _);
+
+    internal AnimationHandle StartFrames(
+        object owner,
+        string key,
+        Action<AnimationFrame> update,
+        AnimationOptions? options,
+        out bool scheduled)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -130,7 +138,8 @@ public sealed partial class AnimationScheduler : IDisposable
 
         BindPlatformLifecycleIfAvailable();
         AnimationOptionsSnapshot snapshot = (options ?? new AnimationOptions()).CreateSnapshot(Policy);
-        if (owner is IComponent { Site.DesignMode: true })
+        if (owner is IComponent { Site.DesignMode: true } ||
+            owner is InteractionEffect { Target.Site.DesignMode: true })
             snapshot = snapshot with { CompleteImmediately = true };
 
         AnimationEntry? replaced = null;
@@ -145,7 +154,10 @@ public sealed partial class AnimationScheduler : IDisposable
             if (keyedAnimations.TryGetValue(identity, out AnimationEntry? existing))
             {
                 if (snapshot.ReplacementMode == AnimationReplacementMode.IgnoreNew)
+                {
+                    scheduled = false;
                     return existing.Handle;
+                }
 
                 RemoveEntryLocked(existing);
                 if (existing.TryBeginTerminal(AnimationState.Canceled))
@@ -195,6 +207,7 @@ public sealed partial class AnimationScheduler : IDisposable
             }
         }
 
+        scheduled = true;
         if (replaced is not null)
         {
             replaced.FinishTerminal(signalCancellation: true);
@@ -736,7 +749,9 @@ public sealed partial class AnimationScheduler : IDisposable
             for (int index = activeAnimations.Count - 1; index >= 0; index--)
             {
                 AnimationEntry entry = activeAnimations[index];
-                RemoveEntryLocked(entry);
+                // Keep the keyed entry until the queued final-value callback runs. Owner
+                // cancellation, replacement, or disposal can then still cancel that callback.
+                activeAnimations.RemoveAt(index);
                 (completing ??= []).Add(entry);
             }
         }

@@ -140,9 +140,14 @@ public sealed class AnimationRun : IDisposable
     }
 }
 
-internal readonly record struct AnimationExecutionResult(AnimationState State, Exception? Exception = null)
+internal readonly record struct AnimationExecutionResult(
+    AnimationState State,
+    Exception? Exception = null,
+    bool WasIgnored = false)
 {
     public static AnimationExecutionResult Completed { get; } = new(AnimationState.Completed);
+    public static AnimationExecutionResult Ignored { get; } =
+        new(AnimationState.Completed, WasIgnored: true);
     public static AnimationExecutionResult Canceled { get; } = new(AnimationState.Canceled);
 
     public static AnimationExecutionResult Faulted(Exception exception)

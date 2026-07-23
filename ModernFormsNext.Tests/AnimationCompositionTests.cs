@@ -32,6 +32,37 @@ public sealed class AnimationCompositionTests
     }
 
     [Fact]
+    public async Task PropertyAnimationCapturesStartValueOnSchedulerUiCallback()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var target = new Control();
+        var getterThreads = new List<int>();
+        var animation = new PropertyAnimation<float>(
+            target,
+            "ThreadAffinity",
+            () =>
+            {
+                getterThreads.Add(Environment.CurrentManagedThreadId);
+                return target.Opacity;
+            },
+            0.5f,
+            AnimationInterpolators.Float,
+            value => target.Opacity = value)
+        {
+            Duration = TimeSpan.FromMilliseconds(100)
+        };
+
+        AnimationRun run = await Task.Run(() => animation.Start(harness.Scheduler));
+        Assert.Empty(getterThreads);
+
+        int tickThread = Environment.CurrentManagedThreadId;
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(AnimationState.Completed, await run.Completion);
+        Assert.Equal([tickThread], getterThreads);
+    }
+
+    [Fact]
     public async Task SequenceRunsChildrenInDeclarationOrder()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -244,6 +275,8 @@ public sealed class AnimationCompositionTests
         Assert.Throws<ArgumentException>(() => animation.Keyframe(0.25f, 2f));
         Assert.Throws<ArgumentException>(() => animation.Keyframe(0.5f, 2f));
         Assert.Throws<ArgumentOutOfRangeException>(() => animation.Keyframe(float.NaN, 2f));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => KeyframeAnimation<float>.Create(new Control(), _ => { }).Keyframe(0f, float.NaN));
         Assert.Throws<ArgumentOutOfRangeException>(() => animation.Sample(float.PositiveInfinity));
     }
 
@@ -289,6 +322,12 @@ public sealed class AnimationCompositionTests
         for (int index = 0; index < KeyframeAnimation<float>.MaximumKeyframeCount; index++)
             maximum.Keyframe(index / (float)(KeyframeAnimation<float>.MaximumKeyframeCount - 1), index);
         Assert.Throws<InvalidOperationException>(() => maximum.Keyframe(1f, 999f));
+
+        var invalidInterpolation = KeyframeAnimation<float>
+            .Create(target, _ => { }, new NonFiniteInterpolator())
+            .Keyframe(0f, 0f)
+            .Keyframe(1f, 1f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => invalidInterpolation.Sample(0.5f));
     }
 
     [Fact]
@@ -316,6 +355,52 @@ public sealed class AnimationCompositionTests
         Assert.False(harness.TickSource.IsRunning);
     }
 
+    [Fact]
+    public async Task CancelingIgnoredDefinitionRunDoesNotCancelExistingChannel()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var target = new Control();
+        var options = new AnimationOptions
+        {
+            Duration = TimeSpan.FromMilliseconds(100),
+            ReplacementMode = AnimationReplacementMode.IgnoreNew
+        };
+        AnimationRun existing = target.FadeTo(0.5f, options).Start(harness.Scheduler);
+        AnimationRun ignored = target.FadeTo(0.25f, options).Start(harness.Scheduler);
+
+        ignored.Cancel();
+
+        Assert.Equal(AnimationState.Canceled, await ignored.Completion);
+        Assert.Equal(AnimationState.Running, existing.State);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+        Assert.Equal(AnimationState.Completed, await existing.Completion);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
+    public async Task IgnoredRepeatedDefinitionDoesNotTakeOverAfterExistingCompletion()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var target = new Control();
+        var options = new AnimationOptions
+        {
+            Duration = TimeSpan.FromMilliseconds(100),
+            ReplacementMode = AnimationReplacementMode.IgnoreNew
+        };
+        AnimationRun existing = target.FadeTo(0.5f, options).Start(harness.Scheduler);
+        AnimationDefinition ignoredDefinition = target.FadeTo(0.25f, options).Repeat(3);
+        AnimationRun ignored = ignoredDefinition.Start(harness.Scheduler);
+
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(AnimationState.Completed, await existing.Completion);
+        Assert.Equal(AnimationState.Completed, await ignored.Completion);
+        Assert.Equal(0.5f, target.Opacity, 3);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
     private static CallbackAnimation Immediate(Action<float> update)
         => new((_, progress) => update(progress)) { Duration = TimeSpan.Zero };
 
@@ -334,6 +419,11 @@ public sealed class AnimationCompositionTests
     {
         public float Interpolate(float from, float to, float progress)
             => from + ((to - from) * progress) + (progress is > 0f and < 1f ? 1f : 0f);
+    }
+
+    private sealed class NonFiniteInterpolator : IAnimationInterpolator<float>
+    {
+        public float Interpolate(float from, float to, float progress) => float.NaN;
     }
 
     private sealed class TestAnimationException(string message) : Exception(message);

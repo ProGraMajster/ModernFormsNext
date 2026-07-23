@@ -193,13 +193,13 @@ public abstract class AnimationDefinition
         {
             scope.CancellationToken.ThrowIfCancellationRequested();
             AnimationExecutionResult forward = await ExecuteCoreAsync(scope, reverse).ConfigureAwait(false);
-            if (forward.State != AnimationState.Completed)
+            if (forward.State != AnimationState.Completed || forward.WasIgnored)
                 return forward;
 
             if (autoReverse)
             {
                 AnimationExecutionResult backward = await ExecuteCoreAsync(scope, !reverse).ConfigureAwait(false);
-                if (backward.State != AnimationState.Completed)
+                if (backward.State != AnimationState.Completed || backward.WasIgnored)
                     return backward;
             }
 
@@ -240,9 +240,10 @@ public abstract class AnimationDefinition
                 context.SetFrame(frame, reverse);
                 update(context, context.EasedProgress);
             },
-            CreateOptions());
+            CreateOptions(),
+            out bool scheduled);
 
-        return AwaitLeafAsync(handle, context, scope.CancellationToken);
+        return AwaitLeafAsync(handle, context, scope.CancellationToken, scheduled);
     }
 
     internal AnimationOptions CreateOptions()
@@ -277,17 +278,39 @@ public abstract class AnimationDefinition
     internal static async Task<AnimationExecutionResult> AwaitLeafAsync(
         AnimationHandle handle,
         AnimationContext? context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool cancelHandleOnCancellation = true)
     {
-        using CancellationTokenRegistration registration =
-            cancellationToken.CanBeCanceled ? cancellationToken.Register(handle.Cancel) : default;
+        TaskCompletionSource? ignoredRunCancellation = null;
+        using CancellationTokenRegistration registration = cancellationToken.CanBeCanceled
+            ? cancellationToken.Register(
+                cancelHandleOnCancellation
+                    ? handle.Cancel
+                    : () => ignoredRunCancellation?.TrySetResult())
+            : default;
 
         try
         {
-            AnimationState state = await handle.Completion.ConfigureAwait(false);
+            Task<AnimationState> completion = handle.Completion;
+            if (!cancelHandleOnCancellation && cancellationToken.CanBeCanceled && !completion.IsCompleted)
+            {
+                ignoredRunCancellation =
+                    new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                if (cancellationToken.IsCancellationRequested)
+                    ignoredRunCancellation.TrySetResult();
+                Task finished = await Task.WhenAny(
+                    completion,
+                    ignoredRunCancellation.Task).ConfigureAwait(false);
+                if (!ReferenceEquals(finished, completion))
+                    return AnimationExecutionResult.Canceled;
+            }
+
+            AnimationState state = await completion.ConfigureAwait(false);
             return state switch
             {
-                AnimationState.Completed => AnimationExecutionResult.Completed,
+                AnimationState.Completed => cancelHandleOnCancellation
+                    ? AnimationExecutionResult.Completed
+                    : AnimationExecutionResult.Ignored,
                 AnimationState.Canceled => AnimationExecutionResult.Canceled,
                 AnimationState.Faulted => AnimationExecutionResult.Faulted(
                     handle.Exception ?? new InvalidOperationException("The animation fault did not provide an exception.")),
