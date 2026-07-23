@@ -66,6 +66,58 @@ namespace ModernFormsNext.Animations
         }
 
         /// <summary>
+        /// Represents cubic ease-in. This naming pairs with <see cref="CubicOut"/>.
+        /// </summary>
+        /// <param name="t">The normalized progress in the range from 0 to 1.</param>
+        /// <returns>The eased value.</returns>
+        public static float CubicIn(float t)
+        {
+            ValidateProgress(t);
+            return t * t * t;
+        }
+
+        /// <summary>
+        /// Represents cubic ease-out.
+        /// </summary>
+        /// <param name="t">The normalized progress in the range from 0 to 1.</param>
+        /// <returns>The eased value.</returns>
+        public static float CubicOut(float t) => EaseOutCubic(t);
+
+        /// <summary>
+        /// Represents cubic ease-in-out.
+        /// </summary>
+        /// <param name="t">The normalized progress in the range from 0 to 1.</param>
+        /// <returns>The eased value.</returns>
+        public static float CubicInOut(float t) => EaseInOutCubic(t);
+
+        /// <summary>
+        /// Represents a bounded ease-out bounce curve.
+        /// </summary>
+        /// <param name="t">The normalized progress in the range from 0 to 1.</param>
+        /// <returns>The eased value.</returns>
+        public static float BounceOut(float t)
+        {
+            ValidateProgress(t);
+            const float n1 = 7.5625f;
+            const float d1 = 2.75f;
+            if (t < 1f / d1)
+                return n1 * t * t;
+            if (t < 2f / d1)
+            {
+                t -= 1.5f / d1;
+                return n1 * t * t + 0.75f;
+            }
+            if (t < 2.5f / d1)
+            {
+                t -= 2.25f / d1;
+                return n1 * t * t + 0.9375f;
+            }
+
+            t -= 2.625f / d1;
+            return n1 * t * t + 0.984375f;
+        }
+
+        /// <summary>
         /// Represents cubic ease-in-out.
         /// </summary>
         /// <param name="t">The normalized progress in the range from 0 to 1.</param>
