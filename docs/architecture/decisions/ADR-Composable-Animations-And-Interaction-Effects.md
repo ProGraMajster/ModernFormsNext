@@ -106,7 +106,8 @@ the old transition. Reduced motion applies the target presentation without perio
 ### Interaction effects
 
 `InteractionEffectCollection` attaches reusable effects to a control. Attach is exclusive and
-duplicate attachment is rejected. The control dispatches pointer, keyboard, focus, enabled,
+adding the same instance to the same collection is idempotent; attaching it to another target
+while still attached is rejected. The control dispatches pointer, keyboard, focus, enabled,
 detach, and render notifications to the collection through one framework hook; effects do not
 subscribe independent event-handler graphs.
 
@@ -118,12 +119,12 @@ cancel is distinct from normal release.
 
 `RippleEffect` starts from a pointer/touch location or the control center. Radius can cover the
 current control bounds, so resizing during a ripple changes the required cover radius. Alpha fades
-while radius grows. A bounded active list enforces an explicit oldest-first or ignore-new eviction
-policy. Each ripple is a scheduler entry, never a timer; scheduler tick batching coalesces repaint
+while radius grows. A bounded active list enforces the explicit oldest-first eviction policy.
+Each ripple is a scheduler entry, never a timer; scheduler tick batching coalesces repaint
 requests per window.
 
 Keyboard activation starts a centered ripple. Disabled controls do not start effects. Pointer
-cancel removes matching touch ripples. Detach/dispose cancels all remaining ripple handles.
+cancel clears the active ripple gesture state. Detach/dispose cancels all remaining ripple handles.
 Reduced motion may omit this decorative effect entirely.
 
 `PressScaleEffect` tracks independent pointer and keyboard presses. It animates a dedicated
