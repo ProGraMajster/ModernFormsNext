@@ -60,6 +60,8 @@ known limitations, and sample commands.
   and `MarkdownEditor`—not an embedded browser.
 - Hierarchical dynamic resources at control, parent, window, and application scope, with live
   resource references to CLR properties.
+- Validated application themes with semantic/custom tokens, inheritance, strict versioned JSON,
+  atomic runtime switching, and optional transitions through the shared animation scheduler.
 - Platform-neutral WindowKit contracts with a mature Windows backend and an experimental Android
   backend.
 - A ModernFormsNext-native form designer, `.mfdesign` documents, deterministic `.Designer.cs`
@@ -196,6 +198,7 @@ declared as a publishable NuGet package.
 - [Android platform status](docs/platforms/android.md)
 - [Designer architecture](docs/designer-architecture.md)
 - [Dynamic resources](docs/dynamic-resources.md)
+- [Themes](docs/themes.md) and [theme JSON schema](docs/theme-json-schema.md)
 - [Paint and gradients](docs/paint-and-gradients.md)
 - [UI animations](docs/animations.md)
 - [Markdown viewing](docs/markdown.md) and [Markdown editing](docs/markdown-editor.md)

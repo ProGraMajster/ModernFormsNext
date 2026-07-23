@@ -159,7 +159,28 @@ namespace ModernFormsNext
         /// <summary>
         /// Marks the entire window as needing to be redrawn.
         /// </summary>
-        public void Invalidate () => window.Invalidate (new Rect (window.ClientSize));
+        /// <remarks>
+        /// During an atomic theme update, repeated requests are coalesced into one platform
+        /// invalidation for this window.
+        /// </remarks>
+        public void Invalidate () => Application.RequestVisualInvalidation (this);
+
+        internal void InvalidateCore () => window.Invalidate (new Rect (window.ClientSize));
+
+        internal void RefreshThemeVisuals (EventArgs e)
+        {
+            adapter.NotifyThemeChangedForSubtree (e);
+            Invalidate ();
+        }
+
+        internal void RefreshThemeFrameVisuals ()
+        {
+            // Layout-affecting theme values commit before a transition starts. Per-frame color and
+            // brush interpolation only needs the current visual state to be repainted, so bypass
+            // control-specific OnThemeChanged layout/cache work on animation ticks.
+            adapter.InvalidateThemeVisualForSubtree ();
+            Invalidate ();
+        }
 
         /// <summary>
         /// Marks the specified portion of the window as needing to be redrawn.

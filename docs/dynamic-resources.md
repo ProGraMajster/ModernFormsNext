@@ -1,8 +1,9 @@
 # Dynamic resources
 
-Dynamic resources let a normal public control property follow a value stored at application,
-window, ancestor-control, or control scope. They are the shared foundation for future themes,
-localization, styles, and control defaults; they are not a second data-binding or property system.
+Dynamic resources let a normal public control property follow a value stored at theme,
+application, window, ancestor-control, or control scope. They are the shared foundation for
+themes, localization, styles, and control defaults; they are not a second data-binding or property
+system.
 
 ## Define and reference a resource
 
@@ -58,11 +59,13 @@ For a control, lookup proceeds from the most specific scope to the broadest:
 1. the control's `Resources`;
 2. each ancestor control's `Resources`;
 3. the owning window's `Resources`;
-4. `Application.Resources`.
+4. `Application.Resources`;
+5. the read-only, ThemeManager-owned `Application.ThemeResources`.
 
 If an override is removed, the next matching scope becomes effective automatically. If no scope
 contains the key, the property returns to the value captured when `SetResourceReference` was first
-called. Reparenting a control refreshes references for that subtree.
+called. Application resources deliberately override theme defaults, so applying a theme cannot
+erase application-owned entries. Reparenting a control refreshes references for that subtree.
 
 ```csharp
 Application.Resources["Spacing.Page"] = 16;
@@ -109,11 +112,12 @@ worker thread.
 
 ## Current limits
 
-- Keys and values are runtime objects; JSON theme/localization loaders are planned separately.
+- Application/window/control keys and values remain arbitrary runtime objects. Theme JSON uses the
+  stricter typed key and value allow-list documented in [theme JSON schema](theme-json-schema.md).
 - Property references use case-sensitive public CLR property names. Trimming/AOT metadata policy
   must be settled before enabling aggressive member trimming for applications.
-- Merged dictionaries, explicit dictionary inheritance, resource factories, and transition
-  animation are future ThemeManager work.
+- Merged dictionaries and resource factories remain future work. Theme inheritance resolves before
+  publication, while compatible theme values transition through the shared animation scheduler.
 - In-place updates are currently observed for the framework brush hierarchy only, not for every
   mutable resource object.
 - Resource values are applied directly. General-purpose implicit conversion is intentionally not

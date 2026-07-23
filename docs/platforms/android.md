@@ -42,6 +42,9 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 - Activity foreground/background transitions, pause/resume, configuration changes, and activity
   replacement are tracked. The cross-platform sample keeps its process-owned control tree and
   state when the host activity is recreated.
+- The shared ThemeManager model, strict JSON stream loader, dynamic theme resources, built-in
+  Light/Dark themes, and scheduler-based transitions compile for Android. Background/no-host time
+  is excluded by the existing lifecycle integration.
 - Manifest-aware runtime permission checks and serialized permission requests are available for
   the permission set documented in [Android manifests and permissions](../android-permissions.md).
 - Deterministic tests cover permission mapping and queues, lifecycle planning, density conversion,
@@ -54,6 +57,10 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 - Android does not implement the general `Application.Run(Form)` startup path, `IWindowingPlatform`,
   or `IWindowImpl`. Applications must currently provide an Android activity and attach a control
   root explicitly.
+- Android does not yet register a system light/dark or reduced-motion ThemeManager provider.
+  `ThemeVariant.System` therefore uses the explicit Light/Dark apply fallback. This limitation does
+  not imply runtime parity: startup, switching, storage streams, and visual transitions still need
+  emulator/device validation for a release.
 - Only one framework control surface is exercised. Multiple framework windows, popups, owned
   windows, and desktop-style window management are not available.
 - Clipboard, native dialogs, file/folder pickers, drag and drop, notification delivery, camera and

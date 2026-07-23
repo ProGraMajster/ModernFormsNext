@@ -365,10 +365,14 @@ namespace ModernFormsNext
         /// <summary>
         /// Called when the theme changes.
         /// </summary>
+        /// <remarks>
+        /// The base implementation refreshes framework-owned chrome and the complete nested
+        /// control tree, then schedules one batched repaint for this window. Overrides should call
+        /// the base implementation so active visual states are resolved against the new theme.
+        /// </remarks>
         protected internal virtual void OnThemeChanged (EventArgs e)
         {
-            foreach (var control in base.Controls.GetAllControls ())
-                control.OnThemeChanged (e);
+            RefreshThemeVisuals (e);
         }
 
         internal override void SetWindowStartupLocation (IWindowBaseImpl? owner = null)
