@@ -16,6 +16,8 @@ public sealed class RippleEffect : InteractionEffect
     private float fixedRadius = 48f;
     private long nextId;
     private RippleLayer layer = RippleLayer.AboveBackgroundBelowContent;
+    private RippleRadiusMode radiusMode = RippleRadiusMode.CoverControl;
+    private RippleEvictionPolicy evictionPolicy = RippleEvictionPolicy.Oldest;
 
     /// <summary>Gets or sets the wave color including its initial alpha.</summary>
     public Color Color { get; set; } = Color.FromArgb(90, 255, 255, 255);
@@ -46,7 +48,17 @@ public sealed class RippleEffect : InteractionEffect
 
     /// <summary>Gets or sets how final radius is resolved.</summary>
     [DefaultValue(RippleRadiusMode.CoverControl)]
-    public RippleRadiusMode RadiusMode { get; set; } = RippleRadiusMode.CoverControl;
+    public RippleRadiusMode RadiusMode
+    {
+        get => radiusMode;
+        set
+        {
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            radiusMode = value;
+            InvalidateTarget();
+        }
+    }
 
     /// <summary>Gets or sets the fixed radius in logical pixels.</summary>
     public float FixedRadius
@@ -89,7 +101,16 @@ public sealed class RippleEffect : InteractionEffect
 
     /// <summary>Gets or sets the explicit bounded-wave eviction policy.</summary>
     [DefaultValue(RippleEvictionPolicy.Oldest)]
-    public RippleEvictionPolicy EvictionPolicy { get; set; } = RippleEvictionPolicy.Oldest;
+    public RippleEvictionPolicy EvictionPolicy
+    {
+        get => evictionPolicy;
+        set
+        {
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            evictionPolicy = value;
+        }
+    }
 
     /// <summary>Gets the current number of active waves for diagnostics.</summary>
     [Browsable(false)]

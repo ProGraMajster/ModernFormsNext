@@ -110,6 +110,17 @@ public sealed class InteractionEffectTests
     }
 
     [Fact]
+    public void RippleRejectsUndefinedRadiusAndEvictionPolicies()
+    {
+        var ripple = new RippleEffect();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ripple.RadiusMode = (RippleRadiusMode)int.MaxValue);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ripple.EvictionPolicy = (RippleEvictionPolicy)int.MaxValue);
+    }
+
+    [Fact]
     public void PressScaleComposesWithControlScaleAndReleasesWithoutSticking()
     {
         using var harness = new AnimationSchedulerTestHarness();
