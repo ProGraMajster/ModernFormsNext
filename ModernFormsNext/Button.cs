@@ -200,6 +200,7 @@ namespace ModernFormsNext
         protected override void OnKeyUp (KeyEventArgs e)
         {
             if (e.KeyCode.In (Keys.Space, Keys.Enter)) {
+                NotifyInteractionKeyUp (e);
                 PerformClick ();
                 e.Handled = true;
                 return;
@@ -214,6 +215,12 @@ namespace ModernFormsNext
             base.OnPaint (e);
 
             RenderManager.Render (this, e);
+        }
+
+        internal override void RenderFocusOverlay (PaintEventArgs e)
+        {
+            if (Selected && ShowFocusCues)
+                e.Canvas.DrawFocusRectangle (TextImageLayoutEngine.Layout (this).Focus, 0);
         }
 
         /// <summary>

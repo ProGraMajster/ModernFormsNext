@@ -18,6 +18,7 @@ public partial class Control
     private VisualState currentVisualState;
     private ControlStyle? transitionStyle;
     private bool pointerPressed;
+    private HashSet<int>? pressedPointerIds;
     private bool keyboardPressed;
     private bool hasVisualFocus;
     private float visualStateOpacity = 1f;
@@ -71,8 +72,8 @@ public partial class Control
     internal float EffectiveOpacity => Math.Clamp(Opacity * GetVisualOpacity(), 0f, 1f);
     internal float EffectiveTranslationX => TranslationX + GetVisualTranslationX();
     internal float EffectiveTranslationY => TranslationY + GetVisualTranslationY();
-    internal float EffectiveScaleX => ScaleX * GetVisualScaleX();
-    internal float EffectiveScaleY => ScaleY * GetVisualScaleY();
+    internal float EffectiveScaleX => ScaleX * GetVisualScaleX() * InteractionScale;
+    internal float EffectiveScaleY => ScaleY * GetVisualScaleY() * InteractionScale;
     internal float EffectiveRotation => Rotation + GetVisualRotation();
     internal Brush? EffectiveBackgroundBrush => BackgroundBrush ?? CurrentStyle.BackgroundBrush;
     internal Brush? EffectiveTextBrush => TextBrush ?? CurrentStyle.ForegroundBrush;
@@ -81,11 +82,25 @@ public partial class Control
     internal ControlStyle ResolveCurrentStyle()
         => transitionStyle ?? GetStyleForState(currentVisualState);
 
-    internal void SetPointerVisualPressed(bool value)
+    internal void SetPointerVisualPressed(bool value, int pointerId = 0)
     {
-        if (pointerPressed == value)
+        bool wasPressed = pointerPressed;
+        if (value)
+            (pressedPointerIds ??= []).Add(pointerId);
+        else
+            pressedPointerIds?.Remove(pointerId);
+        pointerPressed = pressedPointerIds is { Count: > 0 };
+        if (pointerPressed == wasPressed)
             return;
-        pointerPressed = value;
+        UpdateVisualState();
+    }
+
+    internal void ClearPointerVisualPressed()
+    {
+        if (!pointerPressed)
+            return;
+        pressedPointerIds?.Clear();
+        pointerPressed = false;
         UpdateVisualState();
     }
 

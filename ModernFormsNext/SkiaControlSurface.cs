@@ -172,7 +172,7 @@ public sealed class SkiaControlSurface : IDisposable
 
                 if (target is not null)
                 {
-                    target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0));
+                    target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0, pointerId));
                     downState.CapturedControl = target;
                 }
 
@@ -208,7 +208,7 @@ public sealed class SkiaControlSurface : IDisposable
                     moveState.GestureOwner = moveState.ScrollCandidate;
                 else if (moveState.GestureOwner is null && moveState.CapturedControl is not null)
                     moveState.CapturedControl.RaiseMouseMove(
-                        CreateMouseArgs(moveState.CapturedControl, location, MouseButtons.Left, 0));
+                        CreateMouseArgs(moveState.CapturedControl, location, MouseButtons.Left, 0, pointerId));
 
                 moveState.LastLocation = location;
                 break;
@@ -225,7 +225,7 @@ public sealed class SkiaControlSurface : IDisposable
                 else if (upState.CapturedControl is not null)
                 {
                     var releasedOnCapture = hit is not null && ReferenceEquals(hit.Value.Control, upState.CapturedControl);
-                    var upArgs = CreateMouseArgs(upState.CapturedControl, location, MouseButtons.Left, 1);
+                    var upArgs = CreateMouseArgs(upState.CapturedControl, location, MouseButtons.Left, 1, pointerId);
                     if (upState.ClickEligible && releasedOnCapture)
                     {
                         upState.CapturedControl.RaiseClick(upArgs);
@@ -599,7 +599,8 @@ public sealed class SkiaControlSurface : IDisposable
         Control target,
         Point surfaceLocation,
         MouseButtons button,
-        int clicks)
+        int clicks,
+        int pointerId)
     {
         var local = SurfaceToControl(target, surfaceLocation);
         return new MouseEventArgs(
@@ -609,7 +610,9 @@ public sealed class SkiaControlSurface : IDisposable
             local.Y,
             Point.Empty,
             surfaceLocation.X,
-            surfaceLocation.Y);
+            surfaceLocation.Y,
+            pointerId: pointerId,
+            pointerKind: PointerDeviceKind.Touch);
     }
 
     private static Point SurfaceToControl(Control target, Point surfaceLocation)

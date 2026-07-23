@@ -18,7 +18,17 @@ namespace ModernFormsNext
         /// <summary>
         ///  Initializes a new instance of the <see cref='MouseEventArgs'/> class.
         /// </summary>
-        public MouseEventArgs (MouseButtons button, int clicks, int x, int y, Point delta, int? screenX = null, int? screenY = null, Keys keyData = Keys.None)
+        public MouseEventArgs (
+            MouseButtons button,
+            int clicks,
+            int x,
+            int y,
+            Point delta,
+            int? screenX = null,
+            int? screenY = null,
+            Keys keyData = Keys.None,
+            int pointerId = 0,
+            PointerDeviceKind pointerKind = PointerDeviceKind.Mouse)
         {
             Button = button;
             Clicks = clicks;
@@ -27,6 +37,8 @@ namespace ModernFormsNext
             Y = y;
             ScreenLocation = new Point (screenX ?? x, screenY ?? y);
             key_data = keyData;
+            PointerId = pointerId;
+            PointerKind = pointerKind;
         }
 
         /// <summary>
@@ -63,6 +75,13 @@ namespace ModernFormsNext
         /// Get the mouse location in screen coordinates.
         /// </summary>
         public Point ScreenLocation { get; }
+
+        /// <summary>Gets the platform-stable identifier for this pointer sequence.</summary>
+        /// <remarks>Desktop mouse events use zero. Touch hosts preserve the platform pointer ID.</remarks>
+        public int PointerId { get; }
+
+        /// <summary>Gets the physical pointer source when the host can identify it.</summary>
+        public PointerDeviceKind PointerKind { get; }
 
         /// <summary>
         /// Gets whether the Alt modifier key was also pressed.
