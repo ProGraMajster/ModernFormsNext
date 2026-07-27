@@ -475,6 +475,26 @@ public sealed class AnimationCompositionTests
         Assert.False(harness.TickSource.IsRunning);
     }
 
+    [Fact]
+    public async Task ConcurrentRunCancellationAndNaturalCompletionAreExceptionSafe()
+    {
+        for (int iteration = 0; iteration < 1_000; iteration++)
+        {
+            var execution = new TaskCompletionSource<AnimationExecutionResult>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var run = new AnimationRun();
+            run.Start(_ => execution.Task, CancellationToken.None);
+
+            Task cancel = Task.Run(run.Cancel);
+            Task complete = Task.Run(() =>
+                execution.TrySetResult(AnimationExecutionResult.Completed));
+
+            await Task.WhenAll(cancel, complete);
+            AnimationState state = await run.Completion;
+            Assert.True(state is AnimationState.Canceled or AnimationState.Completed);
+        }
+    }
+
     private static CallbackAnimation Immediate(Action<float> update)
         => new((_, progress) => update(progress)) { Duration = TimeSpan.Zero };
 

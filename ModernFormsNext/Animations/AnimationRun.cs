@@ -11,12 +11,14 @@ namespace ModernFormsNext.Animations;
 public sealed class AnimationRun : IDisposable
 {
     private readonly CancellationTokenSource cancellation = new();
+    private readonly object cancellationSync = new();
     private readonly TaskCompletionSource<AnimationState> completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int state = (int)AnimationState.Created;
     private Exception? exception;
     private int started;
     private int finished;
+    private bool cancellationDisposed;
 
     internal CancellationToken CancellationToken => cancellation.Token;
 
@@ -50,15 +52,21 @@ public sealed class AnimationRun : IDisposable
                 break;
         }
 
-        try
+        lock (cancellationSync)
         {
-            cancellation.Cancel(throwOnFirstException: false);
-        }
-        catch (AggregateException cancellationFailure)
-        {
-            System.Diagnostics.Trace.TraceError(
-                "An animation-run cancellation callback faulted: {0}",
-                cancellationFailure);
+            if (cancellationDisposed)
+                return;
+
+            try
+            {
+                cancellation.Cancel(throwOnFirstException: false);
+            }
+            catch (AggregateException cancellationFailure)
+            {
+                System.Diagnostics.Trace.TraceError(
+                    "An animation-run cancellation callback faulted: {0}",
+                    cancellationFailure);
+            }
         }
     }
 
@@ -136,7 +144,11 @@ public sealed class AnimationRun : IDisposable
             Volatile.Write(ref exception, result.Exception);
 
         completion.TrySetResult(finalState);
-        cancellation.Dispose();
+        lock (cancellationSync)
+        {
+            cancellationDisposed = true;
+            cancellation.Dispose();
+        }
     }
 }
 
