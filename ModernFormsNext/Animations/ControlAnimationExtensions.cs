@@ -155,7 +155,9 @@ namespace ModernFormsNext.Animations
         /// <param name="control">The target control.</param>
         public static void CancelAnimations (this Control control)
         {
-            ArgumentNullException.ThrowIfNull(control);
+            // Preserve the original helper's null-tolerant cancellation behavior.
+            if (control is null)
+                return;
             AnimationScheduler.Default.CancelAll(control);
         }
 
@@ -257,12 +259,11 @@ namespace ModernFormsNext.Animations
 
         private static AnimationOptions CreateOptions(int duration, Func<float, float>? easing)
         {
-            if (duration < 0)
-                throw new ArgumentOutOfRangeException(nameof(duration), duration, "Animation duration cannot be negative.");
-
             return new AnimationOptions
             {
-                Duration = TimeSpan.FromMilliseconds(duration),
+                // The legacy helpers accepted every integer and used a one-millisecond minimum.
+                // Keep that behavior while the composable TimeSpan APIs retain strict validation.
+                Duration = TimeSpan.FromMilliseconds(Math.Max(1, duration)),
                 Easing = easing ?? Easings.Linear
             };
         }
