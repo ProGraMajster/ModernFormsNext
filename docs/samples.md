@@ -42,6 +42,12 @@ dotnet run
 
 ## ControlGallery
 
+The **Animations and Interaction Effects** page demonstrates pointer- and center-origin ripple,
+rapid bounded waves, press scale, hover/focus/disabled transitions, sequence, parallel, timeline,
+keyframes, repeat, auto-reverse, custom definitions and interpolators, cancellation, replacement
+policies, reduced motion, animations disabled, and scheduler/ripple diagnostics. It is opt-in and
+restores the animation policy when unloaded.
+
 The `MarkdownEditor` page demonstrates Editor, Preview, and Split modes, the public command
 toolbar, Ctrl+K, hosted link and image request dialogs built only from ModernFormsNext controls,
 preview link forwarding, and optional proportional scroll synchronization. Its source includes

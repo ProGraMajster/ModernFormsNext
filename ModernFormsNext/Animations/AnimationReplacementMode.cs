@@ -8,6 +8,11 @@ public enum AnimationReplacementMode
     /// <summary>Cancel the existing animation and install the new animation.</summary>
     Replace,
 
+    /// <summary>
+    /// Alias for <see cref="Replace"/> that emphasizes cancellation of the previous handle.
+    /// </summary>
+    CancelPrevious = Replace,
+
     /// <summary>Keep the existing animation and return its handle without scheduling the new one.</summary>
     IgnoreNew
 }

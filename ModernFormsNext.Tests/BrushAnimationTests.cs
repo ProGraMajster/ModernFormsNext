@@ -240,6 +240,18 @@ public sealed class DefaultAnimationSchedulerCollection
 public sealed class ControlAnimationLifecycleTests
 {
     [Fact]
+    public async Task LegacyAsyncHelperStillClampsNegativeDurationAndNullCancellationIsANoOp()
+    {
+        using var control = new Control();
+
+        Task animation = control.FadeToAsync(0.5f, duration: -10);
+        ((Control)null!).CancelAnimations();
+        control.CancelAnimations();
+
+        await animation;
+    }
+
+    [Fact]
     public async Task DisposingControlCancelsItsOwnedDefaultAnimation()
     {
         var control = new Control();

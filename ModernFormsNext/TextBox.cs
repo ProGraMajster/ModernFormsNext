@@ -392,10 +392,10 @@ namespace ModernFormsNext
             Invalidate ();
         }
 
-        internal override void CancelPointerInteraction ()
+        internal override void CancelPointerInteraction (int? pointerId = null)
         {
             is_highlighting = false;
-            base.CancelPointerInteraction ();
+            base.CancelPointerInteraction (pointerId);
         }
 
         /// <inheritdoc/>

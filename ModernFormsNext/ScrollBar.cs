@@ -215,10 +215,10 @@ namespace ModernFormsNext
             thumb_pressed = false;
         }
 
-        internal override void CancelPointerInteraction ()
+        internal override void CancelPointerInteraction (int? pointerId = null)
         {
             thumb_pressed = false;
-            base.CancelPointerInteraction ();
+            base.CancelPointerInteraction (pointerId);
         }
 
         /// <inheritdoc/>

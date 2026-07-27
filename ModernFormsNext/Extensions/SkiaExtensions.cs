@@ -265,7 +265,26 @@ namespace ModernFormsNext
         /// Draws a control's border.
         /// </summary>
         public static void DrawBorder (this SKCanvas canvas, Rectangle bounds, ControlStyle style)
+            => DrawBorder (canvas, bounds, style, null);
+
+        /// <summary>
+        /// Draws a control's border using the supplied brush when one is available.
+        /// </summary>
+        /// <param name="canvas">The canvas on which the border is drawn.</param>
+        /// <param name="bounds">The control bounds in device pixels.</param>
+        /// <param name="style">The resolved control style that supplies border geometry.</param>
+        /// <param name="brush">The effective border brush, or <see langword="null"/> to use the colors stored in <paramref name="style"/>.</param>
+        public static void DrawBorder (
+            this SKCanvas canvas,
+            Rectangle bounds,
+            ControlStyle style,
+            Drawing.Brush? brush)
         {
+            if (brush is not null) {
+                DrawBrushBorder (canvas, bounds, style, brush);
+                return;
+            }
+
             // If using border radius, currently all border sides are drawn, and all are the same color
             var radius = style.Border.GetRadius ();
 
@@ -297,6 +316,78 @@ namespace ModernFormsNext
                 var bottom_offset = style.Border.Bottom.GetWidth () / 2f;
                 canvas.DrawLine (0, bounds.Height - bottom_offset, bounds.Width, bounds.Height - bottom_offset, style.Border.Bottom.GetColor (), style.Border.Bottom.GetWidth ());
             }
+        }
+
+        private static void DrawBrushBorder (
+            SKCanvas canvas,
+            Rectangle bounds,
+            ControlStyle style,
+            Drawing.Brush brush)
+        {
+            if (brush is NoBrush || brush.Opacity <= 0f)
+                return;
+
+            var paint = new SKPaint {
+                IsAntialias = true,
+                IsStroke = true,
+                Color = style.Border.GetColor ()
+            };
+            SKShader? shader = null;
+            try {
+                if (brush is SolidColorBrush solid)
+                    paint.Color = SkiaBrushFactory.ApplyOpacity (solid.Color, solid.Opacity);
+                else if (brush is GradientBrush gradient) {
+                    shader = SkiaBrushFactory.CreateGradientShader (
+                        gradient,
+                        new SKRect (0, 0, bounds.Width, bounds.Height));
+                    paint.Shader = shader;
+                }
+
+                var radius = style.Border.GetRadius ();
+                if (radius > 0) {
+                    paint.StrokeWidth = style.Border.GetWidth ();
+                    canvas.DrawRoundRect (
+                        new SKRect (
+                            paint.StrokeWidth / 2f,
+                            paint.StrokeWidth / 2f,
+                            bounds.Width - (paint.StrokeWidth / 2f),
+                            bounds.Height - (paint.StrokeWidth / 2f)),
+                        radius,
+                        radius,
+                        paint);
+                    return;
+                }
+
+                DrawBrushBorderSide (canvas, paint, style.Border.Left.GetWidth (),
+                    static (target, offset, _, height, value) => target.DrawLine (offset, 0, offset, height, value),
+                    bounds.Width, bounds.Height);
+                DrawBrushBorderSide (canvas, paint, style.Border.Right.GetWidth (),
+                    static (target, offset, width, height, value) => target.DrawLine (width - offset, 0, width - offset, height, value),
+                    bounds.Width, bounds.Height);
+                DrawBrushBorderSide (canvas, paint, style.Border.Top.GetWidth (),
+                    static (target, offset, width, _, value) => target.DrawLine (0, offset, width, offset, value),
+                    bounds.Width, bounds.Height);
+                DrawBrushBorderSide (canvas, paint, style.Border.Bottom.GetWidth (),
+                    static (target, offset, width, height, value) => target.DrawLine (0, height - offset, width, height - offset, value),
+                    bounds.Width, bounds.Height);
+            } finally {
+                shader?.Dispose ();
+                paint.Dispose ();
+            }
+        }
+
+        private static void DrawBrushBorderSide (
+            SKCanvas canvas,
+            SKPaint paint,
+            int width,
+            Action<SKCanvas, float, float, float, SKPaint> draw,
+            float boundsWidth,
+            float boundsHeight)
+        {
+            if (width <= 0)
+                return;
+            paint.StrokeWidth = width;
+            draw (canvas, width / 2f, boundsWidth, boundsHeight, paint);
         }
 
         /// <summary>

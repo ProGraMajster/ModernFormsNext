@@ -1203,7 +1203,7 @@ namespace ModernFormsNext
             Invalidate();
         }
 
-        internal override void CancelPointerInteraction()
+        internal override void CancelPointerInteraction(int? pointerId = null)
         {
             var wasPressed = thumbPressed || dragging;
             thumbPressed = false;
@@ -1215,7 +1215,7 @@ namespace ModernFormsNext
                 NotifyAccessibilityClients(AccessibleEvents.StateChange);
             }
 
-            base.CancelPointerInteraction();
+            base.CancelPointerInteraction(pointerId);
         }
 
         /// <inheritdoc/>

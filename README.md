@@ -200,7 +200,7 @@ declared as a publishable NuGet package.
 - [Dynamic resources](docs/dynamic-resources.md)
 - [Themes](docs/themes.md) and [theme JSON schema](docs/theme-json-schema.md)
 - [Paint and gradients](docs/paint-and-gradients.md)
-- [UI animations](docs/animations.md)
+- [UI animations and interaction effects](docs/animations.md)
 - [Markdown viewing](docs/markdown.md) and [Markdown editing](docs/markdown-editor.md)
 - [Data binding](docs/data-binding.md)
 - [Styling](docs/styling.md)

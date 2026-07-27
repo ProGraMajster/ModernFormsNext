@@ -136,6 +136,41 @@ internal sealed class ManualAnimationTickSource : IAnimationTickSource
     }
 }
 
+internal sealed class BlockingStartAnimationTickSource : IAnimationTickSource
+{
+    private readonly ManualResetEventSlim releaseStart = new();
+    private int isRunning;
+    private int isDisposed;
+
+    public ManualResetEventSlim StartEntered { get; } = new();
+
+    public bool IsRunning => Volatile.Read(ref isRunning) != 0;
+
+    public void Start(Action tickRequested)
+    {
+        ArgumentNullException.ThrowIfNull(tickRequested);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref isDisposed) != 0, this);
+        StartEntered.Set();
+        if (!releaseStart.Wait(TimeSpan.FromSeconds(10)))
+            throw new TimeoutException("The test did not release the blocked tick-source start.");
+        Volatile.Write(ref isRunning, 1);
+    }
+
+    public void Stop() => Volatile.Write(ref isRunning, 0);
+
+    public void ReleaseStart() => releaseStart.Set();
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref isDisposed, 1) != 0)
+            return;
+        releaseStart.Set();
+        Volatile.Write(ref isRunning, 0);
+        StartEntered.Dispose();
+        releaseStart.Dispose();
+    }
+}
+
 internal sealed class ImmediateAnimationDispatcher : IAnimationDispatcher
 {
     public int PostCount { get; private set; }

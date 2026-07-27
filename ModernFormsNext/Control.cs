@@ -92,7 +92,7 @@ namespace ModernFormsNext
             // Update the parent
             parent = value;
             if (previousParent is not null && value is null)
-                Animations.AnimationScheduler.CancelOwnedIfInitialized(this);
+                CancelOwnedControlAnimations();
             RefreshResourceBindingsForSubtree ();
             OnParentChanged (EventArgs.Empty);
 
@@ -517,7 +517,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the current style of this control instance.
         /// </summary>
-        public virtual ControlStyle CurrentStyle => IsHovering && Enabled ? StyleHover : Style;
+        public virtual ControlStyle CurrentStyle => ResolveCurrentStyle();
 
         /// <summary>
         /// Gets or sets the mouse cursor to be shown when the mouse is over the control.
@@ -1310,6 +1310,13 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnEnabledChanged (EventArgs e)
         {
+            if (!Enabled) {
+                pressedPointerIds?.Clear ();
+                pointerPressed = false;
+                keyboardPressed = false;
+                NotifyInteractionEffectsDisabled ();
+            }
+            UpdateVisualState ();
             Invalidate ();
 
             (Events[s_enabledChangedEvent] as EventHandler)?.Invoke (this, e);
@@ -1339,6 +1346,7 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnGotFocus (EventArgs e)
         {
+            SetVisualFocus (true);
             (Events[s_gotFocusEvent] as EventHandler)?.Invoke(this, e);
             NotifyAccessibilityClients(AccessibleEvents.Focus);
             NotifyAccessibilityClients(AccessibleEvents.StateChange);
@@ -1354,6 +1362,12 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnLostFocus(EventArgs e)
         {
+            keyboardPressed = false;
+            // A control can lose focus before the matching activation-key release reaches it.
+            // Treat that as cancellation so keyboard-driven press effects cannot stay held.
+            ClearPointerVisualPressed();
+            NotifyInteractionPointerCanceled();
+            SetVisualFocus (false);
             (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
             NotifyAccessibilityClients(AccessibleEvents.StateChange);
         }
@@ -1361,7 +1375,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the KeyDown event.
         /// </summary>
-        protected virtual void OnKeyDown (KeyEventArgs e) => (Events[s_keyDownEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
+        protected virtual void OnKeyDown (KeyEventArgs e)
+        {
+            NotifyInteractionKeyDown (e);
+            (Events[s_keyDownEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
+        }
 
         /// <summary>
         /// Raises the KeyPress event.
@@ -1375,7 +1393,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the KeyUp event.
         /// </summary>
-        protected virtual void OnKeyUp (KeyEventArgs e) => (Events[s_keyUpEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
+        protected virtual void OnKeyUp (KeyEventArgs e)
+        {
+            NotifyInteractionKeyUp (e);
+            (Events[s_keyUpEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
+        }
 
         /// <summary>
         /// Raises the LocationChanged event.
@@ -1394,7 +1416,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the MouseDown event.
         /// </summary>
-        protected virtual void OnMouseDown (MouseEventArgs e) => (Events[s_mouseDownEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
+        protected virtual void OnMouseDown (MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                SetPointerVisualPressed(true, e.PointerId);
+            NotifyInteractionPointerDown (e);
+            (Events[s_mouseDownEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
+        }
 
         /// <summary>
         /// Raises the MouseEnter event.
@@ -1405,6 +1433,7 @@ namespace ModernFormsNext
 
             if (behaviors.HasFlag (ControlBehaviors.Hoverable)) {
                 IsHovering = true;
+                UpdateVisualState ();
                 Invalidate ();
             }
 
@@ -1418,6 +1447,7 @@ namespace ModernFormsNext
         {
             if (behaviors.HasFlag (ControlBehaviors.Hoverable)) {
                 IsHovering = false;
+                UpdateVisualState ();
                 Invalidate ();
             }
 
@@ -1432,7 +1462,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the MouseUp event.
         /// </summary>
-        protected virtual void OnMouseUp (MouseEventArgs e) => (Events[s_mouseUpEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
+        protected virtual void OnMouseUp (MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+                SetPointerVisualPressed(false, e.PointerId);
+            NotifyInteractionPointerUp (e);
+            (Events[s_mouseUpEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
+        }
 
         /// <summary>
         /// Raises the MouseWheel event.
@@ -1472,20 +1508,20 @@ namespace ModernFormsNext
                 //e.Canvas.DrawBitmap (buffer, control.ScaledLeft, control.ScaledTop);
 
                 var hasRenderTransform =
-                    control.Opacity < 0.999f ||
-                    Math.Abs (control.Rotation) > 0.0001f ||
-                    Math.Abs (control.ScaleX - 1f) > 0.0001f ||
-                    Math.Abs (control.ScaleY - 1f) > 0.0001f ||
-                    Math.Abs (control.TranslationX) > 0.0001f ||
-                    Math.Abs (control.TranslationY) > 0.0001f;
+                    control.EffectiveOpacity < 0.999f ||
+                    Math.Abs (control.EffectiveRotation) > 0.0001f ||
+                    Math.Abs (control.EffectiveScaleX - 1f) > 0.0001f ||
+                    Math.Abs (control.EffectiveScaleY - 1f) > 0.0001f ||
+                    Math.Abs (control.EffectiveTranslationX) > 0.0001f ||
+                    Math.Abs (control.EffectiveTranslationY) > 0.0001f;
 
                 if (!hasRenderTransform) {
                     e.Canvas.DrawBitmap (buffer, control.ScaledLeft, control.ScaledTop);
                     continue;
                 }
 
-                var drawX = control.ScaledLeft + (control.TranslationX * control.ScaleFactor.Width);
-                var drawY = control.ScaledTop + (control.TranslationY * control.ScaleFactor.Height);
+                var drawX = control.ScaledLeft + (control.EffectiveTranslationX * control.ScaleFactor.Width);
+                var drawY = control.ScaledTop + (control.EffectiveTranslationY * control.ScaleFactor.Height);
                 var drawWidth = control.ScaledWidth;
                 var drawHeight = control.ScaledHeight;
 
@@ -1494,14 +1530,14 @@ namespace ModernFormsNext
 
                 using var paint = new SKPaint {
                     IsAntialias = true,
-                    Color = new SKColor (255, 255, 255, (byte)(255f * control.Opacity))
+                    Color = new SKColor (255, 255, 255, (byte)(255f * control.EffectiveOpacity))
                 };
 
                 e.Canvas.Save ();
                 e.Canvas.Translate (drawX, drawY);
                 e.Canvas.Translate (centerX, centerY);
-                e.Canvas.RotateDegrees (control.Rotation);
-                e.Canvas.Scale (control.ScaleX, control.ScaleY);
+                e.Canvas.RotateDegrees (control.EffectiveRotation);
+                e.Canvas.Scale (control.EffectiveScaleX, control.EffectiveScaleY);
                 e.Canvas.Translate (-centerX, -centerY);
                 e.Canvas.DrawBitmap (buffer, 0, 0, paint);
                 e.Canvas.Restore ();
@@ -1523,8 +1559,8 @@ namespace ModernFormsNext
                 return;
             }
 
-            e.Canvas.DrawBackground (ScaledBounds, CurrentStyle, BackgroundBrush);
-            e.Canvas.DrawBorder (ScaledBounds, CurrentStyle);
+            e.Canvas.DrawBackground (ScaledBounds, CurrentStyle, EffectiveBackgroundBrush);
+            e.Canvas.DrawBorder (ScaledBounds, CurrentStyle, EffectiveBorderBrush);
         }
 
         /// <summary>
@@ -1636,6 +1672,7 @@ namespace ModernFormsNext
         /// </remarks>
         protected internal virtual void OnThemeChanged (EventArgs e)
         {
+            RefreshVisualStateAfterThemeChange ();
             // CurrentStyle is resolved lazily from the control's existing interaction state.
             // Repaint without changing hover, pressed, focus, enabled, or selection state.
             InvalidateThemeVisual ();
@@ -1816,8 +1853,21 @@ namespace ModernFormsNext
                 return;
             }
 
-            if (Enabled)
-                OnKeyDown (e);
+            if (Enabled) {
+                int previousNotifiedDepth = interactionKeyDownNotifiedDepth;
+                interactionKeyDownRouteDepth++;
+                try {
+                    // Route interaction state before virtual dispatch. Some established controls
+                    // consume activation keys without calling base, but their press visuals and
+                    // attached effects must still receive the matching down/up pair.
+                    NotifyInteractionKeyDown (e);
+                    OnKeyDown (e);
+                }
+                finally {
+                    interactionKeyDownNotifiedDepth = previousNotifiedDepth;
+                    interactionKeyDownRouteDepth--;
+                }
+            }
         }
 
         /// <summary>
@@ -1882,7 +1932,16 @@ namespace ModernFormsNext
                 return;
             }
 
-            OnKeyUp (e);
+            int previousNotifiedDepth = interactionKeyUpNotifiedDepth;
+            interactionKeyUpRouteDepth++;
+            try {
+                NotifyInteractionKeyUp (e);
+                OnKeyUp (e);
+            }
+            finally {
+                interactionKeyUpNotifiedDepth = previousNotifiedDepth;
+                interactionKeyUpRouteDepth--;
+            }
         }
 
         /// <summary>
@@ -1977,9 +2036,11 @@ namespace ModernFormsNext
         // (for example when Android starts scrolling, detaches a surface, or cancels a gesture).
         // Keep this internal so the existing public mouse API remains unchanged while built-in
         // controls still get one deterministic place to clear pressed/drag state.
-        internal virtual void CancelPointerInteraction ()
+        internal virtual void CancelPointerInteraction (int? pointerId = null)
         {
             Capture = false;
+            ClearPointerVisualPressed(pointerId);
+            NotifyInteractionPointerCanceled (pointerId);
             OnMouseLeave (EventArgs.Empty);
             Invalidate ();
         }
@@ -2002,9 +2063,18 @@ namespace ModernFormsNext
         /// </summary>
         internal void RaisePaint (PaintEventArgs e)
         {
+            RenderInteractionEffects (Animations.InteractionEffectLayer.AboveBackgroundBelowContent, e);
             OnPaint (e);
+            RenderInteractionEffects (Animations.InteractionEffectLayer.AboveContent, e);
+            RenderFocusOverlay (e);
 
             SetState (States.IsDirty, false);
+        }
+
+        // Focus adorners are intentionally composed after every interaction-effect layer.
+        // Controls with a specialized focus geometry override this hook.
+        internal virtual void RenderFocusOverlay (PaintEventArgs e)
+        {
         }
 
         /// <summary>
@@ -2342,7 +2412,17 @@ namespace ModernFormsNext
             if (control == null)
                 return e;
 
-            return new MouseEventArgs (e.Button, e.Clicks, e.Location.X - control.ScaledLeft, e.Location.Y - control.ScaledTop, e.Delta, e.Location.X, e.Location.Y, e.Modifiers);
+            return new MouseEventArgs (
+                e.Button,
+                e.Clicks,
+                e.Location.X - control.ScaledLeft,
+                e.Location.Y - control.ScaledTop,
+                e.Delta,
+                e.Location.X,
+                e.Location.Y,
+                e.Modifiers,
+                e.PointerId,
+                e.PointerKind);
         }
 
 
@@ -2421,7 +2501,8 @@ namespace ModernFormsNext
         protected override void Dispose (bool disposing)
         {
             if (!disposedValue) {
-                Animations.AnimationScheduler.CancelOwnedIfInitialized(this);
+                DisposeInteractionEffects ();
+                CancelOwnedControlAnimations();
                 DisposeResourceReferences ();
                 DisposeBrushInvalidationSubscriptions ();
                 FreeBackBuffer ();

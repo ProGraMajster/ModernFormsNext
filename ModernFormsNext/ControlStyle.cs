@@ -1,4 +1,5 @@
 ﻿using System;
+using ModernFormsNext.Drawing;
 using SkiaSharp;
 
 namespace ModernFormsNext
@@ -48,6 +49,13 @@ namespace ModernFormsNext
         /// </summary>
         public SKColor? BackgroundColor { get; set; }
 
+        /// <summary>Gets or sets the optional state-specific background brush.</summary>
+        /// <remarks>
+        /// The control-level <see cref="Control.BackgroundBrush"/> takes precedence. Compatible
+        /// built-in brushes are interpolated by visual-state transitions.
+        /// </remarks>
+        public Brush? BackgroundBrush { get; set; }
+
         /// <summary>
         /// Provides access to border style properties.
         /// </summary>
@@ -81,6 +89,30 @@ namespace ModernFormsNext
         /// Gets or sets the foreground color.
         /// </summary>
         public SKColor? ForegroundColor { get; set; }
+
+        /// <summary>Gets or sets the optional state-specific text brush.</summary>
+        public Brush? ForegroundBrush { get; set; }
+
+        /// <summary>Gets or sets the optional state-specific border brush.</summary>
+        public Brush? BorderBrush { get; set; }
+
+        /// <summary>Gets or sets the state opacity multiplier, or null for 1.</summary>
+        public float? Opacity { get; set; }
+
+        /// <summary>Gets or sets the state horizontal translation added at render time.</summary>
+        public float? TranslationX { get; set; }
+
+        /// <summary>Gets or sets the state vertical translation added at render time.</summary>
+        public float? TranslationY { get; set; }
+
+        /// <summary>Gets or sets the state horizontal scale multiplier, or null for 1.</summary>
+        public float? ScaleX { get; set; }
+
+        /// <summary>Gets or sets the state vertical scale multiplier, or null for 1.</summary>
+        public float? ScaleY { get; set; }
+
+        /// <summary>Gets or sets the state rotation added in degrees at render time.</summary>
+        public float? Rotation { get; set; }
 
         /// <summary>
         /// Gets the style from which unset values are inherited.
@@ -175,6 +207,33 @@ namespace ModernFormsNext
         public SKColor GetForegroundColor ()
             => ResolveValue(TryGetForegroundColor, static () => Theme.ForegroundColor);
 
+        internal Brush? GetResolvedBackgroundBrush()
+            => ResolveReferenceValue(static style => style.BackgroundBrush);
+
+        internal Brush? GetResolvedForegroundBrush()
+            => ResolveReferenceValue(static style => style.ForegroundBrush);
+
+        internal Brush? GetResolvedBorderBrush()
+            => ResolveReferenceValue(static style => style.BorderBrush);
+
+        internal float? GetResolvedOpacity()
+            => ResolveNullableValue(static style => style.Opacity);
+
+        internal float? GetResolvedTranslationX()
+            => ResolveNullableValue(static style => style.TranslationX);
+
+        internal float? GetResolvedTranslationY()
+            => ResolveNullableValue(static style => style.TranslationY);
+
+        internal float? GetResolvedScaleX()
+            => ResolveNullableValue(static style => style.ScaleX);
+
+        internal float? GetResolvedScaleY()
+            => ResolveNullableValue(static style => style.ScaleY);
+
+        internal float? GetResolvedRotation()
+            => ResolveNullableValue(static style => style.Rotation);
+
         internal int GetInheritanceTraversalLimit ()
             => StyleInheritanceTraversal.GetLimit(this, static style => style.ParentStyle);
 
@@ -210,6 +269,34 @@ namespace ModernFormsNext
             }
 
             return getFallback ();
+        }
+
+        private T? ResolveReferenceValue<T>(Func<ControlStyle, T?> getValue)
+            where T : class
+        {
+            var remaining = GetInheritanceTraversalLimit();
+            ControlStyle? current = this;
+            while (current is not null && remaining-- > 0)
+            {
+                if (getValue(current) is { } value)
+                    return value;
+                current = current.ParentStyle;
+            }
+            return null;
+        }
+
+        private T? ResolveNullableValue<T>(Func<ControlStyle, T?> getValue)
+            where T : struct
+        {
+            var remaining = GetInheritanceTraversalLimit();
+            ControlStyle? current = this;
+            while (current is not null && remaining-- > 0)
+            {
+                if (getValue(current) is { } value)
+                    return value;
+                current = current.ParentStyle;
+            }
+            return null;
         }
 
         private static bool TryGetBackgroundColor (ControlStyle style, out SKColor value)
