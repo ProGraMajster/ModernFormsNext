@@ -90,6 +90,35 @@ public sealed class VisualStateTransitionTests
     }
 
     [Fact]
+    public void OvershootingEasingDoesNotFinishVisualStateBeforeRawTimelineCompletion()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton { AnimationSchedulerOverride = harness.Scheduler };
+        control.Style.BackgroundColor = SKColors.Black;
+        control.StyleHover.BackgroundColor = SKColors.Blue;
+        control.StyleTransitions.Add(
+            VisualState.Normal,
+            VisualState.Hover,
+            new VisualStateTransition
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                Easing = static _ => 1.25f
+            });
+
+        control.EnterForTest();
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        Assert.NotSame(control.StyleHover, control.CurrentStyle);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        Assert.Same(control.StyleHover, control.CurrentStyle);
+        Assert.Equal(SKColors.Blue, control.CurrentStyle.GetBackgroundColor());
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void ReducedMotionAppliesTargetOnceWithoutStartingTicks()
     {
         using var harness = new AnimationSchedulerTestHarness();

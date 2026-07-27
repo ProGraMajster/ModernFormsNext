@@ -17,6 +17,10 @@ public static class Animation
     public static AnimationDefinition Parallel(params AnimationDefinition[] animations)
         => new ParallelAnimation(animations);
 
+    internal static AnimationDefinition ParallelPreservingChildChannels(
+        params AnimationDefinition[] animations)
+        => new ParallelAnimation(animations, preserveChildChannels: true);
+
     /// <summary>
     /// Creates a scheduler-driven delay that observes lifecycle pause and reduced-motion policy.
     /// </summary>

@@ -29,6 +29,10 @@ public sealed class AnimationTimeline : AnimationDefinition
 
     internal override bool RequiresTarget => false;
 
+    internal override bool HasSchedulableWork
+        => entries.Any(static entry =>
+            entry.Offset > TimeSpan.Zero || entry.Animation.HasSchedulableWork);
+
     /// <inheritdoc/>
     protected override void Update(AnimationContext context, float progress)
     {
@@ -72,18 +76,29 @@ public sealed class AnimationTimeline : AnimationDefinition
         AnimationExecutionScope scope,
         bool reverse)
     {
-        if (offset > TimeSpan.Zero)
+        try
         {
-            var delay = new DelayAnimation(offset);
-            AnimationExecutionResult delayResult =
-                await delay.ExecuteAsync(scope.CreateChild(0)).ConfigureAwait(false);
-            if (delayResult.State != AnimationState.Completed)
-                return delayResult;
-        }
+            if (offset > TimeSpan.Zero)
+            {
+                var delay = new DelayAnimation(offset);
+                AnimationExecutionResult delayResult =
+                    await delay.ExecuteAsync(scope.CreateChild(0)).ConfigureAwait(false);
+                if (delayResult.State != AnimationState.Completed)
+                    return delayResult;
+            }
 
-        return await entry.Animation
-            .ExecuteAsync(scope.CreateChild(1), reverse)
-            .ConfigureAwait(false);
+            return await entry.Animation
+                .ExecuteAsync(scope.CreateChild(1), reverse)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (scope.CancellationToken.IsCancellationRequested)
+        {
+            return AnimationExecutionResult.Canceled;
+        }
+        catch (Exception exception)
+        {
+            return AnimationExecutionResult.Faulted(exception);
+        }
     }
 
     private readonly record struct TimelineEntry(

@@ -21,6 +21,9 @@ public sealed class SequenceAnimation : AnimationDefinition
 
     internal override bool RequiresTarget => false;
 
+    internal override bool HasSchedulableWork
+        => children.Any(static child => child.HasSchedulableWork);
+
     /// <inheritdoc/>
     protected override void Update(AnimationContext context, float progress)
     {

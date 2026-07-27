@@ -174,13 +174,16 @@ public partial class Control
             this,
             continuesActiveTransition);
         transitionStyle = runtime.AnimatedStyle;
-        EffectiveAnimationScheduler.Start(
+        EffectiveAnimationScheduler.StartFrames(
             this,
             VisualStateAnimationKey,
-            progress =>
+            frame =>
             {
-                runtime.Apply(progress, this);
-                if (progress >= 1f)
+                runtime.Apply(frame.EasedProgress, this);
+                // Easing is intentionally allowed to overshoot. Only raw timeline completion may
+                // release the transient style; otherwise an early eased value >= 1 makes the
+                // control jump to the target style while its animation is still active.
+                if (frame.Progress >= 1f)
                     transitionStyle = null;
                 Invalidate();
             },

@@ -127,6 +127,11 @@ public abstract class AnimationDefinition
 
     /// <summary>Repeats until the returned run is canceled.</summary>
     /// <returns>This definition.</returns>
+    /// <remarks>
+    /// A composition with no scheduler-backed children faults its run instead of entering a
+    /// synchronous busy loop. Reduced-motion policy collapses a non-empty infinite repeat to one
+    /// deterministic iteration.
+    /// </remarks>
     public AnimationDefinition RepeatForever()
     {
         repeatsForever = true;
@@ -184,8 +189,16 @@ public abstract class AnimationDefinition
 
     internal virtual bool RequiresTarget => true;
 
+    internal virtual bool HasSchedulableWork => true;
+
     internal virtual async Task<AnimationExecutionResult> ExecuteAsync(AnimationExecutionScope scope, bool reverse = false)
     {
+        if (repeatsForever && !HasSchedulableWork)
+        {
+            return AnimationExecutionResult.Faulted(new InvalidOperationException(
+                "An empty animation composition cannot repeat forever because it has no scheduler-backed work to yield."));
+        }
+
         int iteration = 0;
         bool collapseInfinite = repeatsForever && scope.Scheduler.Policy.ShouldCompleteImmediately;
 

@@ -153,6 +153,25 @@ public sealed class AnimationCompositionTests
     }
 
     [Fact]
+    public async Task ParallelAggregatesChildSetupFaultsInDeclarationOrder()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var target = new Control();
+        KeyframeAnimation<float> first = KeyframeAnimation<float>.Create(target, _ => { });
+        KeyframeAnimation<float> second = KeyframeAnimation<float>.Create(target, _ => { });
+
+        AnimationRun run = Animation.Parallel(first, second).Start(harness.Scheduler);
+
+        Assert.Equal(AnimationState.Faulted, await run.Completion);
+        var aggregate = Assert.IsType<AggregateException>(run.Exception);
+        Assert.Collection(
+            aggregate.InnerExceptions,
+            error => Assert.Contains("at least one keyframe", error.Message, StringComparison.Ordinal),
+            error => Assert.Contains("at least one keyframe", error.Message, StringComparison.Ordinal));
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
     public async Task ParallelCancellationPropagatesToEveryActiveChild()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -213,6 +232,25 @@ public sealed class AnimationCompositionTests
     }
 
     [Fact]
+    public async Task TimelineAggregatesEntrySetupFaultsInDeclarationOrder()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var target = new Control();
+        var timeline = new AnimationTimeline()
+            .At(TimeSpan.Zero, KeyframeAnimation<float>.Create(target, _ => { }))
+            .At(TimeSpan.Zero, KeyframeAnimation<float>.Create(target, _ => { }));
+
+        AnimationRun run = timeline.Start(harness.Scheduler);
+
+        Assert.Equal(AnimationState.Faulted, await run.Completion);
+        var aggregate = Assert.IsType<AggregateException>(run.Exception);
+        Assert.Equal(2, aggregate.InnerExceptions.Count);
+        Assert.All(
+            aggregate.InnerExceptions,
+            error => Assert.Contains("at least one keyframe", error.Message, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task RepeatAndAutoReverseApplyExactEndpointsWithoutAccumulatingHandles()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -260,6 +298,20 @@ public sealed class AnimationCompositionTests
         run.Cancel();
 
         Assert.Equal(AnimationState.Canceled, await run.Completion);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
+    public async Task EmptyCompositionCannotEnterATightInfiniteRepeatLoop()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        AnimationDefinition empty = Animation.Sequence().RepeatForever();
+
+        AnimationRun run = empty.Start(harness.Scheduler);
+
+        Assert.Equal(AnimationState.Faulted, await run.Completion);
+        Assert.IsType<InvalidOperationException>(run.Exception);
         Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
         Assert.False(harness.TickSource.IsRunning);
     }
@@ -398,6 +450,28 @@ public sealed class AnimationCompositionTests
         Assert.Equal(AnimationState.Completed, await ignored.Completion);
         Assert.Equal(0.5f, target.Opacity, 3);
         Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
+    public async Task BoundMultiAxisFactoryKeepsStableReplacementChannelsAcrossRuns()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var target = new Control();
+        var slow = new AnimationOptions { Duration = TimeSpan.FromMilliseconds(200) };
+        var fast = new AnimationOptions { Duration = TimeSpan.FromMilliseconds(100) };
+        AnimationRun stale = target.TranslateTo(100f, 200f, slow).Start(harness.Scheduler);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        AnimationRun latest = target.TranslateTo(20f, 40f, fast).Start(harness.Scheduler);
+
+        Assert.Equal(AnimationState.Canceled, await stale.Completion);
+        Assert.Equal(2, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(AnimationState.Completed, await latest.Completion);
+        Assert.Equal(20f, target.TranslationX, 3);
+        Assert.Equal(40f, target.TranslationY, 3);
         Assert.False(harness.TickSource.IsRunning);
     }
 

@@ -11,20 +11,32 @@ namespace ModernFormsNext.Animations;
 public sealed class ParallelAnimation : AnimationDefinition
 {
     private readonly AnimationDefinition[] children;
+    private readonly bool preserveChildChannels;
 
     /// <summary>Creates a parallel composition from the specified children.</summary>
     public ParallelAnimation(IEnumerable<AnimationDefinition> animations)
+        : this(animations, preserveChildChannels: false)
+    {
+    }
+
+    internal ParallelAnimation(
+        IEnumerable<AnimationDefinition> animations,
+        bool preserveChildChannels)
     {
         ArgumentNullException.ThrowIfNull(animations);
         children = animations.ToArray();
         if (children.Any(static child => child is null))
             throw new ArgumentException("Animation compositions cannot contain null children.", nameof(animations));
+        this.preserveChildChannels = preserveChildChannels;
     }
 
     /// <summary>Gets the children in declaration order.</summary>
     public IReadOnlyList<AnimationDefinition> Children => children;
 
     internal override bool RequiresTarget => false;
+
+    internal override bool HasSchedulableWork
+        => children.Any(static child => child.HasSchedulableWork);
 
     /// <inheritdoc/>
     protected override void Update(AnimationContext context, float progress)
@@ -37,7 +49,12 @@ public sealed class ParallelAnimation : AnimationDefinition
     {
         var tasks = new Task<AnimationExecutionResult>[children.Length];
         for (int index = 0; index < children.Length; index++)
-            tasks[index] = children[index].ExecuteAsync(scope.CreateChild(index), reverse);
+        {
+            AnimationExecutionScope childScope = preserveChildChannels
+                ? scope
+                : scope.CreateChild(index);
+            tasks[index] = ExecuteChildAsync(children[index], childScope, reverse);
+        }
 
         AnimationExecutionResult[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
         List<Exception>? faults = null;
@@ -53,5 +70,24 @@ public sealed class ParallelAnimation : AnimationDefinition
         if (faults is not null)
             return AnimationExecutionResult.Faulted(new AggregateException(faults));
         return canceled ? AnimationExecutionResult.Canceled : AnimationExecutionResult.Completed;
+    }
+
+    private static async Task<AnimationExecutionResult> ExecuteChildAsync(
+        AnimationDefinition child,
+        AnimationExecutionScope scope,
+        bool reverse)
+    {
+        try
+        {
+            return await child.ExecuteAsync(scope, reverse).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (scope.CancellationToken.IsCancellationRequested)
+        {
+            return AnimationExecutionResult.Canceled;
+        }
+        catch (Exception exception)
+        {
+            return AnimationExecutionResult.Faulted(exception);
+        }
     }
 }

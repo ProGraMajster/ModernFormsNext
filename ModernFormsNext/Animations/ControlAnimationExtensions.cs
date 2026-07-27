@@ -110,7 +110,10 @@ namespace ModernFormsNext.Animations
                 control, "TranslationX", () => control.TranslationX, x, value => control.TranslationX = value, options);
             var yAnimation = CreateFloatProperty(
                 control, "TranslationY", () => control.TranslationY, y, value => control.TranslationY = value, options);
-            return Animation.Parallel(xAnimation, yAnimation);
+            // Preserve the established TranslationX/TranslationY replacement channels at the
+            // root. Generic parallel groups intentionally isolate child keys, but doing that here
+            // lets an older convenience-helper run overwrite a newer target value.
+            return Animation.ParallelPreservingChildChannels(xAnimation, yAnimation);
         }
 
         /// <summary>Creates a reusable uniform scale animation bound to the control.</summary>
@@ -132,7 +135,7 @@ namespace ModernFormsNext.Animations
                 control, "ScaleX", () => control.ScaleX, scaleX, value => control.ScaleX = value, options);
             var yAnimation = CreateFloatProperty(
                 control, "ScaleY", () => control.ScaleY, scaleY, value => control.ScaleY = value, options);
-            return Animation.Parallel(xAnimation, yAnimation);
+            return Animation.ParallelPreservingChildChannels(xAnimation, yAnimation);
         }
 
         /// <summary>Creates a reusable rotation animation bound to the control.</summary>
