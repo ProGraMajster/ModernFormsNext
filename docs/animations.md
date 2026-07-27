@@ -446,8 +446,10 @@ omitted under reduced motion.
 `PressScaleEffect` tracks independent pointer IDs plus keyboard activation. Its multiplier composes
 with public control transforms and visual-state transforms rather than overwriting `ScaleX` or
 `ScaleY`. Pointer cancel, leave, lost focus, disable, removal, and disposal restore the neutral
-scale, preventing a stuck press. Reduced motion applies the held/released endpoint without
-periodic ticks.
+scale, preventing a stuck press. A faulty custom effect easing faults its scheduler entry but also
+removes the ripple or restores the requested press endpoint, so no orphaned visual remains after
+the scheduler returns to idle. Reduced motion applies the held/released endpoint without periodic
+ticks.
 
 Hover and focus effects use visual-state transitions. There is no parallel hover/focus
 subscription or scheduler.

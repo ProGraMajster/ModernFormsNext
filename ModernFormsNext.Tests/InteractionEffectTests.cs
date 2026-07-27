@@ -139,6 +139,29 @@ public sealed class InteractionEffectTests
     }
 
     [Fact]
+    public void FaultedRippleEasingRemovesWaveAndReturnsSchedulerToIdle()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Size = new Size(80, 30),
+            Ripple = new RippleEffect
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                Easing = static _ => float.NaN
+            }
+        };
+
+        control.DownForTest(Mouse(4, 4));
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        Assert.Equal(0, control.Ripple.ActiveRippleCount);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().FaultedCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void PressScaleComposesWithControlScaleAndReleasesWithoutSticking()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -172,6 +195,32 @@ public sealed class InteractionEffectTests
         control.Enabled = false;
         Assert.Equal(2f, control.EffectiveScaleX, 3);
         Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
+    public void FaultedPressEasingStillRestoresReleaseEndpoint()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton { AnimationSchedulerOverride = harness.Scheduler };
+        control.PressEffect = new PressScaleEffect
+        {
+            PressedScale = 0.8f,
+            PressDuration = TimeSpan.FromMilliseconds(100),
+            ReleaseDuration = TimeSpan.FromMilliseconds(100),
+            Easing = static _ => throw new InvalidOperationException("Expected easing fault.")
+        };
+        MouseEventArgs pointer = Mouse(4, 4);
+
+        control.DownForTest(pointer);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        Assert.Equal(0.8f, control.EffectiveScaleX, 3);
+
+        control.UpForTest(pointer);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+
+        Assert.Equal(1f, control.EffectiveScaleX, 3);
+        Assert.Equal(2, harness.Scheduler.GetDiagnostics().FaultedCount);
+        Assert.False(harness.TickSource.IsRunning);
     }
 
     [Fact]

@@ -214,9 +214,20 @@ public sealed class RippleEffect : InteractionEffect
                 progress =>
                 {
                     ripple.Progress = progress;
-                    ripple.EasedProgress = Easing(progress);
-                    if (!float.IsFinite(ripple.EasedProgress))
-                        throw new InvalidOperationException("Ripple easing returned NaN or infinity.");
+                    try
+                    {
+                        ripple.EasedProgress = Easing(progress);
+                        if (!float.IsFinite(ripple.EasedProgress))
+                            throw new InvalidOperationException("Ripple easing returned NaN or infinity.");
+                    }
+                    catch
+                    {
+                        // A faulted scheduler entry will not produce another frame. Remove its
+                        // visual state before rethrowing so it cannot remain painted forever.
+                        ripples.Remove(ripple);
+                        InvalidateTarget();
+                        throw;
+                    }
                     if (progress >= 1f)
                         ripples.Remove(ripple);
                     InvalidateTarget();

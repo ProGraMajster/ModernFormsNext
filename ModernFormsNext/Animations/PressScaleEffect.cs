@@ -145,9 +145,32 @@ public sealed class PressScaleEffect : InteractionEffect
             new AnimationOptions
             {
                 Duration = duration,
-                Easing = Easing,
+                Easing = progress => ApplyEasingOrRestoreEndpoint(progress, target, targetScale),
                 ReplacementMode = AnimationReplacementMode.Replace
             });
+    }
+
+    private float ApplyEasingOrRestoreEndpoint(
+        float progress,
+        Control target,
+        float targetScale)
+    {
+        try
+        {
+            float eased = Easing(progress);
+            if (!float.IsFinite(eased))
+                throw new InvalidOperationException("Press-scale easing returned NaN or infinity.");
+            return eased;
+        }
+        catch
+        {
+            // The scheduler correctly faults custom easing, but a press effect must still leave
+            // the target at the requested held/released endpoint rather than getting stuck at an
+            // arbitrary previous frame.
+            currentScale = targetScale;
+            target.SetInteractionScale(this, currentScale);
+            throw;
+        }
     }
 
     private static TimeSpan ValidateDuration(TimeSpan value, string parameterName)
