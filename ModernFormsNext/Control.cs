@@ -1377,8 +1377,6 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnKeyDown (KeyEventArgs e)
         {
-            if (e.KeyCode.In(Keys.Space, Keys.Enter))
-                SetKeyboardVisualPressed(true);
             NotifyInteractionKeyDown (e);
             (Events[s_keyDownEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
         }
@@ -1855,8 +1853,21 @@ namespace ModernFormsNext
                 return;
             }
 
-            if (Enabled)
-                OnKeyDown (e);
+            if (Enabled) {
+                int previousNotifiedDepth = interactionKeyDownNotifiedDepth;
+                interactionKeyDownRouteDepth++;
+                try {
+                    // Route interaction state before virtual dispatch. Some established controls
+                    // consume activation keys without calling base, but their press visuals and
+                    // attached effects must still receive the matching down/up pair.
+                    NotifyInteractionKeyDown (e);
+                    OnKeyDown (e);
+                }
+                finally {
+                    interactionKeyDownNotifiedDepth = previousNotifiedDepth;
+                    interactionKeyDownRouteDepth--;
+                }
+            }
         }
 
         /// <summary>
@@ -1921,7 +1932,16 @@ namespace ModernFormsNext
                 return;
             }
 
-            OnKeyUp (e);
+            int previousNotifiedDepth = interactionKeyUpNotifiedDepth;
+            interactionKeyUpRouteDepth++;
+            try {
+                NotifyInteractionKeyUp (e);
+                OnKeyUp (e);
+            }
+            finally {
+                interactionKeyUpNotifiedDepth = previousNotifiedDepth;
+                interactionKeyUpRouteDepth--;
+            }
         }
 
         /// <summary>

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections;
 
 namespace ModernFormsNext.Animations;
@@ -7,6 +8,8 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
 {
     private readonly Control owner;
     private readonly List<InteractionEffect> effects = [];
+    private InteractionEffect[] dispatchBuffer = [];
+    private int dispatchDepth;
 
     internal InteractionEffectCollection(Control owner)
         => this.owner = owner ?? throw new ArgumentNullException(nameof(owner));
@@ -51,12 +54,15 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
     /// <inheritdoc/>
     public void Clear()
     {
-        foreach (InteractionEffect effect in effects)
+        // Remove before invoking extensibility callbacks so an effect may dispose itself or
+        // another effect without invalidating collection enumeration.
+        while (effects.Count > 0)
         {
+            InteractionEffect effect = effects[0];
+            effects.RemoveAt(0);
             effect.Detach();
             owner.NotifyInteractionEffectDetached(effect);
         }
-        effects.Clear();
         owner.Invalidate();
     }
 
@@ -107,41 +113,100 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     internal void PointerDown(MouseEventArgs e)
-    {
-        foreach (InteractionEffect effect in effects)
-            effect.DispatchPointerDown(e);
-    }
+        => Dispatch(EffectDispatchKind.PointerDown, mouseEvent: e);
 
     internal void PointerUp(MouseEventArgs e)
-    {
-        foreach (InteractionEffect effect in effects)
-            effect.DispatchPointerUp(e);
-    }
+        => Dispatch(EffectDispatchKind.PointerUp, mouseEvent: e);
 
     internal void PointerCanceled(int? pointerId)
-    {
-        foreach (InteractionEffect effect in effects)
-            effect.DispatchPointerCanceled(pointerId);
-    }
+        => Dispatch(EffectDispatchKind.PointerCanceled, pointerId: pointerId);
 
     internal void KeyDown(KeyEventArgs e)
-    {
-        foreach (InteractionEffect effect in effects)
-            effect.DispatchKeyDown(e);
-    }
+        => Dispatch(EffectDispatchKind.KeyDown, keyEvent: e);
 
     internal void KeyUp(KeyEventArgs e)
-    {
-        foreach (InteractionEffect effect in effects)
-            effect.DispatchKeyUp(e);
-    }
+        => Dispatch(EffectDispatchKind.KeyUp, keyEvent: e);
 
     internal void Render(InteractionEffectLayer layer, PaintEventArgs e)
+        => Dispatch(EffectDispatchKind.Render, layer: layer, paintEvent: e);
+
+    private void Dispatch(
+        EffectDispatchKind kind,
+        MouseEventArgs? mouseEvent = null,
+        KeyEventArgs? keyEvent = null,
+        int? pointerId = null,
+        InteractionEffectLayer layer = default,
+        PaintEventArgs? paintEvent = null)
     {
-        foreach (InteractionEffect effect in effects)
+        int count = effects.Count;
+        if (count == 0)
+            return;
+
+        bool rented = dispatchDepth > 0;
+        InteractionEffect[] buffer;
+        if (rented)
         {
-            if (effect.RenderLayer == layer)
-                effect.DispatchRender(e);
+            buffer = ArrayPool<InteractionEffect>.Shared.Rent(count);
         }
+        else
+        {
+            if (dispatchBuffer.Length < count)
+                Array.Resize(ref dispatchBuffer, Math.Max(count, dispatchBuffer.Length * 2));
+            buffer = dispatchBuffer;
+        }
+
+        effects.CopyTo(buffer, 0);
+        dispatchDepth++;
+        try
+        {
+            for (int index = 0; index < count; index++)
+            {
+                InteractionEffect effect = buffer[index];
+                if (!ReferenceEquals(effect.Target, owner))
+                    continue;
+
+                switch (kind)
+                {
+                    case EffectDispatchKind.PointerDown:
+                        effect.DispatchPointerDown(mouseEvent!);
+                        break;
+                    case EffectDispatchKind.PointerUp:
+                        effect.DispatchPointerUp(mouseEvent!);
+                        break;
+                    case EffectDispatchKind.PointerCanceled:
+                        effect.DispatchPointerCanceled(pointerId);
+                        break;
+                    case EffectDispatchKind.KeyDown:
+                        effect.DispatchKeyDown(keyEvent!);
+                        break;
+                    case EffectDispatchKind.KeyUp:
+                        effect.DispatchKeyUp(keyEvent!);
+                        break;
+                    case EffectDispatchKind.Render:
+                        if (effect.RenderLayer == layer)
+                            effect.DispatchRender(paintEvent!);
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(kind));
+                }
+            }
+        }
+        finally
+        {
+            Array.Clear(buffer, 0, count);
+            dispatchDepth--;
+            if (rented)
+                ArrayPool<InteractionEffect>.Shared.Return(buffer);
+        }
+    }
+
+    private enum EffectDispatchKind
+    {
+        PointerDown,
+        PointerUp,
+        PointerCanceled,
+        KeyDown,
+        KeyUp,
+        Render
     }
 }

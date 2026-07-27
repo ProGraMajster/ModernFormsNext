@@ -22,6 +22,7 @@ public sealed class ControlBoundsInteractionEffectClip : IInteractionEffectClip
         int radius = border.GetRadius();
         if (radius == 0 && border.Radius is null)
             radius = target.Style.Border.GetRadius();
+        radius = target.LogicalToDeviceUnits(radius);
         if (radius <= 0)
         {
             canvas.ClipRect(new SKRect(0, 0, bounds.Width, bounds.Height));

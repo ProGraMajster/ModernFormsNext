@@ -206,26 +206,35 @@ public sealed class RippleEffect : InteractionEffect
 
         var ripple = new RippleInstance(++nextId, pointerId, origin);
         ripples.Add(ripple);
-        AnimationHandle handle = Scheduler.Start(
-            this,
-            $"Ripple:{ripple.Id}",
-            progress =>
-            {
-                ripple.Progress = progress;
-                ripple.EasedProgress = Easing(progress);
-                if (!float.IsFinite(ripple.EasedProgress))
-                    throw new InvalidOperationException("Ripple easing returned NaN or infinity.");
-                if (progress >= 1f)
-                    ripples.Remove(ripple);
-                InvalidateTarget();
-            },
-            new AnimationOptions
-            {
-                Duration = Duration,
-                Easing = Easings.Linear,
-                ReplacementMode = AnimationReplacementMode.Replace
-            });
-        ripple.Handle = handle;
+        try
+        {
+            AnimationHandle handle = Scheduler.Start(
+                this,
+                $"Ripple:{ripple.Id}",
+                progress =>
+                {
+                    ripple.Progress = progress;
+                    ripple.EasedProgress = Easing(progress);
+                    if (!float.IsFinite(ripple.EasedProgress))
+                        throw new InvalidOperationException("Ripple easing returned NaN or infinity.");
+                    if (progress >= 1f)
+                        ripples.Remove(ripple);
+                    InvalidateTarget();
+                },
+                new AnimationOptions
+                {
+                    Duration = Duration,
+                    Easing = Easings.Linear,
+                    ReplacementMode = AnimationReplacementMode.Replace
+                });
+            ripple.Handle = handle;
+        }
+        catch
+        {
+            ripples.Remove(ripple);
+            InvalidateTarget();
+            throw;
+        }
         InvalidateTarget();
     }
 

@@ -12,6 +12,10 @@ public partial class Control
     private static readonly int s_pressEffectProperty = PropertyStore.CreateKey();
     private static readonly int s_interactionScalesProperty = PropertyStore.CreateKey();
     private float interactionScale = 1f;
+    private int interactionKeyDownRouteDepth;
+    private int interactionKeyDownNotifiedDepth;
+    private int interactionKeyUpRouteDepth;
+    private int interactionKeyUpNotifiedDepth;
 
     /// <summary>Gets the effects attached to this control.</summary>
     /// <remarks>
@@ -98,6 +102,13 @@ public partial class Control
 
     internal void NotifyInteractionKeyUp(KeyEventArgs e)
     {
+        if (interactionKeyUpRouteDepth > 0)
+        {
+            if (interactionKeyUpNotifiedDepth == interactionKeyUpRouteDepth)
+                return;
+            interactionKeyUpNotifiedDepth = interactionKeyUpRouteDepth;
+        }
+
         SetKeyboardVisualPressed(false);
         if (Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects)
             effects.KeyUp(e);
@@ -123,6 +134,15 @@ public partial class Control
 
     private void NotifyInteractionKeyDown(KeyEventArgs e)
     {
+        if (interactionKeyDownRouteDepth > 0)
+        {
+            if (interactionKeyDownNotifiedDepth == interactionKeyDownRouteDepth)
+                return;
+            interactionKeyDownNotifiedDepth = interactionKeyDownRouteDepth;
+        }
+
+        if (e.KeyCode.In(Keys.Space, Keys.Enter))
+            SetKeyboardVisualPressed(true);
         if (Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects)
             effects.KeyDown(e);
     }

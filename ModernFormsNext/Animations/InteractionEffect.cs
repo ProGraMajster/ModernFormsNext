@@ -16,6 +16,7 @@ public abstract class InteractionEffect : IDisposable
     private Control? target;
     private InteractionEffectRenderContext? renderContext;
     private bool disposed;
+    private bool detaching;
 
     /// <summary>Gets or sets whether this effect handles input and renders.</summary>
     [DefaultValue(true)]
@@ -52,8 +53,9 @@ public abstract class InteractionEffect : IDisposable
         if (disposed)
             return;
         disposed = true;
-        target?.InteractionEffects.Remove(this);
-        DetachCore();
+        Control? attachedTarget = target;
+        if (attachedTarget is null || !attachedTarget.InteractionEffects.Remove(this))
+            DetachCore();
         GC.SuppressFinalize(this);
     }
 
@@ -123,7 +125,23 @@ public abstract class InteractionEffect : IDisposable
         if (target is not null)
             throw new InvalidOperationException("An interaction effect can be attached to only one control.");
         target = value;
-        OnAttached();
+        try
+        {
+            OnAttached();
+        }
+        catch
+        {
+            try
+            {
+                CancelCore();
+            }
+            finally
+            {
+                target = null;
+                renderContext = null;
+            }
+            throw;
+        }
     }
 
     internal void Detach()
@@ -186,9 +204,21 @@ public abstract class InteractionEffect : IDisposable
 
     private void DetachCore()
     {
-        CancelCore();
-        OnDetached();
-        target = null;
-        renderContext = null;
+        if (target is null || detaching)
+            return;
+
+        detaching = true;
+        try
+        {
+            CancelCore();
+            OnDetached();
+        }
+        finally
+        {
+            // Custom cleanup must not keep the control or last canvas alive even when it faults.
+            target = null;
+            renderContext = null;
+            detaching = false;
+        }
     }
 }

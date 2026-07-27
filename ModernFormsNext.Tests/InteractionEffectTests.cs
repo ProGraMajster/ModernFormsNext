@@ -121,6 +121,24 @@ public sealed class InteractionEffectTests
     }
 
     [Fact]
+    public void FailedRippleSchedulingDoesNotLeaveAStaleRenderableWave()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Size = new Size(80, 30),
+            Ripple = new RippleEffect()
+        };
+        harness.Scheduler.Shutdown();
+
+        Assert.Throws<ObjectDisposedException>(() => control.DownForTest(Mouse(4, 4)));
+
+        Assert.Equal(0, control.Ripple.ActiveRippleCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void PressScaleComposesWithControlScaleAndReleasesWithoutSticking()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -218,6 +236,29 @@ public sealed class InteractionEffectTests
     }
 
     [Fact]
+    public void RoutedActivationKeyReleaseCannotLeavePressEffectStuckWhenOverrideConsumesKeyUp()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new CheckBox { AnimationSchedulerOverride = harness.Scheduler };
+        control.PressEffect = new PressScaleEffect
+        {
+            PressedScale = 0.8f,
+            PressDuration = TimeSpan.Zero,
+            ReleaseDuration = TimeSpan.Zero
+        };
+
+        control.RaiseKeyDown(new KeyEventArgs(Keys.Space));
+        Assert.Equal(VisualState.Pressed, control.VisualState);
+        Assert.Equal(0.8f, control.EffectiveScaleX, 3);
+
+        control.RaiseKeyUp(new KeyEventArgs(Keys.Space));
+
+        Assert.NotEqual(VisualState.Pressed, control.VisualState);
+        Assert.Equal(1f, control.EffectiveScaleX, 3);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void CollectionAttachDetachIsIdempotentAndDisposeCancelsOwnedWork()
     {
         using var harness = new AnimationSchedulerTestHarness();
@@ -240,6 +281,44 @@ public sealed class InteractionEffectTests
         Assert.Null(ripple.Target);
         Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
         Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
+    public void EffectDisposeDetachesExactlyOnceAndFailedAttachReleasesTarget()
+    {
+        var control = new TestButton();
+        var attached = new LifecycleProbeEffect();
+        control.InteractionEffects.Add(attached);
+
+        attached.Dispose();
+        attached.Dispose();
+
+        Assert.Equal(1, attached.DetachCount);
+        Assert.Null(attached.Target);
+        Assert.Empty(control.InteractionEffects);
+
+        var failing = new FailingAttachEffect();
+        Assert.Throws<InvalidOperationException>(() => control.InteractionEffects.Add(failing));
+        Assert.Null(failing.Target);
+        Assert.Empty(control.InteractionEffects);
+    }
+
+    [Fact]
+    public void EffectCanRemoveItselfDuringDispatchWithoutSkippingRemainingEffects()
+    {
+        var control = new TestButton();
+        var selfRemoving = new SelfRemovingEffect();
+        var remaining = new PointerProbeEffect();
+        control.InteractionEffects.Add(selfRemoving);
+        control.InteractionEffects.Add(remaining);
+
+        control.DownForTest(Mouse(4, 4));
+
+        Assert.Equal(1, selfRemoving.PointerDownCount);
+        Assert.Equal(1, selfRemoving.DetachCount);
+        Assert.Equal(1, remaining.PointerDownCount);
+        Assert.Single(control.InteractionEffects);
+        Assert.Same(remaining, control.InteractionEffects[0]);
     }
 
     [Fact]
@@ -380,6 +459,28 @@ public sealed class InteractionEffectTests
         Assert.Equal(["below", "content", "above", "focus"], order);
     }
 
+    [Fact]
+    public void RoundedEffectClipScalesCornerRadiusWithWindowDpi()
+    {
+        using var window = new TestWindow(renderScaling: 2d);
+        var control = new TestButton { Size = new Size(50, 25) };
+        control.Style.Border.Radius = 10;
+        window.Controls.Add(control);
+        using var bitmap = new SKBitmap(control.ScaledWidth, control.ScaledHeight);
+        bitmap.Erase(SKColors.Transparent);
+        using var canvas = new SKCanvas(bitmap);
+
+        ControlBoundsInteractionEffectClip.Instance.Apply(
+            canvas,
+            control,
+            new Rectangle(0, 0, control.ScaledWidth, control.ScaledHeight));
+        canvas.DrawColor(SKColors.Red);
+        canvas.Flush();
+
+        Assert.Equal(0, bitmap.GetPixel(3, 3).Alpha);
+        Assert.NotEqual(0, bitmap.GetPixel(10, 10).Alpha);
+    }
+
     private static MouseEventArgs Mouse(
         int x,
         int y,
@@ -465,7 +566,41 @@ public sealed class InteractionEffectTests
                 this,
                 "DesignerProbe",
                 _ => UpdateCount++,
-                new AnimationOptions { Duration = TimeSpan.FromSeconds(1) });
+            new AnimationOptions { Duration = TimeSpan.FromSeconds(1) });
+    }
+
+    private sealed class LifecycleProbeEffect : InteractionEffect
+    {
+        public int DetachCount { get; private set; }
+
+        protected override void OnDetached() => DetachCount++;
+    }
+
+    private sealed class FailingAttachEffect : InteractionEffect
+    {
+        protected override void OnAttached()
+            => throw new InvalidOperationException("Expected attach failure.");
+    }
+
+    private sealed class SelfRemovingEffect : InteractionEffect
+    {
+        public int PointerDownCount { get; private set; }
+        public int DetachCount { get; private set; }
+
+        protected override void OnPointerDown(MouseEventArgs e)
+        {
+            PointerDownCount++;
+            Target!.InteractionEffects.Remove(this);
+        }
+
+        protected override void OnDetached() => DetachCount++;
+    }
+
+    private sealed class PointerProbeEffect : InteractionEffect
+    {
+        public int PointerDownCount { get; private set; }
+
+        protected override void OnPointerDown(MouseEventArgs e) => PointerDownCount++;
     }
 
     private sealed class DesignModeSite(IComponent component) : ISite
@@ -481,15 +616,16 @@ public sealed class InteractionEffectTests
     {
         private readonly RecordingWindowProxy proxy;
 
-        public TestWindow()
-            : this(DispatchProxy.Create<IWindowBaseImpl, RecordingWindowProxy>())
+        public TestWindow(double renderScaling = 1d)
+            : this(DispatchProxy.Create<IWindowBaseImpl, RecordingWindowProxy>(), renderScaling)
         {
         }
 
-        private TestWindow(IWindowBaseImpl implementation)
+        private TestWindow(IWindowBaseImpl implementation, double renderScaling)
             : base(implementation)
         {
             proxy = (RecordingWindowProxy)implementation;
+            proxy.RenderScaling = renderScaling;
         }
 
         public int InvalidationCount => proxy.InvalidationCount;
@@ -501,10 +637,14 @@ public sealed class InteractionEffectTests
     {
         public int InvalidationCount { get; set; }
 
+        public double RenderScaling { get; set; } = 1d;
+
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
             if (targetMethod?.Name == nameof(IWindowBaseImpl.Invalidate))
                 InvalidationCount++;
+            if (targetMethod?.Name == "get_RenderScaling")
+                return RenderScaling;
             if (targetMethod is null || targetMethod.ReturnType == typeof(void))
                 return null;
             return targetMethod.ReturnType.IsValueType
