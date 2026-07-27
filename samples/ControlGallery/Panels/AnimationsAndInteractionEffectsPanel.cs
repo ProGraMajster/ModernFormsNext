@@ -468,8 +468,11 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
                 x,
                 y,
                 Point.Empty,
-                pointerId: pointerId,
-                pointerKind: PointerDeviceKind.Touch);
+                null,
+                null,
+                Keys.None,
+                pointerId,
+                PointerDeviceKind.Touch);
             OnMouseDown(args);
             OnMouseUp(args);
         }

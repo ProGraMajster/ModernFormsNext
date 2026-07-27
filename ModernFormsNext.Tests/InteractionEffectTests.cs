@@ -541,8 +541,11 @@ public sealed class InteractionEffectTests
             x,
             y,
             Point.Empty,
-            pointerId: pointerId,
-            pointerKind: kind);
+            null,
+            null,
+            Keys.None,
+            pointerId,
+            kind);
 
     private static SKBitmap RenderEffect(Control control, InteractionEffectLayer layer)
     {

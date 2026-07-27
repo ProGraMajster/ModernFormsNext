@@ -26,9 +26,46 @@ namespace ModernFormsNext
             Point delta,
             int? screenX = null,
             int? screenY = null,
-            Keys keyData = Keys.None,
-            int pointerId = 0,
-            PointerDeviceKind pointerKind = PointerDeviceKind.Mouse)
+            Keys keyData = Keys.None)
+            : this (
+                button,
+                clicks,
+                x,
+                y,
+                delta,
+                screenX,
+                screenY,
+                keyData,
+                0,
+                PointerDeviceKind.Mouse)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MouseEventArgs"/> class for a specific
+        /// pointer sequence.
+        /// </summary>
+        /// <param name="button">The mouse button associated with the event.</param>
+        /// <param name="clicks">The number of button presses and releases.</param>
+        /// <param name="x">The pointer x-coordinate relative to the receiving control.</param>
+        /// <param name="y">The pointer y-coordinate relative to the receiving control.</param>
+        /// <param name="delta">The signed wheel delta.</param>
+        /// <param name="screenX">The pointer x-coordinate in screen coordinates, or <see langword="null"/> to use <paramref name="x"/>.</param>
+        /// <param name="screenY">The pointer y-coordinate in screen coordinates, or <see langword="null"/> to use <paramref name="y"/>.</param>
+        /// <param name="keyData">The keyboard modifiers active for the event.</param>
+        /// <param name="pointerId">The platform-stable pointer identifier.</param>
+        /// <param name="pointerKind">The physical pointer source.</param>
+        public MouseEventArgs (
+            MouseButtons button,
+            int clicks,
+            int x,
+            int y,
+            Point delta,
+            int? screenX,
+            int? screenY,
+            Keys keyData,
+            int pointerId,
+            PointerDeviceKind pointerKind)
         {
             Button = button;
             Clicks = clicks;

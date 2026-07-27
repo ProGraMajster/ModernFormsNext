@@ -264,11 +264,21 @@ namespace ModernFormsNext
         /// <summary>
         /// Draws a control's border.
         /// </summary>
+        public static void DrawBorder (this SKCanvas canvas, Rectangle bounds, ControlStyle style)
+            => DrawBorder (canvas, bounds, style, null);
+
+        /// <summary>
+        /// Draws a control's border using the supplied brush when one is available.
+        /// </summary>
+        /// <param name="canvas">The canvas on which the border is drawn.</param>
+        /// <param name="bounds">The control bounds in device pixels.</param>
+        /// <param name="style">The resolved control style that supplies border geometry.</param>
+        /// <param name="brush">The effective border brush, or <see langword="null"/> to use the colors stored in <paramref name="style"/>.</param>
         public static void DrawBorder (
             this SKCanvas canvas,
             Rectangle bounds,
             ControlStyle style,
-            Drawing.Brush? brush = null)
+            Drawing.Brush? brush)
         {
             if (brush is not null) {
                 DrawBrushBorder (canvas, bounds, style, brush);

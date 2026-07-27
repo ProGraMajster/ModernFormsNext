@@ -611,8 +611,9 @@ public sealed class SkiaControlSurface : IDisposable
             Point.Empty,
             surfaceLocation.X,
             surfaceLocation.Y,
-            pointerId: pointerId,
-            pointerKind: PointerDeviceKind.Touch);
+            Keys.None,
+            pointerId,
+            PointerDeviceKind.Touch);
     }
 
     private static Point SurfaceToControl(Control target, Point surfaceLocation)
