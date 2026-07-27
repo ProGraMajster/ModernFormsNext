@@ -1,5 +1,6 @@
 using ModernFormsNext.Animations;
 using ModernFormsNext.WindowKit.Backend.Lifecycle;
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace ModernFormsNext.Tests;
@@ -552,6 +553,65 @@ public sealed class AnimationSchedulerTests
     }
 
     [Fact]
+    public async Task CancellationCannotBeOvertakenByAnInFlightTickSourceStart()
+    {
+        var clock = new ManualAnimationClock();
+        using var tickSource = new BlockingStartAnimationTickSource();
+        using var scheduler = new AnimationScheduler(
+            clock,
+            new ImmediateAnimationDispatcher(),
+            tickSource,
+            new AnimationPolicy());
+        var owner = new object();
+
+        Task<AnimationHandle> startTask = Task.Run(() =>
+            scheduler.Start(owner, "Race", _ => { }, Options(100)));
+        Assert.True(tickSource.StartEntered.Wait(TimeSpan.FromSeconds(5)));
+
+        using var cancellationAttempted = new ManualResetEventSlim();
+        Task cancelTask = Task.Run(() =>
+        {
+            cancellationAttempted.Set();
+            scheduler.Cancel(owner, "Race");
+        });
+
+        try
+        {
+            Assert.True(cancellationAttempted.Wait(TimeSpan.FromSeconds(5)));
+            // Give the cancellation thread an opportunity to acquire the scheduler lock. Before
+            // tick-source transitions were serialized, cancellation completed here and the stale
+            // Start call subsequently turned the source back on with no runnable animations.
+            _ = await Task.WhenAny(cancelTask, Task.Delay(TimeSpan.FromMilliseconds(100)));
+        }
+        finally
+        {
+            tickSource.ReleaseStart();
+        }
+
+        AnimationHandle handle = await startTask;
+        await cancelTask;
+
+        Assert.Equal(AnimationState.Canceled, handle.State);
+        Assert.False(tickSource.IsRunning);
+        Assert.Equal(0, scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
+    public void TerminalHandleDoesNotRetainCapturedEasingCallback()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        (AnimationHandle handle, WeakReference callbackOwner) =
+            CreateAnimationWithCollectibleEasing(harness.Scheduler);
+
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+        CollectGarbage();
+
+        Assert.Equal(AnimationState.Completed, handle.State);
+        Assert.False(callbackOwner.IsAlive);
+        GC.KeepAlive(handle);
+    }
+
+    [Fact]
     public void OptionsAndPolicyRejectInvalidTimeConfiguration()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AnimationOptions { Duration = TimeSpan.FromTicks(-1) });
@@ -562,4 +622,35 @@ public sealed class AnimationSchedulerTests
 
     private static AnimationOptions Options(int durationMilliseconds)
         => new() { Duration = TimeSpan.FromMilliseconds(durationMilliseconds) };
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (AnimationHandle Handle, WeakReference CallbackOwner)
+        CreateAnimationWithCollectibleEasing(AnimationScheduler scheduler)
+    {
+        var callbackOwner = new EasingCallbackOwner();
+        var weakReference = new WeakReference(callbackOwner);
+        AnimationHandle handle = scheduler.Start(
+            new object(),
+            "CollectibleEasing",
+            _ => { },
+            new AnimationOptions
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                Easing = callbackOwner.Ease
+            });
+        return (handle, weakReference);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void CollectGarbage()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
+    private sealed class EasingCallbackOwner
+    {
+        public float Ease(float progress) => progress;
+    }
 }

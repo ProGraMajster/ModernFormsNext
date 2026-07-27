@@ -144,7 +144,6 @@ public sealed partial class AnimationScheduler : IDisposable
 
         AnimationEntry? replaced = null;
         AnimationEntry entry;
-        bool shouldStartTickSource = false;
         bool shouldCompleteImmediately;
 
         lock (sync)
@@ -198,26 +197,22 @@ public sealed partial class AnimationScheduler : IDisposable
 
                 activeAnimations.Add(entry);
                 keyedAnimations.Add(identity, entry);
-                shouldStartTickSource = !isPaused && HasRunnableAnimationsLocked();
+                StartTickSourceIfNeededLocked();
             }
             else
             {
                 entry.SetState(AnimationState.Running);
                 keyedAnimations.Add(identity, entry);
+                StopTickSourceIfIdleLocked();
             }
         }
 
         scheduled = true;
         if (replaced is not null)
-        {
             replaced.FinishTerminal(signalCancellation: true);
-            StopTickSourceIfIdle();
-        }
 
         if (shouldCompleteImmediately)
             PostImmediateCompletion(entry);
-        else if (shouldStartTickSource)
-            tickSource.Start(RequestTick);
 
         return entry.Handle;
     }
@@ -300,13 +295,14 @@ public sealed partial class AnimationScheduler : IDisposable
                     (canceled ??= []).Add(entry);
                 }
             }
+
+            StopTickSourceIfIdleLocked();
         }
 
         if (canceled is not null)
         {
             foreach (AnimationEntry entry in canceled)
                 entry.FinishTerminal(signalCancellation: true);
-            StopTickSourceIfIdle();
         }
     }
 
@@ -334,15 +330,14 @@ public sealed partial class AnimationScheduler : IDisposable
                 entry.IsPausedByScheduler = true;
                 entry.SetState(AnimationState.Paused);
             }
-        }
 
-        tickSource.Stop();
+            tickSource.Stop();
+        }
     }
 
     /// <summary>Resumes globally paused time without including the background interval.</summary>
     public void Resume()
     {
-        bool shouldStart;
         lock (sync)
         {
             if (!isPaused || isShutdown)
@@ -360,11 +355,8 @@ public sealed partial class AnimationScheduler : IDisposable
                     entry.SetState(entry.ResumeState);
             }
 
-            shouldStart = HasRunnableAnimationsLocked();
+            StartTickSourceIfNeededLocked();
         }
-
-        if (shouldStart)
-            tickSource.Start(RequestTick);
     }
 
     /// <summary>Returns a thread-safe snapshot of active counts, outcomes, and tick timing.</summary>
@@ -436,6 +428,7 @@ public sealed partial class AnimationScheduler : IDisposable
             }
             activeAnimations.Clear();
             keyedAnimations.Clear();
+            tickSource.Stop();
         }
 
         foreach (AnimationEntry entry in canceled)
@@ -443,7 +436,6 @@ public sealed partial class AnimationScheduler : IDisposable
 
         Policy.Changed -= HandlePolicyChanged;
         UnbindPlatformLifecycle();
-        tickSource.Stop();
         tickSource.Dispose();
     }
 
@@ -471,18 +463,15 @@ public sealed partial class AnimationScheduler : IDisposable
             canceled = entry.TryBeginTerminal(AnimationState.Canceled);
             if (canceled)
                 canceledCount++;
+            StopTickSourceIfIdleLocked();
         }
 
         if (canceled)
-        {
             entry.FinishTerminal(signalCancellation: true);
-            StopTickSourceIfIdle();
-        }
     }
 
     internal void Pause(AnimationEntry entry)
     {
-        bool shouldStop = false;
         lock (sync)
         {
             if (entry.IsTerminal || entry.IsIndividuallyPaused)
@@ -493,16 +482,12 @@ public sealed partial class AnimationScheduler : IDisposable
             if (!entry.IsPausedByScheduler)
                 entry.ResumeState = entry.State;
             entry.SetState(AnimationState.Paused);
-            shouldStop = !HasRunnableAnimationsLocked();
+            StopTickSourceIfIdleLocked();
         }
-
-        if (shouldStop)
-            tickSource.Stop();
     }
 
     internal void Resume(AnimationEntry entry)
     {
-        bool shouldStart = false;
         lock (sync)
         {
             if (entry.IsTerminal || !entry.IsIndividuallyPaused)
@@ -513,11 +498,8 @@ public sealed partial class AnimationScheduler : IDisposable
             entry.IsIndividuallyPaused = false;
             if (!entry.IsPausedByScheduler)
                 entry.SetState(entry.ResumeState);
-            shouldStart = !isPaused && HasRunnableAnimationsLocked();
+            StartTickSourceIfNeededLocked();
         }
-
-        if (shouldStart)
-            tickSource.Start(RequestTick);
     }
 
     private static AnimationScheduler CreateDefault() => new();
@@ -588,7 +570,7 @@ public sealed partial class AnimationScheduler : IDisposable
                     else if (rawProgress >= 1f)
                         easedProgress = 1f;
                     else
-                        easedProgress = entry.Options.Easing(rawProgress);
+                        easedProgress = entry.ApplyEasing(rawProgress);
 
                     if (!float.IsFinite(easedProgress))
                         throw new InvalidOperationException("The animation easing function returned NaN or infinity.");
@@ -625,7 +607,8 @@ public sealed partial class AnimationScheduler : IDisposable
                 Interlocked.Increment(ref tickCount);
                 Interlocked.Add(ref totalTickTimestampDelta, Stopwatch.GetTimestamp() - tickStarted);
             }
-            StopTickSourceIfIdle();
+            lock (sync)
+                StopTickSourceIfIdleLocked();
         }
     }
 
@@ -697,12 +680,19 @@ public sealed partial class AnimationScheduler : IDisposable
         }
     }
 
-    private void StopTickSourceIfIdle()
+    // Tick-source state transitions are serialized with scheduler state. Computing a transition
+    // under the lock and performing it afterward lets a concurrent start overtake a stale stop
+    // (or a cancellation overtake a stale start), leaving active work unticked or an idle timer
+    // running indefinitely.
+    private void StartTickSourceIfNeededLocked()
     {
-        bool shouldStop;
-        lock (sync)
-            shouldStop = isShutdown || isPaused || !HasRunnableAnimationsLocked();
-        if (shouldStop)
+        if (!isShutdown && !isPaused && HasRunnableAnimationsLocked())
+            tickSource.Start(RequestTick);
+    }
+
+    private void StopTickSourceIfIdleLocked()
+    {
+        if (isShutdown || isPaused || !HasRunnableAnimationsLocked())
             tickSource.Stop();
     }
 
@@ -754,9 +744,9 @@ public sealed partial class AnimationScheduler : IDisposable
                 activeAnimations.RemoveAt(index);
                 (completing ??= []).Add(entry);
             }
-        }
 
-        tickSource.Stop();
+            tickSource.Stop();
+        }
         if (completing is null)
             return;
         foreach (AnimationEntry entry in completing)
@@ -771,9 +761,8 @@ public sealed partial class AnimationScheduler : IDisposable
             entries = keyedAnimations.Values.Distinct().ToList();
             activeAnimations.Clear();
             keyedAnimations.Clear();
+            tickSource.Stop();
         }
-
-        tickSource.Stop();
         foreach (AnimationEntry entry in entries)
             Fault(entry, exception);
     }

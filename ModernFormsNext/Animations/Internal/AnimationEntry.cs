@@ -9,6 +9,8 @@ internal sealed class AnimationEntry
     private Exception? exception;
     private object? owner;
     private Action<AnimationFrame>? update;
+    private Func<float, float>? easing;
+    private AnimationOptionsSnapshot options;
 
     public required object Owner
     {
@@ -21,7 +23,18 @@ internal sealed class AnimationEntry
 
     public required string Key { get; init; }
 
-    public required AnimationOptionsSnapshot Options { get; init; }
+    public required AnimationOptionsSnapshot Options
+    {
+        get => options;
+        init
+        {
+            // Keep scalar option data on the handle-facing entry, but retain a caller-provided
+            // easing delegate only while the animation can still invoke it. A terminal handle may
+            // legitimately live much longer than its callback target.
+            options = value with { Easing = Easings.Linear };
+            easing = value.Easing;
+        }
+    }
 
     public required Action<AnimationFrame> Update
     {
@@ -58,6 +71,9 @@ internal sealed class AnimationEntry
 
     public void Invoke(AnimationFrame frame)
         => Volatile.Read(ref update)?.Invoke(frame);
+
+    public float ApplyEasing(float progress)
+        => Volatile.Read(ref easing)?.Invoke(progress) ?? progress;
 
     public bool TryBeginTerminal(AnimationState terminalState, Exception? fault = null)
     {
@@ -97,6 +113,7 @@ internal sealed class AnimationEntry
         }
 
         Volatile.Write(ref update, null);
+        Volatile.Write(ref easing, null);
         Volatile.Write(ref owner, null);
         completion.TrySetResult(terminalState);
         cancellation.Dispose();
