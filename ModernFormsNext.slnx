@@ -16,6 +16,7 @@
     <Project Path="ModernFormsNext.CrossPlatform.Sample.Tests/ModernFormsNext.CrossPlatform.Sample.Tests.csproj" />
     <Project Path="ModernFormsNext.Designer.Tests/ModernFormsNext.Designer.Tests.csproj" />
     <Project Path="ModernFormsNext.WindowKit.Backend.Android.Tests/ModernFormsNext.WindowKit.Backend.Android.Tests.csproj" />
+    <Project Path="ModernFormsNext.WindowKit.Backend.Windows.Tests/ModernFormsNext.WindowKit.Backend.Windows.Tests.csproj" />
     <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">

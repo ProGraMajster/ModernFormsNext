@@ -1,4 +1,5 @@
 using ModernFormsNext.Animations;
+using ModernFormsNext.WindowKit.Backend;
 using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.Tests;
@@ -7,13 +8,22 @@ internal sealed class AnimationSchedulerTestHarness : IDisposable
 {
     public AnimationSchedulerTestHarness(
         IAnimationDispatcher? dispatcher = null,
-        IPlatformApplicationLifecycle? lifecycle = null)
+        IPlatformApplicationLifecycle? lifecycle = null,
+        IPlatformAnimationSettings? animationSettings = null,
+        Func<bool>? isDesignMode = null)
     {
         Clock = new ManualAnimationClock();
         Dispatcher = dispatcher ?? new ImmediateAnimationDispatcher();
         TickSource = new ManualAnimationTickSource();
         Policy = new AnimationPolicy();
-        Scheduler = new AnimationScheduler(Clock, Dispatcher, TickSource, Policy, lifecycle);
+        Scheduler = new AnimationScheduler(
+            Clock,
+            Dispatcher,
+            TickSource,
+            Policy,
+            lifecycle,
+            animationSettings,
+            isDesignMode);
     }
 
     public ManualAnimationClock Clock { get; }
@@ -33,6 +43,142 @@ internal sealed class AnimationSchedulerTestHarness : IDisposable
     }
 
     public void Dispose() => Scheduler.Dispose();
+}
+
+internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
+{
+    private readonly object sync = new();
+    private EventHandler<PlatformAnimationSettingsChangedEventArgs>? changed;
+    private PlatformAnimationSettingsSnapshot current;
+    private PlatformAnimationSettingsSnapshot? nextRefresh;
+
+    public TestPlatformAnimationSettings(
+        bool reducedMotion = false,
+        bool animationsEnabled = true,
+        PlatformAnimationProviderState providerState = PlatformAnimationProviderState.Ready,
+        bool fallbackUsed = false,
+        string? lastError = null)
+    {
+        current = CreateSnapshot(
+            reducedMotion,
+            animationsEnabled,
+            providerState,
+            fallbackUsed,
+            lastError);
+    }
+
+    public PlatformAnimationSettingsSnapshot Current
+    {
+        get
+        {
+            lock (sync)
+                return current;
+        }
+    }
+
+    public int SubscriberCount { get; private set; }
+
+    public int RefreshCount { get; private set; }
+
+    public bool IsLockHeldByCurrentThread => Monitor.IsEntered(sync);
+
+    public event EventHandler<PlatformAnimationSettingsChangedEventArgs>? Changed
+    {
+        add
+        {
+            lock (sync)
+            {
+                changed += value;
+                SubscriberCount++;
+            }
+        }
+        remove
+        {
+            lock (sync)
+            {
+                changed -= value;
+                SubscriberCount--;
+            }
+        }
+    }
+
+    public PlatformAnimationSettingsSnapshot Refresh()
+    {
+        PlatformAnimationSettingsSnapshot? refresh;
+        lock (sync)
+        {
+            RefreshCount++;
+            refresh = nextRefresh;
+            nextRefresh = null;
+        }
+
+        if (refresh is not null)
+            Publish(refresh);
+        return Current;
+    }
+
+    public void Set(
+        bool reducedMotion,
+        bool animationsEnabled = true,
+        PlatformAnimationProviderState providerState = PlatformAnimationProviderState.Ready,
+        bool fallbackUsed = false,
+        string? lastError = null)
+    {
+        PlatformAnimationSettingsSnapshot next = CreateSnapshot(
+            reducedMotion,
+            animationsEnabled,
+            providerState,
+            fallbackUsed,
+            lastError);
+        Publish(next);
+    }
+
+    public void SetOnNextRefresh(
+        bool reducedMotion,
+        bool animationsEnabled = true,
+        PlatformAnimationProviderState providerState = PlatformAnimationProviderState.Ready,
+        bool fallbackUsed = false,
+        string? lastError = null)
+    {
+        lock (sync)
+        {
+            nextRefresh = CreateSnapshot(
+                reducedMotion,
+                animationsEnabled,
+                providerState,
+                fallbackUsed,
+                lastError);
+        }
+    }
+
+    private void Publish(PlatformAnimationSettingsSnapshot next)
+    {
+        PlatformAnimationSettingsSnapshot previous;
+        EventHandler<PlatformAnimationSettingsChangedEventArgs>? handlers;
+        lock (sync)
+        {
+            previous = current;
+            current = next;
+            handlers = changed;
+        }
+
+        handlers?.Invoke(this, new PlatformAnimationSettingsChangedEventArgs(previous, next));
+    }
+
+    private static PlatformAnimationSettingsSnapshot CreateSnapshot(
+        bool reducedMotion,
+        bool animationsEnabled,
+        PlatformAnimationProviderState providerState,
+        bool fallbackUsed,
+        string? lastError)
+        => new(
+            "Deterministic test provider",
+            reducedMotion,
+            animationsEnabled,
+            DateTimeOffset.UnixEpoch,
+            fallbackUsed,
+            providerState,
+            lastError);
 }
 
 internal sealed class TestPlatformApplicationLifecycle : IPlatformApplicationLifecycle
