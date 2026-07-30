@@ -27,6 +27,7 @@ namespace ModernFormsNext;
 ///     {
 ///         Transition = new ThemeTransitionOptions
 ///         {
+///             Enabled = true,
 ///             Duration = TimeSpan.FromMilliseconds(200)
 ///         }
 ///     });
@@ -206,7 +207,10 @@ public sealed class ThemeManager
 
     /// <summary>Applies a theme and blocks until the UI-thread commit has completed.</summary>
     /// <param name="theme">The mutable authoring definition, which is copied immediately.</param>
-    /// <param name="options">Optional transition and System fallback behavior.</param>
+    /// <param name="options">
+    /// Optional transition and System fallback behavior. Omitting this value applies the theme
+    /// immediately without starting an animation.
+    /// </param>
     /// <returns>The commit result. An animation may still be running.</returns>
     /// <remarks>
     /// Calling this method from a background thread waits for the dispatcher. Prefer
@@ -217,7 +221,10 @@ public sealed class ThemeManager
 
     /// <summary>Validates on the caller thread and atomically commits on the UI thread.</summary>
     /// <param name="theme">The mutable authoring definition, which is copied immediately.</param>
-    /// <param name="options">Optional transition and System fallback behavior.</param>
+    /// <param name="options">
+    /// Optional transition and System fallback behavior. Omitting this value applies the theme
+    /// immediately without starting an animation.
+    /// </param>
     /// <param name="cancellationToken">Cancels the request before commit.</param>
     /// <returns>The commit result. Observe <see cref="ThemeApplyResult.Transition"/> for animation completion.</returns>
     public async Task<ThemeApplyResult> ApplyAsync(

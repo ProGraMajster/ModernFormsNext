@@ -14,6 +14,12 @@ does not introduce XAML or a second control/property model.
 background caller can use `ApplyAsync`; validation can occur on that caller, while the commit and
 events are dispatched to the UI thread.
 
+Theme transitions are opt-in. `Apply(theme)`, `ApplyAsync(theme)`, and a new `ThemeApplyOptions`
+commit and repaint immediately without starting the scheduler. Set
+`ThemeTransitionOptions.Enabled = true` explicitly to animate compatible values. The built-in
+`ThemeTransition` animation token describes reusable motion settings; it does not activate a
+transition by itself.
+
 ```csharp
 ThemeApplyResult result = ThemeManager.Current.Apply(
     BuiltInThemes.Dark,

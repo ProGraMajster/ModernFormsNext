@@ -365,6 +365,11 @@ Controls resolve one of `Normal`, `Hover`, `Pressed`, `Focused`, or `Disabled` w
 Disabled > Pressed > Hover > Focused > Normal
 ```
 
+Every new control owns an empty `StyleTransitions` collection. With no matching entry, the active
+state style is resolved immediately and rendering is invalidated without scheduling frames or
+requesting layout. Animated state changes begin only after an application explicitly adds a
+directional transition.
+
 Add directional transitions without creating another hover or focus state machine:
 
 ```csharp
@@ -400,6 +405,11 @@ Effects are reusable objects attached through one control-owned collection:
 button.InteractionEffects.Add(new RippleEffect());
 button.InteractionEffects.Add(new PressScaleEffect());
 ```
+
+Every new `Control`, `Button`, `TextBox`, and `Switch` starts with an independent empty collection;
+`Ripple` and `PressEffect` are `null`. Pointer, keyboard, hover, and focus routing does not create
+effects or scheduler handles. Adding an effect, assigning a convenience property, or generating an
+explicit Designer `Add` call is the opt-in boundary.
 
 An effect has one target at a time, receives shared pointer/keyboard and render hooks, owns its
 scheduler channels, and cancels them on removal or disposal. Adding the same instance to the same

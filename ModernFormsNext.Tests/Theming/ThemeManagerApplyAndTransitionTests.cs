@@ -11,6 +11,29 @@ namespace ModernFormsNext.Tests;
 public sealed class ThemeManagerApplyAndTransitionTests
 {
     [Fact]
+    public void DefaultApplyOptionsKeepThemeTransitionsOptIn()
+    {
+        var options = new ThemeApplyOptions();
+
+        Assert.False(options.Transition.Enabled);
+    }
+
+    [Fact]
+    public void ApplyWithoutOptionsCommitsImmediatelyAndLeavesSchedulerIdle()
+    {
+        using var harness = new ThemeManagerTestHarness();
+
+        ThemeApplyResult result = harness.Manager.Apply(Theme("apply.default.immediate", Color.Red));
+
+        Assert.True(result.Success);
+        Assert.Null(result.Transition);
+        Assert.Equal(Color.Red.ToArgb(), ResourceColor(harness, ThemeTokens.Colors.Background.ResourceKey).ToArgb());
+        Assert.Equal(ThemeTransitionStatus.None, harness.Manager.GetDiagnostics().TransitionState);
+        Assert.Equal(0, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.SchedulerHarness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void ImmediateApplyCommitsAtomicallyAndRaisesDocumentedEventOrder()
     {
         using var harness = new ThemeManagerTestHarness();

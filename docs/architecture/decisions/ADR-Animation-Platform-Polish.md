@@ -112,6 +112,12 @@ continue to work. Existing `.mfdesign` documents without `InteractionEffects` de
 empty collection. Unknown future effect entries are rejected with a Designer diagnostic rather
 than instantiated through arbitrary reflection.
 
+Animation and interaction decoration remain opt-in. New controls own independent empty
+`InteractionEffects` and `StyleTransitions` collections, and the Designer neither persists empty
+collections nor emits initializer calls for them. Theme application is immediate unless callers
+explicitly enable `ThemeTransitionOptions.Enabled`; built-in animation tokens never activate a
+transition by themselves.
+
 ## Known limitations
 
 - Android refreshes on foreground instead of observing the global setting continuously.

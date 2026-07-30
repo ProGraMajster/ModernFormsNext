@@ -28,7 +28,7 @@ public enum ThemeTransitionStatus
     Failed
 }
 
-/// <summary>Configures an animated theme transition.</summary>
+/// <summary>Configures an optional animated theme transition.</summary>
 public sealed class ThemeTransitionOptions
 {
     private TimeSpan duration = TimeSpan.FromMilliseconds(250);
@@ -36,7 +36,11 @@ public sealed class ThemeTransitionOptions
     private AnimationReplacementMode replacementMode = AnimationReplacementMode.Replace;
 
     /// <summary>Gets or sets whether compatible values should animate.</summary>
-    public bool Enabled { get; set; } = true;
+    /// <remarks>
+    /// The default is <see langword="false"/>. Set this property explicitly to opt into an
+    /// animated theme transition; otherwise the theme is committed and repainted immediately.
+    /// </remarks>
+    public bool Enabled { get; set; }
 
     /// <summary>Gets or sets the unscaled transition duration.</summary>
     public TimeSpan Duration
@@ -100,6 +104,10 @@ public sealed class ThemeApplyOptions
     private ThemeVariant systemFallbackVariant = ThemeVariant.Light;
 
     /// <summary>Gets or sets transition behavior.</summary>
+    /// <remarks>
+    /// The default options keep animation disabled, so an apply request without explicit
+    /// transition configuration completes immediately.
+    /// </remarks>
     public ThemeTransitionOptions Transition { get; set; } = new();
 
     /// <summary>Gets or sets the explicit fallback when platform theme detection is unavailable.</summary>

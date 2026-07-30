@@ -63,9 +63,15 @@ public partial class Control
 
     /// <summary>Gets directional visual-state transitions for this control.</summary>
     /// <remarks>
+    /// <para>
+    /// Each control starts with its own empty collection. Without a matching explicitly added
+    /// transition, state changes apply the target style immediately and only invalidate rendering.
+    /// </para>
+    /// <para>
     /// Delegate-valued easing functions are code-first configuration, so the collection is hidden
     /// from ordinary designer serialization. Design-time playback completes immediately through
     /// the existing scheduler policy and does not create a separate timer.
+    /// </para>
     /// </remarks>
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]

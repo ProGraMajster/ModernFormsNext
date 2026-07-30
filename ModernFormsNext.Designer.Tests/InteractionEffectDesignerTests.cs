@@ -198,6 +198,19 @@ public sealed class InteractionEffectDesignerTests
     }
 
     [Fact]
+    public void EmptyRuntimeCollectionIsNotMarkedForSerialization()
+    {
+        using var button = new Button();
+        PropertyDescriptor property = TypeDescriptor.GetProperties(button)[nameof(Control.InteractionEffects)]!;
+
+        Assert.False(property.ShouldSerializeValue(button));
+
+        button.InteractionEffects.Add(new RippleEffect());
+
+        Assert.True(property.ShouldSerializeValue(button));
+    }
+
+    [Fact]
     public void PropertyGridExposesDesignerOnlyCollectionDialog()
     {
         int activeBefore = AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount;
@@ -215,6 +228,51 @@ public sealed class InteractionEffectDesignerTests
         Assert.True(descriptor.HasDialogEditor);
         Assert.NotNull(descriptor.DialogEditor);
         Assert.Equal("1 effect", descriptor.GetValue());
+        Assert.Equal(activeBefore, AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
+    public void NewButtonKeepsEmptyEffectsOutOfSaveCodeGenerationAndReverseSync()
+    {
+        DesignDocument document = CreateDocument();
+        DesignControlNode button = Assert.Single(document.Controls);
+        var generator = new CSharpDesignerGenerator();
+
+        Assert.False(button.Properties.ContainsKey(InteractionEffectDesignValue.PropertyName));
+
+        string json = DesignDocumentSerializer.Default.Serialize(document);
+        Assert.DoesNotContain(InteractionEffectDesignValue.PropertyName, json, StringComparison.Ordinal);
+
+        DesignDocument reopened = DesignDocumentSerializer.Default.Deserialize(json);
+        Assert.False(Assert.Single(reopened.Controls).Properties.ContainsKey(InteractionEffectDesignValue.PropertyName));
+
+        string code = generator.Generate(reopened).Code;
+        Assert.DoesNotContain(".InteractionEffects.Add(", code, StringComparison.Ordinal);
+        Assert.DoesNotContain(".StyleTransitions.Add(", code, StringComparison.Ordinal);
+
+        CSharpDesignerParseResult parsed = new CSharpDesignerParser().Parse(code);
+        Assert.True(parsed.Success, string.Join(Environment.NewLine, parsed.Diagnostics.Select(item => item.Message)));
+        Assert.False(
+            Assert.Single(Assert.IsType<DesignDocument>(parsed.Document).Controls)
+                .Properties.ContainsKey(InteractionEffectDesignValue.PropertyName));
+    }
+
+    [Fact]
+    public void NewButtonPropertyGridShowsEmptyCollectionWithoutStartingRuntimeWork()
+    {
+        int activeBefore = AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount;
+        DesignDocument document = CreateDocument();
+        var session = new DesignerSession();
+        session.LoadDocument(document);
+        session.Host.Selection.Select(Assert.Single(document.Controls));
+        var state = new DesignerPropertyGridState(session);
+
+        DesignerPropertyDescriptor descriptor = Assert.Single(
+            state.Properties,
+            property => property.Name == InteractionEffectDesignValue.PropertyName);
+
+        Assert.True(descriptor.HasDialogEditor);
+        Assert.Equal("0 effects", descriptor.GetValue());
         Assert.Equal(activeBefore, AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount);
     }
 
@@ -247,8 +305,11 @@ public sealed class InteractionEffectDesignerTests
             Bounds = new DesignBounds(10, 10, 120, 36),
             MemberVisibility = DesignerMemberVisibility.Private
         };
-        control.Properties[InteractionEffectDesignValue.PropertyName] =
-            InteractionEffectDesignerRegistry.WriteCollection(effects);
+        if (effects.Length > 0)
+        {
+            control.Properties[InteractionEffectDesignValue.PropertyName] =
+                InteractionEffectDesignerRegistry.WriteCollection(effects);
+        }
         document.Controls.Add(control);
         return document;
     }
