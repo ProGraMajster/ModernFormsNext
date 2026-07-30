@@ -53,9 +53,10 @@ ModernFormsNext behavior.
 
 ### Experimental Android source
 
-The Android provider reads `Settings.Global.ANIMATOR_DURATION_SCALE`. A finite scale less than or
-equal to zero requests reduced motion; a positive scale permits animations. The application
-context is sufficient, so no foreground `Activity` is required.
+The Android provider reads `Settings.Global.ANIMATOR_DURATION_SCALE` and
+`TRANSITION_ANIMATION_SCALE`. A finite zero value in either setting requests reduced motion; both
+values must be positive to permit animations. The application context is sufficient, so no
+foreground `Activity` is required.
 
 Android live observation is intentionally limited in this experimental backend. The scheduler
 refreshes the provider when the shared lifecycle reports `Foreground`. This avoids a permanent

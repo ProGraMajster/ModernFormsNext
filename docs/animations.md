@@ -404,8 +404,10 @@ button.InteractionEffects.Add(new PressScaleEffect());
 An effect has one target at a time, receives shared pointer/keyboard and render hooks, owns its
 scheduler channels, and cancels them on removal or disposal. Adding the same instance to the same
 collection is idempotent; attaching it to a different control while still attached throws.
-`InteractionEffects` is hidden from ordinary Designer serialization. Convenience properties
-support the common cases:
+At runtime the collection keeps its normal control-owned lifetime. The ModernFormsNext Designer
+exposes a detached collection editor for the built-in `RippleEffect` and `PressScaleEffect`; it
+does not instantiate effects, start the scheduler, or mutate a live preview control while the
+dialog is open. Convenience properties support the common cases:
 
 ```csharp
 button.Ripple = new RippleEffect
@@ -416,7 +418,7 @@ button.Ripple = new RippleEffect
     RadiusMode = RippleRadiusMode.CoverControl,
     Layer = RippleLayer.AboveBackgroundBelowContent,
     MaxConcurrentRipples = 4,
-    EvictionPolicy = RippleEvictionPolicy.Oldest
+    OverflowPolicy = RippleOverflowPolicy.RemoveOldest
 };
 
 button.PressEffect = new PressScaleEffect
@@ -436,10 +438,17 @@ while radius uses the configured easing.
 
 Waves are clipped to control bounds and the current corner radius. `AboveBackgroundBelowContent`
 keeps content legible; `AboveContent` is available for stronger feedback. Active waves are bounded
-from 1 through 32 and `Oldest` explicitly cancels the oldest wave when the limit is reached.
-Disabled controls do not start waves. A touch cancel removes waves for that pointer ID; global
-cancel, removal, disable, detach, and disposal clear all effect-owned work. Decorative ripple is
-omitted under reduced motion.
+from 1 through 32. `OverflowPolicy` deterministically chooses what happens at the limit:
+
+- `RemoveOldest` cancels the oldest active wave and starts the new wave;
+- `RemoveNewest` cancels the newest active wave and starts the new wave;
+- `IgnoreNew` keeps the active waves and allocates neither a wave nor a scheduler handle;
+- `ReplaceAll` cancels every active wave and starts only the new wave.
+
+The existing `EvictionPolicy` property remains source-compatible and maps all four behaviors to
+`OverflowPolicy`. Disabled controls do not start waves. A touch cancel removes waves for that
+pointer ID; global cancel, removal, disable, detach, and disposal clear all effect-owned work.
+Decorative ripple is omitted under reduced motion.
 
 ### Press, hover, and focus
 
@@ -500,12 +509,21 @@ policy.ReducedMotion = false;
 policy.DurationScale = 0.5; // Half the configured duration for newly started animations.
 ```
 
-When animations are disabled, reduced motion is enabled, or the duration scale is zero, the final
-value is posted once on the UI thread and completion reports `Completed`; no tick source starts.
-Changing to one of those modes while animations are active completes them through the same
+`ReducedMotion` is the effective value: its setter changes the application preference, while its
+getter also includes the platform preference. `ApplicationReducedMotion` exposes the application
+part read-only so a settings UI can preserve it without accidentally copying a native override.
+Application code cannot turn motion back on while the operating system asks for reduced motion.
+
+When animations are disabled, reduced motion is effective, or the duration scale is zero, the
+final value is posted once on the UI thread and completion reports `Completed`; no tick source
+starts. Changing to one of those modes while animations are active completes them through the same
 final-value path. Positive duration scale is captured when each animation starts.
 
-ModernFormsNext does not yet read the operating system reduced-motion preference automatically.
+Windows reads `SPI_GETCLIENTAREAANIMATION` during framework startup and refreshes it from the
+existing WindowKit message-only window on `WM_SETTINGCHANGE`. This adds no polling loop, timer, or
+native handle. The experimental Android backend reads `Settings.Global.ANIMATOR_DURATION_SCALE`
+and `TRANSITION_ANIMATION_SCALE` when a usable Activity context exists and refreshes on foreground
+entry. Android intentionally has no live settings observer in this stage.
 
 ## Diagnostics and faults
 
@@ -517,13 +535,40 @@ If easing, interpolation, or an update callback throws, only that animation move
 The exception is available through `AnimationHandle.Exception`, a trace error is written, and other
 animations continue.
 
+`RefreshPlatformPolicy()` requests an explicit native refresh. `GetPlatformDiagnostics()` reports
+the source, provider state, effective animation/reduced-motion values, last refresh time, fallback
+use, and a non-sensitive last error:
+
+```csharp
+AnimationScheduler scheduler = AnimationScheduler.Default;
+scheduler.RefreshPlatformPolicy();
+AnimationPlatformDiagnostics platform = scheduler.GetPlatformDiagnostics();
+```
+
+Native read failure keeps the framework usable with compatibility defaults and changes the
+provider state to `Fallback`; it does not crash startup. Native notifications are marshaled to the
+UI dispatcher before policy mutation. Provider event callbacks are invoked outside provider and
+scheduler locks.
+
 ## Designer behavior
 
 Animations started for an `IComponent` whose `Site.DesignMode` is true apply their final value on
 the designer dispatcher without starting periodic ticks. Runtime animation state is not serialized
 into `.Designer.cs` or `.mfdesign` files. Ripple does not start in the Designer. Press preview
-applies deterministic endpoints, and complex transition/effect collections stay hidden from the
-ordinary property grid.
+applies deterministic endpoints.
+
+The `InteractionEffects` Property Grid entry opens a collection editor over detached descriptions.
+Add, remove, reorder, and property changes are committed atomically only after **OK**; **Cancel**
+leaves the document unchanged. `.mfdesign` stores a deterministic `Count` plus ordered `ItemN`
+structure containing only validated primitive values. Generated code uses stable ordered
+`control.InteractionEffects.Add(new RippleEffect { ... })` and
+`control.InteractionEffects.Add(new PressScaleEffect { ... })` calls. Reload parses only this
+conservative generated shape and never executes project code or reflects arbitrary effect types.
+
+The current Designer has dirty/save support but no transaction-based undo/redo stack. Therefore a
+successful collection commit participates in normal save/reload and code regeneration, but it does
+not claim undo/redo integration. Custom interaction-effect types and custom easing delegates remain
+code-first.
 
 ## Windows and experimental Android
 
@@ -533,9 +578,10 @@ and scheduler paths.
 
 Android remains experimental. `SkiaControlSurface` forwards touch down/up/cancel, pointer IDs, and
 multi-touch sequences to the same control/effect pipeline. Lifecycle background/foreground pauses
-monotonic scheduler time. Orientation and resize use current control geometry. Native
-reduced-motion discovery and device-specific frame pacing are not yet validated; do not infer
-runtime parity from a successful Android build.
+monotonic scheduler time and refreshes the platform animation snapshot on foreground entry.
+Orientation and resize use current control geometry. The global animation-scale read has
+deterministic host-side coverage, but device-specific reduced-motion behavior and frame pacing still
+require runtime validation; do not infer runtime parity from a successful Android build.
 
 ## Performance and repaint batching
 
@@ -551,20 +597,21 @@ stops when no runnable work remains.
 
 ## Current limitations
 
-- There is no automatic native reduced-motion preference adapter yet.
 - There is no general animated-layout subsystem. Updating bounds or spacing uses the existing
   setters and can be more expensive than render-only transforms.
 - Brush interpolation requires matching built-in concrete types and equal gradient stop counts.
 - Visual-state layout metrics switch discretely rather than interpolate.
-- Ripple has one bounded eviction policy, `Oldest`; additional policies can be added without
-  changing effect attachment or rendering APIs.
-- Complex effect collections are code-first and do not yet have a dedicated Designer collection
-  editor.
+- The Designer collection editor supports the built-in `RippleEffect` and `PressScaleEffect` only;
+  custom effects and easing delegates remain code-first, and Designer undo/redo is not available.
+- Android platform preference refresh occurs on startup/foreground or explicit refresh; there is no
+  live `ContentObserver` in this experimental stage.
 - Android is experimental; physical-device frame pacing, multi-touch rendering,
-  background/foreground, and orientation changes still require manual validation.
+  platform settings changes, background/foreground, and orientation changes still require manual
+  validation.
 
 See [the scheduler architecture](architecture/ui-animation-scheduler.md), the
 [scheduler architecture decision](architecture/decisions/ADR-UI-Animation-Scheduler.md), the
 [composable-animation architecture decision](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md),
+the [animation platform polish decision](architecture/decisions/ADR-Animation-Platform-Polish.md),
 and **Animations and Interaction Effects** in `samples/ControlGallery` for implementation rationale
 and interactive checks.

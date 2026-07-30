@@ -47,6 +47,22 @@ automatic.
 An optional `ActivityProvider` exists for hosts with their own lifecycle integration. It is invoked
 on demand; the delegate must not keep destroyed activities alive.
 
+### Experimental platform animation preference
+
+The backend registers `AndroidPlatformAnimationSettings` through the shared backend service
+registry. When an application context exists, it reads
+`Settings.Global.ANIMATOR_DURATION_SCALE` and `TRANSITION_ANIMATION_SCALE`; a zero value in either
+setting requests reduced motion. The animation scheduler combines that snapshot with application
+policy on the UI dispatcher.
+
+The provider refreshes during startup, on foreground entry, and when application code calls
+`AnimationScheduler.RefreshPlatformPolicy()`. It deliberately does not register a process-lifetime
+`ContentObserver` in this experimental stage. A missing application context or failed settings
+read uses compatibility defaults, records a fallback diagnostic, and does not fail application
+startup.
+The settings evaluator and lifecycle refresh path have deterministic host-side tests, but runtime
+behavior still requires device/emulator validation.
+
 ## Dispatcher
 
 `AndroidMainThreadDispatcher` uses `Looper.MainLooper` and `Handler`. It provides:

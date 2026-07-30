@@ -17,6 +17,12 @@ does not authorize publication.
   latest-state-wins transitions for compatible colors, Brushes, opacity, and render transforms.
 - Reusable interaction effects add bounded ripple and press-scale feedback for mouse, keyboard,
   and experimental Android touch input.
+- Ripple overflow is explicit and deterministic: remove oldest, remove newest, ignore the new wave,
+  or replace all active waves. The existing eviction property remains source-compatible.
+- Windows observes the native client-area animation preference without polling. Experimental
+  Android reads the global animator and transition scales on startup/foreground entry.
+- The Designer Property Grid has a detached, scheduler-free collection editor for ordered built-in
+  ripple and press-scale effects with stable `.mfdesign` and generated-code round trips.
 - The common render order is background, effects below content, content, effects above content,
   then the focus ring. Built-in clipping respects control bounds and corner radius.
 - One application visual-invalidation batch wraps every scheduler tick, coalescing repaint per
@@ -32,17 +38,20 @@ refresh, ripple/press input, clipping, resize, multi-touch, Designer behavior, d
 ordering, multiple windows, repaint batching, and absence of layout during visual frames.
 
 The new **Animations and Interaction Effects** ControlGallery page provides manual controls for
-Start, Cancel, Rapid x5, reduced motion, animations disabled, diagnostics, Replace, IgnoreNew,
-composition, keyframes, repeat, auto-reverse, custom animation, and custom interpolation.
+Start, Cancel, rapid animation replacement, application and native reduced motion, animations
+disabled, platform diagnostics, all ripple overflow policies, composition, keyframes, repeat,
+auto-reverse, custom animation, and custom interpolation.
 
 ## Platform status and limitations
 
 Windows remains the primary runtime target. Android touch integration is experimental and requires
 device/emulator validation for frame pacing, background/foreground transitions, multi-touch
-rendering, and orientation changes. Native reduced-motion discovery is not yet automatic.
-Visual-state layout metrics switch immediately rather than interpolate, incompatible Brush
-structures switch discretely, ripple currently uses oldest-first eviction, and complex
-interaction-effect collections remain code-first in the Designer.
+rendering, platform setting changes, and orientation changes. Android refreshes platform animation
+scales on foreground entry rather than maintaining a live settings observer. Visual-state layout
+metrics switch immediately rather than interpolate and incompatible Brush structures switch
+discretely. The Designer editor currently supports only the built-in ripple and press-scale effect
+descriptions; custom effects and easing remain code-first, and the Designer has no undo/redo stack.
 
 See [UI animations](animations.md) and the
-[composable-animation ADR](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md).
+[composable-animation ADR](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md),
+plus the [animation platform polish ADR](architecture/decisions/ADR-Animation-Platform-Polish.md).
