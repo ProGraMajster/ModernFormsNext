@@ -17,7 +17,7 @@ public sealed class RippleEffect : InteractionEffect
     private long nextId;
     private RippleLayer layer = RippleLayer.AboveBackgroundBelowContent;
     private RippleRadiusMode radiusMode = RippleRadiusMode.CoverControl;
-    private RippleEvictionPolicy evictionPolicy = RippleEvictionPolicy.Oldest;
+    private RippleOverflowPolicy overflowPolicy = RippleOverflowPolicy.RemoveOldest;
 
     /// <summary>Gets or sets the wave color including its initial alpha.</summary>
     public Color Color { get; set; } = Color.FromArgb(90, 255, 255, 255);
@@ -95,20 +95,57 @@ public sealed class RippleEffect : InteractionEffect
             if (value is < 1 or > 32)
                 throw new ArgumentOutOfRangeException(nameof(value), value, "Concurrent ripple count must be from 1 through 32.");
             maxConcurrentRipples = value;
-            EvictOverflow();
+            if (EvictOverflow())
+                InvalidateTarget();
         }
     }
 
-    /// <summary>Gets or sets the explicit bounded-wave eviction policy.</summary>
-    [DefaultValue(RippleEvictionPolicy.Oldest)]
-    public RippleEvictionPolicy EvictionPolicy
+    /// <summary>Gets or sets how a new wave is handled when the active-wave limit is reached.</summary>
+    /// <remarks>
+    /// The default is <see cref="RippleOverflowPolicy.RemoveOldest"/>, preserving the original
+    /// bounded-ripple behavior. <see cref="RippleOverflowPolicy.IgnoreNew"/> does not allocate a
+    /// ripple instance or scheduler handle.
+    /// </remarks>
+    [DefaultValue(RippleOverflowPolicy.RemoveOldest)]
+    public RippleOverflowPolicy OverflowPolicy
     {
-        get => evictionPolicy;
+        get => overflowPolicy;
         set
         {
             if (!Enum.IsDefined(value))
                 throw new ArgumentOutOfRangeException(nameof(value));
-            evictionPolicy = value;
+            overflowPolicy = value;
+        }
+    }
+
+    /// <summary>Gets or sets the compatibility alias for <see cref="OverflowPolicy"/>.</summary>
+    /// <remarks>
+    /// This property preserves source compatibility with the original single-policy API. New code
+    /// should use <see cref="OverflowPolicy"/>.
+    /// </remarks>
+    [DefaultValue(RippleEvictionPolicy.Oldest)]
+    public RippleEvictionPolicy EvictionPolicy
+    {
+        get => OverflowPolicy switch
+        {
+            RippleOverflowPolicy.RemoveOldest => RippleEvictionPolicy.Oldest,
+            RippleOverflowPolicy.RemoveNewest => RippleEvictionPolicy.Newest,
+            RippleOverflowPolicy.IgnoreNew => RippleEvictionPolicy.IgnoreNew,
+            RippleOverflowPolicy.ReplaceAll => RippleEvictionPolicy.ReplaceAll,
+            _ => throw new InvalidOperationException("The ripple overflow policy is invalid.")
+        };
+        set
+        {
+            if (!Enum.IsDefined(value))
+                throw new ArgumentOutOfRangeException(nameof(value));
+            OverflowPolicy = value switch
+            {
+                RippleEvictionPolicy.Oldest => RippleOverflowPolicy.RemoveOldest,
+                RippleEvictionPolicy.Newest => RippleOverflowPolicy.RemoveNewest,
+                RippleEvictionPolicy.IgnoreNew => RippleOverflowPolicy.IgnoreNew,
+                RippleEvictionPolicy.ReplaceAll => RippleOverflowPolicy.ReplaceAll,
+                _ => throw new ArgumentOutOfRangeException(nameof(value))
+            };
         }
     }
 
@@ -201,8 +238,8 @@ public sealed class RippleEffect : InteractionEffect
             Scheduler.Policy.ShouldCompleteImmediately)
             return;
 
-        while (ripples.Count >= MaxConcurrentRipples)
-            EvictOne();
+        if (!PrepareForNewRipple())
+            return;
 
         var ripple = new RippleInstance(++nextId, pointerId, origin);
         ripples.Add(ripple);
@@ -249,23 +286,62 @@ public sealed class RippleEffect : InteractionEffect
         InvalidateTarget();
     }
 
-    private void EvictOverflow()
+    private bool EvictOverflow()
     {
+        bool removed = false;
+        if (OverflowPolicy == RippleOverflowPolicy.ReplaceAll && ripples.Count > MaxConcurrentRipples)
+        {
+            CancelAllRipples();
+            return true;
+        }
+
         while (ripples.Count > MaxConcurrentRipples)
-            EvictOne();
+        {
+            bool removeNewest = OverflowPolicy is RippleOverflowPolicy.RemoveNewest
+                or RippleOverflowPolicy.IgnoreNew;
+            EvictOne(removeNewest);
+            removed = true;
+        }
+        return removed;
     }
 
-    private void EvictOne()
+    private bool PrepareForNewRipple()
+    {
+        if (ripples.Count < MaxConcurrentRipples)
+            return true;
+
+        switch (OverflowPolicy)
+        {
+            case RippleOverflowPolicy.RemoveOldest:
+                EvictOne(removeNewest: false);
+                return true;
+            case RippleOverflowPolicy.RemoveNewest:
+                EvictOne(removeNewest: true);
+                return true;
+            case RippleOverflowPolicy.IgnoreNew:
+                return false;
+            case RippleOverflowPolicy.ReplaceAll:
+                CancelAllRipples();
+                return true;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(OverflowPolicy));
+        }
+    }
+
+    private void EvictOne(bool removeNewest)
     {
         if (ripples.Count == 0)
             return;
-        RippleInstance ripple = EvictionPolicy switch
-        {
-            RippleEvictionPolicy.Oldest => ripples[0],
-            _ => throw new ArgumentOutOfRangeException(nameof(EvictionPolicy))
-        };
+        RippleInstance ripple = removeNewest ? ripples[^1] : ripples[0];
         ripples.Remove(ripple);
         ripple.Handle?.Cancel();
+    }
+
+    private void CancelAllRipples()
+    {
+        foreach (RippleInstance ripple in ripples.ToArray())
+            ripple.Handle?.Cancel();
+        ripples.Clear();
     }
 
     private float ResolveRadius(PointF origin, Control target)
