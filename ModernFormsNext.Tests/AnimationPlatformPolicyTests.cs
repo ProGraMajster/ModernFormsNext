@@ -170,8 +170,10 @@ public sealed class AnimationPlatformPolicyTests
 
         harness.Policy.ReducedMotion = false;
         Assert.True(harness.Policy.ReducedMotion);
+        Assert.False(harness.Policy.ApplicationReducedMotion);
 
         harness.Policy.ReducedMotion = true;
+        Assert.True(harness.Policy.ApplicationReducedMotion);
         provider.Set(reducedMotion: false, animationsEnabled: true);
         Assert.True(harness.Policy.ReducedMotion);
     }

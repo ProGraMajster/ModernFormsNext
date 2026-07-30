@@ -108,6 +108,21 @@ public sealed class AnimationPolicy
         }
     }
 
+    /// <summary>Gets whether reduced motion was explicitly requested by application code.</summary>
+    /// <remarks>
+    /// Use this read-only value when a settings UI must preserve the application preference
+    /// independently from the effective <see cref="ReducedMotion"/> value contributed by the
+    /// operating system.
+    /// </remarks>
+    public bool ApplicationReducedMotion
+    {
+        get
+        {
+            lock (sync)
+                return reducedMotion;
+        }
+    }
+
     internal void SetPlatformReducedMotion(bool value)
     {
         bool changed;
