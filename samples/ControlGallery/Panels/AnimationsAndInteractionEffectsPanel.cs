@@ -23,6 +23,7 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
     private readonly Label diagnosticsLabel;
     private readonly Button animationsButton;
     private readonly Button reducedMotionButton;
+    private readonly ComboBox ripplePolicyCombo;
     private readonly bool originalAnimationsEnabled;
     private readonly bool originalReducedMotion;
     private readonly double originalDurationScale;
@@ -34,7 +35,7 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
     {
         AutoScroll = true;
         originalAnimationsEnabled = scheduler.Policy.AnimationsEnabled;
-        originalReducedMotion = scheduler.Policy.ReducedMotion;
+        originalReducedMotion = scheduler.Policy.ApplicationReducedMotion;
         originalDurationScale = scheduler.Policy.DurationScale;
 
         Controls.Add(new Label
@@ -116,28 +117,50 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
         reducedMotionButton = AddButton(614, 304, 164, string.Empty, ToggleReducedMotion);
 
         animationsButton = AddButton(24, 346, 180, string.Empty, ToggleAnimations);
-        AddButton(212, 346, 180, "Refresh diagnostics", UpdateDiagnostics);
+        AddButton(212, 346, 180, "Refresh platform policy", RefreshPlatformPolicy);
         AddButton(400, 346, 180, "Reset transforms", ResetTarget);
         AddButton(588, 346, 190, "Resize ripple targets", ResizeRippleTargets);
+
+        Controls.Add(new Label
+        {
+            Left = 24,
+            Top = 396,
+            Width = 164,
+            Height = 28,
+            Text = "Rapid ripple overflow:"
+        });
+        ripplePolicyCombo = Controls.Add(new ComboBox
+        {
+            Left = 194,
+            Top = 392,
+            Width = 190,
+            Height = 32
+        });
+        foreach (string policy in Enum.GetNames<RippleOverflowPolicy>())
+            ripplePolicyCombo.Items.Add(policy);
+        ripplePolicyCombo.SelectedIndexChanged += (_, _) => ApplyRipplePolicy();
+        AddButton(400, 392, 180, "Rapid input x20", RunRapidRipples20);
+        AddButton(588, 392, 190, "Refresh diagnostics", UpdateDiagnostics);
 
         diagnosticsLabel = Controls.Add(new Label
         {
             Left = 24,
-            Top = 402,
+            Top = 442,
             Width = 754,
-            Height = 68,
+            Height = 96,
             Multiline = true
         });
         Controls.Add(new Label
         {
             Left = 24,
-            Top = 480,
+            Top = 548,
             Width = 754,
-            Height = 94,
+            Height = 118,
             Multiline = true,
-            Text = "Manual checklist: pointer and keyboard activation, focus ring order, rapid ripple eviction, resize during a wave, leave/re-enter, disabled state, cancel, Replace, IgnoreNew, reduced motion, animations disabled, and diagnostics returning to Active 0 / Tick source stopped."
+            Text = "Manual checklist: change Windows animation preference while this page is open; verify immediate reduced-motion behavior and return to enabled; select each ripple overflow policy and run rapid input; resize during a wave; test pointer/keyboard activation, disabled state, cancel, Designer save/reload, and diagnostics returning to Active 0 / Tick source stopped."
         });
 
+        ripplePolicyCombo.SelectedIndex = 0;
         UpdatePolicyButtons();
         UpdateDiagnostics();
     }
@@ -353,6 +376,26 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
         UpdateDiagnostics();
     }
 
+    private void RunRapidRipples20()
+    {
+        for (int index = 0; index < 20; index++)
+            rapidRipple.TriggerRipple(12 + ((index * 17) % Math.Max(1, rapidRipple.Width - 24)), 12 + ((index % 2) * 22), index + 100);
+        UpdateDiagnostics();
+    }
+
+    private void ApplyRipplePolicy()
+    {
+        if (rapidRipple?.Ripple is null
+            || ripplePolicyCombo.SelectedItem is not { } selected
+            || !Enum.TryParse(selected.ToString(), out RippleOverflowPolicy policy))
+        {
+            return;
+        }
+
+        rapidRipple.Ripple.OverflowPolicy = policy;
+        UpdateDiagnostics();
+    }
+
     private void ToggleTransitionDisabled()
         => transitionButton.Enabled = !transitionButton.Enabled;
 
@@ -365,7 +408,14 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
 
     private void ToggleReducedMotion()
     {
-        scheduler.Policy.ReducedMotion = !scheduler.Policy.ReducedMotion;
+        scheduler.Policy.ReducedMotion = !scheduler.Policy.ApplicationReducedMotion;
+        UpdatePolicyButtons();
+        UpdateDiagnostics();
+    }
+
+    private void RefreshPlatformPolicy()
+    {
+        scheduler.RefreshPlatformPolicy();
         UpdatePolicyButtons();
         UpdateDiagnostics();
     }
@@ -413,13 +463,14 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
             ? "Animations: enabled"
             : "Animations: disabled";
         reducedMotionButton.Text = scheduler.Policy.ReducedMotion
-            ? "Reduced motion: on"
+            ? $"Reduced motion: on{(scheduler.Policy.ApplicationReducedMotion ? " (app)" : " (platform)")}"
             : "Reduced motion: off";
     }
 
     private void UpdateDiagnostics()
     {
         AnimationSchedulerDiagnostics diagnostics = scheduler.GetDiagnostics();
+        AnimationPlatformDiagnostics platform = scheduler.GetPlatformDiagnostics();
         int activeRipples =
             (pointerRipple?.Ripple?.ActiveRippleCount ?? 0) +
             (centerRipple?.Ripple?.ActiveRippleCount ?? 0) +
@@ -427,7 +478,9 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
             (transitionButton?.Ripple?.ActiveRippleCount ?? 0);
         diagnosticsLabel.Text =
             $"Active: {diagnostics.ActiveAnimationCount} | completed: {diagnostics.CompletedCount} | canceled: {diagnostics.CanceledCount} | faulted: {diagnostics.FaultedCount} | active ripples: {activeRipples}\n" +
-            $"Ticks: {diagnostics.TickCount} | tick source: {(diagnostics.IsTickSourceRunning ? "running" : "stopped")} | policy: {(scheduler.Policy.AnimationsEnabled ? "enabled" : "disabled")}, reduced motion {(scheduler.Policy.ReducedMotion ? "on" : "off")}";
+            $"Ticks: {diagnostics.TickCount} | tick source: {(diagnostics.IsTickSourceRunning ? "running" : "stopped")} | policy: {(scheduler.Policy.AnimationsEnabled ? "enabled" : "disabled")}, reduced motion {(scheduler.Policy.ReducedMotion ? "on" : "off")}\n" +
+            $"Platform: {platform.Source} | state: {platform.ProviderState} | animations: {(platform.AnimationsEnabled ? "enabled" : "disabled")} | fallback: {platform.FallbackUsed} | last update: {platform.LastPlatformUpdate?.ToString("O") ?? "never"}" +
+            (string.IsNullOrWhiteSpace(platform.LastError) ? string.Empty : $" | error: {platform.LastError}");
     }
 
     private static void CancelRipples(params Button[] buttons)
