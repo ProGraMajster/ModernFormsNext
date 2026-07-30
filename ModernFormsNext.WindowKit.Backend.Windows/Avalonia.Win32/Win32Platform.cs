@@ -196,17 +196,20 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 }
             }
             
-            if (msg == (uint)WindowsMessage.WM_SETTINGCHANGE 
-                && PlatformSettings is Win32PlatformSettings win32PlatformSettings)
+            if (msg == (uint)WindowsMessage.WM_SETTINGCHANGE)
             {
                 // Microsoft documents that lParam does not reliably identify the exact system
                 // parameter. Re-read the one accessibility preference used by the framework.
                 AnimationSettings?.NotifySystemSettingsChanged();
-                var changedSetting = Marshal.PtrToStringAuto(lParam);
-                if (changedSetting == "ImmersiveColorSet" // dark/light mode
-                    || changedSetting == "WindowsThemeElement") // high contrast mode
+
+                if (PlatformSettings is Win32PlatformSettings win32PlatformSettings)
                 {
-                    win32PlatformSettings.OnColorValuesChanged();   
+                    var changedSetting = Marshal.PtrToStringAuto(lParam);
+                    if (changedSetting == "ImmersiveColorSet" // dark/light mode
+                        || changedSetting == "WindowsThemeElement") // high contrast mode
+                    {
+                        win32PlatformSettings.OnColorValuesChanged();
+                    }
                 }
             }
             
