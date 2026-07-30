@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using ModernFormsNext.CodeGeneration.Utilities;
 using ModernFormsNext.Designing;
@@ -250,11 +251,153 @@ public sealed class CSharpDesignerGenerator
             if (GeneratedControlProperties.Contains(property.Key) || DesignerOnlyProperties.Contains(property.Key))
                 continue;
 
+            if (string.Equals(property.Key, InteractionEffectDesignValue.PropertyName, StringComparison.Ordinal))
+            {
+                WriteInteractionEffects(writer, controlExpression, property.Value, control.Name, validation);
+                continue;
+            }
+
             WritePropertyAssignment(writer, controlExpression, property.Key, property.Value, control.Name, validation);
         }
 
         writer.WriteLine();
     }
+
+    private static void WriteInteractionEffects(
+        CodeWriter writer,
+        string targetExpression,
+        DesignPropertyValue value,
+        string ownerName,
+        DesignDocumentValidationResult validation)
+    {
+        if (!InteractionEffectDesignValue.TryRead(value, out IReadOnlyList<DesignPropertyValue> effects, out string? error))
+        {
+            validation.AddWarning($"InteractionEffects on '{ownerName}' was skipped: {error}");
+            return;
+        }
+
+        for (int index = 0; index < effects.Count; index++)
+        {
+            try
+            {
+                string expression = WriteInteractionEffect(effects[index]);
+                writer.WriteLine($"        {targetExpression}.InteractionEffects.Add({expression});");
+            }
+            catch (Exception exception) when (exception is NotSupportedException
+                or FormatException
+                or InvalidCastException
+                or OverflowException)
+            {
+                validation.AddWarning(
+                    $"InteractionEffects.Item{index} on '{ownerName}' was skipped: {exception.Message}");
+            }
+        }
+    }
+
+    private static string WriteInteractionEffect(DesignPropertyValue effect)
+    {
+        IReadOnlyDictionary<string, DesignPropertyValue> properties = effect.ObjectProperties
+            ?? throw new FormatException("The effect description does not contain properties.");
+        string typeName = effect.ObjectTypeName ?? string.Empty;
+
+        if (IsEffectType(typeName, "RippleEffect"))
+        {
+            ValidateEffectProperties(properties,
+                "Enabled", "ColorArgb", "DurationMilliseconds", "StartFromPointer", "RadiusMode",
+                "FixedRadius", "Layer", "MaxConcurrentRipples", "OverflowPolicy");
+            int argb = ReadInt(properties, "ColorArgb", unchecked((int)0x5AFFFFFF));
+            uint color = unchecked((uint)argb);
+            return "new ModernFormsNext.Animations.RippleEffect { "
+                + $"Enabled = {ReadBoolLiteral(properties, "Enabled", true)}, "
+                + $"Color = System.Drawing.Color.FromArgb({color >> 24}, {(color >> 16) & 0xFF}, {(color >> 8) & 0xFF}, {color & 0xFF}), "
+                + $"Duration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "DurationMilliseconds", 450d)}), "
+                + $"StartFromPointer = {ReadBoolLiteral(properties, "StartFromPointer", true)}, "
+                + $"RadiusMode = {ReadValue(properties, "RadiusMode", "ModernFormsNext.Animations.RippleRadiusMode.CoverControl")}, "
+                + $"FixedRadius = {ReadFloatLiteral(properties, "FixedRadius", 48d)}, "
+                + $"Layer = {ReadValue(properties, "Layer", "ModernFormsNext.Animations.RippleLayer.AboveBackgroundBelowContent")}, "
+                + $"MaxConcurrentRipples = {ReadInt(properties, "MaxConcurrentRipples", 4)}, "
+                + $"OverflowPolicy = {ReadValue(properties, "OverflowPolicy", "ModernFormsNext.Animations.RippleOverflowPolicy.RemoveOldest")} "
+                + "}";
+        }
+
+        if (IsEffectType(typeName, "PressScaleEffect"))
+        {
+            ValidateEffectProperties(properties,
+                "Enabled", "PressedScale", "PressDurationMilliseconds", "ReleaseDurationMilliseconds");
+            return "new ModernFormsNext.Animations.PressScaleEffect { "
+                + $"Enabled = {ReadBoolLiteral(properties, "Enabled", true)}, "
+                + $"PressedScale = {ReadFloatLiteral(properties, "PressedScale", 0.97d)}, "
+                + $"PressDuration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "PressDurationMilliseconds", 80d)}), "
+                + $"ReleaseDuration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "ReleaseDurationMilliseconds", 120d)}) "
+                + "}";
+        }
+
+        throw new NotSupportedException($"Interaction effect type '{typeName}' is not registered for code generation.");
+    }
+
+    private static void ValidateEffectProperties(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        params string[] supportedNames)
+    {
+        var supported = supportedNames.ToHashSet(StringComparer.Ordinal);
+        string? unsupported = properties.Keys.FirstOrDefault(name => !supported.Contains(name));
+        if (unsupported is not null)
+            throw new NotSupportedException($"Property '{unsupported}' is not supported for this interaction effect.");
+    }
+
+    private static bool IsEffectType(string typeName, string shortName)
+        => string.Equals(typeName, shortName, StringComparison.Ordinal)
+        || typeName.EndsWith("." + shortName, StringComparison.Ordinal);
+
+    private static int ReadInt(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        int fallback)
+        => properties.TryGetValue(name, out DesignPropertyValue? value)
+            ? Convert.ToInt32(value.Value, CultureInfo.InvariantCulture)
+            : fallback;
+
+    private static string ReadDoubleLiteral(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        double fallback)
+    {
+        double result = properties.TryGetValue(name, out DesignPropertyValue? value)
+            ? Convert.ToDouble(value.Value, CultureInfo.InvariantCulture)
+            : fallback;
+        if (!double.IsFinite(result))
+            throw new FormatException($"Property '{name}' must be finite.");
+        return result.ToString("R", CultureInfo.InvariantCulture);
+    }
+
+    private static string ReadFloatLiteral(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        double fallback)
+    {
+        float result = (float)double.Parse(
+            ReadDoubleLiteral(properties, name, fallback),
+            CultureInfo.InvariantCulture);
+        if (!float.IsFinite(result))
+            throw new FormatException($"Property '{name}' must fit in a finite single-precision value.");
+        return result.ToString("R", CultureInfo.InvariantCulture) + "f";
+    }
+
+    private static string ReadBoolLiteral(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        bool fallback)
+        => properties.TryGetValue(name, out DesignPropertyValue? value)
+            ? CSharpLiteralWriter.WriteValue(value)
+            : fallback ? "true" : "false";
+
+    private static string ReadValue(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        string fallback)
+        => properties.TryGetValue(name, out DesignPropertyValue? value)
+            ? CSharpLiteralWriter.WriteValue(value)
+            : fallback;
 
     private static void WritePropertyAssignment(
         CodeWriter writer,

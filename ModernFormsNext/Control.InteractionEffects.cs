@@ -19,11 +19,13 @@ public partial class Control
 
     /// <summary>Gets the effects attached to this control.</summary>
     /// <remarks>
-    /// Effects are code-first objects that can contain easing delegates and runtime state, so the
-    /// collection is intentionally hidden from ordinary designer serialization.
+    /// The custom Designer edits detached descriptions and emits ordered <c>Add</c> calls. It does
+    /// not attach these runtime objects while the form is being designed. Easing delegates and
+    /// custom effect types that are not registered by the Designer remain code-only.
     /// </remarks>
-    [Browsable(false)]
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    [Browsable(true)]
+    [Category("Behavior")]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
     public InteractionEffectCollection InteractionEffects
     {
         get

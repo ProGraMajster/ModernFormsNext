@@ -104,6 +104,13 @@ internal static class DesignerPropertyDialogEditors
             return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
         };
 
+    public static Func<DesignerPropertyDialogContext, Task<bool>> InteractionEffects(DesignControlNode control)
+        => async context =>
+        {
+            var dialog = new DesignerInteractionEffectCollectionDialog(context.Session, control);
+            return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
+        };
+
     private static string? GetStoredString(DesignControlNode node, string propertyName)
         => node.Properties.TryGetValue(propertyName, out var value)
             ? value.Value?.ToString()

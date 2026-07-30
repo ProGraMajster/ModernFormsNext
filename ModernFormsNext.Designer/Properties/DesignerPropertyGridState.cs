@@ -651,6 +651,8 @@ internal sealed class DesignerPropertyGridState
 
     private void AddSpecialContainerDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode node)
     {
+        descriptors.Add(InteractionEffectsProperty(node));
+
         if (DesignerSpecialContainers.IsTabControl(node))
             descriptors.Add(TabPagesProperty(node));
 
@@ -688,6 +690,26 @@ internal sealed class DesignerPropertyGridState
                 minimumValue: 1));
         }
     }
+
+    private static DesignerPropertyDescriptor InteractionEffectsProperty(DesignControlNode control)
+        => new()
+        {
+            Name = InteractionEffectDesignValue.PropertyName,
+            DisplayName = "InteractionEffects",
+            Category = "Behavior",
+            Description = "Edits the ordered RippleEffect and PressScaleEffect collection without running effects in the Designer.",
+            ValueType = typeof(string),
+            IsReadOnly = true,
+            HasDialogEditor = true,
+            DialogEditor = DesignerPropertyDialogEditors.InteractionEffects(control),
+            GetValue = () =>
+            {
+                control.Properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? value);
+                return InteractionEffectDesignValue.TryRead(value, out IReadOnlyList<DesignPropertyValue> effects, out _)
+                    ? $"{effects.Count} effect{(effects.Count == 1 ? string.Empty : "s")}"
+                    : "(invalid)";
+            }
+        };
 
     private static DesignerPropertyDescriptor TabPagesProperty(DesignControlNode tabControl)
         => new()
