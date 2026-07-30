@@ -7,13 +7,15 @@ namespace ModernFormsNext.Animations;
 /// The policy is shared by one <see cref="AnimationScheduler"/>. Properties are thread-safe.
 /// Disabling animations, enabling reduced motion, or setting <see cref="DurationScale"/> to zero
 /// completes active animations at their final value on the UI thread and prevents timer ticks.
-/// Native operating-system reduced-motion discovery is not yet automatic.
+/// Native operating-system reduced-motion discovery is applied independently from the explicit
+/// application preference. Either source can request immediate completion.
 /// </remarks>
 public sealed class AnimationPolicy
 {
     private readonly object sync = new();
     private bool animationsEnabled = true;
     private bool reducedMotion;
+    private bool platformReducedMotion;
     private double durationScale = 1d;
 
     /// <summary>
@@ -34,21 +36,34 @@ public sealed class AnimationPolicy
     }
 
     /// <summary>
-    /// Gets or sets whether reduced motion is requested by the application.
+    /// Gets whether reduced motion is effectively requested and sets the application preference.
     /// </summary>
     /// <remarks>
-    /// Reduced motion currently has the same scheduling behavior as disabling animations: final
-    /// values are applied immediately. A future backend integration may initialize this value from
-    /// the platform accessibility preference.
+    /// Reduced motion has the same scheduling behavior as disabling animations: final values are
+    /// applied immediately. The getter combines this explicit application preference with the
+    /// current native platform preference. Setting this property does not override a platform
+    /// reduced-motion request.
     /// </remarks>
     public bool ReducedMotion
     {
         get
         {
             lock (sync)
-                return reducedMotion;
+                return reducedMotion || platformReducedMotion;
         }
-        set => SetValue(ref reducedMotion, value);
+        set
+        {
+            bool changed;
+            lock (sync)
+            {
+                bool previous = reducedMotion || platformReducedMotion;
+                reducedMotion = value;
+                changed = previous != (reducedMotion || platformReducedMotion);
+            }
+
+            if (changed)
+                Changed?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -89,8 +104,22 @@ public sealed class AnimationPolicy
         get
         {
             lock (sync)
-                return !animationsEnabled || reducedMotion || durationScale == 0d;
+                return !animationsEnabled || reducedMotion || platformReducedMotion || durationScale == 0d;
         }
+    }
+
+    internal void SetPlatformReducedMotion(bool value)
+    {
+        bool changed;
+        lock (sync)
+        {
+            bool previous = reducedMotion || platformReducedMotion;
+            platformReducedMotion = value;
+            changed = previous != (reducedMotion || platformReducedMotion);
+        }
+
+        if (changed)
+            Changed?.Invoke(this, EventArgs.Empty);
     }
 
     internal event EventHandler? Changed;

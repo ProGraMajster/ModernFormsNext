@@ -96,6 +96,8 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             // IWindowingPlatform or clipboard registration until Android UI/rendering support exists.
             PlatformServiceRegistry.Register<IPlatformDispatcher>(Dispatcher);
             PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(ActivityTracker);
+            PlatformServiceRegistry.Register<IPlatformAnimationSettings>(
+                new AndroidPlatformAnimationSettings(ApplicationContext.Context));
             PlatformServiceRegistry.Register<IPermissionService>(Permissions);
 
             IsInitialized = true;

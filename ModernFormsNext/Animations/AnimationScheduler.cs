@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using ModernFormsNext.WindowKit.Backend;
 using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.Animations;
@@ -71,13 +72,18 @@ public sealed partial class AnimationScheduler : IDisposable
         IAnimationDispatcher dispatcher,
         IAnimationTickSource tickSource,
         AnimationPolicy policy,
-        IPlatformApplicationLifecycle? platformLifecycle = null)
+        IPlatformApplicationLifecycle? platformLifecycle = null,
+        IPlatformAnimationSettings? platformAnimationSettings = null,
+        Func<bool>? isDesignMode = null)
     {
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         this.tickSource = tickSource ?? throw new ArgumentNullException(nameof(tickSource));
+        this.isDesignMode = isDesignMode ?? IsProcessInDesignMode;
         Policy = policy ?? throw new ArgumentNullException(nameof(policy));
         Policy.Changed += HandlePolicyChanged;
+        if (platformAnimationSettings is not null)
+            BindPlatformAnimationSettings(platformAnimationSettings);
         if (platformLifecycle is not null)
             BindPlatformLifecycle(platformLifecycle);
     }
@@ -137,6 +143,7 @@ public sealed partial class AnimationScheduler : IDisposable
         ArgumentNullException.ThrowIfNull(update);
 
         BindPlatformLifecycleIfAvailable();
+        BindPlatformAnimationSettingsIfAvailable();
         AnimationOptionsSnapshot snapshot = (options ?? new AnimationOptions()).CreateSnapshot(Policy);
         if (owner is IComponent { Site.DesignMode: true } ||
             owner is InteractionEffect { Target.Site.DesignMode: true })
@@ -435,6 +442,7 @@ public sealed partial class AnimationScheduler : IDisposable
             entry.FinishTerminal(signalCancellation: true);
 
         Policy.Changed -= HandlePolicyChanged;
+        UnbindPlatformAnimationSettings();
         UnbindPlatformLifecycle();
         tickSource.Dispose();
     }

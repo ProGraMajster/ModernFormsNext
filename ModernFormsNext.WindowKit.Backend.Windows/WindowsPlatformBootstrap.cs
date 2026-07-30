@@ -44,7 +44,10 @@ public static class WindowsPlatformBootstrap
             AvaloniaGlobals.AddService<IPlatformFontDialogService>(new WindowsFontDialogService());
             AvaloniaGlobals.AddService<IPlatformPrintDialogService>(new WindowsPrintDialogService());
             AvaloniaGlobals.AddService<IPlatformTrayManager>(new WindowsTrayManager());
-            PlatformServiceRegistry.Register<IPlatformThemeSettings>(new WindowsPlatformThemeSettings());
+            var animationSettings = new WindowsPlatformAnimationSettings();
+            Win32Platform.Instance.AnimationSettings = animationSettings;
+            PlatformServiceRegistry.Register<IPlatformAnimationSettings>(animationSettings);
+            PlatformServiceRegistry.Register<IPlatformThemeSettings>(new WindowsPlatformThemeSettings(animationSettings));
 
             initialized = true;
         }

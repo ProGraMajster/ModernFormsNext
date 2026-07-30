@@ -58,7 +58,10 @@ public sealed partial class AnimationScheduler
     private void ApplyPlatformLifecycleState(PlatformApplicationLifecycleState state)
     {
         if (state == PlatformApplicationLifecycleState.Foreground)
+        {
+            RefreshPlatformPolicyAfterForeground();
             Resume();
+        }
         else if (state is PlatformApplicationLifecycleState.Background or PlatformApplicationLifecycleState.NoHost)
             Pause();
     }

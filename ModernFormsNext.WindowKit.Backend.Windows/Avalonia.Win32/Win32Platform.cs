@@ -116,6 +116,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         internal IntPtr Handle => _hwnd;
 
+        internal WindowsPlatformAnimationSettings? AnimationSettings { get; set; }
+
         /// <summary>
         /// Gets the actual WindowsVersion. Same as the info returned from RtlGetVersion.
         /// </summary>
@@ -197,6 +199,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             if (msg == (uint)WindowsMessage.WM_SETTINGCHANGE 
                 && PlatformSettings is Win32PlatformSettings win32PlatformSettings)
             {
+                // Microsoft documents that lParam does not reliably identify the exact system
+                // parameter. Re-read the one accessibility preference used by the framework.
+                AnimationSettings?.NotifySystemSettingsChanged();
                 var changedSetting = Marshal.PtrToStringAuto(lParam);
                 if (changedSetting == "ImmersiveColorSet" // dark/light mode
                     || changedSetting == "WindowsThemeElement") // high contrast mode

@@ -9,7 +9,10 @@ internal sealed class WindowsPlatformThemeSettings : IPlatformThemeSettings
 {
     private const string PersonalizeKey =
         @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
-    private const uint SpiGetClientAreaAnimation = 0x1042;
+    private readonly WindowsPlatformAnimationSettings animationSettings;
+
+    public WindowsPlatformThemeSettings(WindowsPlatformAnimationSettings animationSettings)
+        => this.animationSettings = animationSettings ?? throw new ArgumentNullException(nameof(animationSettings));
 
     public PlatformColorScheme GetPreferredVariant()
     {
@@ -31,26 +34,7 @@ internal sealed class WindowsPlatformThemeSettings : IPlatformThemeSettings
 
     public bool? GetReducedMotion()
     {
-        if (!OperatingSystem.IsWindows())
-            return null;
-
-        try
-        {
-            return SystemParametersInfo(SpiGetClientAreaAnimation, 0, out bool enabled, 0)
-                ? !enabled
-                : null;
-        }
-        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
-        {
-            return null;
-        }
+        PlatformAnimationSettingsSnapshot snapshot = animationSettings.Current;
+        return snapshot.FallbackUsed ? null : snapshot.ReducedMotion;
     }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SystemParametersInfo(
-        uint action,
-        uint parameter,
-        [MarshalAs(UnmanagedType.Bool)] out bool value,
-        uint updateFlags);
 }

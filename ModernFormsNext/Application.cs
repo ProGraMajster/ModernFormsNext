@@ -289,10 +289,11 @@ namespace ModernFormsNext
         public static void Run(Form mainForm)
         {
             FrameworkBootstrap.EnsureInitialized();
+            Animations.AnimationScheduler.Default.RefreshPlatformPolicy();
             AvaloniaSynchronizationContext.InstallIfNeeded();
 
             mainForm.Show();
-            Run((ICloseable)mainForm);
+            RunMainLoop(mainForm);
         }
 
         /// <summary>
@@ -317,6 +318,13 @@ namespace ModernFormsNext
         public static void Run(ICloseable closable)
         {
             FrameworkBootstrap.EnsureInitialized();
+            Animations.AnimationScheduler.Default.RefreshPlatformPolicy();
+            RunMainLoop(closable);
+        }
+
+        private static void RunMainLoop(ICloseable closable)
+        {
+            ArgumentNullException.ThrowIfNull(closable);
 
             if (_mainLoopCancellationTokenSource != null)
                 throw new InvalidOperationException("Run should only be called once");
