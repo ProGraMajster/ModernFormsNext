@@ -241,6 +241,9 @@ public sealed class CSharpDesignerParser
 
     private void ProcessInvocation(InvocationExpressionSyntax invocation)
     {
+        if (TryProcessInteractionEffectAdd(invocation))
+            return;
+
         if (TryReadControlsAdd(invocation, out var parentName, out var childName))
         {
             addOperations.Add(new ControlAddOperation(parentName, childName, invocation));
@@ -248,6 +251,161 @@ public sealed class CSharpDesignerParser
         }
 
         AddUnsupported(invocation, "Unsupported method call in InitializeComponent.");
+    }
+
+    private bool TryProcessInteractionEffectAdd(InvocationExpressionSyntax invocation)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax addAccess
+            || !string.Equals(addAccess.Name.Identifier.ValueText, "Add", StringComparison.Ordinal)
+            || addAccess.Expression is not MemberAccessExpressionSyntax effectsAccess
+            || !string.Equals(effectsAccess.Name.Identifier.ValueText, InteractionEffectDesignValue.PropertyName, StringComparison.Ordinal)
+            || invocation.ArgumentList.Arguments.Count != 1)
+        {
+            return false;
+        }
+
+        string? ownerName = syntaxReader.GetObjectReferenceName(effectsAccess.Expression);
+        if (string.IsNullOrWhiteSpace(ownerName)
+            || !TryGetNode(ownerName, invocation, out DesignControlNode node))
+        {
+            return true;
+        }
+
+        if (!TryReadInteractionEffect(invocation.ArgumentList.Arguments[0].Expression, out DesignPropertyValue effect))
+        {
+            AddUnsupported(invocation, $"Unsupported interaction effect initializer for '{ownerName}'.");
+            return true;
+        }
+
+        node.Properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? existing);
+        if (!InteractionEffectDesignValue.TryRead(existing, out IReadOnlyList<DesignPropertyValue> effects, out string? error))
+        {
+            AddUnsupported(invocation, $"Cannot append interaction effect for '{ownerName}': {error}");
+            return true;
+        }
+
+        node.Properties[InteractionEffectDesignValue.PropertyName] =
+            InteractionEffectDesignValue.Create(effects.Append(effect));
+        return true;
+    }
+
+    private static bool TryReadInteractionEffect(ExpressionSyntax expression, out DesignPropertyValue effect)
+    {
+        effect = null!;
+        if (expression is not ObjectCreationExpressionSyntax objectCreation
+            || objectCreation.Initializer is null)
+        {
+            return false;
+        }
+
+        string typeName = objectCreation.Type.ToString();
+        bool isRipple = IsInteractionEffectType(typeName, "RippleEffect");
+        bool isPressScale = IsInteractionEffectType(typeName, "PressScaleEffect");
+        if (!isRipple && !isPressScale)
+            return false;
+
+        string[] supportedProperties = isRipple
+            ? ["Enabled", "Color", "Duration", "StartFromPointer", "RadiusMode", "FixedRadius", "Layer", "MaxConcurrentRipples", "OverflowPolicy"]
+            : ["Enabled", "PressedScale", "PressDuration", "ReleaseDuration"];
+
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        foreach (ExpressionSyntax initializer in objectCreation.Initializer.Expressions)
+        {
+            if (initializer is not AssignmentExpressionSyntax assignment
+                || !assignment.IsKind(SyntaxKind.SimpleAssignmentExpression))
+            {
+                return false;
+            }
+
+            string propertyName = assignment.Left switch
+            {
+                IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
+                MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
+                _ => string.Empty
+            };
+            if (string.IsNullOrWhiteSpace(propertyName)
+                || !supportedProperties.Contains(propertyName, StringComparer.Ordinal))
+                return false;
+
+            if (string.Equals(propertyName, "Color", StringComparison.Ordinal))
+            {
+                if (!TryReadColorArgb(assignment.Right, out int argb))
+                    return false;
+                if (!properties.TryAdd("ColorArgb", DesignPropertyValue.FromInt32(argb)))
+                    return false;
+                continue;
+            }
+
+            string? durationProperty = propertyName switch
+            {
+                "Duration" when isRipple => "DurationMilliseconds",
+                "PressDuration" when isPressScale => "PressDurationMilliseconds",
+                "ReleaseDuration" when isPressScale => "ReleaseDurationMilliseconds",
+                _ => null
+            };
+            if (durationProperty is not null)
+            {
+                if (!TryReadTimeSpanMilliseconds(assignment.Right, out double milliseconds))
+                    return false;
+                if (!properties.TryAdd(durationProperty, DesignPropertyValue.FromDouble(milliseconds)))
+                    return false;
+                continue;
+            }
+
+            if (!TryReadDesignerValue(assignment.Right, out DesignPropertyValue value))
+                return false;
+            if (!properties.TryAdd(propertyName, value))
+                return false;
+        }
+
+        effect = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        return true;
+    }
+
+    private static bool IsInteractionEffectType(string typeName, string shortName)
+        => string.Equals(typeName, shortName, StringComparison.Ordinal)
+        || string.Equals(typeName, "ModernFormsNext.Animations." + shortName, StringComparison.Ordinal);
+
+    private static bool TryReadTimeSpanMilliseconds(ExpressionSyntax expression, out double milliseconds)
+    {
+        milliseconds = 0d;
+        return expression is InvocationExpressionSyntax invocation
+            && invocation.Expression is MemberAccessExpressionSyntax member
+            && string.Equals(member.Name.Identifier.ValueText, "FromMilliseconds", StringComparison.Ordinal)
+            && member.Expression.ToString().EndsWith("TimeSpan", StringComparison.Ordinal)
+            && invocation.ArgumentList.Arguments.Count == 1
+            && TryReadDouble(invocation.ArgumentList.Arguments[0].Expression, out milliseconds)
+            && double.IsFinite(milliseconds)
+            && milliseconds >= 0d;
+    }
+
+    private static bool TryReadColorArgb(ExpressionSyntax expression, out int argb)
+    {
+        argb = 0;
+        if (expression is not InvocationExpressionSyntax invocation
+            || invocation.Expression is not MemberAccessExpressionSyntax member
+            || !string.Equals(member.Name.Identifier.ValueText, "FromArgb", StringComparison.Ordinal)
+            || !member.Expression.ToString().EndsWith("Color", StringComparison.Ordinal)
+            || invocation.ArgumentList.Arguments.Count != 4)
+        {
+            return false;
+        }
+
+        var channels = new int[4];
+        for (int index = 0; index < channels.Length; index++)
+        {
+            if (!TryReadInt32(invocation.ArgumentList.Arguments[index].Expression, out channels[index])
+                || channels[index] is < 0 or > 255)
+            {
+                return false;
+            }
+        }
+
+        argb = unchecked((int)(((uint)channels[0] << 24)
+            | ((uint)channels[1] << 16)
+            | ((uint)channels[2] << 8)
+            | (uint)channels[3]));
+        return true;
     }
 
     private void ProcessPropertyAssignment(

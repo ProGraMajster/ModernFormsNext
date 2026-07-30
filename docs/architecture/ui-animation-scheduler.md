@@ -199,11 +199,25 @@ invalidation rather than the render-only control transform path.
 
 ## Reduced motion
 
-`AnimationPolicy` is central and platform-neutral. When animations are disabled, reduced motion is
-requested, or duration scale is zero, newly started animations apply their final value once on the
-UI thread and complete without a timer. Disabling motion while animations are active completes
-them through the same final-value path. A positive duration scale is captured when an entry starts;
-for example, 0.5 halves its duration and 2 doubles it. Native OS preference discovery is deferred.
+`AnimationPolicy` is central and platform-neutral. Its effective reduced-motion value is the OR of
+the application preference and the latest immutable platform snapshot, so application code cannot
+override an operating-system accessibility request. `ApplicationReducedMotion` exposes the
+application part independently for settings surfaces.
+
+`IPlatformAnimationSettings` is registered through the existing backend service registry. The
+scheduler subscribes once, marshals provider changes through its UI dispatcher, applies policy, and
+then releases provider and scheduler locks before user-visible completion callbacks can run.
+Startup and foreground entry explicitly refresh the snapshot. Windows additionally refreshes from
+the existing message-only WindowKit window on `WM_SETTINGCHANGE`; no poller, timer, or native handle
+is introduced. Experimental Android reads its global animator/transition scales when a usable
+Activity context exists and refreshes on foreground entry rather than using a live observer.
+
+When animations are disabled, reduced motion is requested, or duration scale is zero, newly started
+animations apply their final value once on the UI thread and complete without a timer. Disabling
+motion while animations are active completes them through the same final-value path. A positive
+duration scale is captured when an entry starts; for example, 0.5 halves its duration and 2 doubles
+it. Native read failures retain compatibility defaults and are visible through
+`GetPlatformDiagnostics()` instead of failing application startup.
 
 ## Performance and memory risks
 

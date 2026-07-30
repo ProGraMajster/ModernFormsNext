@@ -19,11 +19,20 @@ public partial class Control
 
     /// <summary>Gets the effects attached to this control.</summary>
     /// <remarks>
-    /// Effects are code-first objects that can contain easing delegates and runtime state, so the
-    /// collection is intentionally hidden from ordinary designer serialization.
+    /// <para>
+    /// Each control starts with its own empty collection. Effects run only after an effect is
+    /// explicitly added in code or through generated Designer code. Target-local input is sent
+    /// only to that collection; child input does not bubble an effect into a parent collection.
+    /// </para>
+    /// <para>
+    /// The custom Designer edits detached descriptions and emits ordered <c>Add</c> calls. It does
+    /// not attach these runtime objects while the form is being designed. Easing delegates and
+    /// custom effect types that are not registered by the Designer remain code-only.
+    /// </para>
     /// </remarks>
-    [Browsable(false)]
-    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    [Browsable(true)]
+    [Category("Behavior")]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
     public InteractionEffectCollection InteractionEffects
     {
         get
@@ -37,6 +46,7 @@ public partial class Control
     }
 
     /// <summary>Gets or sets the convenience ripple effect attached to this control.</summary>
+    [DefaultValue(null)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
     public RippleEffect? Ripple
     {
@@ -45,6 +55,7 @@ public partial class Control
     }
 
     /// <summary>Gets or sets the convenience press-scale effect attached to this control.</summary>
+    [DefaultValue(null)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
     public PressScaleEffect? PressEffect
     {
@@ -175,6 +186,9 @@ public partial class Control
         if (value is not null)
             InteractionEffects.Add(value);
     }
+
+    private bool ShouldSerializeInteractionEffects()
+        => Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection { Count: > 0 };
 
     private void RecalculateInteractionScale(Dictionary<InteractionEffect, float> scales)
     {
