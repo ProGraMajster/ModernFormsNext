@@ -299,10 +299,14 @@ public sealed class CSharpDesignerParser
         }
 
         string typeName = objectCreation.Type.ToString();
-        bool isRipple = IsType(typeName, "RippleEffect");
-        bool isPressScale = IsType(typeName, "PressScaleEffect");
+        bool isRipple = IsInteractionEffectType(typeName, "RippleEffect");
+        bool isPressScale = IsInteractionEffectType(typeName, "PressScaleEffect");
         if (!isRipple && !isPressScale)
             return false;
+
+        string[] supportedProperties = isRipple
+            ? ["Enabled", "Color", "Duration", "StartFromPointer", "RadiusMode", "FixedRadius", "Layer", "MaxConcurrentRipples", "OverflowPolicy"]
+            : ["Enabled", "PressedScale", "PressDuration", "ReleaseDuration"];
 
         var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
         foreach (ExpressionSyntax initializer in objectCreation.Initializer.Expressions)
@@ -319,14 +323,16 @@ public sealed class CSharpDesignerParser
                 MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
                 _ => string.Empty
             };
-            if (string.IsNullOrWhiteSpace(propertyName))
+            if (string.IsNullOrWhiteSpace(propertyName)
+                || !supportedProperties.Contains(propertyName, StringComparer.Ordinal))
                 return false;
 
             if (string.Equals(propertyName, "Color", StringComparison.Ordinal))
             {
                 if (!TryReadColorArgb(assignment.Right, out int argb))
                     return false;
-                properties["ColorArgb"] = DesignPropertyValue.FromInt32(argb);
+                if (!properties.TryAdd("ColorArgb", DesignPropertyValue.FromInt32(argb)))
+                    return false;
                 continue;
             }
 
@@ -341,18 +347,24 @@ public sealed class CSharpDesignerParser
             {
                 if (!TryReadTimeSpanMilliseconds(assignment.Right, out double milliseconds))
                     return false;
-                properties[durationProperty] = DesignPropertyValue.FromDouble(milliseconds);
+                if (!properties.TryAdd(durationProperty, DesignPropertyValue.FromDouble(milliseconds)))
+                    return false;
                 continue;
             }
 
             if (!TryReadDesignerValue(assignment.Right, out DesignPropertyValue value))
                 return false;
-            properties[propertyName] = value;
+            if (!properties.TryAdd(propertyName, value))
+                return false;
         }
 
         effect = DesignPropertyValue.FromStructuredObject(typeName, properties);
         return true;
     }
+
+    private static bool IsInteractionEffectType(string typeName, string shortName)
+        => string.Equals(typeName, shortName, StringComparison.Ordinal)
+        || string.Equals(typeName, "ModernFormsNext.Animations." + shortName, StringComparison.Ordinal);
 
     private static bool TryReadTimeSpanMilliseconds(ExpressionSyntax expression, out double milliseconds)
     {

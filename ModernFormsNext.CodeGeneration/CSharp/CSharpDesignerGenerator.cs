@@ -312,11 +312,11 @@ public sealed class CSharpDesignerGenerator
                 + $"Color = System.Drawing.Color.FromArgb({color >> 24}, {(color >> 16) & 0xFF}, {(color >> 8) & 0xFF}, {color & 0xFF}), "
                 + $"Duration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "DurationMilliseconds", 450d)}), "
                 + $"StartFromPointer = {ReadBoolLiteral(properties, "StartFromPointer", true)}, "
-                + $"RadiusMode = {ReadValue(properties, "RadiusMode", "ModernFormsNext.Animations.RippleRadiusMode.CoverControl")}, "
+                + $"RadiusMode = {ReadEnumLiteral(properties, "RadiusMode", "ModernFormsNext.Animations.RippleRadiusMode", "CoverControl", "CoverControl", "Fixed")}, "
                 + $"FixedRadius = {ReadFloatLiteral(properties, "FixedRadius", 48d)}, "
-                + $"Layer = {ReadValue(properties, "Layer", "ModernFormsNext.Animations.RippleLayer.AboveBackgroundBelowContent")}, "
+                + $"Layer = {ReadEnumLiteral(properties, "Layer", "ModernFormsNext.Animations.RippleLayer", "AboveBackgroundBelowContent", "AboveBackgroundBelowContent", "AboveContent")}, "
                 + $"MaxConcurrentRipples = {ReadInt(properties, "MaxConcurrentRipples", 4)}, "
-                + $"OverflowPolicy = {ReadValue(properties, "OverflowPolicy", "ModernFormsNext.Animations.RippleOverflowPolicy.RemoveOldest")} "
+                + $"OverflowPolicy = {ReadEnumLiteral(properties, "OverflowPolicy", "ModernFormsNext.Animations.RippleOverflowPolicy", "RemoveOldest", "RemoveOldest", "RemoveNewest", "IgnoreNew", "ReplaceAll")} "
                 + "}";
         }
 
@@ -347,24 +347,38 @@ public sealed class CSharpDesignerGenerator
 
     private static bool IsEffectType(string typeName, string shortName)
         => string.Equals(typeName, shortName, StringComparison.Ordinal)
-        || typeName.EndsWith("." + shortName, StringComparison.Ordinal);
+        || string.Equals(typeName, "ModernFormsNext.Animations." + shortName, StringComparison.Ordinal);
 
     private static int ReadInt(
         IReadOnlyDictionary<string, DesignPropertyValue> properties,
         string name,
         int fallback)
-        => properties.TryGetValue(name, out DesignPropertyValue? value)
-            ? Convert.ToInt32(value.Value, CultureInfo.InvariantCulture)
-            : fallback;
+    {
+        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
+            return fallback;
+        if (value.Kind != DesignPropertyValueKind.Int32 || value.Value is not int result)
+            throw new FormatException($"Property '{name}' must be a 32-bit integer.");
+        return result;
+    }
 
     private static string ReadDoubleLiteral(
         IReadOnlyDictionary<string, DesignPropertyValue> properties,
         string name,
         double fallback)
     {
-        double result = properties.TryGetValue(name, out DesignPropertyValue? value)
-            ? Convert.ToDouble(value.Value, CultureInfo.InvariantCulture)
-            : fallback;
+        double result;
+        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
+        {
+            result = fallback;
+        }
+        else if (value.Kind is DesignPropertyValueKind.Double or DesignPropertyValueKind.Int32)
+        {
+            result = Convert.ToDouble(value.Value, CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            throw new FormatException($"Property '{name}' must be numeric.");
+        }
         if (!double.IsFinite(result))
             throw new FormatException($"Property '{name}' must be finite.");
         return result.ToString("R", CultureInfo.InvariantCulture);
@@ -387,17 +401,34 @@ public sealed class CSharpDesignerGenerator
         IReadOnlyDictionary<string, DesignPropertyValue> properties,
         string name,
         bool fallback)
-        => properties.TryGetValue(name, out DesignPropertyValue? value)
-            ? CSharpLiteralWriter.WriteValue(value)
-            : fallback ? "true" : "false";
+    {
+        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
+            return fallback ? "true" : "false";
+        if (value.Kind != DesignPropertyValueKind.Boolean || value.Value is not bool result)
+            throw new FormatException($"Property '{name}' must be a Boolean.");
+        return result ? "true" : "false";
+    }
 
-    private static string ReadValue(
+    private static string ReadEnumLiteral(
         IReadOnlyDictionary<string, DesignPropertyValue> properties,
         string name,
-        string fallback)
-        => properties.TryGetValue(name, out DesignPropertyValue? value)
-            ? CSharpLiteralWriter.WriteValue(value)
-            : fallback;
+        string enumTypeName,
+        string fallbackMember,
+        params string[] supportedMembers)
+    {
+        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
+            return enumTypeName + "." + fallbackMember;
+        string shortTypeName = enumTypeName.Split('.').Last();
+        string member = value.GetString();
+        if (value.Kind != DesignPropertyValueKind.Enum
+            || (!string.Equals(value.EnumTypeName, enumTypeName, StringComparison.Ordinal)
+                && !string.Equals(value.EnumTypeName, shortTypeName, StringComparison.Ordinal))
+            || !supportedMembers.Contains(member, StringComparer.Ordinal))
+        {
+            throw new FormatException($"Property '{name}' is not a supported {shortTypeName} value.");
+        }
+        return enumTypeName + "." + member;
+    }
 
     private static void WritePropertyAssignment(
         CodeWriter writer,

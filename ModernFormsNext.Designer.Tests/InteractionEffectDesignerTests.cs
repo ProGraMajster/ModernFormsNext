@@ -127,6 +127,52 @@ public sealed class InteractionEffectDesignerTests
     }
 
     [Fact]
+    public void GeneratorRejectsForeignTypeWithBuiltInShortName()
+    {
+        DesignDocument document = CreateDocument();
+        DesignControlNode control = Assert.Single(document.Controls);
+        DesignPropertyValue foreign = DesignPropertyValue.FromStructuredObject(
+            "Example.RippleEffect",
+            new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal));
+        control.Properties[InteractionEffectDesignValue.PropertyName] =
+            InteractionEffectDesignValue.Create([foreign]);
+
+        var generated = new CSharpDesignerGenerator().Generate(document);
+
+        Assert.DoesNotContain(".InteractionEffects.Add(", generated.Code, StringComparison.Ordinal);
+        Assert.Contains(
+            generated.Validation.Warnings,
+            warning => warning.Contains("not registered", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void ReverseParserRejectsForeignTypeAndUnsupportedPropertyWithoutMutation()
+    {
+        DesignDocument document = CreateDocument(
+            InteractionEffectDesignerRegistry.Create(InteractionEffectDesignerRegistry.RippleTypeName));
+        string code = new CSharpDesignerGenerator().Generate(document).Code;
+        string[] unsupportedVariants =
+        [
+            code.Replace(
+                "ModernFormsNext.Animations.RippleEffect",
+                "Example.RippleEffect",
+                StringComparison.Ordinal),
+            code.Replace("Enabled = true", "Unsupported = true", StringComparison.Ordinal)
+        ];
+
+        foreach (string unsupportedCode in unsupportedVariants)
+        {
+            CSharpDesignerParseResult parsed = new CSharpDesignerParser().Parse(unsupportedCode);
+            DesignControlNode control = Assert.Single(Assert.IsType<DesignDocument>(parsed.Document).Controls);
+
+            Assert.Contains(
+                parsed.Diagnostics,
+                diagnostic => diagnostic.Message.Contains("Unsupported interaction effect initializer", StringComparison.Ordinal));
+            Assert.False(control.Properties.ContainsKey(InteractionEffectDesignValue.PropertyName));
+        }
+    }
+
+    [Fact]
     public void DesignerModelCreatesNoRuntimeEffectsOrSchedulerHandles()
     {
         int activeBefore = AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount;
