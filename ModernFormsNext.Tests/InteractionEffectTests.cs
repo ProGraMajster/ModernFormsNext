@@ -109,6 +109,194 @@ public sealed class InteractionEffectTests
         Assert.False(harness.TickSource.IsRunning);
     }
 
+    [Theory]
+    [InlineData(RippleOverflowPolicy.RemoveOldest, 1)]
+    [InlineData(RippleOverflowPolicy.RemoveNewest, 2)]
+    public void RemovalPoliciesEvictTheDeterministicWave(
+        RippleOverflowPolicy policy,
+        int evictedPointerId)
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Ripple = new RippleEffect
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                MaxConcurrentRipples = 2,
+                OverflowPolicy = policy
+            }
+        };
+
+        control.DownForTest(Mouse(1, 1, 1, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(2, 1, 2, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(3, 1, 3, PointerDeviceKind.Touch));
+
+        Assert.Equal(2, control.Ripple.ActiveRippleCount);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().CanceledCount);
+        control.CancelPointerForTest(evictedPointerId);
+        Assert.Equal(2, control.Ripple.ActiveRippleCount);
+
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+        Assert.Equal(0, control.Ripple.ActiveRippleCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
+    public void IgnoreNewCreatesNoWaveOrSchedulerHandle()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Ripple = new RippleEffect
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                MaxConcurrentRipples = 2,
+                OverflowPolicy = RippleOverflowPolicy.IgnoreNew
+            }
+        };
+
+        control.DownForTest(Mouse(1, 1, 1, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(2, 1, 2, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(3, 1, 3, PointerDeviceKind.Touch));
+
+        Assert.Equal(2, control.Ripple.ActiveRippleCount);
+        Assert.Equal(2, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().CanceledCount);
+        control.CancelPointerForTest(3);
+        Assert.Equal(2, control.Ripple.ActiveRippleCount);
+    }
+
+    [Fact]
+    public void ReplaceAllCancelsEveryWaveAndStartsOnlyTheNewWave()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Ripple = new RippleEffect
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                MaxConcurrentRipples = 2,
+                OverflowPolicy = RippleOverflowPolicy.ReplaceAll
+            }
+        };
+
+        control.DownForTest(Mouse(1, 1, 1, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(2, 1, 2, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(3, 1, 3, PointerDeviceKind.Touch));
+
+        Assert.Equal(1, control.Ripple.ActiveRippleCount);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.Equal(2, harness.Scheduler.GetDiagnostics().CanceledCount);
+        control.CancelPointerForTest(1);
+        control.CancelPointerForTest(2);
+        Assert.Equal(1, control.Ripple.ActiveRippleCount);
+    }
+
+    [Theory]
+    [InlineData(RippleOverflowPolicy.RemoveOldest)]
+    [InlineData(RippleOverflowPolicy.RemoveNewest)]
+    [InlineData(RippleOverflowPolicy.IgnoreNew)]
+    [InlineData(RippleOverflowPolicy.ReplaceAll)]
+    public void LimitOneRemainsBoundedForEveryOverflowPolicy(RippleOverflowPolicy policy)
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Ripple = new RippleEffect
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                MaxConcurrentRipples = 1,
+                OverflowPolicy = policy
+            }
+        };
+
+        control.DownForTest(Mouse(1, 1, 1, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(2, 1, 2, PointerDeviceKind.Touch));
+
+        Assert.Equal(1, control.Ripple.ActiveRippleCount);
+        Assert.Equal(1, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Theory]
+    [InlineData(RippleOverflowPolicy.RemoveOldest)]
+    [InlineData(RippleOverflowPolicy.RemoveNewest)]
+    [InlineData(RippleOverflowPolicy.IgnoreNew)]
+    [InlineData(RippleOverflowPolicy.ReplaceAll)]
+    public void RapidInputLeavesNoHandlesAndSchedulerReturnsToIdle(RippleOverflowPolicy policy)
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Ripple = new RippleEffect
+            {
+                Duration = TimeSpan.FromMilliseconds(100),
+                MaxConcurrentRipples = 4,
+                OverflowPolicy = policy
+            }
+        };
+
+        for (int pointerId = 0; pointerId < 100; pointerId++)
+            control.DownForTest(Mouse(pointerId, 1, pointerId, PointerDeviceKind.Touch));
+
+        Assert.InRange(control.Ripple.ActiveRippleCount, 1, 4);
+        Assert.Equal(
+            control.Ripple.ActiveRippleCount,
+            harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(0, control.Ripple.ActiveRippleCount);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Theory]
+    [InlineData(RippleOverflowPolicy.RemoveOldest)]
+    [InlineData(RippleOverflowPolicy.RemoveNewest)]
+    [InlineData(RippleOverflowPolicy.IgnoreNew)]
+    [InlineData(RippleOverflowPolicy.ReplaceAll)]
+    public void ReducedMotionSkipsEveryOverflowPolicy(RippleOverflowPolicy policy)
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        harness.Policy.ReducedMotion = true;
+        var control = new TestButton
+        {
+            AnimationSchedulerOverride = harness.Scheduler,
+            Ripple = new RippleEffect { OverflowPolicy = policy }
+        };
+
+        control.DownForTest(Mouse(1, 1, 1, PointerDeviceKind.Touch));
+
+        Assert.Equal(0, control.Ripple.ActiveRippleCount);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
+    public void DisposingRippleCancelsAllOverflowPolicyHandles()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        var control = new TestButton { AnimationSchedulerOverride = harness.Scheduler };
+        var ripple = new RippleEffect
+        {
+            MaxConcurrentRipples = 4,
+            OverflowPolicy = RippleOverflowPolicy.RemoveNewest
+        };
+        control.Ripple = ripple;
+        control.DownForTest(Mouse(1, 1, 1, PointerDeviceKind.Touch));
+        control.DownForTest(Mouse(2, 1, 2, PointerDeviceKind.Touch));
+
+        ripple.Dispose();
+
+        Assert.Equal(0, ripple.ActiveRippleCount);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
     [Fact]
     public void RippleRejectsUndefinedRadiusAndEvictionPolicies()
     {
@@ -118,6 +306,23 @@ public sealed class InteractionEffectTests
             () => ripple.RadiusMode = (RippleRadiusMode)int.MaxValue);
         Assert.Throws<ArgumentOutOfRangeException>(
             () => ripple.EvictionPolicy = (RippleEvictionPolicy)int.MaxValue);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => ripple.OverflowPolicy = (RippleOverflowPolicy)int.MaxValue);
+    }
+
+    [Theory]
+    [InlineData(RippleEvictionPolicy.Oldest, RippleOverflowPolicy.RemoveOldest)]
+    [InlineData(RippleEvictionPolicy.Newest, RippleOverflowPolicy.RemoveNewest)]
+    [InlineData(RippleEvictionPolicy.IgnoreNew, RippleOverflowPolicy.IgnoreNew)]
+    [InlineData(RippleEvictionPolicy.ReplaceAll, RippleOverflowPolicy.ReplaceAll)]
+    public void LegacyEvictionPolicyMapsWithoutBreakingBehavior(
+        RippleEvictionPolicy legacy,
+        RippleOverflowPolicy expected)
+    {
+        var ripple = new RippleEffect { EvictionPolicy = legacy };
+
+        Assert.Equal(expected, ripple.OverflowPolicy);
+        Assert.Equal(legacy, ripple.EvictionPolicy);
     }
 
     [Fact]
