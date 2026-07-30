@@ -66,6 +66,8 @@ public partial class Control
     /// <para>
     /// Each control starts with its own empty collection. Without a matching explicitly added
     /// transition, state changes apply the target style immediately and only invalidate rendering.
+    /// Container and data-surface controls do not enter the Pressed state merely because they
+    /// receive pointer input; they must opt in through a pressed style or transition.
     /// </para>
     /// <para>
     /// Delegate-valued easing functions are code-first configuration, so the collection is hidden
@@ -110,6 +112,8 @@ public partial class Control
 
     internal void SetPointerVisualPressed(bool value, int pointerId = 0)
     {
+        if (value && !ShouldTrackActivationVisualState())
+            return;
         bool wasPressed = pointerPressed;
         if (value)
             (pressedPointerIds ??= []).Add(pointerId);
@@ -137,6 +141,8 @@ public partial class Control
 
     internal void SetKeyboardVisualPressed(bool value)
     {
+        if (value && !ShouldTrackActivationVisualState())
+            return;
         if (keyboardPressed == value)
             return;
         keyboardPressed = value;
@@ -221,6 +227,27 @@ public partial class Control
         if (hasVisualFocus || Focused)
             return VisualState.Focused;
         return VisualState.Normal;
+    }
+
+    private bool ShouldTrackActivationVisualState()
+    {
+        // Pointer routing is shared by buttons, containers, scrollbars, and data surfaces. Do not
+        // turn every leaf that receives a click into a pressed visual: container state styles can
+        // cover the entire viewport and look like an implicit whole-control interaction effect.
+        if (GetControlBehavior(ControlBehaviors.Hoverable) ||
+            Properties.GetObject(s_stylePressedProperty) is ControlStyle)
+        {
+            return true;
+        }
+
+        if (Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects &&
+            effects.Any(static effect => effect is PressScaleEffect))
+        {
+            return true;
+        }
+
+        return Properties.GetObject(s_styleTransitionsProperty) is VisualStateTransitionCollection transitions &&
+            transitions.Contains(VisualState.Pressed);
     }
 
     private AnimationScheduler EffectiveAnimationScheduler

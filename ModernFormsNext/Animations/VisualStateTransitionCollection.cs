@@ -41,6 +41,9 @@ public sealed class VisualStateTransitionCollection : IEnumerable<VisualStateTra
     internal bool TryGet(VisualState from, VisualState to, out VisualStateTransition? transition)
         => transitions.TryGetValue((from, to), out transition);
 
+    internal bool Contains(VisualState state)
+        => transitions.Keys.Any(pair => pair.From == state || pair.To == state);
+
     private static void ValidateState(VisualState value, string parameterName)
     {
         if (!Enum.IsDefined(value))

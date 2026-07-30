@@ -118,6 +118,13 @@ collections nor emits initializer calls for them. Theme application is immediate
 explicitly enable `ThemeTransitionOptions.Enabled`; built-in animation tokens never activate a
 transition by themselves.
 
+The shared pointer pipeline resolves one leaf control and does not bubble interaction effects to
+containers. It tracks the Pressed visual state only for controls with built-in hover interaction or
+an explicitly configured pressed style/transition. This keeps panels, layout surfaces,
+`DataGridView`, headers, and scrollbars on their pre-animation presentation by default while still
+allowing any control to opt into a per-control effect. Cell/row/action-cell targeting is not
+modeled by the current grid architecture and remains a separate API design step.
+
 ## Known limitations
 
 - Android refreshes on foreground instead of observing the global setting continuously.

@@ -411,6 +411,17 @@ Every new `Control`, `Button`, `TextBox`, and `Switch` starts with an independen
 effects or scheduler handles. Adding an effect, assigning a convenience property, or generating an
 explicit Designer `Add` call is the opt-in boundary.
 
+Pointer dispatch is target-local and leaf-first. A child click does not bubble an interaction
+effect into its parent, even when that parent has its own explicitly configured collection.
+Containers and data surfaces also do not enter the shared Pressed visual state merely because they
+receive a left click. Built-in clickable controls opt in through their existing hover behavior;
+other controls can opt in by configuring `StylePressed` or a transition involving `Pressed`.
+
+`DataGridView` currently has no cell/row interaction-effect target contract. Its default is
+therefore no effect, including for cell selection, headers, resizing, dragging, and scrollbars.
+Applications that need a cell-, row-, or action-cell-bounded ripple should not attach a generic
+whole-control ripple to the grid; that scoped target model is a separate future API step.
+
 An effect has one target at a time, receives shared pointer/keyboard and render hooks, owns its
 scheduler channels, and cancels them on removal or disposal. Adding the same instance to the same
 collection is idempotent; attaching it to a different control while still attached throws.
