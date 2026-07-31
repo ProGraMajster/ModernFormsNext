@@ -20,6 +20,7 @@ public sealed class SkiaControlSurface : IDisposable
     private readonly SurfaceRootControl surfaceRoot = new();
     private readonly Action<string>? pointerDiagnosticSink;
     private int pointerDragThreshold = 8;
+    private int pointerDownRouteDepth;
     private bool disposed;
 
     /// <summary>
@@ -160,9 +161,17 @@ public sealed class SkiaControlSurface : IDisposable
                 if (pointers.Remove(pointerId, out var replaced))
                     CancelPointer(replaced);
 
-                FinishComposingText();
-                foreach (var control in observedControls.Where(control => control.Selected).ToArray())
-                    control.Deselect();
+                pointerDownRouteDepth++;
+                try
+                {
+                    FinishComposingText();
+                    foreach (var control in observedControls.Where(control => control.Selected).ToArray())
+                        control.Deselect(preservePointerInteraction: IsPointerOwnedBy(control));
+                }
+                finally
+                {
+                    pointerDownRouteDepth--;
+                }
 
                 var target = hit?.Control;
                 var scrollCandidate = FindScrollableAncestor(target);
@@ -503,6 +512,7 @@ public sealed class SkiaControlSurface : IDisposable
         control.Invalidated += OnControlInvalidated;
         control.ControlAdded += OnControlAdded;
         control.ControlRemoved += OnControlRemoved;
+        control.LostFocus += OnControlLostFocus;
         foreach (var child in control.Controls.GetAllControls())
             ObserveTree(child);
     }
@@ -512,6 +522,7 @@ public sealed class SkiaControlSurface : IDisposable
         control.Invalidated -= OnControlInvalidated;
         control.ControlAdded -= OnControlAdded;
         control.ControlRemoved -= OnControlRemoved;
+        control.LostFocus -= OnControlLostFocus;
         observedControls.Remove(control);
     }
 
@@ -523,19 +534,43 @@ public sealed class SkiaControlSurface : IDisposable
 
     private void OnControlRemoved(object? sender, EventArgs<Control> e)
     {
-        foreach (var pointer in pointers.Values.Where(pointer =>
-                     IsSelfOrDescendant(pointer.CapturedControl, e.Value) ||
-                     IsSelfOrDescendant(pointer.GestureOwner, e.Value) ||
-                     IsSelfOrDescendant(pointer.ScrollCandidate, e.Value)).ToArray())
-        {
-            pointers.Remove(pointer.PointerId);
-            CancelPointer(pointer);
-        }
+        CancelPointersOwnedBy(e.Value);
 
         if (e.Value is TextBox textBox)
             textBox.document.FinishComposition();
         UnobserveTree(e.Value);
     }
+
+    private void OnControlLostFocus(object? sender, EventArgs e)
+    {
+        // Starting another touch pointer deselects the previously focused control, but does not
+        // terminate that control's independent pointer sequence. External focus loss remains a
+        // terminal condition and clears the corresponding router ownership below.
+        if (pointerDownRouteDepth > 0)
+            return;
+
+        if (sender is Control control)
+            CancelPointersOwnedBy(control);
+    }
+
+    private void CancelPointersOwnedBy(Control control)
+    {
+        // Focus loss and detach are terminal for a control-owned gesture. Remove the router entry
+        // as well as clearing Control.Capture so a later move/up cannot reach a stale text editor.
+        foreach (var pointer in pointers.Values.Where(pointer =>
+                     IsSelfOrDescendant(pointer.CapturedControl, control) ||
+                     IsSelfOrDescendant(pointer.GestureOwner, control) ||
+                     IsSelfOrDescendant(pointer.ScrollCandidate, control)).ToArray())
+        {
+            pointers.Remove(pointer.PointerId);
+            CancelPointer(pointer);
+        }
+    }
+
+    private bool IsPointerOwnedBy(Control control)
+        => pointers.Values.Any(pointer =>
+            IsSelfOrDescendant(pointer.CapturedControl, control) ||
+            IsSelfOrDescendant(pointer.GestureOwner, control));
 
     private void CancelAllPointers(bool invalidate = true)
     {

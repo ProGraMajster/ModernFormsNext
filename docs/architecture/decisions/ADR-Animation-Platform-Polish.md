@@ -125,6 +125,13 @@ an explicitly configured pressed style/transition. This keeps panels, layout sur
 allowing any control to opt into a per-control effect. Cell/row/action-cell targeting is not
 modeled by the current grid architecture and remains a separate API design step.
 
+The opt-in boundary changes presentation only. Focus, capture, leaf hit testing, control-specific
+pointer handling, caret placement, selection, and keyboard input remain unconditional. The routed
+control handler completes first; the pipeline then resolves an optional Pressed presentation and
+finally notifies the target's explicit effect collection. Focus loss, cancellation, detach, and
+disposal clear both control capture and platform pointer ownership. Starting another independent
+touch pointer may move keyboard focus but does not cancel the earlier touch sequence.
+
 ## Known limitations
 
 - Android refreshes on foreground instead of observing the global setting continuously.

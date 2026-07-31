@@ -658,8 +658,23 @@ namespace ModernFormsNext
 
             var offsets = new List<int> { 0 };
             var utf16Offset = 0;
-            foreach (var rune in text.EnumerateRunes ()) {
-                utf16Offset += rune.Utf16SequenceLength;
+
+            while (utf16Offset < text.Length) {
+                // RichTextKit normalizes a Windows CRLF pair to one layout code point. Keep the
+                // document-side offset table aligned with that layout while preserving both UTF-16
+                // units in Text, SelectionStart, SelectionLength, and all public editing APIs.
+                if (text[utf16Offset] == '\r'
+                    && utf16Offset + 1 < text.Length
+                    && text[utf16Offset + 1] == '\n') {
+                    utf16Offset += 2;
+                } else if (char.IsHighSurrogate(text[utf16Offset])
+                    && utf16Offset + 1 < text.Length
+                    && char.IsLowSurrogate(text[utf16Offset + 1])) {
+                    utf16Offset += 2;
+                } else {
+                    utf16Offset++;
+                }
+
                 offsets.Add (utf16Offset);
             }
 

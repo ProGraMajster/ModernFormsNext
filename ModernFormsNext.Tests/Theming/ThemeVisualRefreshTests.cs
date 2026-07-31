@@ -65,7 +65,7 @@ public sealed class ThemeVisualRefreshTests
         pressed.CreateControl();
         focused.CreateControl();
         disabled.CreateControl();
-        pressed.PressThumb();
+        pressed.SetThumbPressedForThemeTest();
         focused.Select();
         disabled.Enabled = false;
         SKColor focusedBefore = focused.CurrentStyle.GetBackgroundColor();
@@ -410,7 +410,9 @@ public sealed class ThemeVisualRefreshTests
         public int ThemeChanges { get; private set; }
         public int Invalidations { get; private set; }
 
-        public void PressThumb()
+        public void SetThumbPressedForThemeTest()
+            // This test needs simultaneous active states on independent controls. Invoke the
+            // Switch state handler directly instead of moving real focus/capture between them.
             => OnMouseDown(new MouseEventArgs(MouseButtons.Left, 1, 0, 0, Point.Empty));
 
         public void ResetObservations()

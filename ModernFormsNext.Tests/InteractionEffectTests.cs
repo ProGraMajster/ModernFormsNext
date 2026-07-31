@@ -778,10 +778,10 @@ public sealed class InteractionEffectTests
 
     private class TestButton : Button
     {
-        public void DownForTest(MouseEventArgs e) => OnMouseDown(e);
-        public void UpForTest(MouseEventArgs e) => OnMouseUp(e);
-        public void KeyDownForTest(Keys key) => OnKeyDown(new KeyEventArgs(key));
-        public void KeyUpForTest(Keys key) => OnKeyUp(new KeyEventArgs(key));
+        public void DownForTest(MouseEventArgs e) => RaiseMouseDown(e);
+        public void UpForTest(MouseEventArgs e) => RaiseMouseUp(e);
+        public void KeyDownForTest(Keys key) => RaiseKeyDown(new KeyEventArgs(key));
+        public void KeyUpForTest(Keys key) => RaiseKeyUp(new KeyEventArgs(key));
         public void LostFocusForTest() => OnLostFocus(EventArgs.Empty);
         public void CancelPointerForTest(int? pointerId = null) => CancelPointerInteraction(pointerId);
     }

@@ -23,6 +23,8 @@ public partial class Control
     /// Each control starts with its own empty collection. Effects run only after an effect is
     /// explicitly added in code or through generated Designer code. Target-local input is sent
     /// only to that collection; child input does not bubble an effect into a parent collection.
+    /// Standard focus, capture, hit testing, caret, selection, and keyboard handling always run
+    /// independently and complete before an attached effect observes the input transition.
     /// </para>
     /// <para>
     /// The custom Designer edits detached descriptions and emits ordered <c>Add</c> calls. It does
