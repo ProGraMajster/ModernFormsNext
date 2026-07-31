@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Text;
 using ModernFormsNext.Animations;
 using ModernFormsNext.Documents;
 using Topten.RichTextKit;
@@ -41,6 +42,114 @@ public sealed class EditorPointerInputRegressionTests
         Assert.Equal(8, editor.EditorSurface.document.CursorIndex);
         Assert.Equal(8, editor.SelectionStart);
         Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void TextBoxCrLfClickMapsRenderedCaretToExactUtf16Index()
+    {
+        const string text = "first\r\nsecond\r\nthird";
+        using var textBox = CreateTextBox<TextBox>(text);
+        var expected = text.IndexOf("third", StringComparison.Ordinal) + 2;
+
+        Click(textBox, PointForRenderedIndex(textBox, expected));
+
+        Assert.Equal(expected, textBox.document.CursorIndex);
+        Assert.Equal(-1, textBox.SelectionStart);
+    }
+
+    [Fact]
+    public void MarkdownEditorCrLfClickThroughNestedTreeInsertsAtRenderedIndex()
+    {
+        const string markdown = "# Header\r\n\r\nEdit **bold** text.\r\n\r\n> Preview target\r\n\r\n- item";
+        using var root = CreateMarkdownEditorRoot(markdown, out var editor);
+        var expected = markdown.IndexOf("target", StringComparison.Ordinal) + 3;
+        var local = PointForRenderedIndex(editor.EditorSurface, expected);
+        var routed = PointInAncestor(editor.EditorSurface, root, local);
+        Point? observedLocation = null;
+        editor.EditorSurface.MouseDown += (_, e) => observedLocation = e.Location;
+
+        Click(root, routed);
+        Assert.Equal(local, observedLocation);
+        editor.EditorSurface.RaiseKeyPress(new KeyPressEventArgs("123"));
+
+        Assert.Equal(markdown.Insert(expected, "123"), editor.Markdown);
+        Assert.Equal(expected + 3, editor.SelectionStart);
+        Assert.Equal(0, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void MarkdownEditorCrLfDoubleClickThroughNestedTreeSelectsRenderedWord()
+    {
+        const string markdown = "# Header\r\n\r\nEdit **bold** text.\r\n\r\n> Preview target";
+        using var root = CreateMarkdownEditorRoot(markdown, out var editor);
+        var target = markdown.IndexOf("target", StringComparison.Ordinal) + 2;
+        var local = PointForRenderedIndex(editor.EditorSurface, target);
+        var routed = PointInAncestor(editor.EditorSurface, root, local);
+
+        root.RaiseDoubleClick(Mouse(routed, clicks: 2));
+
+        Assert.Equal("target", editor.SelectedText);
+    }
+
+    [Fact]
+    public void MarkdownEditorCrLfDragSelectionUsesRenderedUtf16Boundaries()
+    {
+        const string markdown = "# Header\r\n\r\nEdit **bold** text.\r\n\r\n> Preview target";
+        using var root = CreateMarkdownEditorRoot(markdown, out var editor);
+        var start = markdown.IndexOf("bold", StringComparison.Ordinal) + 1;
+        var end = markdown.IndexOf("target", StringComparison.Ordinal) + "target".Length;
+        var startPoint = PointInAncestor(
+            editor.EditorSurface,
+            root,
+            PointForRenderedIndex(editor.EditorSurface, start));
+        var endPoint = PointInAncestor(
+            editor.EditorSurface,
+            root,
+            PointForRenderedIndex(editor.EditorSurface, end));
+
+        root.RaiseMouseDown(Mouse(startPoint));
+        root.RaiseMouseMove(Mouse(endPoint));
+        root.RaiseMouseUp(Mouse(endPoint));
+
+        Assert.Equal(start, editor.SelectionStart);
+        Assert.Equal(end - start, editor.SelectionLength);
+        Assert.False(editor.EditorSurface.Capture);
+    }
+
+    [Fact]
+    public void MarkdownEditorCrLfShiftClickExtendsFromUtf16Caret()
+    {
+        const string markdown = "# Header\r\n\r\nEdit **bold** text.\r\n\r\n> Preview target";
+        using var root = CreateMarkdownEditorRoot(markdown, out var editor);
+        var start = markdown.IndexOf("bold", StringComparison.Ordinal);
+        var end = markdown.IndexOf("target", StringComparison.Ordinal) + "target".Length;
+        editor.Select(start, 0);
+        var endPoint = PointInAncestor(
+            editor.EditorSurface,
+            root,
+            PointForRenderedIndex(editor.EditorSurface, end));
+
+        root.RaiseMouseDown(Mouse(endPoint, Keys.Shift));
+        root.RaiseMouseUp(Mouse(endPoint, Keys.Shift));
+
+        Assert.Equal(start, editor.SelectionStart);
+        Assert.Equal(end - start, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void RichTextBoxFormattedRunClickUsesRenderedTextBlock()
+    {
+        const string text = "WIDE prefix target suffix";
+        using var textBox = CreateTextBox<RichTextBox>(text);
+        textBox.Select(0, "WIDE prefix".Length);
+        textBox.SelectionFont = new Font("Segoe UI", 28, FontStyle.Bold);
+        textBox.DeselectAll();
+        var expected = text.IndexOf("target", StringComparison.Ordinal) + 3;
+
+        Click(textBox, PointForRenderedIndex(textBox, expected));
+
+        Assert.Equal(expected, textBox.document.CursorIndex);
+        Assert.Equal(0, textBox.SelectionLength);
     }
 
     [Fact]
@@ -271,8 +380,29 @@ public sealed class EditorPointerInputRegressionTests
             Size = new Size(700, 260)
         };
         editor.PerformLayout();
+        foreach (var control in editor.Controls.GetAllControls(true).ToArray())
+            control.PerformLayout();
         editor.EditorSurface.PerformLayout();
         return editor;
+    }
+
+    private static VisiblePanel CreateMarkdownEditorRoot(string markdown, out MarkdownEditor editor)
+    {
+        var root = new VisiblePanel { Size = new Size(740, 300) };
+        editor = new MarkdownEditor
+        {
+            Markdown = markdown,
+            ViewMode = MarkdownEditorViewMode.Split,
+            ShowToolbar = false,
+            Bounds = new Rectangle(10, 10, 700, 260)
+        };
+        root.Controls.Add(editor);
+        root.PerformLayout();
+        editor.PerformLayout();
+        foreach (var control in editor.Controls.GetAllControls(true).ToArray())
+            control.PerformLayout();
+        editor.EditorSurface.PerformLayout();
+        return root;
     }
 
     private static Point PointForIndex(TextBox textBox, int utf16Index)
@@ -283,6 +413,38 @@ public sealed class EditorPointerInputRegressionTests
         return new Point(
             textBox.TextOrigin.X + (int)MathF.Round(caret.CaretXCoord),
             textBox.TextOrigin.Y + (int)MathF.Round(caret.CaretRectangle.MidY));
+    }
+
+    private static Point PointForRenderedIndex(TextBox textBox, int utf16Index)
+    {
+        var block = textBox is RichTextBox richTextBox
+            ? richTextBox.GetRichTextBlock()
+            : textBox.document.GetTextBlock();
+        var caret = block.GetCaretInfo(new CaretPosition(GetRichTextKitCodePointIndex(textBox.Text, utf16Index)));
+        var origin = textBox.GetTextOrigin(block);
+        return new Point(
+            origin.X + (int)MathF.Round(caret.CaretXCoord),
+            origin.Y + (int)MathF.Round(caret.CaretRectangle.MidY));
+    }
+
+    private static int GetRichTextKitCodePointIndex(string text, int utf16Index)
+    {
+        var normalizedPrefix = text[..utf16Index].Replace("\r\n", "\n", StringComparison.Ordinal);
+        var codePointIndex = 0;
+        foreach (Rune _ in normalizedPrefix.EnumerateRunes())
+            codePointIndex++;
+        return codePointIndex;
+    }
+
+    private static Point PointInAncestor(Control control, Control ancestor, Point point)
+    {
+        for (var current = control; !ReferenceEquals(current, ancestor); current = current.Parent
+            ?? throw new InvalidOperationException("The requested control is not parented to the ancestor."))
+        {
+            point.Offset(current.ScaledLeft, current.ScaledTop);
+        }
+
+        return point;
     }
 
     private static Point PointInsideCodePoint(DocumentTextLayoutElement element, int codePointIndex)
@@ -299,6 +461,12 @@ public sealed class EditorPointerInputRegressionTests
     {
         textBox.RaiseMouseDown(Mouse(point));
         textBox.RaiseMouseUp(Mouse(point));
+    }
+
+    private static void Click(Control control, Point point)
+    {
+        control.RaiseMouseDown(Mouse(point));
+        control.RaiseMouseUp(Mouse(point));
     }
 
     private static MouseEventArgs Mouse(

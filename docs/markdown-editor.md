@@ -23,7 +23,10 @@ editor.PreviewLinkClicked += (_, e) => HandleLink(e.Destination);
 
 `Text` is an exact alias of `Markdown`. Assigning either property programmatically clears undo
 history and resets `Modified`. Source offsets (`SelectionStart` and `SelectionLength`) are UTF-16
-indexes, matching normal .NET string indexing.
+indexes, matching normal .NET string indexing. Windows `CRLF` remains two UTF-16 units in the
+source even though RichTextKit shapes the pair as one visual line break; pointer hit testing,
+caret movement, drag selection, Shift+click, and double-click translate that visual boundary back
+to the exact source index.
 
 ## Editing core
 
@@ -31,6 +34,10 @@ The private editing surface derives from `RichTextBox`, so Markdown editing shar
 caret, selection, keyboard, mouse, clipboard, scrolling, focus, and backend IME path. Double-click
 selects a word or a complete surrogate pair. `ReadOnly` still permits selection and copying but
 blocks typing, cut, paste, undo/redo, and formatting commands.
+
+Pointer hit testing uses the same syntax-highlighted RichTextKit block that is painted. Formatting
+runs can therefore change font metrics or wrapping without moving the logical insertion point away
+from the glyph selected by the user.
 
 Text is Unicode and arrives through the platform `TextInput`/IME path rather than being inferred
 from physical keys. This preserves dead keys, composed text, emoji, and international layouts.

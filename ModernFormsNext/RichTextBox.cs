@@ -82,6 +82,21 @@ namespace ModernFormsNext
             VerticalScrollBar.ValueChanged += (_, _) => OnVScroll(EventArgs.Empty);
         }
 
+        /// <inheritdoc/>
+        protected override int GetTextIndexFromPosition(Point location)
+        {
+            if (Text.Length == 0)
+                return 0;
+
+            // Pointer hit testing must use the same styled block and origin as rendering. The
+            // plain TextBoxDocument block can wrap at different positions when a RichTextBox run
+            // changes font family, size, weight, or other glyph metrics.
+            var block = GetRichTextBlock();
+            var origin = GetTextOrigin(block);
+            var hit = block.HitTest(location.X - origin.X, location.Y - origin.Y);
+            return document.GetUtf16IndexFromLayoutCodePointIndex(hit.ClosestCodePointIndex);
+        }
+
         /// <summary>
         /// Gets or sets a value indicating whether the TAB key inserts a tab character.
         /// </summary>

@@ -21,6 +21,29 @@ public sealed class TextBoxUnicodeEditingTests
     }
 
     [Fact]
+    public void CrLfLayoutIndexMapsWholePairToUtf16Boundary()
+    {
+        const string text = "a\r\nb";
+        var textBox = new TextBox { Width = 200, Height = 80, MultiLine = true, Text = text };
+
+        Assert.Equal(2, textBox.document.GetLayoutCodePointIndex(3));
+        Assert.Equal(3, textBox.document.GetUtf16IndexFromLayoutCodePointIndex(2));
+    }
+
+    [Fact]
+    public void ArrowNavigationTreatsCrLfAsSingleCaretStep()
+    {
+        const string text = "a\r\nb";
+        var textBox = new TextBox { Width = 200, Height = 80, MultiLine = true, Text = text };
+        textBox.document.SetImeSelection(3, 3);
+
+        Assert.True(textBox.document.MoveCursor(ArrowDirection.Left, select: false, wholeWord: false, end: false));
+        Assert.Equal(1, textBox.document.CursorIndex);
+        Assert.True(textBox.document.MoveCursor(ArrowDirection.Right, select: false, wholeWord: false, end: false));
+        Assert.Equal(3, textBox.document.CursorIndex);
+    }
+
+    [Fact]
     public void HitTestingAfterEmojiReturnsUtf16Index()
     {
         const string text = "emoji 👋🏽 and composition: 你妇";

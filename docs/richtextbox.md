@@ -21,6 +21,11 @@ editor.DeselectAll();
 
 Formatting is stored independently from the plain `Text` value. Assigning `Text` replaces the document with plain text and clears explicit run formatting. Editing operations keep formatting attached to the original character ranges as text is inserted or removed.
 
+Pointer hit testing uses the same styled RichTextKit block and text origin as rendering. A run that
+changes font family, size, weight, or wrapping therefore does not shift the caret away from the
+clicked glyph. Public caret and selection offsets remain UTF-16 indexes; `CRLF` is preserved as two
+UTF-16 units while being treated as one visual line-break boundary.
+
 Supported formatting members include:
 
 - `SelectionFont`

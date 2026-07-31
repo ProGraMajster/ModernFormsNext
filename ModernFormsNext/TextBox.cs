@@ -92,8 +92,10 @@ namespace ModernFormsNext
         /// <remarks>
         /// Derived source editors use this hook for gestures such as word selection while the
         /// shared text document remains responsible for hit testing and DPI-aware text layout.
+        /// Overrides that render a separate styled text block must hit-test that same block and
+        /// convert its layout code-point index back to the control's UTF-16 document index.
         /// </remarks>
-        protected int GetTextIndexFromPosition (Point location)
+        protected virtual int GetTextIndexFromPosition (Point location)
         {
             if (!document.Text.HasValue ())
                 return 0;
