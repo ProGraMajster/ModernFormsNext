@@ -359,6 +359,7 @@ public sealed class SkiaControlSurfaceTests
 
         adapter.ProcessPointer(3, ControlSurfacePointerAction.Down, 10, 10);
         adapter.ProcessPointer(7, ControlSurfacePointerAction.Down, 130, 10);
+        Assert.True(first.Capture);
         adapter.ProcessPointer(7, ControlSurfacePointerAction.Up, 130, 10);
         Assert.Equal(1, adapter.ActivePointerCount);
         adapter.ProcessPointer(3, ControlSurfacePointerAction.Up, 10, 10);

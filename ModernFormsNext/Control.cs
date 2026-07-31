@@ -41,6 +41,7 @@ namespace ModernFormsNext
         private bool is_captured;
 
         // Property store keys for properties.
+        private static readonly int s_focusLossPointerPreservationProperty = PropertyStore.CreateKey ();
         private static readonly int s_controlsCollectionProperty = PropertyStore.CreateKey ();
         private static readonly int s_contextMenuProperty = PropertyStore.CreateKey ();
         private static readonly int s_cursorProperty = PropertyStore.CreateKey ();
@@ -88,6 +89,11 @@ namespace ModernFormsNext
             var old_visible = Visible;
 
             Control? previousParent = parent;
+
+            // Capture belongs to the current routed input tree. End the gesture while the old
+            // parent is still attached so clearing Capture can propagate through every ancestor.
+            if (previousParent is not null && value is null)
+                CancelCapturedPointerInteractionsInSubtree();
 
             // Update the parent
             parent = value;
@@ -659,10 +665,23 @@ namespace ModernFormsNext
         /// <summary>
         /// Removes focus from the control.
         /// </summary>
-        internal void Deselect ()
+        internal void Deselect (bool preservePointerInteraction = false)
         {
             Selected = false;
-            OnDeselected (EventArgs.Empty);
+            int preservationDepth = Properties.GetInteger(s_focusLossPointerPreservationProperty);
+            if (preservePointerInteraction)
+                Properties.SetInteger(s_focusLossPointerPreservationProperty, preservationDepth + 1);
+            try {
+                OnDeselected (EventArgs.Empty);
+            }
+            finally {
+                if (preservePointerInteraction) {
+                    if (preservationDepth == 0)
+                        Properties.RemoveInteger(s_focusLossPointerPreservationProperty);
+                    else
+                        Properties.SetInteger(s_focusLossPointerPreservationProperty, preservationDepth);
+                }
+            }
 
             Invalidate ();
         }
@@ -1363,10 +1382,17 @@ namespace ModernFormsNext
         protected virtual void OnLostFocus(EventArgs e)
         {
             keyboardPressed = false;
-            // A control can lose focus before the matching activation-key release reaches it.
-            // Treat that as cancellation so keyboard-driven press effects cannot stay held.
-            ClearPointerVisualPressed();
-            NotifyInteractionPointerCanceled();
+            // Focus can move before the matching pointer or activation-key release reaches this
+            // control. Cancel the complete gesture through the virtual hook so text-selection and
+            // other control-owned input state is cleared together with capture and optional visuals.
+            if (Properties.GetInteger(s_focusLossPointerPreservationProperty) == 0) {
+                if (Capture)
+                    CancelPointerInteraction();
+                else {
+                    ClearPointerVisualPressed();
+                    NotifyInteractionPointerCanceled();
+                }
+            }
             SetVisualFocus (false);
             (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
             NotifyAccessibilityClients(AccessibleEvents.StateChange);
@@ -1375,11 +1401,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the KeyDown event.
         /// </summary>
+        /// <remarks>
+        /// Framework routing invokes this standard input handler before observing the key for
+        /// optional pressed visuals or interaction effects. Overrides should call the base
+        /// implementation when the public event must be raised.
+        /// </remarks>
         protected virtual void OnKeyDown (KeyEventArgs e)
-        {
-            NotifyInteractionKeyDown (e);
-            (Events[s_keyDownEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
-        }
+            => (Events[s_keyDownEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
 
         /// <summary>
         /// Raises the KeyPress event.
@@ -1393,11 +1421,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the KeyUp event.
         /// </summary>
+        /// <remarks>
+        /// Framework routing invokes this standard input handler before releasing optional
+        /// keyboard-driven visuals or interaction effects. Overrides should call the base
+        /// implementation when the public event must be raised.
+        /// </remarks>
         protected virtual void OnKeyUp (KeyEventArgs e)
-        {
-            NotifyInteractionKeyUp (e);
-            (Events[s_keyUpEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
-        }
+            => (Events[s_keyUpEvent] as EventHandler<KeyEventArgs>)?.Invoke (this, e);
 
         /// <summary>
         /// Raises the LocationChanged event.
@@ -1416,13 +1446,14 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the MouseDown event.
         /// </summary>
+        /// <remarks>
+        /// Focus and capture are established before this handler runs. Framework routing waits for
+        /// this handler to finish caret placement, selection, or other control-specific input, then
+        /// applies any opted-in pressed visual and notifies attached interaction effects. Overrides
+        /// should call the base implementation when the public event must be raised.
+        /// </remarks>
         protected virtual void OnMouseDown (MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
-                SetPointerVisualPressed(true, e.PointerId);
-            NotifyInteractionPointerDown (e);
-            (Events[s_mouseDownEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
-        }
+            => (Events[s_mouseDownEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
 
         /// <summary>
         /// Raises the MouseEnter event.
@@ -1462,13 +1493,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the MouseUp event.
         /// </summary>
+        /// <remarks>
+        /// Framework routing invokes this standard input handler before releasing optional
+        /// pressed visuals and interaction effects. Overrides should call the base implementation
+        /// when the public event must be raised.
+        /// </remarks>
         protected virtual void OnMouseUp (MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Left)
-                SetPointerVisualPressed(false, e.PointerId);
-            NotifyInteractionPointerUp (e);
-            (Events[s_mouseUpEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
-        }
+            => (Events[s_mouseUpEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
 
         /// <summary>
         /// Raises the MouseWheel event.
@@ -1857,11 +1888,10 @@ namespace ModernFormsNext
                 int previousNotifiedDepth = interactionKeyDownNotifiedDepth;
                 interactionKeyDownRouteDepth++;
                 try {
-                    // Route interaction state before virtual dispatch. Some established controls
-                    // consume activation keys without calling base, but their press visuals and
-                    // attached effects must still receive the matching down/up pair.
-                    NotifyInteractionKeyDown (e);
                     OnKeyDown (e);
+                    // Keyboard handling owns the standard input contract. Optional visuals and
+                    // effects observe the completed handler and cannot suppress text/navigation.
+                    NotifyInteractionKeyDown (e);
                 }
                 finally {
                     interactionKeyDownNotifiedDepth = previousNotifiedDepth;
@@ -1918,6 +1948,11 @@ namespace ModernFormsNext
                     Select ();
                     Capture = true;
                     OnMouseDown (e);
+                    // Focus, capture, caret placement, selection, and control-specific input have
+                    // completed. Pressed visuals and attached effects are optional consequences.
+                    if (e.Button == MouseButtons.Left)
+                        SetPointerVisualPressed(true, e.PointerId);
+                    NotifyInteractionPointerDown (e);
                 }
             }
         }
@@ -1935,8 +1970,8 @@ namespace ModernFormsNext
             int previousNotifiedDepth = interactionKeyUpNotifiedDepth;
             interactionKeyUpRouteDepth++;
             try {
-                NotifyInteractionKeyUp (e);
                 OnKeyUp (e);
+                NotifyInteractionKeyUp (e);
             }
             finally {
                 interactionKeyUpNotifiedDepth = previousNotifiedDepth;
@@ -2028,6 +2063,9 @@ namespace ModernFormsNext
                 if (Enabled) {
                     Capture = false;
                     OnMouseUp (e);
+                    if (e.Button == MouseButtons.Left)
+                        SetPointerVisualPressed(false, e.PointerId);
+                    NotifyInteractionPointerUp (e);
                 }
             }
         }
@@ -2043,6 +2081,18 @@ namespace ModernFormsNext
             NotifyInteractionPointerCanceled (pointerId);
             OnMouseLeave (EventArgs.Empty);
             Invalidate ();
+        }
+
+        private void CancelCapturedPointerInteractionsInSubtree()
+        {
+            // Capture is stored on the leaf and propagated to its ancestors. Clear every actual
+            // owner before detaching the subtree; assigning Parent first would strand the old
+            // ancestor chain in a captured state until unrelated input happens to reset it.
+            foreach (var captured in Controls.GetAllControls(true).Where(control => control.is_captured).ToArray())
+                captured.CancelPointerInteraction();
+
+            if (is_captured)
+                CancelPointerInteraction();
         }
 
         /// <summary>

@@ -417,6 +417,13 @@ Containers and data surfaces also do not enter the shared Pressed visual state m
 receive a left click. Built-in clickable controls opt in through their existing hover behavior;
 other controls can opt in by configuring `StylePressed` or a transition involving `Pressed`.
 
+Standard input is independent of both layers. The leaf control first receives focus and capture and
+finishes its pointer or keyboard handler, including caret placement and selection. Only then can an
+opted-in `Pressed` presentation be resolved and an explicitly attached effect observe the input.
+Missing effects or pressed styles therefore never suppress hit testing, text editing, selection, or
+capture. Focus loss, pointer cancellation, detach, and disposal terminate control-owned capture and
+remove the corresponding platform pointer owner without waiting for another move or release.
+
 `DataGridView` currently has no cell/row interaction-effect target contract. Its default is
 therefore no effect, including for cell selection, headers, resizing, dragging, and scrollbars.
 Applications that need a cell-, row-, or action-cell-bounded ripple should not attach a generic

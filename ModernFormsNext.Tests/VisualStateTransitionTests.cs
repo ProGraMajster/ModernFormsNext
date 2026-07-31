@@ -279,7 +279,7 @@ public sealed class VisualStateTransitionTests
             => OnMouseEnter(new MouseEventArgs(MouseButtons.None, 0, 0, 0, System.Drawing.Point.Empty));
 
         public void DownForTest()
-            => OnMouseDown(new MouseEventArgs(MouseButtons.Left, 1, 0, 0, System.Drawing.Point.Empty));
+            => RaiseMouseDown(new MouseEventArgs(MouseButtons.Left, 1, 0, 0, System.Drawing.Point.Empty));
 
         public void FocusForTest() => OnGotFocus(EventArgs.Empty);
 

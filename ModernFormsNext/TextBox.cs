@@ -341,10 +341,12 @@ namespace ModernFormsNext
             if (e.Button != MouseButtons.Left)
                 return;
 
+            var anchor = GetPointerSelectionAnchor();
             SetCursorToCharIndex (GetTextIndexFromPosition (e.Location));
 
             is_highlighting = true;
-            selection_anchor = document.CursorIndex;
+            selection_anchor = e.Shift ? anchor : document.CursorIndex;
+            UpdatePointerSelection();
 
             Invalidate ();
         }
@@ -356,14 +358,7 @@ namespace ModernFormsNext
 
             if (is_highlighting) {
                 SetCursorToCharIndex (GetTextIndexFromPosition (e.Location));
-
-                if (document.CursorIndex == selection_anchor) {
-                    document.SelectionStart = -1;
-                    document.SelectionEnd = -1;
-                } else {
-                    document.SelectionStart = selection_anchor;
-                    document.SelectionEnd = document.CursorIndex;
-                }
+                UpdatePointerSelection();
 
                 Invalidate ();
             }
@@ -380,7 +375,25 @@ namespace ModernFormsNext
             SetCursorToCharIndex (GetTextIndexFromPosition (e.Location));
 
             is_highlighting = false;
+            UpdatePointerSelection();
 
+            Invalidate ();
+        }
+
+        private int GetPointerSelectionAnchor()
+        {
+            if (document.SelectionStart < 0 || document.SelectionEnd < 0)
+                return document.CursorIndex;
+
+            // The cursor is the active edge. Shift+click extends from the opposite logical edge,
+            // including reverse selections whose anchor is numerically greater than the cursor.
+            return document.CursorIndex == document.SelectionStart
+                ? document.SelectionEnd
+                : document.SelectionStart;
+        }
+
+        private void UpdatePointerSelection()
+        {
             if (document.CursorIndex == selection_anchor) {
                 document.SelectionStart = -1;
                 document.SelectionEnd = -1;
@@ -388,8 +401,6 @@ namespace ModernFormsNext
                 document.SelectionStart = selection_anchor;
                 document.SelectionEnd = document.CursorIndex;
             }
-
-            Invalidate ();
         }
 
         internal override void CancelPointerInteraction (int? pointerId = null)
