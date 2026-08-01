@@ -195,7 +195,7 @@ declared as a publishable NuGet package.
 - [Getting started](docs/getting-started.md)
 - [Installation and Visual Studio Designer](docs/installation.md)
 - [Changelog](CHANGELOG.md)
-- [ModernFormsNext 1.9.0 release notes](docs/releases/1.9.0.md)
+- [ModernFormsNext 1.9.0 release notes](docs/1.9.0-release-notes.md)
 - [Migration from 1.8.0 to 1.9.0](docs/migrations/1.8.0-to-1.9.0.md)
 - [Android platform status](docs/platforms/android.md)
 - [Designer architecture](docs/designer-architecture.md)

@@ -8,7 +8,7 @@ ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while Nu
 
 ModernFormsNext 1.9.0 adds the shared paint, animation, and theme foundations used by the framework,
 hardens editor input and Designer ordering, and keeps Windows as the primary supported runtime.
-Android support remains experimental. See the [full release notes](docs/releases/1.9.0.md) and
+Android support remains experimental. See the [full release notes](docs/1.9.0-release-notes.md) and
 [migration guide](docs/migrations/1.8.0-to-1.9.0.md).
 
 ### Added
