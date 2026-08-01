@@ -31,10 +31,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.201" PrivateAssets="All" />
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.301" PrivateAssets="All" />
 		<PackageReference Include="SkiaSharp" Version="3.119.2" />
 		<PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.2" />
-		<PackageReference Include="System.Drawing.Common" Version="10.0.5" />
+		<PackageReference Include="System.Drawing.Common" Version="10.0.10" />
 	</ItemGroup>
 
 	<ItemGroup>

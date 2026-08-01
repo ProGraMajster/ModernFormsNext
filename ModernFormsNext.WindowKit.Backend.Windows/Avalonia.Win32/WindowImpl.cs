@@ -47,7 +47,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private Thickness _extendedMargins;
         private Thickness _offScreenMargin;
         private double _extendTitleBarHint = -1;
-        private readonly bool _isUsingComposition;
+        private readonly bool _isUsingComposition = false;
         private readonly IBlurHost? _blurHost;
         private WindowResizeReason _resizeReason;
         private MOUSEMOVEPOINT _lastWmMousePoint;
@@ -61,7 +61,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private readonly WindowsMouseDevice _mouseDevice;
         //private readonly PenDevice _penDevice;
         private readonly FramebufferManager _framebuffer;
-        private readonly object? _gl;
+        private readonly object? _gl = null;
         private readonly bool _wmPointerEnabled;
 
         //private readonly Win32NativeControlHost _nativeControlHost;
@@ -84,9 +84,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private WindowImpl? _parent;
         private ExtendClientAreaChromeHints _extendChromeHints = ExtendClientAreaChromeHints.Default;
         private bool _isCloseRequested;
-        private bool _shown;
         private bool _hiddenWindowIsParent;
-        private uint _langid;
         internal bool _ignoreWmChar;
         private WindowTransparencyLevel _transparencyLevel;
 
@@ -99,6 +97,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public WindowImpl()
         {
+            // The composition path is currently disabled; keep its optional host
+            // explicit until the connector is restored.
+            _blurHost = null;
             _touchDevice = new TouchDevice();
             _mouseDevice = new WindowsMouseDevice();
             //_penDevice = new PenDevice();
@@ -177,7 +178,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         }
 
         internal IInputRoot Owner
-            => _owner; // ?? throw new InvalidOperationException($"{nameof(SetInputRoot)} must have been called");
+            => _owner ?? throw new InvalidOperationException($"{nameof(SetInputRoot)} must have been called");
 
         public Action? Activated { get; set; }
 
@@ -454,22 +455,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private void SetTransparencyAcrylicBlur(Version windowsVersion)
         {
-            // Acrylic blur only supported with composition on Windows >= 10.0.15063.
-            //if (!_isUsingComposition || windowsVersion < WinUiCompositionShared.MinAcrylicVersion)
-                return;
-
-            SetUseHostBackdropBrush(true);
-            _blurHost?.SetBlur(BlurEffect.Acrylic);
+            // Acrylic composition support is intentionally disabled until the
+            // WinUI composition connector is restored.
         }
 
         private void SetTransparencyMica(Version windowsVersion)
         {
-            // Mica only supported with composition on Windows >= 10.0.22000.
-            //if (!_isUsingComposition || windowsVersion < WinUiCompositionShared.MinHostBackdropVersion)
-                return;
-
-            SetUseHostBackdropBrush(false);
-            _blurHost?.SetBlur(BlurEffect.Mica);
+            // Mica composition support is intentionally disabled until the
+            // WinUI composition connector is restored.
         }
 
         private void SetAccentState(AccentState state)
@@ -494,14 +487,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private void SetUseHostBackdropBrush(bool useHostBackdropBrush)
         {
-            //if (Win32Platform.WindowsVersion < WinUiCompositionShared.MinHostBackdropVersion)
-                return;
-
-            unsafe
-            {
-                var pvUseBackdropBrush = useHostBackdropBrush ? 1 : 0;
-                DwmSetWindowAttribute(_hwnd, (int)DwmWindowAttribute.DWMWA_USE_HOSTBACKDROPBRUSH, &pvUseBackdropBrush, sizeof(int));
-            }
+            // Host-backdrop composition support is intentionally disabled with
+            // the rest of the WinUI composition connector.
         }
 
         //public IEnumerable<object> Surfaces
@@ -652,7 +639,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         public void Hide()
         {
             UnmanagedMethods.ShowWindow(_hwnd, ShowWindowCommand.Hide);
-            _shown = false;
         }
 
         public virtual void Show(bool activate, bool isDialog)
@@ -1059,7 +1045,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private void ShowWindow(WindowState state, bool activate)
         {
-            _shown = true;
 
             if (_isClientAreaExtended)
             {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace ModernFormsNext.WindowKit.Backend.MicroCom
@@ -193,10 +194,10 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
 
             if (obj is IMicroComShadowContainer container)
             {
-                container.Shadow ??= new MicroComShadow(container);
+                var shadow = container.Shadow ??= new MicroComShadow(container);
 
                 void* ptr = null;
-                var res = container.Shadow.GetOrCreateNativePointer(typeof(T), &ptr);
+                var res = shadow.GetOrCreateNativePointer(typeof(T), &ptr);
                 if (res != 0)
                     throw new COMException(
                         "Unable to create native callable wrapper for type " + typeof(T) + " for instance of type " +
@@ -204,7 +205,7 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
                         res);
 
                 if (owned)
-                    container.Shadow.AddRef((Ccw*)ptr);
+                    shadow.AddRef((Ccw*)ptr);
 
                 return ptr;
             }
@@ -224,7 +225,8 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         public static object GetObjectFromCcw(IntPtr ccw)
         {
             var ptr = (Ccw*)ccw;
-            var shadow = (MicroComShadow)GCHandle.FromIntPtr(ptr->GcShadowHandle).Target;
+            var shadow = GCHandle.FromIntPtr(ptr->GcShadowHandle).Target as MicroComShadow
+                ?? throw new InvalidOperationException("The callable wrapper no longer references a MicroCom shadow.");
             return shadow.Target;
         }
 
@@ -239,7 +241,8 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         /// <returns>
         /// <see langword="true"/> if a matching type was found; otherwise, <see langword="false"/>.
         /// </returns>
-        public static bool TryGetTypeForGuid(Guid guid, out Type t) => _guidsToTypes.TryGetValue(guid, out t);
+        public static bool TryGetTypeForGuid(Guid guid, [NotNullWhen(true)] out Type? t) =>
+            _guidsToTypes.TryGetValue(guid, out t);
 
         /// <summary>
         /// Attempts to get the registered vtable pointer for the specified managed interface type.

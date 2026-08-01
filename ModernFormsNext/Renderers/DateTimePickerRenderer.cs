@@ -197,18 +197,19 @@ namespace ModernFormsNext.Renderers
 
             using var paint = new SKPaint {
                 IsAntialias = true,
-                Color = GetForegroundColor (control),
-                TextSize = GetTextSize (control),
-                Typeface = GetTypeface (control)
+                Color = GetForegroundColor (control)
             };
+            using var font = new SKFont (GetTypeface (control), GetTextSize (control));
 
-            var metrics = paint.FontMetrics;
+            var metrics = font.Metrics;
             float baseline = rect.Top + ((rect.Height - (metrics.Descent - metrics.Ascent)) / 2f) - metrics.Ascent;
 
             canvas.DrawText (
                 control.DisplayText,
                 rect.Left + TextHorizontalPadding,
                 baseline,
+                SKTextAlign.Left,
+                font,
                 paint);
         }
 

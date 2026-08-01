@@ -23,8 +23,6 @@ namespace ModernFormsNext.WindowKit.Input
         //private ulong _lastClickTime;
 
         private readonly Pointer _pointer;
-        private bool _disposed;
-        private MouseButton _lastMouseDownButton;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MouseDevice"/> class.
@@ -296,8 +294,7 @@ namespace ModernFormsNext.WindowKit.Input
         /// <inheritdoc />
         public void Dispose()
         {
-            _disposed = true;
-            _pointer?.Dispose();
+            _pointer.Dispose();
         }
         
         /// <inheritdoc />

@@ -27,6 +27,14 @@ namespace ControlGallery.Panels
             document.BeginPrint += (_, _) => pageNumber = 1;
             document.PrintPage += Document_PrintPage;
 
+            statusLabel = Controls.Add(new Label
+            {
+                Location = new Point(565, 170),
+                Size = new Size(340, 120),
+                Multiline = true,
+                Text = "Ready."
+            });
+
             var pageSetupButton = Controls.Add(new Button
             {
                 Location = new Point(20, 20),
@@ -126,16 +134,9 @@ namespace ControlGallery.Panels
             });
             columnsBox.ValueChanged += (_, _) => previewControl.Columns = (int)Math.Round(columnsBox.Value);
 
-            statusLabel = Controls.Add(new Label
-            {
-                Location = new Point(565, 170),
-                Size = new Size(340, 120),
-                Multiline = true,
-                Text = "Ready."
-            });
         }
 
-        private async void PageSetupButton_Click(object sender, MouseEventArgs e)
+        private async void PageSetupButton_Click(object? sender, MouseEventArgs e)
         {
             var dialog = new PageSetupDialog
             {
@@ -146,7 +147,13 @@ namespace ControlGallery.Panels
             };
             dialog.HelpRequest += (_, _) => statusLabel.Text = "Page setup help requested.";
 
-            if (await dialog.ShowDialog(FindForm()) == DialogResult.OK) {
+            var owner = FindForm();
+            if (owner is null) {
+                statusLabel.Text = "Page setup requires an owning form.";
+                return;
+            }
+
+            if (await dialog.ShowDialog(owner) == DialogResult.OK) {
                 previewControl.InvalidatePreview();
                 statusLabel.Text = $"Page setup accepted: {document.DefaultPageSettings.PaperSize.PaperName}, margins {document.DefaultPageSettings.Margins}.";
             } else {
@@ -154,7 +161,7 @@ namespace ControlGallery.Panels
             }
         }
 
-        private async void PrintDialogButton_Click(object sender, MouseEventArgs e)
+        private async void PrintDialogButton_Click(object? sender, MouseEventArgs e)
         {
             var dialog = new PrintDialog
             {
@@ -168,13 +175,19 @@ namespace ControlGallery.Panels
             };
             dialog.HelpRequest += (_, _) => statusLabel.Text = "Print dialog help requested.";
 
-            if (await dialog.ShowDialog(FindForm()) == DialogResult.OK)
+            var owner = FindForm();
+            if (owner is null) {
+                statusLabel.Text = "Print dialog requires an owning form.";
+                return;
+            }
+
+            if (await dialog.ShowDialog(owner) == DialogResult.OK)
                 statusLabel.Text = $"Print dialog accepted: {document.PrinterSettings.PrinterName}, copies {document.PrinterSettings.Copies}.";
             else
                 statusLabel.Text = "Print dialog canceled.";
         }
 
-        private async void PreviewDialogButton_Click(object sender, MouseEventArgs e)
+        private async void PreviewDialogButton_Click(object? sender, MouseEventArgs e)
         {
             using var dialog = new PrintPreviewDialog
             {
@@ -183,11 +196,17 @@ namespace ControlGallery.Panels
                 UseAntiAlias = true
             };
 
-            await dialog.ShowDialog(FindForm());
+            var owner = FindForm();
+            if (owner is null) {
+                statusLabel.Text = "Print preview requires an owning form.";
+                return;
+            }
+
+            await dialog.ShowDialog(owner);
             statusLabel.Text = "Preview dialog closed.";
         }
 
-        private void Document_PrintPage(object sender, PrintPageEventArgs e)
+        private void Document_PrintPage(object? sender, PrintPageEventArgs e)
         {
             using var titleFont = new SKFont(Theme.UIFont, 34);
             using var bodyFont = new SKFont(Theme.UIFont, 18);

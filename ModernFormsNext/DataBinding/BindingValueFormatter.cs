@@ -20,8 +20,9 @@ namespace ModernFormsNext.DataBinding
     {
         internal static object? GetDefaultDataSourceNullValue(Type? type)
         {
-            Type? underlyingType = Nullable.GetUnderlyingType(type);
-            return underlyingType is not null ? null : DBNull.Value;
+            return type is not null && Nullable.GetUnderlyingType(type) is not null
+                ? null
+                : DBNull.Value;
         }
 
         internal static bool IsNullData(object? value, object? dataSourceNullValue)

@@ -30,9 +30,7 @@ public partial class Dispatcher
     ///     An Action delegate to invoke through the dispatcher.
     /// </param>
     /// <param name="priority">
-    ///     The priority that determines in what order the specified
-    ///     callback is invoked relative to the other pending operations
-    ///     in the Dispatcher.
+    ///     The priority used to order the callback relative to other pending operations.
     /// </param>
     public void Invoke(Action callback, DispatcherPriority priority)
     {
@@ -580,11 +578,6 @@ public partial class Dispatcher
     /// </summary>
     /// <param name="action">
     ///     A Func&lt;Task&lt;TResult&gt;&gt; delegate to invoke through the dispatcher.
-    /// </param>
-    /// <param name="priority">
-    ///     The priority that determines in what order the specified
-    ///     callback is invoked relative to the other pending operations
-    ///     in the Dispatcher.
     /// </param>
     /// <returns>
     ///     An task that completes after the task returned from callback finishes

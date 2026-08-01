@@ -272,7 +272,7 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         {
             lock (_lock)
             {
-                List<IntPtr> toRemove = null;
+                List<IntPtr>? toRemove = null;
 
                 foreach (var kv in _backShadows)
                 {
@@ -320,6 +320,8 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         /// Gets the <see cref="MicroComShadow"/> associated with this callable wrapper.
         /// </summary>
         /// <returns>The owning <see cref="MicroComShadow"/> instance.</returns>
-        public MicroComShadow GetShadow() => (MicroComShadow)GCHandle.FromIntPtr(GcShadowHandle).Target;
+        public MicroComShadow GetShadow() =>
+            GCHandle.FromIntPtr(GcShadowHandle).Target as MicroComShadow
+            ?? throw new InvalidOperationException("The callable wrapper no longer references a MicroCom shadow.");
     }
 }

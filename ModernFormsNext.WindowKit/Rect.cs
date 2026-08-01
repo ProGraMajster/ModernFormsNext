@@ -249,7 +249,7 @@ namespace ModernFormsNext.WindowKit
                    p.Y >= _y && p.Y < _y + _height;
         }
 
-        /// </summary>
+        /// <summary>
         /// Determines whether the rectangle fully contains another rectangle.
         /// </summary>
         /// <param name="r">The rectangle.</param>

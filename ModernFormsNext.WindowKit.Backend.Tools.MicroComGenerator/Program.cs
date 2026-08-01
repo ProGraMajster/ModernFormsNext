@@ -10,13 +10,13 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
         public class Options
         {
             [Option('i', "input", Required = true, HelpText = "Input IDL file")]
-            public string Input { get; set; }
+            public string Input { get; set; } = string.Empty;
 
             [Option("cpp", Required = false, HelpText = "C++ output file")]
-            public string CppOutput { get; set; }
+            public string? CppOutput { get; set; }
 
             [Option("cs", Required = false, HelpText = "C# output file")]
-            public string CSharpOutput { get; set; }
+            public string? CSharpOutput { get; set; }
 
         }
 

@@ -22,7 +22,31 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <!--
+      Reference only the Visual Studio contracts used by the extension. The broad
+      Microsoft.VisualStudio.SDK metapackage also restores editor, language-service,
+      Linux tooling, T4, and BrowserLink assemblies that this project never loads.
+    -->
+    <PackageReference Include="envdte" Version="17.14.40260" ExcludeAssets="runtime" />
+    <!--
+      Shell.15.0 still declares these build-time-only .NET Framework compatibility
+      packages. They are not shipped by this extension, and NU1701 is scoped to
+      the exact package references instead of being disabled for the project.
+    -->
+    <PackageReference Include="Microsoft.VisualStudio.GraphModel" Version="17.14.40260" ExcludeAssets="runtime" PrivateAssets="all" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.VisualStudio.Imaging" Version="17.14.40264" ExcludeAssets="runtime" PrivateAssets="all" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.IO.Redist" Version="6.1.3" ExcludeAssets="all" PrivateAssets="all" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.14.40260" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.OLE.Interop" Version="17.14.40260" ExcludeAssets="runtime" />
+    <!--
+      The package also carries net472 compatibility assets for Visual Studio's
+      in-process host. NU1701 is limited to this compile-time contract graph;
+      runtime assets are excluded from the extension output.
+    -->
+    <PackageReference Include="Microsoft.VisualStudio.Shell.15.0" Version="17.14.40264" ExcludeAssets="runtime" NoWarn="NU1701" />
+    <PackageReference Include="Microsoft.VisualStudio.Shell.Interop" Version="17.14.40260" ExcludeAssets="runtime" />
+    <!-- Shell contracts require MessagePack for design-time metadata; use the audited release. -->
+    <PackageReference Include="MessagePack" Version="3.1.8" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
   </ItemGroup>
 

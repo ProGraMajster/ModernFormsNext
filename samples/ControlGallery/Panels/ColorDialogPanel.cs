@@ -25,8 +25,12 @@ namespace ControlGallery.Panels
             });
 
             button.Click += async (s, e) => {
+                var owner = FindForm ();
+                if (owner is null)
+                    return;
+
                 var dlg = new ColorDialog ();
-                var result = await dlg.ShowDialog (this.FindForm());
+                var result = await dlg.ShowDialog (owner);
 
                 if (result == DialogResult.OK) {
                     color_panel.Style.BackgroundColor = dlg.Color;

@@ -8,7 +8,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Input
     {
         private readonly byte[] _keyStates = new byte[256];
 
-        public new static WindowsKeyboardDevice Instance { get; } = new WindowsKeyboardDevice();
+        public static WindowsKeyboardDevice Instance { get; } = new WindowsKeyboardDevice();
 
         public RawInputModifiers Modifiers
         {

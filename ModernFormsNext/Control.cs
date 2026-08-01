@@ -568,7 +568,8 @@ namespace ModernFormsNext
                     throw new NotSupportedException(SR.BindingNotSupported);
                 }
 
-                if (!Properties.TryGetValue(s_bindingsProperty, out ControlBindingsCollection? bindings))
+                if (!Properties.TryGetValue(s_bindingsProperty, out ControlBindingsCollection? bindings)
+                    || bindings is null)
                 {
                     bindings = Properties.AddValue(s_bindingsProperty, new ControlBindingsCollection(this));
                 }

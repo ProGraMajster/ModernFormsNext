@@ -40,7 +40,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
         SyntaxToken Semicolon() => Token(SyntaxKind.SemicolonToken);
 
         static VariableDeclarationSyntax DeclareVar(string type, string name,
-            ExpressionSyntax initializer = null)
+            ExpressionSyntax? initializer = null)
             => VariableDeclaration(ParseTypeName(type),
                 SingletonSeparatedList(VariableDeclarator(name)
                     .WithInitializer(initializer == null ? null : EqualsValueClause(initializer))));
@@ -57,7 +57,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
         FieldDeclarationSyntax DeclareField(string type, string name, params SyntaxKind[] modifiers) =>
             DeclareField(type, name, null, modifiers);
 
-        FieldDeclarationSyntax DeclareField(string type, string name, EqualsValueClauseSyntax initializer,
+        FieldDeclarationSyntax DeclareField(string type, string name, EqualsValueClauseSyntax? initializer,
             params SyntaxKind[] modifiers) =>
             FieldDeclaration(
                     VariableDeclaration(ParseTypeName(type),

@@ -54,7 +54,7 @@ namespace ControlGallery.Panels
             ApplySelection();
         }
 
-        private async void Button_Click(object sender, MouseEventArgs e)
+        private async void Button_Click(object? sender, MouseEventArgs e)
         {
             var dialog = new FontDialog
             {

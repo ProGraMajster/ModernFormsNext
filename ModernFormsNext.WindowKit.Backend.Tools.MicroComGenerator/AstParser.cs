@@ -182,7 +182,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
         static AstInterfaceNode ParseInterface(AstAttributes interfaceAttrs, ref TokenParser parser)
         {
             var interfaceName = parser.ParseIdentifier();
-            string inheritsFrom = null; 
+            string? inheritsFrom = null;
             if (parser.TryConsume(":")) 
                 inheritsFrom = parser.ParseIdentifier();
 
