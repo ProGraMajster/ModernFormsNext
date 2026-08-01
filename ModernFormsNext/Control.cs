@@ -343,10 +343,14 @@ namespace ModernFormsNext
         /// <summary>
         /// Moves this control to the front zorder.
         /// </summary>
+        /// <remarks>
+        /// The control is moved to the last index in its parent's child collection. Painting,
+        /// hit testing, and docking all honor that front-most position.
+        /// </remarks>
         public void BringToFront ()
         {
             if (parent != null)
-                parent.Controls.SetChildIndex (this, 0);
+                parent.Controls.SetChildIndex (this, parent.Controls.Count);
         }
 
         /// <summary>
@@ -1517,6 +1521,7 @@ namespace ModernFormsNext
         /// <param name="e">A PaintEventArgs that contains the event data.</param>
         protected virtual void OnPaint (PaintEventArgs e)
         {
+            // Controls enumerate from back to front, so the last/front-most child is composited last.
             foreach (var control in Controls.GetAllControls ().Where (c => c.Visible).ToArray ()) {
                 if (control.Width <= 0 || control.Height <= 0)
                     continue;
@@ -2288,10 +2293,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Sends this control to the back of the zorder.
         /// </summary>
+        /// <remarks>
+        /// The control is moved to index 0 in its parent's child collection.
+        /// </remarks>
         public void SendToBack ()
         {
             if (parent != null)
-                parent.Controls.SetChildIndex (this, parent.Controls.Count);
+                parent.Controls.SetChildIndex (this, 0);
         }
 
         /// <summary>

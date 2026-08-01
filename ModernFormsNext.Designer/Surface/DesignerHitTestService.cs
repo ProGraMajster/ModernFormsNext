@@ -21,7 +21,7 @@ internal sealed class DesignerHitTestService
         var layout = layoutEngine.Layout(state.Document);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
-        return HitTestControls(state.Document.Controls, layout, documentClip, documentPoint)
+        return HitTestControls(state.Document.Controls, parentNode: null, layout, documentClip, documentPoint)
             ?? DesignerHitTestResult.Empty;
     }
 
@@ -30,7 +30,7 @@ internal sealed class DesignerHitTestService
         var layout = layoutEngine.Layout(state.Document);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
-        return HitTestSplitters(state.Document.Controls, layout, documentClip, documentPoint);
+        return HitTestSplitters(state.Document.Controls, parentNode: null, layout, documentClip, documentPoint);
     }
 
     public DesignControlNode? HitTestTabHeader(DesignerSession state, DesignPoint documentPoint, out int tabIndex)
@@ -38,7 +38,7 @@ internal sealed class DesignerHitTestService
         var layout = layoutEngine.Layout(state.Document);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
-        return HitTestTabHeaders(state.Document.Controls, layout, documentClip, documentPoint, out tabIndex);
+        return HitTestTabHeaders(state.Document.Controls, parentNode: null, layout, documentClip, documentPoint, out tabIndex);
     }
 
     public DesignerResizeHandle HitTestResizeHandle(
@@ -133,13 +133,14 @@ internal sealed class DesignerHitTestService
 
     private static DesignerHitTestResult? HitTestControls(
         IEnumerable<DesignControlNode> controls,
+        DesignControlNode? parentNode,
         DesignerLayoutResult layout,
         DesignBounds parentClip,
         DesignPoint point)
     {
         var orderedControls = new List<DesignControlNode>(controls);
 
-        for (var index = orderedControls.Count - 1; index >= 0; index--)
+        foreach (var index in GetFrontToBackIndices(orderedControls.Count, parentNode))
         {
             var control = orderedControls[index];
             var absoluteBounds = layout.GetEffectiveBounds(control);
@@ -148,7 +149,7 @@ internal sealed class DesignerHitTestService
             if (!visibleBounds.Contains(point.X, point.Y))
                 continue;
 
-            var childHit = HitTestControls(GetHitTestChildren(control), layout, visibleBounds, point);
+            var childHit = HitTestControls(GetHitTestChildren(control), control, layout, visibleBounds, point);
 
             if (childHit is not null)
                 return childHit;
@@ -176,13 +177,14 @@ internal sealed class DesignerHitTestService
 
     private static DesignControlNode? HitTestSplitters(
         IEnumerable<DesignControlNode> controls,
+        DesignControlNode? parentNode,
         DesignerLayoutResult layout,
         DesignBounds parentClip,
         DesignPoint point)
     {
         var orderedControls = new List<DesignControlNode>(controls);
 
-        for (var index = orderedControls.Count - 1; index >= 0; index--)
+        foreach (var index in GetFrontToBackIndices(orderedControls.Count, parentNode))
         {
             var control = orderedControls[index];
             var absoluteBounds = layout.GetEffectiveBounds(control);
@@ -197,7 +199,7 @@ internal sealed class DesignerHitTestService
                 return control;
             }
 
-            var childHit = HitTestSplitters(GetHitTestChildren(control), layout, visibleBounds, point);
+            var childHit = HitTestSplitters(GetHitTestChildren(control), control, layout, visibleBounds, point);
 
             if (childHit is not null)
                 return childHit;
@@ -208,6 +210,7 @@ internal sealed class DesignerHitTestService
 
     private static DesignControlNode? HitTestTabHeaders(
         IEnumerable<DesignControlNode> controls,
+        DesignControlNode? parentNode,
         DesignerLayoutResult layout,
         DesignBounds parentClip,
         DesignPoint point,
@@ -215,7 +218,7 @@ internal sealed class DesignerHitTestService
     {
         var orderedControls = new List<DesignControlNode>(controls);
 
-        for (var index = orderedControls.Count - 1; index >= 0; index--)
+        foreach (var index in GetFrontToBackIndices(orderedControls.Count, parentNode))
         {
             var control = orderedControls[index];
             var absoluteBounds = layout.GetEffectiveBounds(control);
@@ -230,7 +233,7 @@ internal sealed class DesignerHitTestService
                 return control;
             }
 
-            var childHit = HitTestTabHeaders(GetHitTestChildren(control), layout, visibleBounds, point, out tabIndex);
+            var childHit = HitTestTabHeaders(GetHitTestChildren(control), control, layout, visibleBounds, point, out tabIndex);
 
             if (childHit is not null)
                 return childHit;
@@ -239,6 +242,25 @@ internal sealed class DesignerHitTestService
         tabIndex = -1;
         return null;
     }
+
+    private static IEnumerable<int> GetFrontToBackIndices(int count, DesignControlNode? parentNode)
+    {
+        if (parentNode is not null && PreservesSequentialChildOrder(parentNode))
+        {
+            for (var index = count - 1; index >= 0; index--)
+                yield return index;
+
+            yield break;
+        }
+
+        for (var index = 0; index < count; index++)
+            yield return index;
+    }
+
+    private static bool PreservesSequentialChildOrder(DesignControlNode node)
+        => DesignerSpecialContainers.IsFlowLayoutPanel(node)
+        || DesignerSpecialContainers.IsTableLayoutPanel(node)
+        || DesignerSpecialContainers.IsTabControl(node);
 
     private static bool TryHitTabHeader(
         DesignControlNode tabControl,

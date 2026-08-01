@@ -49,6 +49,7 @@ namespace ModernFormsNext
             var form_x = form_border.Left.GetWidth ();
             var form_y = form_border.Top.GetWidth ();
 
+            // ControlCollection enumerates from back to front, matching Control.OnPaint.
             foreach (var control in Controls.GetAllControls ().Where (c => c.Visible).ToArray ()) {
                 if (control.Width <= 0 || control.Height <= 0)
                     continue;

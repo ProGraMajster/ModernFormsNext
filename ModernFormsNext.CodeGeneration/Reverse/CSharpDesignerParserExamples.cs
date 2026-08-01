@@ -82,8 +82,8 @@ public static class CSharpDesignerParserExamples
                    this.button1.Enabled = true;
                    this.button1.Visible = true;
 
-                   this.panel1.Controls.Add(this.label1);
                    this.panel1.Controls.Add(this.button1);
+                   this.panel1.Controls.Add(this.label1);
                    this.Controls.Add(this.panel1);
 
                    this.Name = "MainForm";

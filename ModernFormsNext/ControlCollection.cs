@@ -18,6 +18,14 @@ public partial class Control
     /// <summary>
     ///  Represents a collection of Controls.
     /// </summary>
+    /// <remarks>
+    /// The last collection index is the front-most child in Z-order. Enumeration proceeds from
+    /// back to front. <see cref="Add{T}(T)"/> appends a new front-most child, while
+    /// <see cref="Control.BringToFront"/>, <see cref="Control.SendToBack"/>, and
+    /// <see cref="SetChildIndex(Control, int)"/> update the same ordering contract.
+    /// Dock layout and hit testing traverse the collection from the last index to zero, while
+    /// painting enumerates from zero so the front-most child is painted last.
+    /// </remarks>
     [ListBindable (false)]
     public class ControlCollection : IList<Control>
     {
@@ -41,9 +49,9 @@ public partial class Control
         }
 
         /// <summary>
-        ///  Adds a child control to this control. The control becomes the last control in
-        ///  the child control list. If the control is already a child of another control it
-        ///  is first removed from that control.
+        ///  Adds a child control to this control. The control becomes the last, front-most
+        ///  control in the child control list. If the control is already a child of another
+        ///  control it is first removed from that control.
         /// </summary>
         public virtual T Add<T> (T value) where T : Control
         {
@@ -194,6 +202,8 @@ public partial class Control
         internal IEnumerable<Control> GetAllControls (bool includeImplicit = true)
         {
             if (includeImplicit)
+                // Framework-owned chrome such as scrollbars follows explicit content so it stays
+                // at the front in the combined last-index-is-front sequence.
                 return control_list.Concat (implicit_control_list);
 
             return control_list;
@@ -205,6 +215,7 @@ public partial class Control
         ///  is thrown if child is not parented to this
         ///  Control.
         /// </summary>
+        /// <remarks>The last collection index identifies the front-most child in Z-order.</remarks>
         public virtual int GetChildIndex (Control child, bool throwException = true)
         {
             var index = IndexOf (child);
@@ -419,6 +430,7 @@ public partial class Control
         ///  is thrown if child is not parented to this
         ///  Control.
         /// </summary>
+        /// <remarks>The last collection index identifies the front-most child in Z-order.</remarks>
         public virtual void SetChildIndex (Control child, int newIndex) => SetChildIndexInternal (child, newIndex);
 
         /// <summary>

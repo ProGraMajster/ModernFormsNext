@@ -43,9 +43,13 @@ public sealed class DesignerHost
     /// </summary>
     /// <param name="x">The horizontal coordinate in document logical pixels.</param>
     /// <param name="y">The vertical coordinate in document logical pixels.</param>
-    /// <returns>The hit-test result. If multiple controls overlap, the last control in document order wins.</returns>
+    /// <returns>
+    /// The hit-test result. For ordinary containers the first control in document order wins.
+    /// Sequential flow, table, and tab containers use their last child as the visual front,
+    /// matching their runtime collection semantics.
+    /// </returns>
     public DesignerHitTestResult HitTest(int x, int y)
-        => HitTest(Document.Controls, x, y, offsetX: 0, offsetY: 0) ?? DesignerHitTestResult.Empty;
+        => HitTest(Document.Controls, parentNode: null, x, y, offsetX: 0, offsetY: 0) ?? DesignerHitTestResult.Empty;
 
     /// <summary>
     /// Selects the node at the specified point, or clears selection when no node is hit.
@@ -62,12 +66,13 @@ public sealed class DesignerHost
 
     private static DesignerHitTestResult? HitTest(
         DesignControlCollection controls,
+        DesignControlNode? parentNode,
         int x,
         int y,
         int offsetX,
         int offsetY)
     {
-        for (var index = controls.Count - 1; index >= 0; index--)
+        foreach (var index in GetFrontToBackIndices(controls.Count, parentNode))
         {
             var control = controls[index];
             var absoluteBounds = new DesignBounds(
@@ -79,11 +84,34 @@ public sealed class DesignerHost
             if (!absoluteBounds.Contains(x, y))
                 continue;
 
-            var childHit = HitTest(control.Children, x, y, absoluteBounds.X, absoluteBounds.Y);
+            var childHit = HitTest(control.Children, control, x, y, absoluteBounds.X, absoluteBounds.Y);
 
             return childHit ?? new DesignerHitTestResult(control, absoluteBounds);
         }
 
         return null;
     }
+
+    private static IEnumerable<int> GetFrontToBackIndices(int count, DesignControlNode? parentNode)
+    {
+        if (parentNode is not null && PreservesSequentialChildOrder(parentNode))
+        {
+            for (var index = count - 1; index >= 0; index--)
+                yield return index;
+
+            yield break;
+        }
+
+        for (var index = 0; index < count; index++)
+            yield return index;
+    }
+
+    private static bool PreservesSequentialChildOrder(DesignControlNode node)
+        => IsType(node.TypeName, "FlowLayoutPanel")
+        || IsType(node.TypeName, "TableLayoutPanel")
+        || IsType(node.TypeName, "TabControl");
+
+    private static bool IsType(string typeName, string shortTypeName)
+        => string.Equals(typeName, shortTypeName, StringComparison.Ordinal)
+        || typeName.EndsWith("." + shortTypeName, StringComparison.Ordinal);
 }
