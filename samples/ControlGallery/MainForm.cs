@@ -241,7 +241,9 @@ namespace ControlGallery
         private static void DrawThemeColor (SKCanvas canvas, int x, int y, int width, int height, SKColor color)
         {
             canvas.FillRectangle (x, y, width, height, color);
-            canvas.DrawText (color.ToString (), x + 10, y + 20, new SKPaint { Typeface = Theme.UIFont, Color = Theme.ForegroundColor });
+            using var paint = new SKPaint { Color = Theme.ForegroundColor };
+            using var font = new SKFont (Theme.UIFont, 12f);
+            canvas.DrawText (color.ToString (), x + 10, y + 20, SKTextAlign.Left, font, paint);
         }
 
         protected override void OnPaintBackground (PaintEventArgs e)

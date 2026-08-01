@@ -33,7 +33,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <!--
+      Reference only the Visual Studio contracts used by the in-process package.
+      The Microsoft.VisualStudio.SDK metapackage also restores unrelated editor,
+      language-service, and tooling packages that are neither compiled nor
+      shipped by this VSIX.
+    -->
+    <PackageReference Include="envdte" Version="17.14.40260" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.14.40260" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Shell.15.0" Version="17.14.40264" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Shell.Interop" Version="17.14.40260" ExcludeAssets="runtime" />
+    <!-- Override the vulnerable legacy version selected by the VS SDK dependency graph. -->
+    <PackageReference Include="MessagePack" Version="3.1.8" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
   </ItemGroup>
 

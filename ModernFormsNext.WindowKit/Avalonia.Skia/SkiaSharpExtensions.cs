@@ -20,6 +20,7 @@ namespace ModernFormsNext.WindowKit.Skia
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when <paramref name="interpolationMode"/> is not recognized.
         /// </exception>
+#pragma warning disable CS0618 // Retained for source and binary compatibility with existing callers.
         public static SKFilterQuality ToSKFilterQuality(this BitmapInterpolationMode interpolationMode)
         {
             switch (interpolationMode)
@@ -36,6 +37,21 @@ namespace ModernFormsNext.WindowKit.Skia
                 default:
                     throw new ArgumentOutOfRangeException(nameof(interpolationMode), interpolationMode, null);
             }
+        }
+#pragma warning restore CS0618
+
+        internal static SKSamplingOptions ToSKSamplingOptions(this BitmapInterpolationMode interpolationMode)
+        {
+            return interpolationMode switch
+            {
+                BitmapInterpolationMode.None => new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None),
+                BitmapInterpolationMode.Unspecified or BitmapInterpolationMode.LowQuality =>
+                    new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None),
+                BitmapInterpolationMode.MediumQuality =>
+                    new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear),
+                BitmapInterpolationMode.HighQuality => new SKSamplingOptions(SKCubicResampler.Mitchell),
+                _ => throw new ArgumentOutOfRangeException(nameof(interpolationMode), interpolationMode, null)
+            };
         }
 
         //public static SKBlendMode ToSKBlendMode(this BitmapBlendingMode blendingMode)

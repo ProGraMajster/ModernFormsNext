@@ -150,8 +150,8 @@ class NullDispatcherImpl : IDispatcherImpl
         
     }
     
-    public event Action? Signaled;
-    public event Action? Timer;
+    public event Action? Signaled { add { } remove { } }
+    public event Action? Timer { add { } remove { } }
 
     public long Now => 0;
 

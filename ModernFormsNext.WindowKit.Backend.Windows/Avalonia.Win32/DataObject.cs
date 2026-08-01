@@ -269,7 +269,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 try
                 {
-                    stream.Read(buffer, 0, length);
+                    stream.ReadExactly(buffer, 0, length);
                     return WriteBytesToHGlobal(ref hGlobal, buffer.AsSpan(0, length));
                 }
                 finally

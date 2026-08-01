@@ -7,12 +7,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 {
     class OffscreenParentWindow
     {
+        // Keep the delegate rooted for the lifetime of the registered window class.
+        private static readonly UnmanagedMethods.WndProc s_wndProcDelegate = ParentWndProc;
         public static IntPtr Handle { get; } = CreateParentWindow();
-        private static UnmanagedMethods.WndProc s_wndProcDelegate;
+
         private static IntPtr CreateParentWindow()
         {
-            s_wndProcDelegate = new UnmanagedMethods.WndProc(ParentWndProc);
-
             var wndClassEx = new UnmanagedMethods.WNDCLASSEX
             {
                 cbSize = Marshal.SizeOf<UnmanagedMethods.WNDCLASSEX>(),

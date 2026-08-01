@@ -85,7 +85,7 @@ public sealed class PaintAndGradientsPanel : Panel
         });
     }
 
-    private Panel AddCard(int left, int top, string caption, ModernFormsNext.Drawing.Brush brush)
+    private Panel AddCard(int left, int top, string caption, ModernFormsNext.Drawing.Brush? brush)
     {
         var card = Controls.Add(new Panel
         {

@@ -41,7 +41,7 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
     {
         private IntPtr _nativePointer;
         private bool _ownsHandle;
-        private SynchronizationContext _synchronizationContext;
+        private readonly SynchronizationContext? _synchronizationContext;
 
         /// <summary>
         /// Gets the wrapped native interface pointer.
@@ -246,7 +246,7 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
         /// Releases a proxy instance on a synchronization context callback.
         /// </summary>
         /// <param name="state">The proxy instance to dispose.</param>
-        private static void DisposeOnContext(object state)
+        private static void DisposeOnContext(object? state)
         {
             (state as MicroComProxyBase)?.Dispose(false);
         }

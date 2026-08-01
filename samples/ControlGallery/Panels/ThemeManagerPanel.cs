@@ -336,19 +336,19 @@ public sealed class ThemeManagerPanel : BasePanel
         Apply(first, animated: false);
     }
 
-    private void HandleThemeChanged(object sender, ThemeChangedEventArgs e)
+    private void HandleThemeChanged(object? sender, ThemeChangedEventArgs e)
     {
         resultLabel.Text = $"Committed '{e.Current.Name}'. Transition: {e.Transition?.State.ToString() ?? "none"}.";
         UpdateDiagnostics();
     }
 
-    private void HandleTransitionCompleted(object sender, ThemeTransitionCompletedEventArgs e)
+    private void HandleTransitionCompleted(object? sender, ThemeTransitionCompletedEventArgs e)
     {
         resultLabel.Text = $"Transition for '{e.ThemeId}' ended with {e.Status}.";
         UpdateDiagnostics();
     }
 
-    private void HandleThemeApplyFailed(object sender, ThemeApplyFailedEventArgs e)
+    private void HandleThemeApplyFailed(object? sender, ThemeApplyFailedEventArgs e)
     {
         resultLabel.Text = "Apply rejected: " + FormatDiagnostics(e.Result.Diagnostics);
         UpdateDiagnostics();
@@ -373,7 +373,7 @@ public sealed class ThemeManagerPanel : BasePanel
             $"Tokens: {theme.TokenCounts.Total} | bases: {string.Join(" → ", theme.BaseChain)} | switches completed/canceled/failed: {theme.SuccessfulSwitches}/{theme.CanceledSwitches}/{theme.FailedSwitches}\n" +
             $"Scheduler active: {animation.ActiveAnimationCount} | ticks: {animation.TickCount} | tick source: {(animation.IsTickSourceRunning ? "running" : "stopped")} | paused: {animation.IsPaused}";
 
-        ThemeResolvedSnapshot snapshot = manager.ActiveSnapshot;
+        ThemeResolvedSnapshot? snapshot = manager.ActiveSnapshot;
         if (snapshot is null)
         {
             semanticLabel.Text = "No active snapshot.";
@@ -383,7 +383,8 @@ public sealed class ThemeManagerPanel : BasePanel
         string primary = snapshot.Colors.TryGetValue(ThemeTokens.Colors.Primary.Name, out Color color)
             ? $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}"
             : "missing";
-        string typography = snapshot.Typography.TryGetValue(ThemeTokens.Typography.Title.Name, out ThemeTypography title)
+        string typography = snapshot.Typography.TryGetValue(ThemeTokens.Typography.Title.Name, out ThemeTypography? title)
+            && title is not null
             ? $"{title.FontFamily} {title.Size}pt {title.Style}"
             : "missing";
         snapshot.Spacing.TryGetValue("Medium", out double spacing);

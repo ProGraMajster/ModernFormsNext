@@ -19,9 +19,9 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
     {
         abstract class Arg
         {
-            public string Name;
-            public string NativeType;
-            public AstAttributes Attributes { get; set; }
+            public required string Name;
+            public required string NativeType;
+            public AstAttributes Attributes { get; set; } = new AstAttributes();
             public virtual StatementSyntax CreateFixed(StatementSyntax inner) => inner;
 
             public virtual void PreMarshal(List<StatementSyntax> body)
@@ -49,7 +49,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
 
         class InterfaceReturnArg : Arg
         {
-            public string InterfaceType;
+            public required string InterfaceType;
             public override ExpressionSyntax Value(bool isHresultReturn) => ParseExpression("&" + PName);
             public override string ManagedType => InterfaceType;
 
@@ -79,7 +79,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
 
         class InterfaceArg : Arg
         {
-            public string InterfaceType;
+            public required string InterfaceType;
 
             public override ExpressionSyntax Value(bool isHresultReturn) =>
                 ParseExpression("ModernFormsNext.WindowKit.Backend.MicroCom.MicroComRuntime.GetNativePointer(" + Name + ")");
@@ -106,7 +106,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
 
         class BypassArg : Arg
         {
-            public string Type { get; set; }
+            public required string Type { get; set; }
             public int PointerLevel;
             public override string ManagedType => Type + new string('*', PointerLevel);
             public override string ReturnManagedType => Type + new string('*', PointerLevel - 1);
@@ -435,7 +435,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
             var inheritsUnknown = iface.Inherits == null || iface.Inherits == "IUnknown";
 
             var ifaceDec = InterfaceDeclaration(iface.Name)
-                .WithBaseType(inheritsUnknown ? "ModernFormsNext.WindowKit.Backend.MicroCom.IUnknown" : iface.Inherits)
+                .WithBaseType(inheritsUnknown ? "ModernFormsNext.WindowKit.Backend.MicroCom.IUnknown" : iface.Inherits!)
                 .AddModifiers(Token(_visibility), Token(SyntaxKind.UnsafeKeyword), Token(SyntaxKind.PartialKeyword));
 
             var proxyClassName = "__MicroCom" + iface.Name + "Proxy";
@@ -482,9 +482,9 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
                                            proxyClassName + "(p, owns));")
                         )))
                 .AddMembers(ParseMemberDeclaration("public " + proxyClassName +
-                                                   "(IntPtr nativePointer, bool ownsHandle) : base(nativePointer, ownsHandle) {}"))
+                                                   "(IntPtr nativePointer, bool ownsHandle) : base(nativePointer, ownsHandle) {}")!)
                 .AddMembers(ParseMemberDeclaration("protected override int VTableSize => base.VTableSize + " +
-                                                   iface.Count + ";"));
+                                                   iface.Count + ";")!);
             
             ns = ns.AddMembers(RewriteMethodsToProperties(ifaceDec));
             implNs = implNs.AddMembers(RewriteMethodsToProperties(proxy), RewriteMethodsToProperties(vtbl));

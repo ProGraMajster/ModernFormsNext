@@ -8,10 +8,10 @@ namespace ControlGallery.Panels
     public class NotifyIconPanel : BasePanel
     {
         private readonly Label status_label;
-        private NotifyIcon notify_icon;
-        private NotifyIconContextMenu context_menu;
-        private NotifyIconMenuItem pause_item;
-        private SKBitmap tray_icon_bitmap;
+        private NotifyIcon? notify_icon;
+        private NotifyIconContextMenu? context_menu;
+        private NotifyIconMenuItem? pause_item;
+        private SKBitmap? tray_icon_bitmap;
         private int tooltip_version;
 
         public NotifyIconPanel ()
@@ -108,11 +108,12 @@ namespace ControlGallery.Panels
             if (!IsWindowsTrayAvailable ())
                 return;
 
-            if (!EnsureTrayIcon ())
+            var icon = EnsureTrayIcon ();
+            if (icon is null)
                 return;
 
             tooltip_version++;
-            notify_icon.Text = $"ControlGallery NotifyIcon #{tooltip_version}";
+            icon.Text = $"ControlGallery NotifyIcon #{tooltip_version}";
             SetStatus ($"Tooltip changed to version {tooltip_version}.");
         }
 
@@ -199,12 +200,12 @@ namespace ControlGallery.Panels
             SetStatus ("Tray icon disposed.");
         }
 
-        private bool EnsureTrayIcon ()
+        private NotifyIcon? EnsureTrayIcon ()
         {
             if (notify_icon is null)
                 CreateNotifyIcon ();
 
-            return notify_icon is not null;
+            return notify_icon;
         }
 
         private void HideTrayIcon ()
@@ -226,11 +227,12 @@ namespace ControlGallery.Panels
             if (!IsWindowsTrayAvailable ())
                 return;
 
-            if (!EnsureTrayIcon ())
+            var icon = EnsureTrayIcon ();
+            if (icon is null)
                 return;
 
-            notify_icon.ActivationWindow = FindForm ();
-            notify_icon.ActivationBehavior = NotifyIconActivationBehavior.ShowWindow;
+            icon.ActivationWindow = FindForm ();
+            icon.ActivationBehavior = NotifyIconActivationBehavior.ShowWindow;
             SetStatus ("Form hidden. Left-click the notification area icon to restore it.");
             FindForm ()?.Hide ();
         }
@@ -248,13 +250,14 @@ namespace ControlGallery.Panels
             if (!IsWindowsTrayAvailable ())
                 return;
 
-            if (!EnsureTrayIcon ())
+            var icon = EnsureTrayIcon ();
+            if (icon is null)
                 return;
 
-            if (!notify_icon.Visible)
-                notify_icon.Visible = true;
+            if (!icon.Visible)
+                icon.Visible = true;
 
-            notify_icon.ShowBalloonTip (
+            icon.ShowBalloonTip (
                 3000,
                 "ControlGallery",
                 "This notification came from NotifyIconPanel.",
@@ -268,20 +271,21 @@ namespace ControlGallery.Panels
             if (!IsWindowsTrayAvailable ())
                 return;
 
-            if (!EnsureTrayIcon ())
+            var icon = EnsureTrayIcon ();
+            if (icon is null)
                 return;
 
-            notify_icon.Visible = true;
+            icon.Visible = true;
             SetStatus ("Tray icon visible.");
         }
 
         private void ToggleCheckedItem ()
         {
-            if (!EnsureTrayIcon ())
+            if (EnsureTrayIcon () is null || pause_item is not { } pauseItem)
                 return;
 
-            pause_item.Checked = !pause_item.Checked;
-            SetStatus ($"Pause notifications checked: {pause_item.Checked}.");
+            pauseItem.Checked = !pauseItem.Checked;
+            SetStatus ($"Pause notifications checked: {pauseItem.Checked}.");
         }
 
         [SupportedOSPlatformGuard ("windows")]

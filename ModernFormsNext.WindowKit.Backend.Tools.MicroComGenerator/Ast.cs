@@ -7,9 +7,9 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
     public class AstAttributeNode
     {
         public string Name { get; set; }
-        public string Value { get; set; }
+        public string? Value { get; set; }
 
-        public AstAttributeNode(string name, string value)
+        public AstAttributeNode(string name, string? value)
         {
             Name = name;
             Value = value;
@@ -39,7 +39,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
     public class AstEnumNode : List<AstEnumMemberNode>, IAstNodeWithAttributes
     {
         public AstAttributes Attributes { get; set; } = new AstAttributes();
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public override string ToString() => "Enum " + Name;
 
         public AstEnumNode Clone()
@@ -53,9 +53,9 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
     public class AstEnumMemberNode
     {
         public string Name { get; set; }
-        public string Value { get; set; }
+        public string? Value { get; set; }
 
-        public AstEnumMemberNode(string name, string value)
+        public AstEnumMemberNode(string name, string? value)
         {
             Name = name;
             Value = value;
@@ -68,7 +68,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
     public class AstStructNode : List<AstStructMemberNode>, IAstNodeWithAttributes
     {
         public AstAttributes Attributes { get; set; } = new AstAttributes();
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public override string ToString() => "Struct " + Name;
         
         public AstStructNode Clone()
@@ -81,7 +81,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
 
     public class AstTypeNode
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public int PointerLevel { get; set; }
         public bool IsLink { get; set; }
 
@@ -97,8 +97,8 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
 
     public class AstStructMemberNode : IAstNodeWithAttributes
     {
-        public string Name { get; set; }
-        public AstTypeNode Type { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public AstTypeNode Type { get; set; } = new AstTypeNode();
 
         public override string ToString() => $"Struct member {Type.Format()} {Name}";
         public AstStructMemberNode Clone() => new AstStructMemberNode() { Name = Name, Type = Type.Clone() };
@@ -108,8 +108,8 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
     public class AstInterfaceNode : List<AstInterfaceMemberNode>, IAstNodeWithAttributes
     {
         public AstAttributes Attributes { get; set; } = new AstAttributes();
-        public string Name { get; set; }
-        public string Inherits { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Inherits { get; set; }
         
         public override string ToString()
         {
@@ -127,8 +127,8 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
 
     public class AstInterfaceMemberNode : List<AstInterfaceMemberArgumentNode>, IAstNodeWithAttributes
     {
-        public string Name { get; set; }
-        public AstTypeNode ReturnType { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public AstTypeNode ReturnType { get; set; } = new AstTypeNode();
         public AstAttributes Attributes { get; set; } = new AstAttributes();
 
         public AstInterfaceMemberNode Clone()
@@ -147,8 +147,8 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
 
     public class AstInterfaceMemberArgumentNode : IAstNodeWithAttributes
     {
-        public string Name { get; set; }
-        public AstTypeNode Type { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public AstTypeNode Type { get; set; } = new AstTypeNode();
         public AstAttributes Attributes { get; set; } = new AstAttributes();
 
         
@@ -173,7 +173,7 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.Ast
             return value;
         }
         
-        public static string GetAttributeOrDefault(this IAstNodeWithAttributes node, string s) 
+        public static string? GetAttributeOrDefault(this IAstNodeWithAttributes node, string s)
             => node.Attributes.FirstOrDefault(a => a.Name == s)?.Value;
     }
 

@@ -26,7 +26,7 @@ namespace ModernFormsNext.Renderers
 
             using var textPaint = CreateTextPaint (control, control.DisplayMonth.ToString ("Y", CultureInfo.CurrentCulture));
             using var mutedTextPaint = CreateTextPaint (control, "pon.");
-            mutedTextPaint.Color = mutedTextPaint.Color.WithAlpha (150);
+            mutedTextPaint.Paint.Color = mutedTextPaint.Paint.Color.WithAlpha (150);
 
             using var accentPaint = new SKPaint {
                 IsAntialias = true,
@@ -69,7 +69,7 @@ namespace ModernFormsNext.Renderers
             }
         }
 
-        private static void DrawHeader (DateTimePickerCalendar control, SKCanvas canvas, SKPaint textPaint, SKPaint hoverPaint)
+        private static void DrawHeader (DateTimePickerCalendar control, SKCanvas canvas, TextPaintResources textPaint, SKPaint hoverPaint)
         {
             DrawButton (canvas, "<", control.PreviousButtonRectangle, textPaint, hoverPaint, control.HoveredRectangle == control.PreviousButtonRectangle);
             DrawButton (canvas, ">", control.NextButtonRectangle, textPaint, hoverPaint, control.HoveredRectangle == control.NextButtonRectangle);
@@ -93,7 +93,7 @@ namespace ModernFormsNext.Renderers
             DrawCenteredText (canvas, yearText, control.YearTitleRectangle, yearPaint);
         }
 
-        private static void DrawDayHeaders (DateTimePickerCalendar control, SKCanvas canvas, SKPaint textPaint)
+        private static void DrawDayHeaders (DateTimePickerCalendar control, SKCanvas canvas, TextPaintResources textPaint)
         {
             var names = GetDayNames();
             int y = control.MonthTitleRectangle.Bottom;
@@ -118,8 +118,8 @@ namespace ModernFormsNext.Renderers
         private static void DrawDayCells (
             DateTimePickerCalendar control,
             SKCanvas canvas,
-            SKPaint textPaint,
-            SKPaint mutedTextPaint,
+            TextPaintResources textPaint,
+            TextPaintResources mutedTextPaint,
             SKPaint accentPaint,
             SKPaint hoverPaint,
             SKPaint borderPaint,
@@ -153,15 +153,15 @@ namespace ModernFormsNext.Renderers
                 using var cellPaint = CreateTextPaintFrom (basePaint, date.Day.ToString (CultureInfo.CurrentCulture));
 
                 if (!isEnabled)
-                    cellPaint.Color = cellPaint.Color.WithAlpha (90);
+                    cellPaint.Paint.Color = cellPaint.Paint.Color.WithAlpha (90);
                 else if (isSelected)
-                    cellPaint.Color = SKColors.White;
+                    cellPaint.Paint.Color = SKColors.White;
 
                 DrawCenteredText (canvas, date.Day.ToString (CultureInfo.CurrentCulture), rect, cellPaint);
             }
         }
 
-        private static void DrawMonthCells (DateTimePickerCalendar control, SKCanvas canvas, SKPaint textPaint, SKPaint hoverPaint, SKPaint borderPaint, SKPaint accentPaint)
+        private static void DrawMonthCells (DateTimePickerCalendar control, SKCanvas canvas, TextPaintResources textPaint, SKPaint hoverPaint, SKPaint borderPaint, SKPaint accentPaint)
         {
             var dtf = CultureInfo.CurrentCulture.DateTimeFormat;
 
@@ -182,13 +182,13 @@ namespace ModernFormsNext.Renderers
                 string text = dtf.AbbreviatedMonthNames[i];
                 using var paint = CreateTextPaintFrom (textPaint, text);
                 if (isSelected)
-                    paint.Color = SKColors.White;
+                    paint.Paint.Color = SKColors.White;
 
                 DrawCenteredText (canvas, text, rect, paint);
             }
         }
 
-        private static void DrawYearCells (DateTimePickerCalendar control, SKCanvas canvas, SKPaint textPaint, SKPaint hoverPaint, SKPaint borderPaint, SKPaint accentPaint)
+        private static void DrawYearCells (DateTimePickerCalendar control, SKCanvas canvas, TextPaintResources textPaint, SKPaint hoverPaint, SKPaint borderPaint, SKPaint accentPaint)
         {
             for (int i = 0; i < control.YearCellRectangles.Length; i++) {
                 var rect = control.YearCellRectangles[i];
@@ -207,13 +207,13 @@ namespace ModernFormsNext.Renderers
                 string text = year.ToString (CultureInfo.CurrentCulture);
                 using var paint = CreateTextPaintFrom (textPaint, text);
                 if (isSelected)
-                    paint.Color = SKColors.White;
+                    paint.Paint.Color = SKColors.White;
 
                 DrawCenteredText (canvas, text, rect, paint);
             }
         }
 
-        private static void DrawTodayButton (DateTimePickerCalendar control, SKCanvas canvas, SKPaint textPaint, SKPaint hoverPaint, SKPaint borderPaint)
+        private static void DrawTodayButton (DateTimePickerCalendar control, SKCanvas canvas, TextPaintResources textPaint, SKPaint hoverPaint, SKPaint borderPaint)
         {
             bool hovered = control.HoveredRectangle == control.TodayButtonRectangle;
 
@@ -227,7 +227,7 @@ namespace ModernFormsNext.Renderers
             DrawCenteredText (canvas, text, control.TodayButtonRectangle, paint);
         }
 
-        private static void DrawButton (SKCanvas canvas, string text, Rectangle rect, SKPaint textPaint, SKPaint hoverPaint, bool hovered)
+        private static void DrawButton (SKCanvas canvas, string text, Rectangle rect, TextPaintResources textPaint, SKPaint hoverPaint, bool hovered)
         {
             if (hovered)
                 canvas.DrawRect (ToSKRect (rect), hoverPaint);
@@ -236,24 +236,28 @@ namespace ModernFormsNext.Renderers
             DrawCenteredText (canvas, text, rect, paint);
         }
 
-        private static SKPaint CreateTextPaint (DateTimePickerCalendar control, string sampleText)
+        private static TextPaintResources CreateTextPaint (DateTimePickerCalendar control, string sampleText)
         {
-            return new SKPaint {
+            var paint = new SKPaint {
                 IsAntialias = true,
-                Color = control.CurrentStyle.ForegroundColor ?? SKColors.Black,
-                TextSize = control.CurrentStyle.FontSize ?? Theme.FontSize,
-                Typeface = ResolveTypeface (control.CurrentStyle.Font ?? Theme.UIFont, sampleText)
+                Color = control.CurrentStyle.ForegroundColor ?? SKColors.Black
             };
+            var font = new SKFont (
+                ResolveTypeface (control.CurrentStyle.Font ?? Theme.UIFont, sampleText),
+                control.CurrentStyle.FontSize ?? Theme.FontSize);
+            return new TextPaintResources (paint, font);
         }
 
-        private static SKPaint CreateTextPaintFrom (SKPaint source, string text)
+        private static TextPaintResources CreateTextPaintFrom (TextPaintResources source, string text)
         {
-            return new SKPaint {
-                IsAntialias = source.IsAntialias,
-                Color = source.Color,
-                TextSize = source.TextSize,
-                Typeface = ResolveTypeface (source.Typeface, text)
+            var paint = new SKPaint {
+                IsAntialias = source.Paint.IsAntialias,
+                Color = source.Paint.Color
             };
+            var font = new SKFont (
+                ResolveTypeface (source.Font.Typeface, text),
+                source.Font.Size);
+            return new TextPaintResources (paint, font);
         }
 
         private static SKTypeface? ResolveTypeface (SKTypeface? preferred, string text)
@@ -284,12 +288,31 @@ namespace ModernFormsNext.Renderers
             return true;
         }
 
-        private static void DrawCenteredText (SKCanvas canvas, string text, Rectangle rect, SKPaint paint)
+        private static void DrawCenteredText (SKCanvas canvas, string text, Rectangle rect, TextPaintResources textPaint)
         {
-            var metrics = paint.FontMetrics;
-            float x = rect.Left + (rect.Width - paint.MeasureText (text)) / 2f;
+            var metrics = textPaint.Font.Metrics;
+            float x = rect.Left + (rect.Width - textPaint.Font.MeasureText (text)) / 2f;
             float y = rect.Top + ((rect.Height - (metrics.Descent - metrics.Ascent)) / 2f) - metrics.Ascent;
-            canvas.DrawText (text, x, y, paint);
+            canvas.DrawText (text, x, y, SKTextAlign.Left, textPaint.Font, textPaint.Paint);
+        }
+
+        private sealed class TextPaintResources : IDisposable
+        {
+            public TextPaintResources (SKPaint paint, SKFont font)
+            {
+                Paint = paint;
+                Font = font;
+            }
+
+            public SKPaint Paint { get; }
+
+            public SKFont Font { get; }
+
+            public void Dispose ()
+            {
+                Font.Dispose ();
+                Paint.Dispose ();
+            }
         }
 
         private static SKRect ToSKRect (Rectangle rect)

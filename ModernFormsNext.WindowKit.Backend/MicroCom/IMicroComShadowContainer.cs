@@ -9,9 +9,10 @@ namespace ModernFormsNext.WindowKit.Backend.MicroCom
     public interface IMicroComShadowContainer
     {
         /// <summary>
-        /// Gets or sets the shadow wrapper.
+        /// Gets or sets the shadow wrapper, or <see langword="null"/> before a wrapper is created
+        /// or after it has been released.
         /// </summary>
-        MicroComShadow Shadow { get; set; }
+        MicroComShadow? Shadow { get; set; }
 
         /// <summary>
         /// Called when the object is referenced from native code.

@@ -238,6 +238,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Draws a bitmap.
         /// </summary>
+#pragma warning disable CS0618 // DrawBitmap still consumes sampling through SKPaint in this SkiaSharp API.
         public static void DrawBitmap (this SKCanvas canvas, SKBitmap bitmap, Rectangle rect, bool disabled = false)
         {
             using var paint = new SKPaint { FilterQuality = SKFilterQuality.High };
@@ -260,6 +261,7 @@ namespace ModernFormsNext
 
             canvas.DrawBitmap (bitmap, x, y, paint);
         }
+#pragma warning restore CS0618
 
         /// <summary>
         /// Draws a control's border.

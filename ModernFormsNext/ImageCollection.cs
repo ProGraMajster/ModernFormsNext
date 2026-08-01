@@ -40,7 +40,7 @@ public class ImageCollection : IDictionary<string, SKBitmap>
         }
 
         // The image is not the correct size, resize it
-        var resized = value.Resize (ImageSize.ToSizeI (), SKFilterQuality.High);
+        var resized = value.Resize (ImageSize.ToSizeI (), new SKSamplingOptions (SKCubicResampler.Mitchell));
         _images.Add (key, resized);
     }
 

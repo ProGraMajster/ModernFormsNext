@@ -70,7 +70,7 @@ namespace ModernFormsNext.WindowKit.Skia
 
                 if (bmp.Width != desired.Width || bmp.Height != desired.Height)
                 {
-                    var scaledBmp = bmp.Resize(desired, interpolationMode.ToSKFilterQuality());
+                    var scaledBmp = bmp.Resize(desired, interpolationMode.ToSKSamplingOptions());
                     bmp.Dispose();
                     bmp = scaledBmp;
                 }

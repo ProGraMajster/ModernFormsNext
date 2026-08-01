@@ -11,7 +11,7 @@ namespace System.Reactive.Disposables
     /// </summary>
     internal sealed class AnonymousDisposable : ICancelable
     {
-        private volatile Action _dispose;
+        private volatile Action? _dispose;
 
         /// <summary>
         /// Constructs a new disposable with the given action used for disposal.
@@ -19,9 +19,7 @@ namespace System.Reactive.Disposables
         /// <param name="dispose">Disposal action which will be run upon calling Dispose.</param>
         public AnonymousDisposable(Action dispose)
         {
-            System.Diagnostics.Debug.Assert(dispose != null);
-
-            _dispose = dispose;
+            _dispose = dispose ?? throw new ArgumentNullException(nameof(dispose));
         }
 
         /// <summary>

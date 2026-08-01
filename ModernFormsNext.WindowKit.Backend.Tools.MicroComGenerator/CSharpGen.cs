@@ -23,11 +23,13 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
         {
             _idl = idl.Clone();
             new AstRewriter(_idl.Attributes.Where(a => a.Name == "clr-map")
-                .Select(x => x.Value.Trim().Split(' '))
+                .Select(x => (x.Value ?? throw new CodeGenException("clr-map requires a value")).Trim().Split(' '))
                 .ToDictionary(x => x[0], x => x[1])
             ).VisitAst(_idl);
             
-            _extraUsings = _idl.Attributes.Where(u => u.Name == "clr-using").Select(u => u.Value).ToList();
+            _extraUsings = _idl.Attributes.Where(u => u.Name == "clr-using")
+                .Select(u => u.Value ?? throw new CodeGenException("clr-using requires a value"))
+                .ToList();
             _namespace = _idl.GetAttribute("clr-namespace");
             var visibilityString = _idl.GetAttribute("clr-access");
 

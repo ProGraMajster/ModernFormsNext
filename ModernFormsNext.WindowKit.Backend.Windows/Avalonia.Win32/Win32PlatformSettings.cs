@@ -34,7 +34,7 @@ internal class Win32PlatformSettings : DefaultPlatformSettings
     {
         //if (Win32Platform.WindowsVersion.Major < 10)
         //{
-            return base.GetColorValues();
+            return _lastColorValues = base.GetColorValues();
         //}
 
         //var uiSettings = NativeWinRTMethods.CreateInstance<IUISettings3>("Windows.UI.ViewManagement.UISettings");

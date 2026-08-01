@@ -103,7 +103,7 @@ namespace ControlGallery.Panels
             ownerDrawToolTip.Dispose();
         }
 
-        private static void OwnerDrawToolTip_Draw(object sender, DrawToolTipEventArgs e)
+        private static void OwnerDrawToolTip_Draw(object? sender, DrawToolTipEventArgs e)
         {
             e.Canvas.FillRoundedRectangle(e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, new SKColor(28, 31, 36), 8, 8);
             e.Canvas.DrawRoundedRectangle(e.Bounds.X, e.Bounds.Y, e.Bounds.Width, e.Bounds.Height, Theme.AccentColor2, 8, 8);
