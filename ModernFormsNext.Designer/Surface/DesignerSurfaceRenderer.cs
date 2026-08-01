@@ -42,8 +42,7 @@ internal sealed class DesignerSurfaceRenderer
         e.Canvas.Save();
         e.Canvas.ClipRect(clientBounds.ToSKRect());
 
-        foreach (var node in state.Document.Controls)
-            DrawNode(e, previewPaintArgs, state, layout, node, view);
+        DrawNodesInPaintOrder(e, previewPaintArgs, state, layout, state.Document.Controls, parentNode: null, view);
 
         e.Canvas.Restore();
 
@@ -144,8 +143,15 @@ internal sealed class DesignerSurfaceRenderer
             surfacePaintArgs.Canvas.Save();
             surfacePaintArgs.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
 
-            foreach (var child in GetRenderableChildren(node))
-                DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, child, view);
+            if (DesignerSpecialContainers.IsTabControl(node))
+            {
+                if (DesignerSpecialContainers.GetSelectedTabPage(node) is { } page)
+                    DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, page, view);
+            }
+            else
+            {
+                DrawNodesInPaintOrder(surfacePaintArgs, previewPaintArgs, state, layout, node.Children, node, view);
+            }
 
             surfacePaintArgs.Canvas.Restore();
         }
@@ -224,19 +230,34 @@ internal sealed class DesignerSurfaceRenderer
         }
     }
 
-    private static IEnumerable<DesignControlNode> GetRenderableChildren(DesignControlNode node)
+    private void DrawNodesInPaintOrder(
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
+        DesignerSession state,
+        DesignerLayoutResult layout,
+        DesignControlCollection nodes,
+        DesignControlNode? parentNode,
+        DesignerSurfaceView view)
     {
-        if (DesignerSpecialContainers.IsTabControl(node))
+        // Ordinary document collections are front-to-back, so paint them from the last element to
+        // index zero. Sequential containers retain runtime collection order and therefore paint
+        // forward. This is deliberately container-aware rather than a global reverse operation.
+        if (parentNode is not null && PreservesSequentialChildOrder(parentNode))
         {
-            if (DesignerSpecialContainers.GetSelectedTabPage(node) is { } page)
-                yield return page;
+            for (var index = 0; index < nodes.Count; index++)
+                DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, nodes[index], view);
 
-            yield break;
+            return;
         }
 
-        foreach (var child in node.Children)
-            yield return child;
+        for (var index = nodes.Count - 1; index >= 0; index--)
+            DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, nodes[index], view);
     }
+
+    private static bool PreservesSequentialChildOrder(DesignControlNode node)
+        => DesignerSpecialContainers.IsFlowLayoutPanel(node)
+        || DesignerSpecialContainers.IsTableLayoutPanel(node)
+        || DesignerSpecialContainers.IsTabControl(node);
 
     private static void DrawTabControl(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds)
     {

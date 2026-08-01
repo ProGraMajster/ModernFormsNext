@@ -595,6 +595,9 @@ public sealed class CSharpDesignerParser
         document.Controls.Clear();
         var added = new HashSet<string>(StringComparer.Ordinal);
 
+        // Runtime Controls.Add appends at the visual front. Ordinary generated containers therefore
+        // emit back-to-front and are inserted at document index zero to recover canonical
+        // front-to-back order. Sequential flow/table/tab collections preserve invocation order.
         foreach (var operation in addOperations)
         {
             if (!nodes.TryGetValue(operation.ChildName, out var child))
@@ -617,7 +620,7 @@ public sealed class CSharpDesignerParser
 
             if (operation.ParentName is null)
             {
-                document.Controls.Add(child);
+                document.Controls.Insert(0, child);
                 continue;
             }
 
@@ -641,7 +644,10 @@ public sealed class CSharpDesignerParser
                 continue;
             }
 
-            parent.Children.Add(child);
+            if (PreservesSequentialChildOrder(parent))
+                parent.Children.Add(child);
+            else
+                parent.Children.Insert(0, child);
         }
 
         foreach (var name in nodeOrder)
@@ -656,6 +662,11 @@ public sealed class CSharpDesignerParser
             document.Controls.Add(nodes[name]);
         }
     }
+
+    private static bool PreservesSequentialChildOrder(DesignControlNode node)
+        => IsType(node.TypeName, "FlowLayoutPanel")
+        || IsType(node.TypeName, "TableLayoutPanel")
+        || IsType(node.TypeName, "TabControl");
 
     private static bool ContainsDescendant(DesignControlNode root, DesignControlNode candidate)
     {

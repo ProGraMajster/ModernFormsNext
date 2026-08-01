@@ -59,5 +59,11 @@ public sealed class DesignControlNode
     /// <summary>
     /// Gets or sets child controls owned by this control.
     /// </summary>
+    /// <remarks>
+    /// The collection order is the persistent child-order contract. Ordinary containers store
+    /// the front-most child at index 0. Flow, table, and tab containers store their content
+    /// sequence and use the last overlapping child as the visual front. Serialization, C#
+    /// generation, reverse synchronization, preview, and runtime preserve this container policy.
+    /// </remarks>
     public DesignControlCollection Children { get; set; } = [];
 }

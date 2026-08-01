@@ -14,8 +14,11 @@ namespace ModernFormsNext.CodeGeneration.CSharp;
 /// <c>Dock</c>, <c>Name</c>, <c>Text</c>, and <c>Size</c>. It emits an explicit
 /// <c>DockStyle.None</c> when the design document has no dock value so runtime
 /// constructor defaults on specialized controls do not change designer-authored
-/// layout. It does not depend on Visual Studio SDK services and is deterministic
-/// for a given document and option set.
+/// layout. Child collections are mapped from persisted front-to-back order to the runtime
+/// collection's last-index-is-front representation. Sequential flow, table, and tab containers
+/// retain authored order because their collection order also defines their content sequence.
+/// It does not depend on Visual Studio SDK services and is deterministic for a
+/// given document and option set.
 /// </remarks>
 public sealed class CSharpDesignerGenerator
 {
@@ -188,7 +191,7 @@ public sealed class CSharpDesignerGenerator
     }
 
     private static void ValidatePropertyNames(
-        IEnumerable<DesignControlNode> controls,
+        IReadOnlyList<DesignControlNode> controls,
         DesignDocumentValidationResult validation)
     {
         foreach (var control in controls)
@@ -479,12 +482,16 @@ public sealed class CSharpDesignerGenerator
 
     private static void WriteControlAdds(
         CodeWriter writer,
-        IEnumerable<DesignControlNode> controls,
+        IReadOnlyList<DesignControlNode> controls,
         string parentExpression,
         DesignControlNode? parentNode,
         IReadOnlyDictionary<DesignControlNode, string> controlExpressions)
     {
-        foreach (var control in controls)
+        // Runtime ControlCollection uses its last index as the visual/docking front, whereas the
+        // document stores the front-most node at index zero. Map that Z-order explicitly for
+        // ordinary containers. Flow/table/tab collections are sequential content models, so their
+        // authored order must stay forward and must not be affected by a global reversal.
+        foreach (var control in EnumerateControlAddOrder(controls, parentNode))
         {
             if (IsSplitPanel(control))
             {
@@ -500,6 +507,27 @@ public sealed class CSharpDesignerGenerator
             WriteControlAdds(writer, control.Children, controlExpression, control, controlExpressions);
         }
     }
+
+    private static IEnumerable<DesignControlNode> EnumerateControlAddOrder(
+        IReadOnlyList<DesignControlNode> controls,
+        DesignControlNode? parentNode)
+    {
+        if (parentNode is not null && PreservesSequentialChildOrder(parentNode))
+        {
+            for (var index = 0; index < controls.Count; index++)
+                yield return controls[index];
+
+            yield break;
+        }
+
+        for (var index = controls.Count - 1; index >= 0; index--)
+            yield return controls[index];
+    }
+
+    private static bool PreservesSequentialChildOrder(DesignControlNode node)
+        => IsType(node, "FlowLayoutPanel")
+        || IsType(node, "TableLayoutPanel")
+        || IsType(node, "TabControl");
 
     private static void WriteTableLayoutAssignments(
         CodeWriter writer,

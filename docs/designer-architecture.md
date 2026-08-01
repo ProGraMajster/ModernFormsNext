@@ -119,6 +119,36 @@ MainForm.cs
 
 Both the standalone playground and the Visual Studio extension must follow this same flow.
 
+## Child Order and Z-Order Contract
+
+The ordered `children` array in `.mfdesign` is the canonical child-order representation. For
+ordinary containers, index 0 is the front-most child and later entries are progressively farther
+back. Flow, table, and tab containers instead retain their sequential content order; if their
+children overlap, the last child is front-most, as at runtime. Ordinary Z-order is mapped
+explicitly to the runtime `Control.Controls` contract, whose last index is front-most:
+`BringToFront()` moves a child to the last index, `SendToBack()` moves it to index 0, and
+`Controls.Add(...)` appends a new front-most child.
+The existing ordered array is sufficient, so documents do not require a separate `childOrder` or
+`zIndex` field and older `.mfdesign` files remain compatible without migration.
+
+Each stage preserves that same order:
+
+- save and reload retain the `children` array order;
+- C# generation emits ordinary Z-ordered containers from back to front so runtime `Controls.Add`
+  reconstructs the document Z-order; flow, table, and tab containers stay in authored sequence;
+- reverse synchronization performs the inverse mapping for ordinary containers and preserves
+  invocation order for flow, table, and tab containers;
+- document-outline move-up moves a child toward index 0 and move-down moves it toward the back;
+- designer preview docking consumes document children from front to back, while runtime docking
+  consumes the mapped control collection from its last index to zero;
+- painting composites back to front and hit testing searches front to back in both representations.
+
+Docking uses only the relevant authored size for the dock edge. `Top` and `Bottom` use the saved
+height, `Left` and `Right` use the saved width, and `Fill` consumes the remaining rectangle. The
+saved X/Y position does not choose the docking order; the ordered child collection does. Flow and
+table and tab containers retain their authored child sequence. The generator applies a
+container-aware mapping, not a global reversal.
+
 ## DPI and Coordinate Contract
 
 Designer documents store form and control geometry in logical pixels. The layout engine,

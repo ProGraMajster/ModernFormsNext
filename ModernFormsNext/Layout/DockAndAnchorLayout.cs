@@ -275,8 +275,9 @@ internal partial class DefaultLayout : LayoutEngine
 
         IArrangedElement? mdiClient = null;
 
-        // Docking layout is order dependent. After much debate, we decided to use z-order as the
-        // docking order. (Introducing a DockOrder property was a close second)
+        // Docking layout is order dependent and uses the public ControlCollection Z-order. The
+        // last runtime index is front-most and consumes the available rectangle first. Designer
+        // generation maps its front-to-back document order into this runtime representation.
         var children = container.Children;
         for (var i = children.Count () - 1; i >= 0; i--) {
             var element = children.ElementAt (i);

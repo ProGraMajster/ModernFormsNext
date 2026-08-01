@@ -23,6 +23,9 @@ internal sealed class DesignerLayoutEngine
     {
         var remaining = new DesignBounds(0, 0, Math.Max(0, parentClientBounds.Width), Math.Max(0, parentClientBounds.Height));
 
+        // The persisted collection is front-to-back. As at runtime, the front-most child consumes
+        // dock space first; authored X/Y values are ignored for docked controls while thickness is
+        // taken from Height (Top/Bottom) or Width (Left/Right).
         foreach (var child in children)
         {
             var localBounds = GetLocalBounds(child, remaining);

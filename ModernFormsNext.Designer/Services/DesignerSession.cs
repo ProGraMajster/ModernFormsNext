@@ -452,6 +452,11 @@ public sealed class DesignerSession
     /// <summary>
     /// Moves the selected control one position earlier inside its current parent collection.
     /// </summary>
+    /// <remarks>
+    /// For ordinary containers, an earlier collection index moves the control toward the front of
+    /// the Z-order. For flow, table, and tab containers, it moves the control earlier in the
+    /// container's authored sequence.
+    /// </remarks>
     /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
     public bool MoveSelectedNodeUp()
         => MoveSelectedNodeWithinCurrentContainer(delta: -1);
@@ -459,6 +464,11 @@ public sealed class DesignerSession
     /// <summary>
     /// Moves the selected control one position later inside its current parent collection.
     /// </summary>
+    /// <remarks>
+    /// For ordinary containers, a later collection index moves the control toward the back of the
+    /// Z-order. For flow, table, and tab containers, it moves the control later in the container's
+    /// authored sequence.
+    /// </remarks>
     /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
     public bool MoveSelectedNodeDown()
         => MoveSelectedNodeWithinCurrentContainer(delta: 1);
@@ -595,7 +605,7 @@ public sealed class DesignerSession
             return false;
 
         var layout = new DesignerLayoutEngine().Layout(Document);
-        var targetParent = FindDeepestContainerAtPoint(Document.Controls, layout, node, documentPoint, new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height));
+        var targetParent = FindDeepestContainerAtPoint(Document.Controls, parentNode: null, layout, node, documentPoint, new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height));
 
         if (ReferenceEquals(currentParent, targetParent))
             return false;
@@ -1073,14 +1083,13 @@ public sealed class DesignerSession
 
     private DesignControlNode? FindDeepestContainerAtPoint(
         DesignControlCollection nodes,
+        DesignControlNode? parentNode,
         DesignerLayoutResult layout,
         DesignControlNode draggedNode,
         DesignPoint point,
         DesignBounds clip)
     {
-        DesignControlNode? result = null;
-
-        for (var index = nodes.Count - 1; index >= 0; index--)
+        foreach (var index in GetFrontToBackIndices(nodes.Count, parentNode))
         {
             var node = nodes[index];
 
@@ -1093,17 +1102,36 @@ public sealed class DesignerSession
             if (!visible.Contains(point.X, point.Y))
                 continue;
 
-            var childResult = FindDeepestContainerAtPoint(node.Children, layout, draggedNode, point, visible);
+            var childResult = FindDeepestContainerAtPoint(node.Children, node, layout, draggedNode, point, visible);
 
             if (childResult is not null)
                 return childResult;
 
             if (IsContainerNode(node))
-                result = node;
+                return node;
         }
 
-        return result;
+        return null;
     }
+
+    private static IEnumerable<int> GetFrontToBackIndices(int count, DesignControlNode? parentNode)
+    {
+        if (parentNode is not null && PreservesSequentialChildOrder(parentNode))
+        {
+            for (var index = count - 1; index >= 0; index--)
+                yield return index;
+
+            yield break;
+        }
+
+        for (var index = 0; index < count; index++)
+            yield return index;
+    }
+
+    private static bool PreservesSequentialChildOrder(DesignControlNode node)
+        => DesignerSpecialContainers.IsFlowLayoutPanel(node)
+        || DesignerSpecialContainers.IsTableLayoutPanel(node)
+        || DesignerSpecialContainers.IsTabControl(node);
 
     private static DesignBounds Intersect(DesignBounds first, DesignBounds second)
     {

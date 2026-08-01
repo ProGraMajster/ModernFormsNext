@@ -205,6 +205,8 @@ public partial class Control
             if (Owner is not { } owner || !Bounds.Contains(x, y))
                 return null;
 
+            // Accessibility hit testing follows the same front-to-back contract as pointer
+            // dispatch: the last collection index is the first eligible overlapping child.
             for (int i = owner.Controls.Count - 1; i >= 0; i--)
             {
                 var child = owner.Controls[i];
