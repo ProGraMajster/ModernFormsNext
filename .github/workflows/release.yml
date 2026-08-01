@@ -35,6 +35,10 @@ jobs:
       - name: Pack
         run: dotnet pack ModernFormsNext.slnx --configuration Release --no-build --output artifacts/packages
 
+      - name: Validate package contents
+        shell: pwsh
+        run: .\scripts\Validate-ReleasePackages.ps1 -PackageDirectory artifacts/packages
+
       - name: Create GitHub Release
         shell: pwsh
         run: |

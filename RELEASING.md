@@ -104,6 +104,7 @@ Package into a clean, ignored output directory:
 
 ```powershell
 dotnet pack .\ModernFormsNext.slnx --configuration Release --no-build --output .\.codex-pack
+.\scripts\Validate-ReleasePackages.ps1 -PackageDirectory .\.codex-pack
 ```
 
 The template package intentionally has no `.snupkg`; published library packages should have one.
