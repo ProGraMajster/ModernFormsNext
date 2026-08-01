@@ -36,7 +36,7 @@ The repository does not currently provide supported macOS or Linux application b
 ### Android status
 
 > [!WARNING]
-> Android support in ModernFormsNext 1.8.0 is **Experimental**. APIs, project structure, and
+> Android support in ModernFormsNext 1.9.0 is **Experimental**. APIs, project structure, and
 > runtime behavior may still change. It is not yet recommended for production applications.
 
 The Android backend can host one real ModernFormsNext control tree in an `AndroidSkiaHostView`.
@@ -72,25 +72,25 @@ known limitations, and sample commands.
 
 ## Installation
 
-ModernFormsNext 1.8.0 requires .NET 10. The repository selects SDK `10.0.201` in `global.json` and
+ModernFormsNext 1.9.0 requires .NET 10. The repository selects SDK `10.0.201` in `global.json` and
 allows roll-forward to a later installed .NET 10 feature band.
 
 For an existing Windows application:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.8.0
+dotnet add package ModernFormsNext --version 1.9.0
 ```
 
 Install the project template and create an application:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.8.0
+dotnet new install ModernFormsNext.Templates::1.9.0
 dotnet new mfn-app -n MyApp
 cd MyApp
 dotnet run
 ```
 
-The package and template commands use the release version and become available after 1.8.0 is
+The package and template commands use the release version and become available after 1.9.0 is
 published. For source builds or pre-release validation, clone the repository and use project
 references instead. See [installation](docs/installation.md) for package, template, VSIX, and
 Experimental Instance instructions.
@@ -139,8 +139,8 @@ Android backend.
 ## Visual Studio Designer
 
 The optional `ModernFormsNextDesigner.vsix` adds **View ModernFormsNext Designer** for designable
-ModernFormsNext forms and a **ModernFormsNext Form** item template. Version 1.8.0 of the VSIX is the
-matching extension for the 1.8.0 framework release.
+ModernFormsNext forms and a **ModernFormsNext Form** item template. Version 1.9.0 of the VSIX is the
+matching extension for the 1.9.0 framework release.
 
 A designable form uses three related files:
 
@@ -174,7 +174,7 @@ ControlGallery rather than in the generated starter experience.
 
 ## Packages
 
-The 1.8.0 release is composed of these intentionally published NuGet packages:
+The 1.9.0 release is composed of these intentionally published NuGet packages:
 
 | Package | Purpose |
 | --- | --- |
@@ -195,6 +195,8 @@ declared as a publishable NuGet package.
 - [Getting started](docs/getting-started.md)
 - [Installation and Visual Studio Designer](docs/installation.md)
 - [Changelog](CHANGELOG.md)
+- [ModernFormsNext 1.9.0 release notes](docs/releases/1.9.0.md)
+- [Migration from 1.8.0 to 1.9.0](docs/migrations/1.8.0-to-1.9.0.md)
 - [Android platform status](docs/platforms/android.md)
 - [Designer architecture](docs/designer-architecture.md)
 - [Dynamic resources](docs/dynamic-resources.md)

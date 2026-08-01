@@ -1,7 +1,7 @@
-# Draft release notes: composable animations and interaction effects
+# Composable animations and interaction effects in ModernFormsNext 1.9.0
 
-This is an unreleased, version-neutral draft. It does not change package or assembly versions and
-does not authorize publication.
+This document records the composable animation and interaction-effect scope included in
+ModernFormsNext 1.9.0. It does not change the release status or authorize publication.
 
 ## Highlights
 

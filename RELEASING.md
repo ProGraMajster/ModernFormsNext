@@ -13,20 +13,20 @@ NuGet package versions use SemVer without a `v` prefix. The shared value is stor
 `Directory.Build.props`:
 
 ```xml
-<ModernFormsNextPackageVersion>1.8.0</ModernFormsNextPackageVersion>
+<ModernFormsNextPackageVersion>1.9.0</ModernFormsNextPackageVersion>
 ```
 
 Git tags use the same version with a `v` prefix:
 
 ```text
-v1.8.0
+v1.9.0
 ```
 
 The Visual Studio extension version is stored separately so an emergency extension-only patch
 remains possible:
 
 ```xml
-<ModernFormsNextVisualStudioExtensionVersion>1.8.0</ModernFormsNextVisualStudioExtensionVersion>
+<ModernFormsNextVisualStudioExtensionVersion>1.9.0</ModernFormsNextVisualStudioExtensionVersion>
 ```
 
 For coordinated framework minor/major releases, the VSIX version must match the framework release.
@@ -72,7 +72,7 @@ the tag.
    symbol-package policy.
 5. Confirm the VSIX manifest, registration attributes, assets, prerequisites, and Visual Studio
    installation targets.
-6. Review platform claims. For 1.8.0, Android must remain explicitly **Experimental** and must not
+6. Review platform claims. For 1.9.0, Android must remain explicitly **Experimental** and must not
    be described as a complete `Application.Run(Form)` or WindowKit implementation.
 7. Review `git diff`, stage only the intended files, and create focused commits. Do not use
    `git add .` without auditing the entire worktree.
@@ -88,7 +88,7 @@ dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbo
 dotnet test .\ModernFormsNext.slnx --configuration Debug --no-restore
 ```
 
-For 1.8.0, additionally validate:
+For 1.9.0, additionally validate:
 
 - `net10.0-windows` framework and samples;
 - the `net10.0-android` backend, cross-platform sample, and Android backend tests when the workload
@@ -112,7 +112,7 @@ The template package intentionally has no `.snupkg`; published library packages 
 
 After the release commit is reviewed and the normal `.NET` workflow is green:
 
-1. Replace `Unreleased` with the actual release date in `CHANGELOG.md` and update the 1.8.0 link
+1. Replace `Unreleased` with the actual release date in `CHANGELOG.md` and update the 1.9.0 link
    from a comparison URL to the final tag URL.
 2. Commit that final release-note change and push it through the normal review path.
 3. Create the annotated or lightweight `vX.Y.Z` tag on the exact reviewed commit.
@@ -128,8 +128,8 @@ Example commands are intentionally explicit:
 ```powershell
 git status
 git log --oneline --decorate -n 20
-git tag v1.8.0
-git push origin v1.8.0
+git tag v1.9.0
+git push origin v1.9.0
 ```
 
 Do not run the tag or push commands until the release is approved. Never force-push or move a
