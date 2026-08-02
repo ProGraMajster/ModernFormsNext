@@ -32,6 +32,9 @@ jobs:
       - name: Build
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
 
+      - name: Test
+        run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --verbosity minimal -m:1 /p:UseSharedCompilation=false
+
       - name: Pack
         run: dotnet pack ModernFormsNext.slnx --configuration Release --no-build --output artifacts/packages
 
@@ -42,11 +45,18 @@ jobs:
       - name: Create GitHub Release
         shell: pwsh
         run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $releaseNotesPath = "docs/$version-release-notes.md"
+          if (-not (Test-Path -LiteralPath $releaseNotesPath)) {
+            throw "Release notes were not found at '$releaseNotesPath'."
+          }
+
           gh release create "${{ github.ref_name }}" `
             artifacts/packages/*.nupkg `
             artifacts/packages/*.snupkg `
-            --title "ModernFormsNext ${{ github.ref_name }}" `
-            --generate-notes
+            --title "ModernFormsNext $version" `
+            --notes-file $releaseNotesPath `
+            --latest
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -63,5 +73,7 @@ jobs:
             dotnet nuget push $_.FullName `
               --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" `
               --source "https://api.nuget.org/v3/index.json" `
+              --symbol-api-key "${{ steps.login.outputs.NUGET_API_KEY }}" `
+              --symbol-source "https://api.nuget.org/v3/index.json" `
               --skip-duplicate
           }

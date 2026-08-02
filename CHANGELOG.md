@@ -4,7 +4,7 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
-## [1.9.0] - Unreleased
+## [1.9.0] - 2026-08-02
 
 ModernFormsNext 1.9.0 adds the shared paint, animation, and theme foundations used by the framework,
 hardens editor input and Designer ordering, and keeps Windows as the primary supported runtime.
@@ -449,7 +449,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
-[1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...master
+[1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.6.0
