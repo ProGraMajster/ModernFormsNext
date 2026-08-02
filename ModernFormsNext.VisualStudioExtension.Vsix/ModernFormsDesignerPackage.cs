@@ -23,7 +23,7 @@ namespace ModernFormsNext.VisualStudioExtension;
 /// only exposes Visual Studio registration and validation commands needed to deploy the extension.
 /// </remarks>
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
-[InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.8.0")]
+[InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.9.0")]
 [ProvideMenuResource("ModernFormsNext.VisualStudioExtension.CTMENU", 1)]
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]

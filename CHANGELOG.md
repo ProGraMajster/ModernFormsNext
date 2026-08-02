@@ -4,6 +4,100 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.9.0] - 2026-08-02
+
+ModernFormsNext 1.9.0 adds the shared paint, animation, and theme foundations used by the framework,
+hardens editor input and Designer ordering, and keeps Windows as the primary supported runtime.
+Android support remains experimental. See the [full release notes](docs/1.9.0-release-notes.md) and
+[migration guide](docs/migrations/1.8.0-to-1.9.0.md).
+
+### Added
+
+- Added observable solid, linear, radial, and sweep Brushes with opacity, transforms, spread modes,
+  observable gradient stops, a shared Skia factory, dynamic-resource integration, and Designer
+  serialization.
+- Added one monotonic, idle-aware UI animation scheduler with UI-thread callbacks, cancellation,
+  pause/resume, owner/key replacement, reduced-motion policy, typed interpolation, Windows and
+  experimental Android lifecycle integration, and repaint batching.
+- Added `ThemeManager` with typed/inheritable definitions, strict versioned JSON, validation,
+  diagnostics, atomic UI-thread apply/rollback, dedicated dynamic theme resources, built-in
+  Light/Dark themes, and opt-in animated transitions.
+- Added composable `AnimationDefinition` and `AnimationRun` APIs, sequence, parallel, timeline,
+  keyframes, repeat, auto-reverse, custom definitions, visual-state transitions, target-local
+  `RippleEffect`, and `PressScaleEffect`.
+- Added a Designer collection editor and deterministic serialization/code generation for built-in
+  interaction effects.
+
+### Changed
+
+- Theme commits refresh the active Normal, Hover, Pressed, Focused, or Disabled style across all
+  open framework windows and coalesce visual invalidation into one platform repaint per window per
+  commit or animation tick. Visual-only frames do not force layout.
+- Theme transitions and interaction effects are explicitly opt-in. Generic panels, containers, and
+  DataGridView controls no longer receive implicit click/ripple presentation merely because they
+  participate in standard pointer input.
+- Designer child arrays now have a documented ordering contract. Ordinary containers store front-
+  to-back Z-order and code generation maps that order to runtime `Controls.Add`; flow, table, and
+  tab containers preserve authored layout sequence.
+- Updated all coordinated package, template, and Visual Studio extension versions to `1.9.0` while
+  preserving package IDs, target frameworks, VSIX identity, publisher, and installation targets.
+
+### Fixed
+
+- Fixed theme changes that previously required hover, click, focus, or resize before some controls
+  repainted with their newly resolved resources and active visual state.
+- Fixed the animation opt-in boundary so it cannot suppress base editor input. TextBox, RichTextBox,
+  MarkdownEditor, and editing controls hosted by Panel or DataGridView retain caret placement,
+  selection, drag selection, double-click, focus, capture, and keyboard input.
+- Fixed CRLF/UTF-16 pointer hit mapping for RichTextBox and MarkdownEditor so clicks and subsequent
+  insertion use the expected source index.
+- Fixed pointer/capture cleanup after mouse up, cancellation, focus loss, detach, reparent, and
+  disposal without leaving a stale owner or stuck press scale.
+- Fixed docked and overlapping child order so Designer preview, save/reload, generated C#, reverse
+  sync, runtime layout, document-outline moves, `BringToFront`, and `SendToBack` agree.
+
+### Dependency and warning cleanup
+
+- Removed the vulnerable MessagePack 2.5.192 path and selected MessagePack 3.1.8 for Visual Studio
+  extension builds.
+- Replaced the broad `Microsoft.VisualStudio.SDK` metapackage with the specific Visual Studio
+  contracts used by the extension and excluded unnecessary runtime assets.
+- Updated Android HarfBuzzSharp to 14.2.1.1, removed XA0141, and applied compatible patch/minor
+  dependency updates without changing target frameworks or dependency majors.
+- Restore and Debug/Release solution builds are release-gated at zero warnings; NuGet vulnerability
+  and package-content audits are part of the release validation.
+
+### Compatibility
+
+- No intentional public type removals, package/namespace renames, target-framework removals, or
+  extension identity changes are included.
+- `GradientBrush.GradientStops` now exposes the observable `GradientStopCollection`. Common
+  collection syntax remains source-compatible, but consumers requiring the concrete `List<T>` type
+  must update and compiled consumers must rebuild.
+- Existing `FadeToAsync`, `TranslateToAsync`, `ScaleToAsync`, and `RotateToAsync` helpers remain
+  source-compatible adapters over the shared scheduler.
+- Theme JSON is strict and rejects unknown fields and unsupported values instead of partially
+  accepting them. Existing `.mfdesign` documents remain compatible without a schema migration.
+
+### Known limitations
+
+- There is no general animated-layout subsystem; layout-affecting visual-state metrics switch
+  discretely.
+- Brush animation requires compatible brush kinds and gradient-stop structures.
+- Designer support covers the built-in ripple and press-scale effects; custom effects/animations
+  remain code-first, and there is no general effect-collection undo/redo transaction stack.
+- Android remains experimental, may refresh motion preferences on foreground entry instead of via a
+  live `ContentObserver`, and still requires device/emulator runtime validation.
+- Shapes and AppShell/navigation are not included in 1.9.0.
+
+### Packaging
+
+- The coordinated release produces eight `1.9.0` NuGet packages and seven matching symbol packages;
+  `ModernFormsNext.Templates` intentionally has no `.snupkg`.
+- Package validation checks versions, dependencies, target frameworks, DLL/XML/PDB contents,
+  README/icon metadata, Source Link symbols, archive path safety, and accidental build/IDE/APK/VSIX
+  artifacts. The VSIX is validated separately in Debug and Release.
+
 ## [1.8.0] - 2026-07-17
 
 ModernFormsNext 1.8.0 expands the framework and designer substantially while keeping Windows as
@@ -355,6 +449,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
+[1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
 [1.6.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.6.0

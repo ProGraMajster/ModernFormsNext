@@ -1,7 +1,8 @@
 # ModernFormsNext framework roadmap
 
-- Baseline audited: 2026-07-17
+- Baseline audited: 2026-08-01
 - Paint/gradient foundation implemented: 2026-07-19
+- ThemeManager, composable animations, and platform animation polish implemented for 1.9.0
 - SDK baseline: .NET 10 (`10.0.201`)
 - Runtime priority: Windows first; Android is an experimental shared-control Skia vertical slice
 - Purpose: architecture and delivery sequence, not a promise that every listed API is implemented
@@ -20,9 +21,9 @@ or the complete WindowKit service set.
 The architecture should therefore be extended, not replaced. The implementation order is:
 
 1. dynamic resources (first vertical slice implemented with this roadmap);
-2. paint/brush contracts (implemented foundation; theme tokens remain ThemeManager work);
-3. UI animation scheduler hardening (implemented foundation);
-4. ThemeManager and localization;
+2. paint/brush contracts (implemented foundation);
+3. UI animation scheduler, composition, and platform polish (implemented foundation);
+4. ThemeManager (implemented foundation), then localization;
 5. page lifecycle, navigation, routing, tabs, flyout, and shell;
 6. virtualized data controls and SearchBar;
 7. shapes and path geometry;
@@ -48,7 +49,7 @@ already exist.
 | Paints | Observable `Drawing.Brush`; solid, glass, no-fill, linear/radial/sweep gradients; typed stops; opacity/transform/spread; shared Skia adapter | Reuse for ThemeManager and future shapes/charts. Version and implement the documented JSON direction only with ThemeManager validation. |
 | Rendering | Per-control `SKBitmap` back buffers, renderer classes, `PaintEventArgs`, Skia canvas helpers | Shapes/charts/documents render through Skia and existing clipping/invalidation. Avoid native control substitution. |
 | Invalidation | Property setters call `Invalidate`, layout setters use layout transactions; windows invalidate platform surfaces | Dynamic values call normal setters and do not globally repaint. Add dirty-region precision later. |
-| Animation | Shared monotonic `AnimationScheduler`, handles, owner/key replacement, typed interpolators, Brush transitions, motion policy, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; keep layout invalidation explicit and add native reduced-motion discovery later. |
+| Animation | Shared monotonic `AnimationScheduler`, composable definitions/runs, handles, owner/key replacement, typed interpolators, Brush transitions, native reduced-motion policy, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; keep layout invalidation explicit and design animated layout as a separate future subsystem. |
 | Input | Framework mouse/keyboard/text/IME pipeline, capture, hit testing, touch scrolling in `SkiaControlSurface` | Collection, SearchBar, pages, charts, and shapes share the same input path. |
 | Data binding | `IBindableComponent`, `Binding`, `BindingContext`, `BindingSource`, list managers and converters | Reuse for items sources and selected values; add collection-change/virtualization contracts instead of a parallel binding engine. |
 | Serialization | `System.Text.Json` in designer and binding conversion; stable design document serializer | Reuse conventions and converters, but keep theme/localization runtime schemas separate from designer files. |
@@ -67,9 +68,10 @@ already exist.
   resolution, brushes for every surface, typography records, shadow, radius, and transitions.
 - Brush mutation, opacity, transforms, stable stop ordering, spread modes, and targeted invalidation
   are implemented. A batch update scope, advanced interpolation, and a versioned JSON loader remain.
-- The shared scheduler now marshals callbacks to the UI dispatcher, uses elapsed monotonic time,
-  stops while idle, and pauses over Android background lifecycle. Native reduced-motion discovery
-  and physical-device Android frame-pacing validation remain future work.
+- The shared scheduler marshals callbacks to the UI dispatcher, uses elapsed monotonic time, stops
+  while idle, pauses over Android background lifecycle, and integrates Windows/experimental Android
+  reduced-motion preferences. A live Android settings observer, physical-device frame-pacing
+  validation, and a general animated-layout subsystem remain future work.
 - No localization catalog/provider, plural rules, missing-key diagnostics, dynamic culture change,
   or verified end-to-end RTL layout behavior.
 - Lists and grids are retained collections; there is no shared item-container generator,
@@ -234,10 +236,10 @@ its active-entry buffer rather than allocating a LINQ snapshot each frame.
 
 Done/tests: deterministic manual clock/tick tests cover progress, delay, dropped frames, pause,
 replacement, cancellation, faults, policy modes, dispatcher affinity, high animation counts,
-interpolation, Brush/dynamic-resource invalidation, and owner lifetime without `Thread.Sleep`.
-ControlGallery provides opt-in manual checks and cancels all work on unload. Native display-link
-pacing, OS reduced-motion discovery, repeat/auto-reverse/groups, and a general animated-layout layer
-are explicitly deferred.
+interpolation, Brush/dynamic-resource invalidation, composition, keyframes, repeat, auto-reverse,
+visual-state transitions, interaction effects, and owner lifetime without `Thread.Sleep`.
+ControlGallery provides opt-in manual checks and cancels all work on unload. A general animated-
+layout layer and physical-device Android frame-pacing validation are explicitly deferred.
 
 #### 3. ThemeManager — implemented foundation
 
@@ -615,8 +617,8 @@ when specialized render models are clearer.
 Exact semantic versions are intentionally not assigned until release capacity is known. Use these
 dependency-based bands:
 
-- Foundation work: dynamic resources, paint hardening, the shared UI animation scheduler, and the
-  ThemeManager/JSON/atomic-transition foundation are implemented.
+- Foundation work: dynamic resources, paint hardening, the shared/composable UI animation platform,
+  interaction effects, and the ThemeManager/JSON/atomic-transition foundation are implemented.
 - Globalization release: localization, culture fallback, live resource updates, and diagnostics on
   the completed theme foundation.
 - Navigation preview: Page/ContentPage/NavigationPage/routing; Windows host plus Android surface host.
@@ -637,8 +639,8 @@ dependency-based bands:
   and explicit reset APIs before broad parallel execution.
 - Reflection-based CLR property references need a trimming/source-generation strategy before AOT is
   advertised.
-- Native reduced-motion discovery and Android physical-device pacing remain open even though shared
-  animation callbacks now use the platform UI dispatcher.
+- Android physical-device pacing and live settings observation remain open even though shared
+  animation callbacks use the platform UI dispatcher and foreground refreshes motion preferences.
 - Virtualization, document rendering, and charts compete for cache/memory budgets. Introduce shared
   diagnostics and bounded caches rather than independent unbounded stores.
 

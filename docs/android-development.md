@@ -1,7 +1,7 @@
 # Android development
 
 > [!WARNING]
-> Android support in ModernFormsNext 1.8.0 is **Experimental**. APIs, project structure, and
+> Android support in ModernFormsNext 1.9.0 is **Experimental**. APIs, project structure, and
 > runtime behavior may change, and production use is not yet recommended. Start with the
 > [Android platform status](platforms/android.md).
 
