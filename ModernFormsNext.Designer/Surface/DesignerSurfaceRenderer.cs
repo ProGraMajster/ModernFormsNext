@@ -37,7 +37,7 @@ internal sealed class DesignerSurfaceRenderer
         e.Canvas.FillRectangle(new System.Drawing.Rectangle(0, 0, e.LogicalToDeviceUnits(width), e.LogicalToDeviceUnits(height)), DesignerColors.Workspace);
         var layout = layoutEngine.Layout(state.Document);
 
-        DrawForm(e, previewPaintArgs, state, formBounds, clientBounds, view);
+        DrawRoot(e, previewPaintArgs, state, formBounds, clientBounds, view);
 
         e.Canvas.Save();
         e.Canvas.ClipRect(clientBounds.ToSKRect());
@@ -47,7 +47,12 @@ internal sealed class DesignerSurfaceRenderer
         e.Canvas.Restore();
 
         if (state.SelectedNode is null)
-            DesignerSelectionAdorner.Draw(e, formBounds, showResizeHandle: false);
+        {
+            var rootHandles = state.Document.RootKind == DesignRootKind.UserControl
+                ? DesignerHitTestService.GetRootHandles()
+                : [];
+            DesignerSelectionAdorner.Draw(e, formBounds, rootHandles);
+        }
     }
 
     public bool TryMapToDocument(
@@ -59,7 +64,7 @@ internal sealed class DesignerSurfaceRenderer
         out DesignPoint point)
         => coordinateMapper.TryMapToDocument(state, width, height, x, y, out point);
 
-    private static void DrawForm(
+    private static void DrawRoot(
         PaintEventArgs surfacePaintArgs,
         PaintEventArgs previewPaintArgs,
         DesignerSession state,
@@ -68,6 +73,15 @@ internal sealed class DesignerSurfaceRenderer
         DesignerSurfaceView view)
     {
         surfacePaintArgs.Canvas.FillRectangle(formBounds, DesignerColors.FormBorder);
+
+        if (state.Document.RootKind == DesignRootKind.UserControl)
+        {
+            surfacePaintArgs.Canvas.FillRectangle(clientBounds, new SKColor(245, 245, 245));
+            surfacePaintArgs.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), surfacePaintArgs.LogicalToDeviceUnits(1));
+            DrawGrid(previewPaintArgs, clientBounds);
+            return;
+        }
+
         surfacePaintArgs.Canvas.FillRectangle(
             new System.Drawing.Rectangle(formBounds.Left, formBounds.Top, formBounds.Width, surfacePaintArgs.LogicalToDeviceUnits(view.TitleHeight)),
             new SKColor(218, 232, 246));
@@ -123,12 +137,13 @@ internal sealed class DesignerSurfaceRenderer
         var surfaceBounds = coordinateMapper.ToSurfaceBounds(absolute, view);
         var bounds = DesignerDpiCoordinateConverter.LogicalToDevice(surfaceBounds, surfacePaintArgs.Scaling);
         var selected = ReferenceEquals(state.SelectedNode, node);
+        var isProjectUserControl = state.IsProjectUserControlType(node.TypeName);
 
         if (ShouldUseSpecialDesignerRendering(node))
         {
             DrawSpecialContainer(surfacePaintArgs, previewPaintArgs, node, layout, view, bounds);
         }
-        else if (state.ControlRenderMode == DesignerControlRenderMode.Runtime)
+        else if (state.ControlRenderMode == DesignerControlRenderMode.Runtime && !isProjectUserControl)
         {
             DrawRuntimeControl(surfacePaintArgs, previewPaintArgs, state, node, absolute, bounds);
         }
@@ -138,7 +153,7 @@ internal sealed class DesignerSurfaceRenderer
             DrawPlaceholder(previewPaintArgs, node, bounds);
         }
 
-        if (node.Children.Count > 0)
+        if (node.Children.Count > 0 && !isProjectUserControl)
         {
             surfacePaintArgs.Canvas.Save();
             surfacePaintArgs.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());

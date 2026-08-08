@@ -64,7 +64,17 @@ internal sealed class DesignerCommandService
 
     public void AddTextBox() => state.AddControl("TextBox");
 
-    public void AddControlType(string typeName) => state.AddControl(typeName);
+    public void AddControlType(string typeName)
+    {
+        try
+        {
+            state.AddControl(typeName);
+        }
+        catch (InvalidOperationException exception)
+        {
+            state.Log(exception.Message);
+        }
+    }
 
     public void AddComponentType(string typeName)
         => state.Log($"Component {typeName} is listed in Toolbox, but the component tray is not implemented yet.");
@@ -315,7 +325,12 @@ internal sealed class DesignerCommandService
 
         try
         {
-            var result = files.ImportDesignerCode(path);
+            var result = files.ImportDesignerCode(
+                path,
+                new ModernFormsNext.CodeGeneration.Reverse.CSharpDesignerParseOptions
+                {
+                    RootKind = state.Document.RootKind
+                });
 
             foreach (var diagnostic in result.Diagnostics)
             {

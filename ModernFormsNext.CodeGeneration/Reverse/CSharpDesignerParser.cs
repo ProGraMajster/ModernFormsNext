@@ -86,6 +86,7 @@ public sealed class CSharpDesignerParser
             Namespace = options.NamespaceOverride ?? ReadNamespace(classDeclaration),
             ClassName = options.ClassNameOverride ?? classDeclaration.Identifier.ValueText,
             FormName = options.FormNameOverride ?? classDeclaration.Identifier.ValueText,
+            RootKind = options.RootKind,
             Size = options.DefaultFormSize
         };
 
@@ -487,11 +488,17 @@ public sealed class CSharpDesignerParser
                 break;
 
             case "Text":
-                if (!formNameAssigned
+                if (document.RootKind == DesignRootKind.Form
+                    && !formNameAssigned
                     && TryReadString(valueExpression, out var text)
                     && !string.IsNullOrWhiteSpace(text))
                 {
                     document.FormName = text;
+                }
+                else if (document.RootKind == DesignRootKind.UserControl
+                    && TryReadDesignerValue(valueExpression, out var userControlText))
+                {
+                    document.Properties[propertyPath] = userControlText;
                 }
 
                 break;
@@ -508,7 +515,10 @@ public sealed class CSharpDesignerParser
                 break;
 
             default:
-                AddUnsupported(syntax, $"Unsupported form property assignment '{propertyPath}'.");
+                if (TryReadDesignerValue(valueExpression, out var value))
+                    document.Properties[propertyPath] = value;
+                else
+                    AddUnsupported(syntax, $"Unsupported design root property assignment '{propertyPath}'.");
                 break;
         }
     }
@@ -657,7 +667,7 @@ public sealed class CSharpDesignerParser
 
             AddDiagnostic(
                 CSharpDesignerDiagnosticSeverity.Warning,
-                $"Control '{name}' was created but not added to a Controls collection. It was placed on the form root.",
+                $"Control '{name}' was created but not added to a Controls collection. It was placed on the design root.",
                 null);
             document.Controls.Add(nodes[name]);
         }

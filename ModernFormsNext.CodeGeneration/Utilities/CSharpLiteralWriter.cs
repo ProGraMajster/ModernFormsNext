@@ -75,6 +75,25 @@ public static class CSharpLiteralWriter
         if (string.IsNullOrWhiteSpace(value.EnumTypeName))
             return WriteStringLiteral(memberName);
 
+        var members = memberName.Split(
+            ',',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (members.Length > 0 && members.All(CSharpIdentifierSanitizer.IsValidIdentifier))
+        {
+            return string.Join(
+                " | ",
+                members.Select(member => $"{value.EnumTypeName}.{member}"));
+        }
+
+        // Enum.ToString() returns a numeric value when no named member represents the value.
+        // Emit a cast instead of producing an invalid member-access expression such as Type.3.
+        if (long.TryParse(memberName, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
+            || ulong.TryParse(memberName, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            return $"({value.EnumTypeName}){memberName}";
+        }
+
         return value.EnumTypeName + "." + memberName;
     }
 

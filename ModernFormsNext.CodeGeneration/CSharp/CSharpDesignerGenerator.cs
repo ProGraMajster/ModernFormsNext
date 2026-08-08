@@ -41,10 +41,9 @@ public sealed class CSharpDesignerGenerator
         "TableRowSpan"
     };
 
-    private static readonly HashSet<string> GeneratedFormProperties = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> GeneratedRootProperties = new(StringComparer.Ordinal)
     {
         "Name",
-        "Text",
         "ClientSize",
         "Size"
     };
@@ -68,7 +67,7 @@ public sealed class CSharpDesignerGenerator
         var className = options.ClassNameOverride ?? document.ClassName;
 
         ValidateEffectiveNames(namespaceName, className, validation);
-        ValidatePropertyNames(document.Properties.Keys, "form", validation);
+        ValidatePropertyNames(document.Properties.Keys, "design root", validation);
         ValidatePropertyNames(document.Controls, validation);
 
         if (!validation.IsValid)
@@ -146,17 +145,21 @@ public sealed class CSharpDesignerGenerator
         if (controls.Length > 0)
             writer.WriteLine();
 
-        var formName = string.IsNullOrWhiteSpace(document.FormName) ? className : document.FormName;
-        writer.WriteLine($"        this.Name = {CSharpLiteralWriter.WriteStringLiteral(formName)};");
-        writer.WriteLine($"        this.Text = {CSharpLiteralWriter.WriteStringLiteral(formName)};");
+        var rootName = string.IsNullOrWhiteSpace(document.FormName) ? className : document.FormName;
+        writer.WriteLine($"        this.Name = {CSharpLiteralWriter.WriteStringLiteral(rootName)};");
+
+        if (document.RootKind == DesignRootKind.Form)
+            writer.WriteLine($"        this.Text = {CSharpLiteralWriter.WriteStringLiteral(rootName)};");
+
         writer.WriteLine($"        this.Size = new System.Drawing.Size({document.Size.Width}, {document.Size.Height});");
 
         foreach (var property in document.Properties)
         {
-            if (GeneratedFormProperties.Contains(property.Key))
+            if (GeneratedRootProperties.Contains(property.Key)
+                || document.RootKind == DesignRootKind.Form && string.Equals(property.Key, "Text", StringComparison.Ordinal))
                 continue;
 
-            WritePropertyAssignment(writer, "this", property.Key, property.Value, "form", validation);
+            WritePropertyAssignment(writer, "this", property.Key, property.Value, "design root", validation);
         }
 
         foreach (var eventBinding in document.Events)

@@ -8,6 +8,15 @@ namespace ModernFormsNext.CodeGeneration.Reverse;
 public sealed class CSharpDesignerParseOptions
 {
     /// <summary>
+    /// Gets or sets the kind of design root represented by the generated partial class.
+    /// </summary>
+    /// <remarks>
+    /// Generated partial classes do not repeat the user-authored base type, so hosts that know the
+    /// primary source file must supply this value when importing a UserControl designer file.
+    /// </remarks>
+    public DesignRootKind RootKind { get; set; } = DesignRootKind.Form;
+
+    /// <summary>
     /// Gets or sets an optional namespace override for the parsed design document.
     /// </summary>
     public string? NamespaceOverride { get; set; }
@@ -18,12 +27,12 @@ public sealed class CSharpDesignerParseOptions
     public string? ClassNameOverride { get; set; }
 
     /// <summary>
-    /// Gets or sets an optional fallback form name used when code does not assign <c>this.Name</c> or <c>this.Text</c>.
+    /// Gets or sets an optional fallback root name used when code does not assign <c>this.Name</c>.
     /// </summary>
     public string? FormNameOverride { get; set; }
 
     /// <summary>
-    /// Gets or sets the fallback form size used when code does not assign <c>this.Size</c> or <c>this.ClientSize</c>.
+    /// Gets or sets the fallback root size used when code does not assign <c>this.Size</c> or <c>this.ClientSize</c>.
     /// </summary>
     public DesignSize DefaultFormSize { get; set; } = new(800, 600);
 

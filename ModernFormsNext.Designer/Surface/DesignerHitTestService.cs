@@ -21,7 +21,7 @@ internal sealed class DesignerHitTestService
         var layout = layoutEngine.Layout(state.Document);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
-        return HitTestControls(state.Document.Controls, parentNode: null, layout, documentClip, documentPoint)
+        return HitTestControls(state, state.Document.Controls, parentNode: null, layout, documentClip, documentPoint)
             ?? DesignerHitTestResult.Empty;
     }
 
@@ -30,7 +30,7 @@ internal sealed class DesignerHitTestService
         var layout = layoutEngine.Layout(state.Document);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
-        return HitTestSplitters(state.Document.Controls, parentNode: null, layout, documentClip, documentPoint);
+        return HitTestSplitters(state, state.Document.Controls, parentNode: null, layout, documentClip, documentPoint);
     }
 
     public DesignControlNode? HitTestTabHeader(DesignerSession state, DesignPoint documentPoint, out int tabIndex)
@@ -38,7 +38,7 @@ internal sealed class DesignerHitTestService
         var layout = layoutEngine.Layout(state.Document);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
-        return HitTestTabHeaders(state.Document.Controls, parentNode: null, layout, documentClip, documentPoint, out tabIndex);
+        return HitTestTabHeaders(state, state.Document.Controls, parentNode: null, layout, documentClip, documentPoint, out tabIndex);
     }
 
     public DesignerResizeHandle HitTestResizeHandle(
@@ -51,7 +51,21 @@ internal sealed class DesignerHitTestService
         var selectedNode = state.SelectedNode;
 
         if (selectedNode is null)
+        {
+            if (state.Document.RootKind != DesignRootKind.UserControl)
+                return DesignerResizeHandle.None;
+
+            var rootView = coordinateMapper.GetView(state, surfaceWidth, surfaceHeight);
+            var rootBounds = new Rectangle(rootView.FormX, rootView.FormY, rootView.FormWidth, rootView.FormHeight);
+
+            foreach (var rootHandle in GetRootHandles())
+            {
+                if (Contains(GetHandleBounds(rootBounds, rootHandle), surfaceX, surfaceY))
+                    return rootHandle;
+            }
+
             return DesignerResizeHandle.None;
+        }
 
         var view = coordinateMapper.GetView(state, surfaceWidth, surfaceHeight);
         var layout = layoutEngine.Layout(state.Document);
@@ -85,6 +99,13 @@ internal sealed class DesignerHitTestService
         yield return DesignerResizeHandle.Bottom;
         yield return DesignerResizeHandle.BottomLeft;
         yield return DesignerResizeHandle.Left;
+    }
+
+    public static IEnumerable<DesignerResizeHandle> GetRootHandles()
+    {
+        yield return DesignerResizeHandle.Right;
+        yield return DesignerResizeHandle.BottomRight;
+        yield return DesignerResizeHandle.Bottom;
     }
 
     public static Rectangle GetHandleBounds(
@@ -132,6 +153,7 @@ internal sealed class DesignerHitTestService
         && y < bounds.Bottom;
 
     private static DesignerHitTestResult? HitTestControls(
+        DesignerSession state,
         IEnumerable<DesignControlNode> controls,
         DesignControlNode? parentNode,
         DesignerLayoutResult layout,
@@ -149,7 +171,9 @@ internal sealed class DesignerHitTestService
             if (!visibleBounds.Contains(point.X, point.Y))
                 continue;
 
-            var childHit = HitTestControls(GetHitTestChildren(control), control, layout, visibleBounds, point);
+            var childHit = state.IsProjectUserControlType(control.TypeName)
+                ? null
+                : HitTestControls(state, GetHitTestChildren(control), control, layout, visibleBounds, point);
 
             if (childHit is not null)
                 return childHit;
@@ -176,6 +200,7 @@ internal sealed class DesignerHitTestService
     }
 
     private static DesignControlNode? HitTestSplitters(
+        DesignerSession state,
         IEnumerable<DesignControlNode> controls,
         DesignControlNode? parentNode,
         DesignerLayoutResult layout,
@@ -199,7 +224,9 @@ internal sealed class DesignerHitTestService
                 return control;
             }
 
-            var childHit = HitTestSplitters(GetHitTestChildren(control), control, layout, visibleBounds, point);
+            var childHit = state.IsProjectUserControlType(control.TypeName)
+                ? null
+                : HitTestSplitters(state, GetHitTestChildren(control), control, layout, visibleBounds, point);
 
             if (childHit is not null)
                 return childHit;
@@ -209,6 +236,7 @@ internal sealed class DesignerHitTestService
     }
 
     private static DesignControlNode? HitTestTabHeaders(
+        DesignerSession state,
         IEnumerable<DesignControlNode> controls,
         DesignControlNode? parentNode,
         DesignerLayoutResult layout,
@@ -233,10 +261,13 @@ internal sealed class DesignerHitTestService
                 return control;
             }
 
-            var childHit = HitTestTabHeaders(GetHitTestChildren(control), control, layout, visibleBounds, point, out tabIndex);
+            if (!state.IsProjectUserControlType(control.TypeName))
+            {
+                var childHit = HitTestTabHeaders(state, GetHitTestChildren(control), control, layout, visibleBounds, point, out tabIndex);
 
-            if (childHit is not null)
-                return childHit;
+                if (childHit is not null)
+                    return childHit;
+            }
         }
 
         tabIndex = -1;

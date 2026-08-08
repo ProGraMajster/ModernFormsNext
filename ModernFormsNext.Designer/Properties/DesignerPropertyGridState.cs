@@ -442,7 +442,7 @@ internal sealed class DesignerPropertyGridState
         var descriptors = new List<DesignerPropertyDescriptor>();
 
         if (node is null)
-            AddFormDescriptors(descriptors);
+            AddRootDescriptors(descriptors);
         else
             AddNodeDescriptors(descriptors, node);
 
@@ -484,79 +484,7 @@ internal sealed class DesignerPropertyGridState
 
     private void AddFormDescriptors(List<DesignerPropertyDescriptor> descriptors)
     {
-        descriptors.Add(new DesignerPropertyDescriptor
-        {
-            Name = "Name",
-            DisplayName = "(Name)",
-            Category = "Design",
-            Description = "The form name used by the designer and generated code.",
-            ValueType = typeof(string),
-            GetValue = () => playgroundState.Document.FormName,
-            CommitText = text =>
-            {
-                var value = text.Trim();
-
-                if (string.IsNullOrWhiteSpace(value))
-                    return (false, "The form name cannot be empty.");
-
-                playgroundState.Document.FormName = value;
-                return (true, null);
-            }
-        });
-
-        descriptors.Add(new DesignerPropertyDescriptor
-        {
-            Name = "Namespace",
-            DisplayName = "Namespace",
-            Category = "Design",
-            Description = "The C# namespace used by generated designer code.",
-            ValueType = typeof(string),
-            GetValue = () => playgroundState.Document.Namespace,
-            CommitText = text =>
-            {
-                var value = text.Trim();
-
-                if (!string.IsNullOrWhiteSpace(value)
-                    && !value.Split('.').All(DesignDocumentValidator.IsValidCSharpIdentifier))
-                {
-                    return (false, "The namespace must be a valid C# namespace.");
-                }
-
-                playgroundState.Document.Namespace = value;
-                return (true, null);
-            }
-        });
-
-        descriptors.Add(new DesignerPropertyDescriptor
-        {
-            Name = "ClassName",
-            DisplayName = "ClassName",
-            Category = "Design",
-            Description = "The C# partial class name generated for this form.",
-            ValueType = typeof(string),
-            GetValue = () => playgroundState.Document.ClassName,
-            CommitText = text =>
-            {
-                var value = text.Trim();
-
-                if (string.IsNullOrWhiteSpace(value))
-                    return (false, "The class name cannot be empty.");
-
-                if (!DesignDocumentValidator.IsValidCSharpIdentifier(value))
-                    return (false, "The class name must be a valid C# identifier.");
-
-                playgroundState.Document.ClassName = value;
-                return (true, null);
-            }
-        });
-
-        descriptors.Add(ReadOnly("Type", "Type", "Design", "The runtime object type.", typeof(string), () => "ModernFormsNext.Form"));
-        descriptors.Add(ReadOnly("MemberVisibility", "MemberVisibility", "Design", "Forms do not emit a separate designer field.", typeof(DesignerMemberVisibility), () => DesignerMemberVisibility.None));
-        descriptors.Add(ReadOnly("X", "X", "Layout", "The form origin is controlled by the host window.", typeof(int), () => 0));
-        descriptors.Add(ReadOnly("Y", "Y", "Layout", "The form origin is controlled by the host window.", typeof(int), () => 0));
-        descriptors.Add(DesignerPropertyDescriptorFactory.CreateDocumentSize(playgroundState.Document));
-        descriptors.Add(FormSize("Width", "Width", size => size.Width, (width, height) => new DesignSize(width, height)));
-        descriptors.Add(FormSize("Height", "Height", size => size.Height, (width, height) => new DesignSize(width, height)));
+        AddCommonRootDescriptors(descriptors, isUserControl: false);
         descriptors.Add(FormProperty("StartPosition", "StartPosition", "Layout", "The initial position used when the form is shown.", typeof(FormStartPosition), FormStartPosition.CenterScreen));
         descriptors.Add(FormProperty("WindowState", "WindowState", "Layout", "The initial window state.", typeof(FormWindowState), FormWindowState.Normal));
         descriptors.Add(new DesignerPropertyDescriptor
@@ -579,6 +507,124 @@ internal sealed class DesignerPropertyGridState
         descriptors.Add(FormProperty("UseSystemDecorations", "UseSystemDecorations", "Appearance", "Determines whether the operating system draws the form decorations.", typeof(bool), false));
         descriptors.Add(ReadOnly("Enabled", "Enabled", "Behavior", "The form is enabled in the playground.", typeof(bool), () => true));
         descriptors.Add(ReadOnly("Visible", "Visible", "Behavior", "The form is visible in the playground.", typeof(bool), () => true));
+    }
+
+    private void AddRootDescriptors(List<DesignerPropertyDescriptor> descriptors)
+    {
+        if (playgroundState.Document.RootKind != DesignRootKind.UserControl)
+        {
+            AddFormDescriptors(descriptors);
+            return;
+        }
+
+        AddUserControlDescriptors(descriptors);
+    }
+
+    private void AddUserControlDescriptors(List<DesignerPropertyDescriptor> descriptors)
+    {
+        AddCommonRootDescriptors(descriptors, isUserControl: true);
+        descriptors.Add(FormProperty("Text", "Text", "Appearance", "Text associated with the UserControl.", typeof(string), string.Empty));
+        descriptors.Add(FormProperty("Dock", "Dock", "Layout", "Determines how the UserControl docks when its generated defaults are used.", typeof(DockStyle), DockStyle.None));
+        descriptors.Add(FormProperty("Anchor", "Anchor", "Layout", "Determines the edges to which the UserControl is anchored.", typeof(AnchorStyles), AnchorStyles.Top | AnchorStyles.Left));
+        descriptors.Add(FormProperty("Padding", "Padding", "Layout", "Spacing inside the UserControl in logical pixels.", typeof(Padding), Padding.Empty));
+        descriptors.Add(FormProperty("Margin", "Margin", "Layout", "Spacing outside the UserControl in logical pixels.", typeof(Padding), new Padding(3)));
+        descriptors.Add(FormProperty("MinimumSize", "MinimumSize", "Layout", "The minimum UserControl size in logical pixels.", typeof(System.Drawing.Size), System.Drawing.Size.Empty));
+        descriptors.Add(FormProperty("MaximumSize", "MaximumSize", "Layout", "The maximum UserControl size in logical pixels.", typeof(System.Drawing.Size), System.Drawing.Size.Empty));
+        descriptors.Add(FormProperty("AutoScroll", "AutoScroll", "Layout", "Determines whether scrollbars appear for content beyond the bounds.", typeof(bool), false));
+        descriptors.Add(FormProperty("AutoSize", "AutoSize", "Layout", "Determines whether the UserControl sizes itself to its content.", typeof(bool), false));
+        descriptors.Add(FormProperty("Enabled", "Enabled", "Behavior", "Determines whether the UserControl can receive user interaction.", typeof(bool), true));
+        descriptors.Add(FormProperty("Visible", "Visible", "Behavior", "Determines whether the UserControl is visible at runtime.", typeof(bool), true));
+        descriptors.Add(FormProperty("TabStop", "TabStop", "Behavior", "Determines whether keyboard navigation can focus the UserControl itself.", typeof(bool), false));
+    }
+
+    private void AddCommonRootDescriptors(
+        List<DesignerPropertyDescriptor> descriptors,
+        bool isUserControl)
+    {
+        var rootDisplayName = isUserControl ? "UserControl" : "form";
+        descriptors.Add(new DesignerPropertyDescriptor
+        {
+            Name = "Name",
+            DisplayName = "(Name)",
+            Category = "Design",
+            Description = isUserControl
+                ? "The UserControl name assigned by generated initialization code."
+                : "The form name used by the designer and generated code.",
+            ValueType = typeof(string),
+            GetValue = () => playgroundState.Document.FormName,
+            CommitText = text =>
+            {
+                var value = text.Trim();
+
+                if (string.IsNullOrWhiteSpace(value))
+                    return (false, $"The {rootDisplayName} name cannot be empty.");
+
+                playgroundState.Document.FormName = value;
+                return (true, null);
+            }
+        });
+        descriptors.Add(new DesignerPropertyDescriptor
+        {
+            Name = "Namespace",
+            DisplayName = "Namespace",
+            Category = "Design",
+            Description = "The C# namespace used by generated designer code.",
+            ValueType = typeof(string),
+            GetValue = () => playgroundState.Document.Namespace,
+            CommitText = text =>
+            {
+                var value = text.Trim();
+
+                if (!string.IsNullOrWhiteSpace(value)
+                    && !value.Split('.').All(DesignDocumentValidator.IsValidCSharpIdentifier))
+                {
+                    return (false, "The namespace must be a valid C# namespace.");
+                }
+
+                playgroundState.Document.Namespace = value;
+                return (true, null);
+            }
+        });
+        descriptors.Add(new DesignerPropertyDescriptor
+        {
+            Name = "ClassName",
+            DisplayName = "ClassName",
+            Category = "Design",
+            Description = isUserControl
+                ? "The C# partial UserControl class name generated for this document."
+                : "The C# partial class name generated for this form.",
+            ValueType = typeof(string),
+            GetValue = () => playgroundState.Document.ClassName,
+            CommitText = text =>
+            {
+                var value = text.Trim();
+
+                if (string.IsNullOrWhiteSpace(value))
+                    return (false, "The class name cannot be empty.");
+
+                if (!DesignDocumentValidator.IsValidCSharpIdentifier(value))
+                    return (false, "The class name must be a valid C# identifier.");
+
+                playgroundState.Document.ClassName = value;
+                return (true, null);
+            }
+        });
+        descriptors.Add(ReadOnly("Type", "Type", "Design", "The runtime object type.", typeof(string), playgroundState.GetRootTypeName));
+        descriptors.Add(ReadOnly(
+            "MemberVisibility",
+            "MemberVisibility",
+            "Design",
+            isUserControl ? "Design roots do not emit a separate designer field." : "Forms do not emit a separate designer field.",
+            typeof(DesignerMemberVisibility),
+            () => DesignerMemberVisibility.None));
+        var originDescription = isUserControl
+            ? "The root origin is controlled by its parent when the UserControl is used."
+            : "The form origin is controlled by the host window.";
+        descriptors.Add(ReadOnly("X", "X", "Layout", originDescription, typeof(int), () => 0));
+        descriptors.Add(ReadOnly("Y", "Y", "Layout", originDescription, typeof(int), () => 0));
+        descriptors.Add(DesignerPropertyDescriptorFactory.CreateDocumentSize(playgroundState.Document));
+        descriptors.Add(FormSize("Width", "Width", size => size.Width, (width, height) => new DesignSize(width, height)));
+        descriptors.Add(FormSize("Height", "Height", size => size.Height, (width, height) => new DesignSize(width, height)));
     }
 
     private void AddNodeDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode node)
@@ -953,7 +999,7 @@ internal sealed class DesignerPropertyGridState
         foreach (var fixedEvent in FixedEvents)
             descriptors[fixedEvent.Name] = CreateEventDescriptor(bindings, fixedEvent.Name, fixedEvent.DisplayName, fixedEvent.Category, fixedEvent.Description, handlerType: null);
 
-        var selectedType = node is null ? typeof(Form) : playgroundState.ResolveControlType(node);
+        var selectedType = node is null ? playgroundState.GetRootControlType() : playgroundState.ResolveControlType(node);
 
         if (selectedType is { } controlType)
         {
@@ -1062,7 +1108,7 @@ internal sealed class DesignerPropertyGridState
                 var sizeValue = (int)value!;
 
                 if (sizeValue < 1)
-                    return (false, "The form size must be greater than zero.");
+                    return (false, "The design root size must be greater than zero.");
 
                 var size = playgroundState.Document.Size;
                 playgroundState.Document.Size = name == "Width"
@@ -1454,7 +1500,7 @@ internal sealed class DesignerPropertyGridState
         var node = playgroundState.SelectedNode;
 
         if (node is null)
-            return "ModernFormsNext.Form";
+            return playgroundState.GetRootTypeName();
 
         return GetNodeTypeName(node);
     }

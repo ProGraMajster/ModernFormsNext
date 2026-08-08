@@ -161,6 +161,109 @@ function Assert-ModernFormsNextVsix {
     if (-not ($Manifest.Entries | Where-Object { $_ -like "ItemTemplates/*" })) {
         throw "VSIX does not contain physical ItemTemplates files."
     }
+
+    $requiredUserControlTemplateEntries = @(
+        "ItemTemplates/CSharp/ModernFormsNext/ModernFormsNextUserControl/ModernFormsNextUserControl.vstemplate",
+        "ItemTemplates/CSharp/ModernFormsNext/ModernFormsNextUserControl/ModernFormsNextUserControl.cs",
+        "ItemTemplates/CSharp/ModernFormsNext/ModernFormsNextUserControl/ModernFormsNextUserControl.Designer.cs",
+        "ItemTemplates/CSharp/ModernFormsNext/ModernFormsNextUserControl/ModernFormsNextUserControl.mfdesign"
+    )
+
+    foreach ($entry in $requiredUserControlTemplateEntries) {
+        if ($Manifest.Entries -notcontains $entry) {
+            throw "VSIX does not contain required ModernFormsNext UserControl template entry '$entry'."
+        }
+    }
+}
+
+function Assert-UserControlTemplateSource {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectDirectory
+    )
+
+    $templateDirectory = Join-Path $ProjectDirectory "ItemTemplates\CSharp\ModernFormsNext\ModernFormsNextUserControl"
+    $templatePath = Join-Path $templateDirectory "ModernFormsNextUserControl.vstemplate"
+    $codePath = Join-Path $templateDirectory "ModernFormsNextUserControl.cs"
+    $designerPath = Join-Path $templateDirectory "ModernFormsNextUserControl.Designer.cs"
+    $designPath = Join-Path $templateDirectory "ModernFormsNextUserControl.mfdesign"
+
+    foreach ($path in @($templatePath, $codePath, $designerPath, $designPath)) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            throw "ModernFormsNext UserControl template source file is missing: $path"
+        }
+    }
+
+    [xml]$templateXml = Get-Content -LiteralPath $templatePath -Raw
+    $namespaceManager = [System.Xml.XmlNamespaceManager]::new($templateXml.NameTable)
+    $namespaceManager.AddNamespace("vst", "http://schemas.microsoft.com/developer/vstemplate/2005")
+    $projectItems = @($templateXml.SelectNodes("/vst:VSTemplate/vst:TemplateContent/vst:ProjectItem", $namespaceManager))
+    if ($projectItems.Count -ne 3) {
+        throw "ModernFormsNext UserControl template must declare exactly three ProjectItem entries."
+    }
+
+    $expectedProjectItems = @{
+        "ModernFormsNextUserControl.cs" = '$fileinputname$.cs'
+        "ModernFormsNextUserControl.Designer.cs" = '$fileinputname$.Designer.cs'
+        "ModernFormsNextUserControl.mfdesign" = '$fileinputname$.mfdesign'
+    }
+    foreach ($sourceName in $expectedProjectItems.Keys) {
+        $projectItem = @($projectItems | Where-Object { $_.InnerText.Trim() -eq $sourceName })
+        if ($projectItem.Count -ne 1) {
+            throw "ModernFormsNext UserControl template must contain one ProjectItem for '$sourceName'."
+        }
+
+        if ($projectItem[0].GetAttribute("TargetFileName") -ne $expectedProjectItems[$sourceName]) {
+            throw "ModernFormsNext UserControl ProjectItem '$sourceName' has an invalid TargetFileName."
+        }
+
+        if ($projectItem[0].GetAttribute("ReplaceParameters") -ne "true") {
+            throw "ModernFormsNext UserControl ProjectItem '$sourceName' must replace template parameters."
+        }
+    }
+
+    $rootProjectItem = @($projectItems | Where-Object { $_.InnerText.Trim() -eq "ModernFormsNextUserControl.cs" })[0]
+    if ($rootProjectItem.GetAttribute("SubType") -ne "ModernFormsNextUserControl") {
+        throw "ModernFormsNext UserControl root ProjectItem must declare SubType=ModernFormsNextUserControl."
+    }
+
+    $designDocument = Get-Content -LiteralPath $designPath -Raw | ConvertFrom-Json
+    if ($designDocument.rootKind -ne "userControl") {
+        throw "ModernFormsNext UserControl .mfdesign template must declare rootKind=userControl."
+    }
+
+    if ($designDocument.namespace -ne '$rootnamespace$' -or
+        $designDocument.className -ne '$safeitemname$' -or
+        $designDocument.formName -ne '$safeitemname$') {
+        throw "ModernFormsNext UserControl .mfdesign template must preserve namespace and class-name parameters."
+    }
+
+    $code = Get-Content -LiteralPath $codePath -Raw
+    $designerCode = Get-Content -LiteralPath $designerPath -Raw
+
+    if ($code -notmatch 'namespace\s+\$rootnamespace\$\s*;') {
+        throw "ModernFormsNext UserControl code template must use the root namespace parameter."
+    }
+
+    if ($code -notmatch 'public\s+partial\s+class\s+\$safeitemname\$\s*:\s*UserControl\b') {
+        throw "ModernFormsNext UserControl code template must declare the parameterized public partial UserControl class."
+    }
+
+    if ($code -notmatch 'public\s+\$safeitemname\$\s*\(\s*\)' -or
+        $code -notmatch 'InitializeComponent\s*\(\s*\)\s*;') {
+        throw "ModernFormsNext UserControl code template must call InitializeComponent from its constructor."
+    }
+
+    if ($designerCode -notmatch 'namespace\s+\$rootnamespace\$\s*;' -or
+        $designerCode -notmatch 'public\s+partial\s+class\s+\$safeitemname\$') {
+        throw "ModernFormsNext UserControl designer template must declare the matching namespace and partial class."
+    }
+
+    if ($designerCode -notmatch 'private\s+void\s+InitializeComponent\s*\(\s*\)' -or
+        $designerCode -notmatch 'this\.Name\s*=\s*"\$safeitemname\$"\s*;' -or
+        $designerCode -notmatch 'this\.Size\s*=\s*new\s+System\.Drawing\.Size\s*\(\s*480\s*,\s*320\s*\)\s*;') {
+        throw "ModernFormsNext UserControl designer template must initialize the generated control identity and size."
+    }
 }
 
 function Get-ComparableJson {
@@ -173,6 +276,7 @@ function Get-ComparableJson {
 }
 
 $resolvedVsixPath = (Resolve-Path -LiteralPath $VsixPath).Path
+Assert-UserControlTemplateSource -ProjectDirectory $ProjectDirectory
 $manifest = Read-VsixManifest -Path $resolvedVsixPath
 $logicalManifest = Get-VsixLogicalManifest -Manifest $manifest
 Assert-ModernFormsNextVsix -Manifest $manifest -LogicalManifest $logicalManifest -ExpectedVersion $ExpectedVersion

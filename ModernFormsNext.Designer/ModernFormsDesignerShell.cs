@@ -10,7 +10,7 @@ using ModernFormsNext.Designing;
 namespace ModernFormsNext.Designer;
 
 /// <summary>
-/// Hosts the reusable ModernFormsNext form designer UI.
+/// Hosts the reusable ModernFormsNext Form and UserControl designer UI.
 /// </summary>
 /// <remarks>
 /// This control contains the toolbox, document outline, document tab, designer surface,
@@ -63,7 +63,7 @@ public sealed class ModernFormsDesignerShell : Panel
         Style.BackgroundColor = DesignerColors.AppBackground;
 
         toolbar = Controls.Add(new DesignerToolbar(commands, this.options));
-        toolbox = Controls.Add(new ToolboxPanel(commands, this.options, T("Toolbox"), T("SearchToolbox")));
+        toolbox = Controls.Add(new ToolboxPanel(Session, commands, this.options, T("Toolbox"), T("SearchToolbox")));
         outline = Controls.Add(new DocumentOutlinePanel(Session, this.options, T("DocumentOutline"), T("Delete"), T("SearchDocumentOutline")));
         documentTab = Controls.Add(new DesignerDocumentTab(Session));
         surface = Controls.Add(new DesignerSurface(Session));

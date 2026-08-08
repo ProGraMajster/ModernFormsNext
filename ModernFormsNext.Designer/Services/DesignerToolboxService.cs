@@ -9,7 +9,8 @@ internal sealed class DesignerToolboxService
 {
     private readonly DesignMetadataReader metadataReader = new();
 
-    public IReadOnlyList<DesignerToolboxItem> GetItems()
+    public IReadOnlyList<DesignerToolboxItem> GetItems(
+        IEnumerable<DesignerProjectUserControlInfo>? projectUserControls = null)
     {
         var frameworkAssembly = typeof(Control).Assembly;
         var items = new List<DesignerToolboxItem>();
@@ -24,6 +25,16 @@ internal sealed class DesignerToolboxService
 
             if (typeof(Component).IsAssignableFrom(type))
                 AddComponent(items, type);
+        }
+
+        foreach (var control in projectUserControls ?? [])
+        {
+            items.Add(new DesignerToolboxItem(
+                control.Name,
+                control.FullName,
+                "My Project",
+                $"Adds the project UserControl {control.FullName} as one component.",
+                IsComponent: false));
         }
 
         return items
@@ -81,6 +92,7 @@ internal sealed class DesignerToolboxService
 
     private static bool IsExcludedControl(Type type)
         => type == typeof(Form)
+        || type == typeof(UserControl)
         || type == typeof(FormTitleBar)
         || type.Name is "ControlAdapter";
 

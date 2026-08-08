@@ -21,6 +21,7 @@ internal sealed class ToolboxPanel : DesignerPanelBase
     private int scrollOffset;
 
     public ToolboxPanel(
+        DesignerSession state,
         DesignerCommandService commands,
         ModernFormsDesignerOptions options,
         string title = "Toolbox",
@@ -30,7 +31,7 @@ internal sealed class ToolboxPanel : DesignerPanelBase
         this.commands = commands;
         this.options = options;
         searchPlaceholder = searchText;
-        items = new DesignerToolboxService().GetItems();
+        items = new DesignerToolboxService().GetItems(state.ProjectUserControls);
 
         searchBox = Controls.Add(new TextBox
         {
