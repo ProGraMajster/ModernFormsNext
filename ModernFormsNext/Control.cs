@@ -98,7 +98,7 @@ namespace ModernFormsNext
             // Update the parent
             parent = value;
             if (previousParent is not null && value is null)
-                CancelOwnedControlAnimations();
+                CancelOwnedControlAnimationsForSubtree();
             RefreshResourceBindingsForSubtree ();
             OnParentChanged (EventArgs.Empty);
 
@@ -1542,42 +1542,7 @@ namespace ModernFormsNext
                     }
                 }
 
-                //e.Canvas.DrawBitmap (buffer, control.ScaledLeft, control.ScaledTop);
-
-                var hasRenderTransform =
-                    control.EffectiveOpacity < 0.999f ||
-                    Math.Abs (control.EffectiveRotation) > 0.0001f ||
-                    Math.Abs (control.EffectiveScaleX - 1f) > 0.0001f ||
-                    Math.Abs (control.EffectiveScaleY - 1f) > 0.0001f ||
-                    Math.Abs (control.EffectiveTranslationX) > 0.0001f ||
-                    Math.Abs (control.EffectiveTranslationY) > 0.0001f;
-
-                if (!hasRenderTransform) {
-                    e.Canvas.DrawBitmap (buffer, control.ScaledLeft, control.ScaledTop);
-                    continue;
-                }
-
-                var drawX = control.ScaledLeft + (control.EffectiveTranslationX * control.ScaleFactor.Width);
-                var drawY = control.ScaledTop + (control.EffectiveTranslationY * control.ScaleFactor.Height);
-                var drawWidth = control.ScaledWidth;
-                var drawHeight = control.ScaledHeight;
-
-                var centerX = drawWidth / 2f;
-                var centerY = drawHeight / 2f;
-
-                using var paint = new SKPaint {
-                    IsAntialias = true,
-                    Color = new SKColor (255, 255, 255, (byte)(255f * control.EffectiveOpacity))
-                };
-
-                e.Canvas.Save ();
-                e.Canvas.Translate (drawX, drawY);
-                e.Canvas.Translate (centerX, centerY);
-                e.Canvas.RotateDegrees (control.EffectiveRotation);
-                e.Canvas.Scale (control.EffectiveScaleX, control.EffectiveScaleY);
-                e.Canvas.Translate (-centerX, -centerY);
-                e.Canvas.DrawBitmap (buffer, 0, 0, paint);
-                e.Canvas.Restore ();
+                control.DrawBackBuffer (e.Canvas, buffer);
             }
         }
 
@@ -1663,7 +1628,22 @@ namespace ModernFormsNext
             //    Invalidate ();
             //}
 
-            LayoutTransaction.DoLayout (this, this, PropertyNames.Bounds);
+            // A presentation size transform already scales this control's complete logical back
+            // buffer. Dock/Anchor changes produced for descendants by this layout pass must remain
+            // logical-only; animating those local rectangles too would apply the same resize twice.
+            // Keep the scope around framework layout only so user Resize handlers may still start
+            // independent child transitions.
+            var suppressDescendantTransitions = HasDistinctPresentationSize;
+            if (suppressDescendantTransitions)
+                BeginAnimatedLayoutSizeCommit ();
+
+            try {
+                LayoutTransaction.DoLayout (this, this, PropertyNames.Bounds);
+            } finally {
+                if (suppressDescendantTransitions)
+                    EndAnimatedLayoutSizeCommit ();
+            }
+
             (Events[s_resizeEvent] as EventHandler)?.Invoke (this, e);
         }
 
@@ -1832,7 +1812,7 @@ namespace ModernFormsNext
 
             // If this isn't the top, we need to add our location to the point
             // and ask our parent to translate that
-            point.Offset (ScaledBounds.Location);
+            point = ClientPointToParentPresentation (point);
 
             // If we aren't parented to a Form, this method is pretty meaningless
             return Parent?.PointToScreen (point) ?? point;
@@ -1851,7 +1831,7 @@ namespace ModernFormsNext
                 return;
             }
 
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
                 child.RaiseClick (TranslateMouseEvents (e, child));
@@ -1872,7 +1852,7 @@ namespace ModernFormsNext
                 return;
             }
 
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
                 child.RaiseDoubleClick (TranslateMouseEvents (e, child));
@@ -1935,7 +1915,7 @@ namespace ModernFormsNext
         /// </summary>
         internal void RaiseMouseDown (MouseEventArgs e)
         {
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
                 child.RaiseMouseDown (TranslateMouseEvents (e, child));
@@ -1990,7 +1970,7 @@ namespace ModernFormsNext
         /// </summary>
         internal void RaiseMouseEnter (MouseEventArgs e)
         {
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
                 child.RaiseMouseEnter (TranslateMouseEvents (e, child));
@@ -2025,7 +2005,7 @@ namespace ModernFormsNext
                 return;
             }
 
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (current_mouse_in != null && current_mouse_in != child) {
                 current_mouse_in.RaiseMouseLeave (e);
@@ -2061,7 +2041,7 @@ namespace ModernFormsNext
                 return;
             }
 
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
                 child.RaiseMouseUp (TranslateMouseEvents (e, child));
@@ -2106,7 +2086,7 @@ namespace ModernFormsNext
         /// </summary>
         internal void RaiseMouseWheel (MouseEventArgs e)
         {
-            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.ScaledBounds.Contains (e.Location));
+            var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
                 child.RaiseMouseWheel (TranslateMouseEvents (e, child));
@@ -2359,6 +2339,12 @@ namespace ModernFormsNext
 
                 SetState (States.Visible, value);
 
+                // Hidden controls have no presentation surface to animate. Snap an active layout
+                // transition to its logical target so the shared scheduler does not retain idle
+                // work and showing the control later starts from current layout.
+                if (!value)
+                    ResetLayoutPresentationBounds (cancelScheduledAnimation: true);
+
                 if (Parent is not null)
                     using (new LayoutTransaction (Parent, this, PropertyNames.Visible))
                         OnVisibleChanged (EventArgs.Empty);
@@ -2471,11 +2457,13 @@ namespace ModernFormsNext
             if (control == null)
                 return e;
 
+            Point local = control.ParentPresentationPointToClient (e.Location);
+
             return new MouseEventArgs (
                 e.Button,
                 e.Clicks,
-                e.Location.X - control.ScaledLeft,
-                e.Location.Y - control.ScaledTop,
+                local.X,
+                local.Y,
                 e.Delta,
                 e.Location.X,
                 e.Location.Y,
@@ -2562,6 +2550,7 @@ namespace ModernFormsNext
             if (!disposedValue) {
                 DisposeInteractionEffects ();
                 CancelOwnedControlAnimations();
+                DisposeLayoutTransitionConfiguration ();
                 DisposeResourceReferences ();
                 DisposeBrushInvalidationSubscriptions ();
                 FreeBackBuffer ();

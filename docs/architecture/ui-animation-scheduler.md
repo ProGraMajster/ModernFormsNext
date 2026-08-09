@@ -6,7 +6,8 @@ This document records the state of animation timing after the Paint/Brush founda
 and defines the shared scheduler that ModernFormsNext should use on Windows and experimental
 Android. The scope is scheduling, time, cancellation, replacement, interpolation, lifecycle, and
 diagnostics. It deliberately excludes ThemeManager, Shape controls, navigation transitions, and a
-complete animated-layout system.
+designer-authored transition system. The animated-layout foundation now consumes this scheduler as
+described in [Animated layout architecture](animated-layout.md); it does not add another ticker.
 
 ## Pre-change state
 
@@ -171,7 +172,8 @@ The scheduler does not invalidate globally. Existing property setters retain res
 
 - `Control` opacity and render transforms request repaint only;
 - observable brush and gradient-stop setters repaint controls subscribed to that brush;
-- future layout-property helpers must call the established layout path explicitly.
+- animated layout commits logical bounds through the established layout path, then updates only its
+  presentation rectangle and composition invalidation on frames.
 
 Cancellation performs no property write, so it creates no extra repaint. Layout and render
 invalidation remain separate concerns.
@@ -194,8 +196,8 @@ resolution.
 
 Shape properties can use the same typed interpolators and owner keys. Navigation surfaces can use
 multiple keys for opacity and transform without owning timers. Neither feature is implemented in
-this stage. Animated layout will require focused helpers that route each update through layout
-invalidation rather than the render-only control transform path.
+this stage. Animated layout uses a focused presentation-geometry helper: layout computes the target
+once, while scheduler frames request composition invalidation without rerunning layout.
 
 ## Reduced motion
 

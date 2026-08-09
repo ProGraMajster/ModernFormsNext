@@ -37,7 +37,11 @@ public partial class Control
                 if (Owner is not { } owner || !owner.Visible)
                     return Rectangle.Empty;
 
-                return new Rectangle(owner.PointToScreen(Point.Empty), owner.ScaledSize);
+                // Transform both corners so an animated size on any ancestor contributes the same
+                // presentation scale that composition and nested hit testing apply to the child.
+                Point location = owner.PointToScreen(Point.Empty);
+                Point bottomRight = owner.PointToScreen(new Point(owner.ScaledWidth, owner.ScaledHeight));
+                return Rectangle.FromLTRB(location.X, location.Y, bottomRight.X, bottomRight.Y);
             }
         }
 

@@ -39,11 +39,23 @@ public partial class Control
             scheduler.CancelAll(this);
         else
             AnimationScheduler.CancelOwnedIfInitialized(this);
+        ResetLayoutPresentationAfterOwnerCancellation();
         if (transitionStyle is not null)
         {
             transitionStyle = null;
             ApplyStateTransforms(GetStyleForState(currentVisualState));
         }
+    }
+
+    internal void CancelOwnedControlAnimationsForSubtree()
+    {
+        CancelOwnedControlAnimations();
+        var controls = (ControlCollection?)Properties.GetObject(s_controlsCollectionProperty);
+        if (controls is null)
+            return;
+
+        foreach (Control child in controls.GetAllControls(true).ToArray())
+            child.CancelOwnedControlAnimationsForSubtree();
     }
 
     /// <summary>Gets the style used while pointer or keyboard activation is held.</summary>

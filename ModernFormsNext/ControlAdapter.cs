@@ -70,42 +70,7 @@ namespace ModernFormsNext
                     }
                 }
 
-                //e.Canvas.DrawBitmap (buffer, form_x + control.ScaledLeft, form_y + control.ScaledTop);
-
-                var hasRenderTransform =
-                    control.EffectiveOpacity < 0.999f ||
-                    Math.Abs (control.EffectiveRotation) > 0.0001f ||
-                    Math.Abs (control.EffectiveScaleX - 1f) > 0.0001f ||
-                    Math.Abs (control.EffectiveScaleY - 1f) > 0.0001f ||
-                    Math.Abs (control.EffectiveTranslationX) > 0.0001f ||
-                    Math.Abs (control.EffectiveTranslationY) > 0.0001f;
-
-                if (!hasRenderTransform) {
-                    e.Canvas.DrawBitmap (buffer, form_x + control.ScaledLeft, form_y + control.ScaledTop);
-                    continue;
-                }
-
-                var drawX = form_x + control.ScaledLeft + (control.EffectiveTranslationX * control.ScaleFactor.Width);
-                var drawY = form_y + control.ScaledTop + (control.EffectiveTranslationY * control.ScaleFactor.Height);
-                var drawWidth = control.ScaledWidth;
-                var drawHeight = control.ScaledHeight;
-
-                var centerX = drawWidth / 2f;
-                var centerY = drawHeight / 2f;
-
-                using var paint = new SKPaint {
-                    IsAntialias = true,
-                    Color = new SKColor (255, 255, 255, (byte)(255f * control.EffectiveOpacity))
-                };
-
-                e.Canvas.Save ();
-                e.Canvas.Translate (drawX, drawY);
-                e.Canvas.Translate (centerX, centerY);
-                e.Canvas.RotateDegrees (control.EffectiveRotation);
-                e.Canvas.Scale (control.EffectiveScaleX, control.EffectiveScaleY);
-                e.Canvas.Translate (-centerX, -centerY);
-                e.Canvas.DrawBitmap (buffer, 0, 0, paint);
-                e.Canvas.Restore ();
+                control.DrawBackBuffer (e.Canvas, buffer, form_x, form_y);
             }
         }
 
