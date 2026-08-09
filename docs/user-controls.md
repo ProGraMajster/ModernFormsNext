@@ -70,9 +70,34 @@ the project assembly and does not run constructors, module initialization, timer
 network calls, or other application logic.
 
 When a custom UserControl is placed on a Form or another UserControl, the parent designer treats it
-as one component. Selection and hit testing stop at that boundary, and the preview uses a safe
-placeholder instead of constructing the user type. Open the custom control's own `.cs`/`.mfdesign`
-document to edit its internal children.
+as one component. Selection and hit testing stop at that boundary. The surface resolves the
+project type to its own `.mfdesign` document and renders a read-only visual projection of that
+document with the normal designer renderer. It never constructs the custom type, loads the user
+assembly for preview, or runs its constructor, `InitializeComponent`, event handlers, timers, or
+other application code. Open the custom control's own `.cs`/`.mfdesign` document to edit its
+internal children.
+
+The preview root receives the size of the instance on the parent. Its child layout is recalculated
+from data, so `Dock` and `Anchor` respond to resizing rather than scaling a bitmap. Rendering uses
+the existing property/style path for framework controls. Properties that would require executing a
+custom runtime implementation are deliberately not evaluated.
+
+Preview nodes remain private to the projection. They are never inserted into the parent's
+`DesignDocument`, Document Outline, selection model, hit-test tree, Property Grid, generated
+`.Designer.cs`, or save operation. Clicking a visible child therefore selects and moves only the
+outer custom UserControl instance, and saving the parent cannot rewrite the child's `.mfdesign`.
+
+Nested project UserControls are projected recursively. A per-render type stack detects direct and
+transitive cycles such as `A -> A`, `A -> B -> A`, and `A -> B -> C -> A`; only the recursive edge
+falls back to the existing placeholder, so the rest of the parent still renders. A missing, empty,
+invalid, stale, ambiguous, non-UserControl, or otherwise unreadable `.mfdesign` document also uses
+that placeholder and writes a diagnostic instead of failing the designer.
+
+The renderer keeps a small cache of parsed source text and per-instance-size layout projections.
+The key includes the canonical document path, file timestamp/length, discovered type identity, and
+requested size. A changed `.mfdesign` is read again on the next render. Adding, removing, or
+renaming a project type changes source discovery and is picked up when the designer is reopened;
+there is intentionally no preview-only file watcher.
 
 The designer rejects a control that contains itself. Before adding a project UserControl it also
 reads project-local `.mfdesign` dependencies and rejects reachable transitive cycles, including
@@ -84,9 +109,33 @@ self-reference check so manually edited invalid documents cannot generate design
 - Automatic Toolbox discovery covers public, non-abstract UserControls declared in the active
   project's C# source tree. Nested and open generic controls, and controls supplied only by
   referenced binary assemblies, remain code-first.
-- Custom UserControls use an atomic placeholder in a parent preview; their user constructors are not
-  executed to render the parent.
+- Custom UserControls use a data-only `.mfdesign` projection in a parent preview and remain atomic;
+  their user constructors and project assemblies are not executed or loaded to render the parent.
+- Preview fidelity is limited to data and framework properties understood by the existing designer
+  renderer. Runtime-only custom property behavior, referenced-binary-only controls, and user code
+  side effects are intentionally absent. The safe placeholder remains the fallback when a source
+  document cannot be identified unambiguously.
 - The designer has copy/paste and duplicate operations for child controls, but no general
   transaction-based undo/redo stack or multi-select support yet.
 - The Visual Studio designer and interactive preview are currently Windows-first. `UserControl`
   itself remains in the shared, platform-neutral framework project.
+
+## Manual Visual Studio smoke test
+
+1. Add a **ModernFormsNext UserControl** named `MyUserControl1` and place, in order, a `Label`,
+   `TextBox`, `Label`, `TextBox`, and `Button`. Give at least one child `Dock` or right/bottom
+   `Anchor` behavior, then save the control.
+2. Add a **ModernFormsNext Form** named `Form2`, open its designer, and drag `MyUserControl1` from
+   **Toolbox > My Project** onto the form.
+3. Confirm that the five inner controls are visible. Resize `MyUserControl1` and confirm that their
+   dock/anchor layout is recalculated rather than bitmap-scaled.
+4. Click each visible Label, TextBox, and Button. Every click must select only
+   `MyUserControl1`; its resize handles and properties must remain the active ones.
+5. Confirm that Document Outline for `Form2` contains `MyUserControl1` but none of its preview
+   children, and that Property Grid shows only the outer instance.
+6. Save and reopen both designers. Confirm that the preview returns and that `Form2.mfdesign` and
+   `Form2.Designer.cs` contain only the `MyUserControl1` instance, while the five children remain
+   exclusively in `MyUserControl1.mfdesign`/`MyUserControl1.Designer.cs`.
+7. Temporarily make `MyUserControl1.mfdesign` unavailable or invalid. Confirm that `Form2` stays
+   usable, shows the placeholder, and reports a preview fallback diagnostic; restore the file and
+   reopen the designer.

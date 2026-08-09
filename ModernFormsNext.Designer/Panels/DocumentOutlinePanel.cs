@@ -411,7 +411,9 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
             depth,
             DesignerSpecialContainers.GetOutlineName(node),
             typeName,
-            state.ResolveControlType(node)?.FullName ?? $"ModernFormsNext.{typeName}",
+            isProjectUserControl
+                ? DesignerProjectUserControlDiscovery.NormalizeTypeName(node.TypeName)
+                : state.ResolveControlType(node)?.FullName ?? $"ModernFormsNext.{typeName}",
             hasChildren,
             collapsed));
 

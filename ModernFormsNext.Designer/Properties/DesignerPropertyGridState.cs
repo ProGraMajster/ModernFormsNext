@@ -808,7 +808,7 @@ internal sealed class DesignerPropertyGridState
 
     private void AddMetadataDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode? node)
     {
-        if (node is null)
+        if (node is null || playgroundState.IsProjectUserControlType(node.TypeName))
             return;
 
         var controlType = playgroundState.ResolveControlType(node);
@@ -999,7 +999,11 @@ internal sealed class DesignerPropertyGridState
         foreach (var fixedEvent in FixedEvents)
             descriptors[fixedEvent.Name] = CreateEventDescriptor(bindings, fixedEvent.Name, fixedEvent.DisplayName, fixedEvent.Category, fixedEvent.Description, handlerType: null);
 
-        var selectedType = node is null ? playgroundState.GetRootControlType() : playgroundState.ResolveControlType(node);
+        var selectedType = node is null
+            ? playgroundState.GetRootControlType()
+            : playgroundState.IsProjectUserControlType(node.TypeName)
+                ? null
+                : playgroundState.ResolveControlType(node);
 
         if (selectedType is { } controlType)
         {
@@ -1482,6 +1486,9 @@ internal sealed class DesignerPropertyGridState
 
     private bool ShouldShowModelProperty(DesignControlNode node, string propertyName)
     {
+        if (playgroundState.IsProjectUserControlType(node.TypeName))
+            return true;
+
         var controlType = playgroundState.ResolveControlType(node);
 
         if (controlType is null)
@@ -1506,7 +1513,9 @@ internal sealed class DesignerPropertyGridState
     }
 
     private string GetNodeTypeName(DesignControlNode node)
-        => playgroundState.ResolveControlType(node)?.FullName ?? node.TypeName;
+        => playgroundState.IsProjectUserControlType(node.TypeName)
+            ? DesignerProjectUserControlDiscovery.NormalizeTypeName(node.TypeName)
+            : playgroundState.ResolveControlType(node)?.FullName ?? node.TypeName;
 
     private static int GetCategorySortKey(string category)
     {
