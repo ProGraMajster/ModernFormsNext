@@ -387,11 +387,12 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         rows.Clear();
 
         var filter = GetFilterText();
-        var formHasChildren = state.Document.Controls.Count > 0;
-        var formCollapsed = string.IsNullOrEmpty(filter) && isRootCollapsed;
-        rows.Add(new OutlineRow(null, 0, state.Document.FormName, "Form", "ModernFormsNext.Form", formHasChildren, formCollapsed));
+        var rootHasChildren = state.Document.Controls.Count > 0;
+        var rootCollapsed = string.IsNullOrEmpty(filter) && isRootCollapsed;
+        var rootType = state.Document.RootKind == DesignRootKind.UserControl ? "UserControl" : "Form";
+        rows.Add(new OutlineRow(null, 0, state.Document.FormName, rootType, state.GetRootTypeName(), rootHasChildren, rootCollapsed));
 
-        if (formCollapsed)
+        if (rootCollapsed)
             return;
 
         foreach (var node in state.Document.Controls)
@@ -401,7 +402,8 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
     private bool AddNode(DesignControlNode node, int depth, string filter)
     {
         var insertIndex = rows.Count;
-        var hasChildren = node.Children.Count > 0;
+        var isProjectUserControl = state.IsProjectUserControlType(node.TypeName);
+        var hasChildren = node.Children.Count > 0 && !isProjectUserControl;
         var collapsed = string.IsNullOrEmpty(filter) && collapsedNodes.Contains(node);
         var typeName = DesignerSpecialContainers.GetOutlineType(node);
         rows.Add(new OutlineRow(
@@ -409,13 +411,15 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
             depth,
             DesignerSpecialContainers.GetOutlineName(node),
             typeName,
-            state.ResolveControlType(node)?.FullName ?? $"ModernFormsNext.{typeName}",
+            isProjectUserControl
+                ? DesignerProjectUserControlDiscovery.NormalizeTypeName(node.TypeName)
+                : state.ResolveControlType(node)?.FullName ?? $"ModernFormsNext.{typeName}",
             hasChildren,
             collapsed));
 
         var childStart = rows.Count;
 
-        if (!collapsed)
+        if (!collapsed && !isProjectUserControl)
         {
             foreach (var child in node.Children)
                 AddNode(child, depth + 1, filter);

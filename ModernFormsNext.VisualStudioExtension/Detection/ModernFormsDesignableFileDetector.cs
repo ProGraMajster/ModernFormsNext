@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using ModernFormsNext.Designing;
 
 namespace ModernFormsNext.VisualStudioExtension.Detection;
 
@@ -21,6 +22,7 @@ public sealed class ModernFormsDesignableFileDetector
     private static readonly string[] KnownBareBaseTypes =
     [
         "Form",
+        "UserControl",
         "Control",
         "ModernForm",
         "ModernControl"
@@ -54,12 +56,14 @@ public sealed class ModernFormsDesignableFileDetector
         string? className = Path.GetFileNameWithoutExtension(codeFilePath);
         string? baseTypeName = null;
         var isPartial = false;
+        var rootKind = DesignRootKind.Form;
+        var isSupportedUserControlRoot = true;
         var inheritsKnownType = false;
         var hasInitializeComponent = false;
 
-        if (File.Exists(codeFilePath))
+        if (TryReadSource(codeFilePath, out var sourceText))
         {
-            var root = CSharpSyntaxTree.ParseText(File.ReadAllText(codeFilePath)).GetCompilationUnitRoot();
+            var root = CSharpSyntaxTree.ParseText(sourceText).GetCompilationUnitRoot();
             var hasModernFormsUsing = HasModernFormsNextUsing(root);
             var hasWindowsFormsUsing = HasWindowsFormsUsing(root);
 
@@ -80,6 +84,11 @@ public sealed class ModernFormsDesignableFileDetector
                 className = classDeclaration.Identifier.ValueText;
                 isPartial = classDeclaration.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PartialKeyword));
                 baseTypeName = classDeclaration.BaseList?.Types.FirstOrDefault()?.Type.ToString();
+                rootKind = IsUserControlBaseType(baseTypeName, hasModernFormsUsing, hasWindowsFormsUsing)
+                    ? DesignRootKind.UserControl
+                    : DesignRootKind.Form;
+                isSupportedUserControlRoot = rootKind != DesignRootKind.UserControl
+                    || IsSupportedUserControlDeclaration(classDeclaration);
                 inheritsKnownType = IsKnownModernFormsNextBaseType(
                     baseTypeName,
                     hasModernFormsUsing,
@@ -93,7 +102,10 @@ public sealed class ModernFormsDesignableFileDetector
 
         var isDesignable = hasDesignFile
             || hasProjectMetadata
-            || (projectInfo.HasModernFormsNextReference && isPartial && inheritsKnownType);
+            || (projectInfo.HasModernFormsNextReference
+                && isPartial
+                && inheritsKnownType
+                && isSupportedUserControlRoot);
 
         return new ModernFormsDesignableFileInfo(
             codeFilePath,
@@ -108,7 +120,28 @@ public sealed class ModernFormsDesignableFileDetector
             hasDesignFile,
             hasDesignerCodeFile,
             hasProjectMetadata,
-            isDesignable);
+            isDesignable)
+        {
+            RootKind = rootKind
+        };
+    }
+
+    private static bool TryReadSource(string path, out string source)
+    {
+        source = string.Empty;
+
+        try
+        {
+            if (!File.Exists(path))
+                return false;
+
+            source = File.ReadAllText(path);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static bool IsModernFormsClassCandidate(
@@ -118,14 +151,26 @@ public sealed class ModernFormsDesignableFileDetector
         bool hasDesignFile,
         bool hasProjectMetadata,
         bool hasModernFormsNextReference)
-        => classDeclaration.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PartialKeyword))
+    {
+        var baseTypeName = classDeclaration.BaseList?.Types.FirstOrDefault()?.Type.ToString();
+        var isUserControl = IsUserControlBaseType(baseTypeName, hasModernFormsUsing, hasWindowsFormsUsing);
+
+        return classDeclaration.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PartialKeyword))
+        && (!isUserControl || IsSupportedUserControlDeclaration(classDeclaration))
         && IsKnownModernFormsNextBaseType(
-            classDeclaration.BaseList?.Types.FirstOrDefault()?.Type.ToString(),
+            baseTypeName,
             hasModernFormsUsing,
             hasWindowsFormsUsing,
             hasDesignFile,
             hasProjectMetadata,
             hasModernFormsNextReference);
+    }
+
+    private static bool IsSupportedUserControlDeclaration(ClassDeclarationSyntax declaration)
+        => declaration.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.PublicKeyword))
+        && !declaration.Modifiers.Any(modifier => modifier.IsKind(SyntaxKind.AbstractKeyword))
+        && declaration.TypeParameterList is null
+        && !declaration.Ancestors().OfType<TypeDeclarationSyntax>().Any();
 
     private static bool IsKnownModernFormsNextBaseType(
         string? baseTypeName,
@@ -153,13 +198,29 @@ public sealed class ModernFormsDesignableFileDetector
             && (hasModernFormsNextReference || hasDesignFile || hasProjectMetadata);
     }
 
+    private static bool IsUserControlBaseType(
+        string? baseTypeName,
+        bool hasModernFormsUsing,
+        bool hasWindowsFormsUsing)
+    {
+        if (string.IsNullOrWhiteSpace(baseTypeName))
+            return false;
+
+        var normalized = baseTypeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
+        return string.Equals(normalized, "ModernFormsNext.UserControl", StringComparison.Ordinal)
+            || string.Equals(normalized, "UserControl", StringComparison.Ordinal)
+                && hasModernFormsUsing
+                && !hasWindowsFormsUsing;
+    }
+
     private static bool HasModernFormsNextUsing(CompilationUnitSyntax root)
         => root.Usings.Any(usingDirective =>
         {
             var namespaceName = usingDirective.Name?.ToString();
 
-            return string.Equals(namespaceName, "ModernFormsNext", StringComparison.Ordinal)
-                || (namespaceName?.StartsWith("ModernFormsNext.", StringComparison.Ordinal) ?? false);
+            return usingDirective.Alias is null
+                && (string.Equals(namespaceName, "ModernFormsNext", StringComparison.Ordinal)
+                    || (namespaceName?.StartsWith("ModernFormsNext.", StringComparison.Ordinal) ?? false));
         });
 
     private static bool HasWindowsFormsUsing(CompilationUnitSyntax root)
@@ -167,8 +228,9 @@ public sealed class ModernFormsDesignableFileDetector
         {
             var namespaceName = usingDirective.Name?.ToString();
 
-            return string.Equals(namespaceName, "System.Windows.Forms", StringComparison.Ordinal)
-                || (namespaceName?.StartsWith("System.Windows.Forms.", StringComparison.Ordinal) ?? false);
+            return usingDirective.Alias is null
+                && (string.Equals(namespaceName, "System.Windows.Forms", StringComparison.Ordinal)
+                    || (namespaceName?.StartsWith("System.Windows.Forms.", StringComparison.Ordinal) ?? false));
         });
 
     private static bool HasInitializeComponent(ClassDeclarationSyntax classDeclaration)
@@ -186,16 +248,18 @@ public sealed class ModernFormsDesignableFileDetector
 
     private static string? ReadNamespace(ClassDeclarationSyntax classDeclaration)
     {
+        var segments = new Stack<string>();
+
         for (SyntaxNode? node = classDeclaration.Parent; node is not null; node = node.Parent)
         {
             if (node is FileScopedNamespaceDeclarationSyntax fileScopedNamespace)
-                return fileScopedNamespace.Name.ToString();
+                segments.Push(fileScopedNamespace.Name.ToString());
 
             if (node is NamespaceDeclarationSyntax namespaceDeclaration)
-                return namespaceDeclaration.Name.ToString();
+                segments.Push(namespaceDeclaration.Name.ToString());
         }
 
-        return null;
+        return segments.Count == 0 ? null : string.Join(".", segments);
     }
 
     private static ProjectInspectionResult ReadProjectInfo(string codeFilePath)
@@ -246,7 +310,8 @@ public sealed class ModernFormsDesignableFileDetector
                         (string.Equals(element.Name.LocalName, "ModernFormsNextDesigner", StringComparison.OrdinalIgnoreCase)
                             && string.Equals(element.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase))
                         || (string.Equals(element.Name.LocalName, "SubType", StringComparison.OrdinalIgnoreCase)
-                            && string.Equals(element.Value.Trim(), "ModernFormsNextForm", StringComparison.OrdinalIgnoreCase)));
+                            && (string.Equals(element.Value.Trim(), "ModernFormsNextForm", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(element.Value.Trim(), "ModernFormsNextUserControl", StringComparison.OrdinalIgnoreCase))));
             });
 
             return new ProjectInspectionResult(hasModernFormsReference, hasExplicitDesignerMetadata);

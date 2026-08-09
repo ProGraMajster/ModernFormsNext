@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "formatVersion": 1,
+    "toolName": "ModernFormsNext.VisualStudioExtension"
+  },
+  "namespace": "$rootnamespace$",
+  "className": "$safeitemname$",
+  "rootKind": "userControl",
+  "formName": "$safeitemname$",
+  "size": {
+    "width": 480,
+    "height": 320
+  },
+  "events": {},
+  "controls": []
+}

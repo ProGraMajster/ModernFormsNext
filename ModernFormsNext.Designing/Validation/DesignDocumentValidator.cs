@@ -6,7 +6,7 @@ namespace ModernFormsNext.Designing;
 /// Validates designer documents without throwing for ordinary document errors.
 /// </summary>
 /// <remarks>
-/// This validator focuses on model integrity needed by the MVP host and C# generator:
+/// This validator focuses on model integrity needed by the designer host and C# generator:
 /// non-empty names, C# identifier validity, duplicate control names, non-negative
 /// sizes, and non-empty control type names.
 /// </remarks>
@@ -41,7 +41,7 @@ public sealed class DesignDocumentValidator
         var names = new HashSet<string>(StringComparer.Ordinal);
 
         ValidateDocument(document, result);
-        ValidateControls(document.Controls, result, names, parentPath: "form");
+        ValidateControls(document, document.Controls, result, names, parentPath: "root");
 
         return result;
     }
@@ -84,26 +84,30 @@ public sealed class DesignDocumentValidator
 
     private static void ValidateDocument(DesignDocument document, DesignDocumentValidationResult result)
     {
+        if (!Enum.IsDefined(document.RootKind))
+            result.AddError($"The design root kind '{document.RootKind}' is not supported.");
+
         if (string.IsNullOrWhiteSpace(document.ClassName))
         {
-            result.AddError("The form class name cannot be empty.");
+            result.AddError("The design root class name cannot be empty.");
         }
         else if (!IsValidCSharpIdentifier(document.ClassName))
         {
-            result.AddError($"The form class name '{document.ClassName}' is not a valid C# identifier.");
+            result.AddError($"The design root class name '{document.ClassName}' is not a valid C# identifier.");
         }
 
         if (!string.IsNullOrWhiteSpace(document.Namespace) && !IsValidNamespace(document.Namespace))
             result.AddError($"The namespace '{document.Namespace}' is not a valid C# namespace.");
 
         if (document.Size.Width < 0 || document.Size.Height < 0)
-            result.AddError("The form size cannot contain negative width or height.");
+            result.AddError("The design root size cannot contain negative width or height.");
 
         if (string.IsNullOrWhiteSpace(document.FormName))
-            result.AddWarning("The form name is empty; generated code will fall back to the class name for display text.");
+            result.AddWarning("The design root name is empty; generated code will fall back to the class name.");
     }
 
     private static void ValidateControls(
+        DesignDocument document,
         IEnumerable<DesignControlNode> controls,
         DesignDocumentValidationResult result,
         HashSet<string> names,
@@ -117,6 +121,8 @@ public sealed class DesignDocumentValidator
 
             if (string.IsNullOrWhiteSpace(control.TypeName))
                 result.AddError($"Control at '{path}' has an empty type name.");
+            else if (IsRootTypeReference(document, control.TypeName))
+                result.AddError($"Control '{control.Name}' cannot contain the design root type '{control.TypeName}'.");
 
             if (string.IsNullOrWhiteSpace(control.Name))
             {
@@ -134,9 +140,24 @@ public sealed class DesignDocumentValidator
             if (control.Bounds.Width < 0 || control.Bounds.Height < 0)
                 result.AddError($"Control '{control.Name}' has negative width or height.");
 
-            ValidateControls(control.Children, result, names, $"{path}.{control.Name}");
+            ValidateControls(document, control.Children, result, names, $"{path}.{control.Name}");
             index++;
         }
+    }
+
+    private static bool IsRootTypeReference(DesignDocument document, string typeName)
+    {
+        var normalized = typeName.Replace("global::", string.Empty, StringComparison.Ordinal).Trim();
+        var assemblySeparator = normalized.IndexOf(',');
+
+        if (assemblySeparator >= 0)
+            normalized = normalized[..assemblySeparator].Trim();
+
+        if (string.Equals(normalized, document.ClassName, StringComparison.Ordinal))
+            return true;
+
+        return !string.IsNullOrWhiteSpace(document.Namespace)
+            && string.Equals(normalized, $"{document.Namespace}.{document.ClassName}", StringComparison.Ordinal);
     }
 
     private static bool IsValidNamespace(string namespaceName)

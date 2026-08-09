@@ -102,5 +102,11 @@ Verify:
 - `MainForm.cs` is marked with `<ModernFormsNextDesigner>true</ModernFormsNextDesigner>` and does not use `<SubType>Form</SubType>`.
 - **Add** > **New Item** lists **ModernFormsNext Form** for C# projects and creates `.cs`,
   `.Designer.cs`, and `.mfdesign` files together.
+- **Add** > **New Item** lists **ModernFormsNext UserControl** and creates the same three-file
+  structure with `rootKind: userControl`.
+- Right-clicking a partial class derived from `ModernFormsNext.UserControl` shows
+  **View ModernFormsNext Designer**.
+- A project UserControl appears under **My Project** in the Toolbox and remains one atomic component
+  when placed on a parent Form/UserControl.
 - Saving the designer writes `MainForm.mfdesign` and regenerates `MainForm.Designer.cs` without
   modifying `MainForm.cs`.

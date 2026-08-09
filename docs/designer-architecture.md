@@ -9,7 +9,7 @@ host, and Visual Studio integration independent from each other.
 ### ModernFormsNext.Designing
 
 `ModernFormsNext.Designing` owns the neutral designer document model. It contains the
-`DesignDocument`, control nodes, geometry types, property values, JSON serialization,
+`DesignDocument`, Form/UserControl root kind, control nodes, geometry types, property values, JSON serialization,
 validation, metadata reader, selection service, and non-UI host services.
 
 This project does not reference Visual Studio SDK and does not contain designer UI.
@@ -69,7 +69,7 @@ The VSIX must not globally replace the C# editor for every `.cs` file. Only file
 recognized as ModernFormsNext form/control files, have explicit ModernFormsNext project design
 metadata, or have a valid companion `.mfdesign` file should expose the designer command.
 
-The VSIX also contributes a **ModernFormsNext Form** C# item template. The item template creates
+The VSIX also contributes **ModernFormsNext Form** and **ModernFormsNext UserControl** C# item templates. Each item template creates
 the user-authored `.cs` file, the generated `.Designer.cs` file, and the `.mfdesign` companion
 document in one operation. It avoids `SubType=Form` for the same reason as the project template:
 that value belongs to the classic Windows Forms designer.
@@ -92,7 +92,7 @@ safe for the ModernFormsNext designer command.
 
 ## Flow
 
-The intended Visual Studio file layout is:
+The intended Visual Studio file layout is the same for a Form or UserControl:
 
 ```text
 MainForm.cs
@@ -118,6 +118,67 @@ MainForm.cs
 ```
 
 Both the standalone playground and the Visual Studio extension must follow this same flow.
+
+## Design Root Contract
+
+The design root is represented by `DesignDocument`, not by a special `DesignControlNode`.
+`DesignRootKind.Form` preserves the existing window preview and generated Form initialization;
+`DesignRootKind.UserControl` presents a control surface without window chrome. Selection uses
+`SelectedNode == null` for either root, so deletion, movement, child editing, Property Grid routing,
+and generated `this.Controls.Add(...)` calls stay on the shared infrastructure.
+
+The optional JSON `rootKind` property is written only for UserControl documents. Its absence means
+Form, which keeps all existing `.mfdesign` files readable without migration. `formName` retains its
+historical JSON name for compatibility and represents the runtime root `Name`; only Form generation
+also uses it as fallback title text.
+
+Project-owned UserControls are discovered by parsing public, top-level, non-abstract, non-generic
+class declarations under the active project. Abstract and generic project bases still participate
+in inheritance discovery, but cannot be placed themselves. The designer deliberately does not load
+the project assembly or instantiate a custom UserControl. In a parent design, a custom UserControl
+is an atomic component boundary for outline traversal, hit testing, selection, container detection,
+generation, and persistence. Its own children are editable only in its own design document.
+
+### Safe embedded UserControl preview
+
+`DesignerEmbeddedPreviewCache` associates a discovered source type with a `.mfdesign` file. The
+sibling source/document path is preferred, while project-wide fallback matching requires one exact
+namespace-qualified document identity; folder layout and namespace layout do not need to match.
+The loaded document must declare `DesignRootKind.UserControl`. Stale class/namespace identities,
+duplicate matches, invalid JSON, missing files, and Form-root documents are rejected with a
+diagnostic and use the existing placeholder.
+
+The cache stores source JSON by canonical path, `LastWriteTimeUtc`, and length, then materializes a
+private document/layout projection per requested instance size. A source change replaces all size
+projections. The materialized tree may be normalized by the existing layout helpers, but it is not
+the identity document, is never attached to the parent session, and is never passed to save or code
+generation. Project source discovery itself is refreshed by reopening the designer; no separate
+watcher is introduced.
+
+`DesignerSurfaceRenderer` paints the embedded root and its children through the same node rendering,
+property application, layout, clipping, DPI, and coordinate mapping paths used by an ordinary
+document. The preview root gets the parent instance dimensions, while the saved root dimensions
+remain the reference size for `Dock` and `Anchor` deltas. This is live layout projection, not a
+scaled screenshot and not a second renderer. Runtime rendering resolves only types from the
+already-loaded ModernFormsNext framework assembly; it does not use assembly-qualified type loading
+for preview.
+
+Embedded nodes are renderer-private. Parent hit testing still traverses only the parent's
+`DesignDocument`, so a click anywhere in the projection resolves to the outer custom control. The
+same boundary keeps inner nodes out of selection, resize/drag, Property Grid, Document Outline,
+serialization, and parent `.Designer.cs` generation. Nested custom controls reuse the cache and
+renderer recursively. A canonical-type stack converts only a repeated edge into the placeholder,
+covering direct and arbitrary-length cycles without aborting the rest of the frame.
+
+Known limitations are deliberate: custom runtime properties that require user code are not
+evaluated, binary-only controls are not source-discovered, and visual fidelity is limited to
+properties and controls already understood by the shared designer renderer. Safety and
+deterministic `.mfdesign` behavior take precedence over exact runtime side effects.
+
+Direct self-reference is rejected by model validation. Add/paste operations also inspect
+project-local `.mfdesign` dependencies and reject reachable transitive cycles, including longer
+dependency chains, before generated constructors can recurse. This is intentionally a small
+project-document guard rather than a general runtime dependency graph.
 
 ## Child Order and Z-Order Contract
 
@@ -151,7 +212,7 @@ container-aware mapping, not a global reversal.
 
 ## DPI and Coordinate Contract
 
-Designer documents store form and control geometry in logical pixels. The layout engine,
+Designer documents store root and control geometry in logical pixels. The layout engine,
 hit-testing service, drag/resize operations, and `DesignerCoordinateMapper` also operate only in
 logical document or logical designer-surface coordinates. The scale used to fit a form preview in
 the available surface is a preview zoom; it is not Windows monitor DPI and is never persisted.
@@ -185,9 +246,9 @@ into a detached control's `PaintEventArgs` would scale fonts and renderer metric
 `ClientRectangle`, which creates the smaller-control-inside-a-larger-rectangle artifact.
 
 Saving `.mfdesign` or generating `.Designer.cs` never uses device-pixel or preview-scaled values.
-The generated form size is assigned through `Form.Size`, matching the canonical WinForms-like
-designer contract. Reverse import also accepts `ClientSize` from earlier generated files, but new
-code and shipped `.Designer.cs` templates consistently emit `Size`.
+The generated root size is assigned through `Size`, matching the canonical WinForms-like designer
+contract for both Form and UserControl. Reverse import also accepts `ClientSize` from earlier Form
+files, but new code and shipped `.Designer.cs` templates consistently emit `Size`.
 
 The 1.8.0 regression suite exercises the coordinate and rendering boundaries at 100%, 125%, 150%,
 175%, and 200% scaling, including surface hit testing, drag/resize, grid and snapping math,

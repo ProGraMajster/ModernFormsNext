@@ -22,17 +22,18 @@ internal sealed class DesignerCoordinateMapper
     {
         var documentWidth = Math.Max(1, state.Document.Size.Width);
         var documentHeight = Math.Max(1, state.Document.Size.Height);
+        var titleHeight = state.Document.RootKind == DesignRootKind.UserControl ? 0 : FormTitleHeight;
         var availableWidth = Math.Max(1, width - (WorkspacePadding * 2));
-        var availableHeight = Math.Max(1, height - (WorkspacePadding * 2) - FormTitleHeight);
+        var availableHeight = Math.Max(1, height - (WorkspacePadding * 2) - titleHeight);
         var scale = Math.Min(1f, Math.Min(availableWidth / (float)documentWidth, availableHeight / (float)documentHeight));
         var clientWidth = Math.Max(1, (int)Math.Round(documentWidth * scale));
         var clientHeight = Math.Max(1, (int)Math.Round(documentHeight * scale));
         var formWidth = clientWidth + (FormBorder * 2);
-        var formHeight = FormTitleHeight + clientHeight + (FormBorder * 2);
+        var formHeight = titleHeight + clientHeight + (FormBorder * 2);
         var formX = Math.Max(WorkspacePadding, (width - formWidth) / 2);
         var formY = Math.Max(WorkspacePadding, (height - formHeight) / 2);
 
-        return new DesignerSurfaceView(scale, formX, formY, FormTitleHeight, FormBorder, clientWidth, clientHeight);
+        return new DesignerSurfaceView(scale, formX, formY, titleHeight, FormBorder, clientWidth, clientHeight);
     }
 
     public bool TryMapToDocument(

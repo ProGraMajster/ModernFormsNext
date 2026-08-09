@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Item" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>ModernFormsNext UserControl</Name>
+    <Description>Creates a reusable ModernFormsNext UserControl with designer code and .mfdesign metadata.</Description>
+    <ProjectType>CSharp</ProjectType>
+    <SortOrder>1010</SortOrder>
+    <DefaultName>ModernFormsNextUserControl.cs</DefaultName>
+    <ProvideDefaultName>true</ProvideDefaultName>
+    <TemplateGroupID>ModernFormsNext</TemplateGroupID>
+  </TemplateData>
+  <TemplateContent>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.cs" SubType="ModernFormsNextUserControl">ModernFormsNextUserControl.cs</ProjectItem>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.Designer.cs">ModernFormsNextUserControl.Designer.cs</ProjectItem>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.mfdesign">ModernFormsNextUserControl.mfdesign</ProjectItem>
+  </TemplateContent>
+</VSTemplate>

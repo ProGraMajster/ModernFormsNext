@@ -24,7 +24,12 @@ internal sealed class ModernFormsDesignableFileDetector
             Path.GetFileNameWithoutExtension(codeFilePath) + ".Designer.cs");
         var hasDesignFile = IsModernFormsNextDesignFile(designFilePath);
         var projectInfo = InspectProject(codeFilePath);
-        var isPartialModernFormsType = IsPartialModernFormsNextType(codeFilePath, projectInfo.HasModernFormsNextReference);
+        var isPartialModernFormsType = TryInspectPartialModernFormsNextType(
+            codeFilePath,
+            projectInfo.HasModernFormsNextReference,
+            out var isUserControl,
+            out var declaredClassName,
+            out var namespaceName);
         var isDesignable = hasDesignFile
             || projectInfo.HasExplicitDesignerMetadata
             || isPartialModernFormsType;
@@ -33,7 +38,9 @@ internal sealed class ModernFormsDesignableFileDetector
             codeFilePath,
             designerCodePath,
             designFilePath,
-            Path.GetFileNameWithoutExtension(codeFilePath),
+            namespaceName,
+            declaredClassName ?? Path.GetFileNameWithoutExtension(codeFilePath),
+            isUserControl,
             hasDesignFile,
             projectInfo.HasExplicitDesignerMetadata,
             isDesignable);
@@ -112,7 +119,8 @@ internal sealed class ModernFormsDesignableFileDetector
                         string.Equals(child.Name.LocalName, "ModernFormsNextDesigner", StringComparison.OrdinalIgnoreCase)
                             && string.Equals(child.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(child.Name.LocalName, "SubType", StringComparison.OrdinalIgnoreCase)
-                            && string.Equals(child.Value.Trim(), "ModernFormsNextForm", StringComparison.OrdinalIgnoreCase));
+                            && (string.Equals(child.Value.Trim(), "ModernFormsNextForm", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(child.Value.Trim(), "ModernFormsNextUserControl", StringComparison.OrdinalIgnoreCase)));
             });
 
             return new ProjectInspectionResult(hasModernFormsNextReference, hasExplicitDesignerMetadata);
@@ -123,8 +131,17 @@ internal sealed class ModernFormsDesignableFileDetector
         }
     }
 
-    private static bool IsPartialModernFormsNextType(string codeFilePath, bool hasModernFormsNextReference)
+    private static bool TryInspectPartialModernFormsNextType(
+        string codeFilePath,
+        bool hasModernFormsNextReference,
+        out bool isUserControl,
+        out string? className,
+        out string? namespaceName)
     {
+        isUserControl = false;
+        className = null;
+        namespaceName = null;
+
         if (!hasModernFormsNextReference || !File.Exists(codeFilePath))
             return false;
 
@@ -136,25 +153,48 @@ internal sealed class ModernFormsDesignableFileDetector
 
             foreach (Match match in Regex.Matches(
                 source,
-                @"\b(?:(?:public|private|protected|internal|sealed|abstract|static|unsafe|new)\s+)*partial\s+class\s+(?<name>\w+)\s*:\s*(?<base>[A-Za-z_][\w.<>]*)"))
+                @"\b(?<modifiers>(?:(?:public|private|protected|internal|sealed|abstract|static|unsafe|new)\s+)*)partial\s+class\s+(?<name>\w+)\s*:\s*(?<base>[A-Za-z_][\w.<>]*)"))
             {
                 var baseTypeName = match.Groups["base"].Value;
+                var modifiers = match.Groups["modifiers"].Value;
+                className = match.Groups["name"].Value;
+                namespaceName = ReadNamespace(source, match.Index);
 
                 if (baseTypeName.StartsWith("ModernFormsNext.", StringComparison.Ordinal))
+                {
+                    isUserControl = baseTypeName.EndsWith(".UserControl", StringComparison.Ordinal);
+
+                    if (isUserControl && !IsSupportedUserControlDeclaration(modifiers, source, match.Index))
+                    {
+                        isUserControl = false;
+                        continue;
+                    }
+
                     return baseTypeName.EndsWith(".Form", StringComparison.Ordinal)
+                        || isUserControl
                         || baseTypeName.EndsWith(".Control", StringComparison.Ordinal)
                         || baseTypeName.EndsWith(".ModernForm", StringComparison.Ordinal)
                         || baseTypeName.EndsWith(".ModernControl", StringComparison.Ordinal);
+                }
 
                 if (hasWindowsFormsUsing)
                     continue;
 
                 if (hasModernFormsUsing
                     && (string.Equals(baseTypeName, "Form", StringComparison.Ordinal)
+                        || string.Equals(baseTypeName, "UserControl", StringComparison.Ordinal)
                         || string.Equals(baseTypeName, "Control", StringComparison.Ordinal)
                         || string.Equals(baseTypeName, "ModernForm", StringComparison.Ordinal)
                         || string.Equals(baseTypeName, "ModernControl", StringComparison.Ordinal)))
                 {
+                    isUserControl = string.Equals(baseTypeName, "UserControl", StringComparison.Ordinal);
+
+                    if (isUserControl && !IsSupportedUserControlDeclaration(modifiers, source, match.Index))
+                    {
+                        isUserControl = false;
+                        continue;
+                    }
+
                     return true;
                 }
             }
@@ -165,6 +205,59 @@ internal sealed class ModernFormsDesignableFileDetector
         }
 
         return false;
+    }
+
+    private static bool IsSupportedUserControlDeclaration(
+        string modifiers,
+        string source,
+        int declarationIndex)
+        => Regex.IsMatch(modifiers, @"\bpublic\b")
+        && !Regex.IsMatch(modifiers, @"\babstract\b")
+        && !IsInsideTypeDeclaration(source, declarationIndex);
+
+    private static bool IsInsideTypeDeclaration(string source, int declarationIndex)
+    {
+        var prefix = source.Substring(0, Math.Max(0, declarationIndex));
+        return Regex.Matches(
+                prefix,
+                @"\b(?:class|struct|record)\s+[A-Za-z_]\w*[^;{}]*\{")
+            .Cast<Match>()
+            .Any(match => IsBraceScopeOpen(prefix, match.Index + match.Length - 1));
+    }
+
+    private static string? ReadNamespace(string source, int declarationIndex)
+    {
+        var prefix = source.Substring(0, Math.Max(0, declarationIndex));
+        var matches = Regex.Matches(
+            prefix,
+            @"^\s*namespace\s+(?<name>[A-Za-z_]\w*(?:\s*\.\s*[A-Za-z_]\w*)*)\s*(?<terminator>[;{])",
+            RegexOptions.Multiline);
+
+        if (matches.Count == 0)
+            return null;
+
+        var segments = matches
+            .Cast<Match>()
+            .Where(match => match.Groups["terminator"].Value == ";"
+                || IsBraceScopeOpen(prefix, match.Index + match.Length - 1))
+            .Select(match => Regex.Replace(match.Groups["name"].Value, @"\s+", string.Empty))
+            .ToArray();
+        return segments.Length == 0 ? null : string.Join(".", segments);
+    }
+
+    private static bool IsBraceScopeOpen(string source, int openingBraceIndex)
+    {
+        var depth = 0;
+
+        for (var index = openingBraceIndex; index < source.Length; index++)
+        {
+            if (source[index] == '{')
+                depth++;
+            else if (source[index] == '}' && --depth == 0)
+                return false;
+        }
+
+        return depth > 0;
     }
 
     private static string? FindNearestProjectFile(string? directory)

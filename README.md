@@ -64,8 +64,10 @@ known limitations, and sample commands.
   atomic runtime switching, and optional transitions through the shared animation scheduler.
 - Platform-neutral WindowKit contracts with a mature Windows backend and an experimental Android
   backend.
-- A ModernFormsNext-native form designer, `.mfdesign` documents, deterministic `.Designer.cs`
+- A ModernFormsNext-native Form/UserControl designer, `.mfdesign` documents, deterministic `.Designer.cs`
   generation, conservative reverse parsing, and a Visual Studio extension.
+- WinForms-like designed `UserControl` components that share the Form designer pipeline and remain
+  atomic when composed inside another Form or UserControl.
 - Project and Visual Studio item templates for a clean Windows starter application.
 - Automated framework, designer, resource, Unicode, and Android backend tests plus focused manual
   samples.
@@ -139,8 +141,8 @@ Android backend.
 ## Visual Studio Designer
 
 The optional `ModernFormsNextDesigner.vsix` adds **View ModernFormsNext Designer** for designable
-ModernFormsNext forms and a **ModernFormsNext Form** item template. Version 1.9.0 of the VSIX is the
-matching extension for the 1.9.0 framework release.
+ModernFormsNext forms and UserControls, plus matching item templates. Version 1.9.0 of the VSIX is
+the matching extension for the 1.9.0 framework release.
 
 A designable form uses three related files:
 
@@ -158,8 +160,8 @@ display scaling; device conversion is applied at the input and SkiaSharp renderi
 Download the matching VSIX from the GitHub release assets when published, or build it locally from
 `ModernFormsNext.VisualStudioExtension.Vsix`. The manifest supports amd64 Community, Professional,
 and Enterprise Visual Studio installations from version 17.0 onward without changing the existing
-extension identity. See [installation](docs/installation.md) and
-[designer architecture](docs/designer-architecture.md).
+extension identity. See [installation](docs/installation.md),
+[designer architecture](docs/designer-architecture.md), and [UserControls](docs/user-controls.md).
 
 ## Templates
 
@@ -167,8 +169,8 @@ extension identity. See [installation](docs/installation.md) and
 `net10.0-windows` application with `Program.cs`, a partial `MainForm`, generated designer code, and
 the companion `.mfdesign` document.
 
-The Visual Studio extension also ships a **ModernFormsNext Form** item template for adding another
-form triplet to an existing project. The default application reference is
+The Visual Studio extension also ships **ModernFormsNext Form** and **ModernFormsNext UserControl**
+item templates for adding another designed type to an existing project. The default application reference is
 [`samples/ModernFormsNext.DemoApp`](samples/ModernFormsNext.DemoApp); control experiments belong in
 ControlGallery rather than in the generated starter experience.
 

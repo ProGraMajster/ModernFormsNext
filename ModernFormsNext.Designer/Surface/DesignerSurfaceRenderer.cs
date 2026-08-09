@@ -14,8 +14,11 @@ internal sealed class DesignerSurfaceRenderer
     private readonly DesignerLayoutEngine layoutEngine = new();
     private readonly HashSet<string> loggedRuntimeRenderFailures = [];
     private readonly HashSet<string> loggedRuntimePropertyFailures = [];
+    private readonly HashSet<string> loggedEmbeddedPreviewMessages = [];
     private readonly Dictionary<DesignControlNode, string> runtimeRenderDiagnostics = [];
     private readonly Dictionary<DesignControlNode, string> placeholderRenderDiagnostics = [];
+    private DesignerEmbeddedPreviewCache? embeddedPreviewCache;
+    private string? embeddedPreviewProjectPath;
     private string? lastFrameDiagnostics;
 
     public void Render(PaintEventArgs e, DesignerSession state, int width, int height)
@@ -37,17 +40,32 @@ internal sealed class DesignerSurfaceRenderer
         e.Canvas.FillRectangle(new System.Drawing.Rectangle(0, 0, e.LogicalToDeviceUnits(width), e.LogicalToDeviceUnits(height)), DesignerColors.Workspace);
         var layout = layoutEngine.Layout(state.Document);
 
-        DrawForm(e, previewPaintArgs, state, formBounds, clientBounds, view);
+        DrawRoot(e, previewPaintArgs, state, formBounds, clientBounds, view);
 
         e.Canvas.Save();
         e.Canvas.ClipRect(clientBounds.ToSKRect());
 
-        DrawNodesInPaintOrder(e, previewPaintArgs, state, layout, state.Document.Controls, parentNode: null, view);
+        DrawNodesInPaintOrder(
+            e,
+            previewPaintArgs,
+            state,
+            layout,
+            state.Document.Controls,
+            parentNode: null,
+            view,
+            offsetX: 0,
+            offsetY: 0,
+            previewStack: new HashSet<string>(StringComparer.Ordinal));
 
         e.Canvas.Restore();
 
         if (state.SelectedNode is null)
-            DesignerSelectionAdorner.Draw(e, formBounds, showResizeHandle: false);
+        {
+            var rootHandles = state.Document.RootKind == DesignRootKind.UserControl
+                ? DesignerHitTestService.GetRootHandles()
+                : [];
+            DesignerSelectionAdorner.Draw(e, formBounds, rootHandles);
+        }
     }
 
     public bool TryMapToDocument(
@@ -59,7 +77,7 @@ internal sealed class DesignerSurfaceRenderer
         out DesignPoint point)
         => coordinateMapper.TryMapToDocument(state, width, height, x, y, out point);
 
-    private static void DrawForm(
+    private static void DrawRoot(
         PaintEventArgs surfacePaintArgs,
         PaintEventArgs previewPaintArgs,
         DesignerSession state,
@@ -68,6 +86,15 @@ internal sealed class DesignerSurfaceRenderer
         DesignerSurfaceView view)
     {
         surfacePaintArgs.Canvas.FillRectangle(formBounds, DesignerColors.FormBorder);
+
+        if (state.Document.RootKind == DesignRootKind.UserControl)
+        {
+            surfacePaintArgs.Canvas.FillRectangle(clientBounds, new SKColor(245, 245, 245));
+            surfacePaintArgs.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), surfacePaintArgs.LogicalToDeviceUnits(1));
+            DrawGrid(previewPaintArgs, clientBounds);
+            return;
+        }
+
         surfacePaintArgs.Canvas.FillRectangle(
             new System.Drawing.Rectangle(formBounds.Left, formBounds.Top, formBounds.Width, surfacePaintArgs.LogicalToDeviceUnits(view.TitleHeight)),
             new SKColor(218, 232, 246));
@@ -114,21 +141,42 @@ internal sealed class DesignerSurfaceRenderer
         DesignerSession state,
         DesignerLayoutResult layout,
         DesignControlNode node,
-        DesignerSurfaceView view)
+        DesignerSurfaceView view,
+        int offsetX,
+        int offsetY,
+        HashSet<string> previewStack)
     {
         if (!IsDesignNodeVisible(node))
             return;
 
-        var absolute = layout.GetEffectiveBounds(node);
+        var localAbsolute = layout.GetEffectiveBounds(node);
+        var absolute = Offset(localAbsolute, offsetX, offsetY);
         var surfaceBounds = coordinateMapper.ToSurfaceBounds(absolute, view);
         var bounds = DesignerDpiCoordinateConverter.LogicalToDevice(surfaceBounds, surfacePaintArgs.Scaling);
         var selected = ReferenceEquals(state.SelectedNode, node);
+        var isProjectUserControl = state.IsProjectUserControlType(node.TypeName);
 
-        if (ShouldUseSpecialDesignerRendering(node))
+        if (isProjectUserControl)
         {
-            DrawSpecialContainer(surfacePaintArgs, previewPaintArgs, node, layout, view, bounds);
+            if (!TryDrawEmbeddedPreview(
+                surfacePaintArgs,
+                previewPaintArgs,
+                state,
+                node,
+                absolute,
+                bounds,
+                view,
+                previewStack))
+            {
+                LogPlaceholderRenderDiagnostics(state, node, bounds);
+                DrawPlaceholder(previewPaintArgs, node, bounds);
+            }
         }
-        else if (state.ControlRenderMode == DesignerControlRenderMode.Runtime)
+        else if (ShouldUseSpecialDesignerRendering(node))
+        {
+            DrawSpecialContainer(surfacePaintArgs, previewPaintArgs, node, layout, view, bounds, offsetX, offsetY);
+        }
+        else if (state.ControlRenderMode == DesignerControlRenderMode.Runtime && !isProjectUserControl)
         {
             DrawRuntimeControl(surfacePaintArgs, previewPaintArgs, state, node, absolute, bounds);
         }
@@ -138,7 +186,7 @@ internal sealed class DesignerSurfaceRenderer
             DrawPlaceholder(previewPaintArgs, node, bounds);
         }
 
-        if (node.Children.Count > 0)
+        if (node.Children.Count > 0 && !isProjectUserControl)
         {
             surfacePaintArgs.Canvas.Save();
             surfacePaintArgs.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
@@ -146,11 +194,21 @@ internal sealed class DesignerSurfaceRenderer
             if (DesignerSpecialContainers.IsTabControl(node))
             {
                 if (DesignerSpecialContainers.GetSelectedTabPage(node) is { } page)
-                    DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, page, view);
+                    DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, page, view, offsetX, offsetY, previewStack);
             }
             else
             {
-                DrawNodesInPaintOrder(surfacePaintArgs, previewPaintArgs, state, layout, node.Children, node, view);
+                DrawNodesInPaintOrder(
+                    surfacePaintArgs,
+                    previewPaintArgs,
+                    state,
+                    layout,
+                    node.Children,
+                    node,
+                    view,
+                    offsetX,
+                    offsetY,
+                    previewStack);
             }
 
             surfacePaintArgs.Canvas.Restore();
@@ -158,6 +216,148 @@ internal sealed class DesignerSurfaceRenderer
 
         if (selected)
             DesignerSelectionAdorner.Draw(surfacePaintArgs, bounds, DesignerLayoutProperties.GetResizeHandles(node));
+    }
+
+    private bool TryDrawEmbeddedPreview(
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
+        DesignerSession state,
+        DesignControlNode instanceNode,
+        DesignBounds logicalBounds,
+        System.Drawing.Rectangle deviceBounds,
+        DesignerSurfaceView view,
+        HashSet<string> previewStack)
+    {
+        var cache = GetEmbeddedPreviewCache(state);
+
+        if (!cache.TryGetPreview(
+            instanceNode.TypeName,
+            new DesignSize(logicalBounds.Width, logicalBounds.Height),
+            out var preview,
+            out var error))
+        {
+            LogEmbeddedPreviewMessage(
+                state,
+                $"fallback:{instanceNode.TypeName}:{error}",
+                $"Custom UserControl preview fallback for {instanceNode.Name} ({instanceNode.TypeName}): {error}");
+            return false;
+        }
+
+        if (!previewStack.Add(preview!.TypeName))
+        {
+            LogEmbeddedPreviewMessage(
+                state,
+                $"cycle:{preview.TypeName}",
+                $"Custom UserControl preview cycle detected at {instanceNode.Name} ({preview.TypeName}); using placeholder fallback.");
+            return false;
+        }
+
+        try
+        {
+            DrawEmbeddedPreviewRoot(
+                surfacePaintArgs,
+                previewPaintArgs,
+                state,
+                instanceNode,
+                preview.Document,
+                logicalBounds,
+                deviceBounds);
+
+            surfacePaintArgs.Canvas.Save();
+            try
+            {
+                surfacePaintArgs.Canvas.ClipRect(deviceBounds.ToSKRect());
+                DrawNodesInPaintOrder(
+                    surfacePaintArgs,
+                    previewPaintArgs,
+                    state,
+                    preview.Layout,
+                    preview.Document.Controls,
+                    parentNode: null,
+                    view,
+                    logicalBounds.X,
+                    logicalBounds.Y,
+                    previewStack);
+            }
+            finally
+            {
+                surfacePaintArgs.Canvas.Restore();
+            }
+
+            LogEmbeddedPreviewMessage(
+                state,
+                $"success:{preview.TypeName}:{preview.DocumentPath}",
+                $"Rendered safe custom UserControl preview for {instanceNode.Name} ({preview.TypeName}) " +
+                $"from {preview.DocumentPath}; root children={preview.Document.Controls.Count}.");
+            return true;
+        }
+        finally
+        {
+            previewStack.Remove(preview.TypeName);
+        }
+    }
+
+    private void DrawEmbeddedPreviewRoot(
+        PaintEventArgs surfacePaintArgs,
+        PaintEventArgs previewPaintArgs,
+        DesignerSession state,
+        DesignControlNode instanceNode,
+        DesignDocument previewDocument,
+        DesignBounds logicalBounds,
+        System.Drawing.Rectangle deviceBounds)
+    {
+        if (state.ControlRenderMode != DesignerControlRenderMode.Runtime)
+        {
+            DrawPanel(previewPaintArgs, deviceBounds);
+            return;
+        }
+
+        var rootNode = new DesignControlNode
+        {
+            TypeName = typeof(UserControl).FullName!,
+            Name = instanceNode.Name,
+            Bounds = new DesignBounds(0, 0, logicalBounds.Width, logicalBounds.Height),
+            Properties = new SortedDictionary<string, DesignPropertyValue>(
+                previewDocument.Properties,
+                StringComparer.Ordinal)
+        };
+
+        // Parent-authored instance properties run after the custom control's generated defaults at
+        // runtime, so they also override root defaults in the data-only preview projection.
+        foreach (var property in instanceNode.Properties)
+            rootNode.Properties[property.Key] = property.Value;
+
+        DrawRuntimeControl(
+            surfacePaintArgs,
+            previewPaintArgs,
+            state,
+            rootNode,
+            logicalBounds,
+            deviceBounds);
+    }
+
+    private DesignerEmbeddedPreviewCache GetEmbeddedPreviewCache(DesignerSession state)
+    {
+        var projectPath = state.CurrentProjectPath;
+
+        if (embeddedPreviewCache is null
+            || !string.Equals(embeddedPreviewProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
+        {
+            embeddedPreviewProjectPath = projectPath;
+            embeddedPreviewCache = new DesignerEmbeddedPreviewCache(projectPath, state.ProjectUserControls);
+            loggedEmbeddedPreviewMessages.Clear();
+        }
+
+        return embeddedPreviewCache;
+    }
+
+    private void LogEmbeddedPreviewMessage(
+        DesignerSession state,
+        string key,
+        string message)
+    {
+        if (loggedEmbeddedPreviewMessages.Add(key))
+            state.Log(message);
     }
 
     private static void DrawPlaceholder(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds)
@@ -197,15 +397,21 @@ internal sealed class DesignerSurfaceRenderer
         DesignControlNode node,
         DesignerLayoutResult layout,
         DesignerSurfaceView view,
-        System.Drawing.Rectangle bounds)
+        System.Drawing.Rectangle bounds,
+        int offsetX,
+        int offsetY)
     {
         if (DesignerSpecialContainers.IsSplitContainer(node))
         {
             DrawPanel(previewPaintArgs, bounds);
-            var splitter = coordinateMapper.ToSurfaceBounds(DesignerSpecialContainers.GetSplitterBounds(node, layout.GetEffectiveBounds(node)), view);
-            var splitterBounds = DesignerDpiCoordinateConverter.LogicalToDevice(splitter, surfacePaintArgs.Scaling);
-            surfacePaintArgs.Canvas.FillRectangle(splitterBounds, new SKColor(190, 190, 190));
-            surfacePaintArgs.Canvas.DrawRectangle(splitterBounds, new SKColor(115, 115, 115));
+            var logicalSplitterBounds = Offset(
+                DesignerSpecialContainers.GetSplitterBounds(node, layout.GetEffectiveBounds(node)),
+                offsetX,
+                offsetY);
+            var splitter = coordinateMapper.ToSurfaceBounds(logicalSplitterBounds, view);
+            var deviceSplitterBounds = DesignerDpiCoordinateConverter.LogicalToDevice(splitter, surfacePaintArgs.Scaling);
+            surfacePaintArgs.Canvas.FillRectangle(deviceSplitterBounds, new SKColor(190, 190, 190));
+            surfacePaintArgs.Canvas.DrawRectangle(deviceSplitterBounds, new SKColor(115, 115, 115));
             return;
         }
 
@@ -237,7 +443,10 @@ internal sealed class DesignerSurfaceRenderer
         DesignerLayoutResult layout,
         DesignControlCollection nodes,
         DesignControlNode? parentNode,
-        DesignerSurfaceView view)
+        DesignerSurfaceView view,
+        int offsetX,
+        int offsetY,
+        HashSet<string> previewStack)
     {
         // Ordinary document collections are front-to-back, so paint them from the last element to
         // index zero. Sequential containers retain runtime collection order and therefore paint
@@ -245,13 +454,13 @@ internal sealed class DesignerSurfaceRenderer
         if (parentNode is not null && PreservesSequentialChildOrder(parentNode))
         {
             for (var index = 0; index < nodes.Count; index++)
-                DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, nodes[index], view);
+                DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, nodes[index], view, offsetX, offsetY, previewStack);
 
             return;
         }
 
         for (var index = nodes.Count - 1; index >= 0; index--)
-            DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, nodes[index], view);
+            DrawNode(surfacePaintArgs, previewPaintArgs, state, layout, nodes[index], view, offsetX, offsetY, previewStack);
     }
 
     private static bool PreservesSequentialChildOrder(DesignControlNode node)
@@ -336,11 +545,11 @@ internal sealed class DesignerSurfaceRenderer
 
         try
         {
-            if (state.ResolveControlType(node) is not { } controlType
+            if (ResolveFrameworkControlType(node.TypeName) is not { } controlType
                 || !typeof(Control).IsAssignableFrom(controlType)
                 || Activator.CreateInstance(controlType) is not Control control)
             {
-                LogRuntimeRenderFailure(state, node, $"Could not create runtime control for type '{node.TypeName}'.");
+                LogRuntimeRenderFailure(state, node, $"Could not safely create framework control for type '{node.TypeName}'.");
                 DrawUnknown(previewPaintArgs, node, deviceBounds);
                 return;
             }
@@ -380,6 +589,17 @@ internal sealed class DesignerSurfaceRenderer
             LogRuntimeRenderFailure(state, node, $"{ex.GetType().Name}: {ex.Message}");
             DrawUnknown(previewPaintArgs, node, deviceBounds);
         }
+    }
+
+    private static Type? ResolveFrameworkControlType(string typeName)
+    {
+        // Preview rendering resolves types only from the already-loaded framework assembly. Using
+        // Type.GetType for an assembly-qualified project type could load user binaries before the
+        // custom UserControl boundary is recognized, which would violate the data-only contract.
+        var normalized = DesignerProjectUserControlDiscovery.NormalizeTypeName(typeName);
+        var frameworkAssembly = typeof(Control).Assembly;
+        return frameworkAssembly.GetType(normalized, throwOnError: false)
+            ?? frameworkAssembly.GetType($"ModernFormsNext.{normalized}", throwOnError: false);
     }
 
     private static int ApplyNodeProperties(Control control, DesignControlNode node, List<string> propertyErrors)
@@ -721,5 +941,12 @@ internal sealed class DesignerSurfaceRenderer
 
     private static System.Drawing.Rectangle GetChildClipBounds(System.Drawing.Rectangle bounds)
         => bounds;
+
+    private static DesignBounds Offset(DesignBounds bounds, int offsetX, int offsetY)
+        => new(
+            bounds.X + offsetX,
+            bounds.Y + offsetY,
+            bounds.Width,
+            bounds.Height);
 
 }

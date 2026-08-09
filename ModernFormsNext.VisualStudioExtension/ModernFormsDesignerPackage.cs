@@ -311,7 +311,20 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
     private static void EnsureDesignDocument(ModernFormsDesignableFileInfo fileInfo)
     {
         if (File.Exists(fileInfo.DesignFilePath))
+        {
+            if (fileInfo.RootKind == DesignRootKind.UserControl)
+            {
+                var existing = DesignDocumentSerializer.Default.Load(fileInfo.DesignFilePath);
+
+                if (existing.RootKind != DesignRootKind.UserControl)
+                {
+                    existing.RootKind = DesignRootKind.UserControl;
+                    DesignDocumentSerializer.Default.Save(fileInfo.DesignFilePath, existing);
+                }
+            }
+
             return;
+        }
 
         if (File.Exists(fileInfo.DesignerCodePath))
         {
@@ -322,7 +335,8 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
                 {
                     NamespaceOverride = fileInfo.Namespace,
                     ClassNameOverride = fileInfo.ClassName,
-                    FormNameOverride = fileInfo.ClassName
+                    FormNameOverride = fileInfo.ClassName,
+                    RootKind = fileInfo.RootKind
                 });
 
             if (parseResult.Success && parseResult.Document is not null)
@@ -337,6 +351,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
             Namespace = fileInfo.Namespace ?? string.Empty,
             ClassName = fileInfo.ClassName ?? Path.GetFileNameWithoutExtension(fileInfo.CodeFilePath),
             FormName = fileInfo.ClassName ?? Path.GetFileNameWithoutExtension(fileInfo.CodeFilePath),
+            RootKind = fileInfo.RootKind,
             Size = new DesignSize(900, 600)
         };
 

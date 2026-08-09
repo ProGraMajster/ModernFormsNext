@@ -19,6 +19,10 @@ internal sealed class DesignerMouseController
     private DesignBounds startBounds;
     private int startSplitterDistance;
     private bool changedBounds;
+    private bool resizingRoot;
+    private DesignSize startRootSize;
+    private (float X, float Y) startRootSurfacePoint;
+    private float startRootScale = 1f;
 
     public DesignerMouseController(DesignerSession state)
     {
@@ -38,6 +42,14 @@ internal sealed class DesignerMouseController
         if (handle != DesignerResizeHandle.None && state.SelectedNode is { } selectedNode)
         {
             BeginOperation(surface, selectedNode, DesignerMouseOperation.Resizing, handle, GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y));
+            return;
+        }
+
+        if (handle != DesignerResizeHandle.None
+            && state.SelectedNode is null
+            && state.Document.RootKind == DesignRootKind.UserControl)
+        {
+            BeginRootResize(surface, handle, surfacePoint);
             return;
         }
 
@@ -99,8 +111,17 @@ internal sealed class DesignerMouseController
         else
             state.SetPointerPosition(null);
 
-        if (operation is not (DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter) || activeNode is null)
+        if (operation is not (DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter)
+            || activeNode is null && !resizingRoot)
             return;
+
+        if (resizingRoot)
+        {
+            var rootDeltaX = (int)Math.Round((surfacePoint.X - startRootSurfacePoint.X) / startRootScale);
+            var rootDeltaY = (int)Math.Round((surfacePoint.Y - startRootSurfacePoint.Y) / startRootScale);
+            UpdateRootResize(rootDeltaX, rootDeltaY);
+            return;
+        }
 
         var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
         var deltaX = currentPoint.X - startDocumentPoint.X;
@@ -120,24 +141,33 @@ internal sealed class DesignerMouseController
             return;
 
         if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter
-            && activeNode is not null
+            && (activeNode is not null || resizingRoot)
             && changedBounds)
         {
+            if (resizingRoot)
+            {
+                state.Log($"Resized {state.Document.FormName} to {state.Document.Size.Width} x {state.Document.Size.Height}.");
+                ClearOperation(surface);
+                return;
+            }
+
+            var node = activeNode!;
+
             var surfacePoint = ToSurfacePoint(surface, e);
             var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
 
             if (operation == DesignerMouseOperation.Dragging)
-                state.ReparentNodeAtDocumentPoint(activeNode, currentPoint);
+                state.ReparentNodeAtDocumentPoint(node, currentPoint);
 
             if (operation == DesignerMouseOperation.MovingSplitter)
             {
-                var distance = DesignerSpecialContainers.GetInt(activeNode, DesignerSpecialContainers.SplitterDistancePropertyName, startSplitterDistance);
-                state.Log($"Moved {activeNode.Name} splitter to {distance}.");
+                var distance = DesignerSpecialContainers.GetInt(node, DesignerSpecialContainers.SplitterDistancePropertyName, startSplitterDistance);
+                state.Log($"Moved {node.Name} splitter to {distance}.");
             }
             else
             {
                 var action = operation == DesignerMouseOperation.Dragging ? "Moved" : "Resized";
-                state.Log($"{action} {activeNode.Name} to {activeNode.Bounds.X}, {activeNode.Bounds.Y}, {activeNode.Bounds.Width} x {activeNode.Bounds.Height}.");
+                state.Log($"{action} {node.Name} to {node.Bounds.X}, {node.Bounds.Y}, {node.Bounds.Width} x {node.Bounds.Height}.");
             }
         }
 
@@ -158,6 +188,25 @@ internal sealed class DesignerMouseController
         startBounds = node.Bounds;
         startSplitterDistance = 0;
         changedBounds = false;
+        resizingRoot = false;
+        surface.Capture = true;
+    }
+
+    private void BeginRootResize(
+        Control surface,
+        DesignerResizeHandle handle,
+        (float X, float Y) surfacePoint)
+    {
+        operation = DesignerMouseOperation.Resizing;
+        resizeHandle = handle;
+        activeNode = null;
+        startDocumentPoint = default;
+        startRootSize = state.Document.Size;
+        startRootSurfacePoint = surfacePoint;
+        startRootScale = coordinateMapper.GetView(state, surface.Width, surface.Height).Scale;
+        startSplitterDistance = 0;
+        changedBounds = false;
+        resizingRoot = true;
         surface.Capture = true;
     }
 
@@ -167,6 +216,9 @@ internal sealed class DesignerMouseController
         resizeHandle = DesignerResizeHandle.None;
         activeNode = null;
         changedBounds = false;
+        resizingRoot = false;
+        startRootSurfacePoint = default;
+        startRootScale = 1f;
         startSplitterDistance = 0;
         surface.Capture = false;
     }
@@ -234,6 +286,27 @@ internal sealed class DesignerMouseController
         var nextBounds = new DesignBounds(left, top, right - left, bottom - top);
 
         CommitBounds(nextBounds);
+    }
+
+    private void UpdateRootResize(int deltaX, int deltaY)
+    {
+        var width = startRootSize.Width;
+        var height = startRootSize.Height;
+
+        if (resizeHandle is DesignerResizeHandle.Right or DesignerResizeHandle.BottomRight)
+            width = Math.Max(MinimumControlSize, startRootSize.Width + deltaX);
+
+        if (resizeHandle is DesignerResizeHandle.Bottom or DesignerResizeHandle.BottomRight)
+            height = Math.Max(MinimumControlSize, startRootSize.Height + deltaY);
+
+        var nextSize = new DesignSize(width, height);
+
+        if (state.Document.Size == nextSize)
+            return;
+
+        state.Document.Size = nextSize;
+        changedBounds = true;
+        state.NotifyDocumentChanged();
     }
 
     private void UpdateDockedResize(int deltaX, int deltaY)

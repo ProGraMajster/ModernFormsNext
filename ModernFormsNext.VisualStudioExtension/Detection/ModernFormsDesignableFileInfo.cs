@@ -1,3 +1,5 @@
+using ModernFormsNext.Designing;
+
 namespace ModernFormsNext.VisualStudioExtension.Detection;
 
 /// <summary>
@@ -29,4 +31,14 @@ public sealed record ModernFormsDesignableFileInfo(
     bool HasDesignFile,
     bool HasDesignerCodeFile,
     bool HasProjectDesignMetadata,
-    bool IsDesignable);
+    bool IsDesignable)
+{
+    /// <summary>
+    /// Gets the design root kind inferred from the primary class base type.
+    /// </summary>
+    /// <remarks>
+    /// This additive property preserves the original positional record constructor and deconstruction
+    /// contract for callers compiled against earlier extension versions.
+    /// </remarks>
+    public DesignRootKind RootKind { get; init; } = DesignRootKind.Form;
+}

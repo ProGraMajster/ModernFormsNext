@@ -17,6 +17,7 @@ public sealed class DesignerSession
     private readonly List<string> outputLines = [];
     private readonly List<DesignerOpenDocument> openDocuments = [];
     private readonly IDesignerHostEnvironment? environment;
+    private readonly IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls;
     private DesignControlNode? clipboardNode;
     private DesignerOpenDocument? activeDocument;
 
@@ -30,6 +31,7 @@ public sealed class DesignerSession
         DesignerControlRenderMode initialRenderMode = DesignerControlRenderMode.Runtime)
     {
         this.environment = environment;
+        projectUserControls = DesignerProjectUserControlDiscovery.Discover(environment?.CurrentProjectPath);
         ControlRenderMode = initialRenderMode;
         Host = new DesignerHost(CreateDefaultDocument());
         Host.Selection.SelectionChanged += (_, _) => SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -113,6 +115,8 @@ public sealed class DesignerSession
     /// </summary>
     public string? CurrentProjectPath => environment?.CurrentProjectPath;
 
+    internal IReadOnlyList<DesignerProjectUserControlInfo> ProjectUserControls => projectUserControls;
+
     internal IReadOnlyList<DesignerOpenDocument> OpenDocuments => openDocuments;
 
     internal int ActiveDocumentIndex => activeDocument is null ? -1 : openDocuments.IndexOf(activeDocument);
@@ -138,6 +142,7 @@ public sealed class DesignerSession
         DesignerSpecialContainers.NormalizeDocument(document);
 
         var normalizedPath = DesignerDocumentPath.NormalizeDesignPath(path);
+        markDirty |= SynchronizeProjectUserControlIdentity(document, normalizedPath);
         var existing = !string.IsNullOrWhiteSpace(normalizedPath)
             ? openDocuments.FirstOrDefault(tab => string.Equals(tab.Path, normalizedPath, StringComparison.OrdinalIgnoreCase))
             : null;
@@ -169,6 +174,49 @@ public sealed class DesignerSession
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
         Log($"Loaded {document.ClassName}.mfdesign.");
+    }
+
+    private bool SynchronizeProjectUserControlIdentity(DesignDocument document, string? designPath)
+    {
+        if (string.IsNullOrWhiteSpace(designPath))
+            return false;
+
+        var sourcePath = Path.ChangeExtension(designPath, ".cs");
+        var matchingControls = projectUserControls
+            .Where(control => string.Equals(
+                Path.GetFullPath(control.SourceFilePath),
+                Path.GetFullPath(sourcePath),
+                StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToArray();
+
+        if (matchingControls.Length != 1)
+            return false;
+
+        var control = matchingControls[0];
+        // A legacy document may not yet have rootKind. Infer UserControl only when the original
+        // class name still identifies the discovered declaration; otherwise a Form file containing
+        // an unrelated helper UserControl must remain a Form.
+        if (document.RootKind != DesignRootKind.UserControl
+            && !string.Equals(document.ClassName, control.Name, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var namespaceName = control.FullName.Length == control.Name.Length
+            ? string.Empty
+            : control.FullName[..^(control.Name.Length + 1)];
+        var changed = document.RootKind != DesignRootKind.UserControl
+            || !string.Equals(document.ClassName, control.Name, StringComparison.Ordinal)
+            || !string.Equals(document.Namespace, namespaceName, StringComparison.Ordinal);
+
+        if (!changed)
+            return false;
+
+        document.RootKind = DesignRootKind.UserControl;
+        document.ClassName = control.Name;
+        document.Namespace = namespaceName;
+        return true;
     }
 
     internal void SwitchDocument(int index)
@@ -245,7 +293,7 @@ public sealed class DesignerSession
     }
 
     /// <summary>
-    /// Selects the form root by clearing the selected control node.
+    /// Selects the design root by clearing the selected control node.
     /// </summary>
     public void SelectForm()
     {
@@ -256,7 +304,7 @@ public sealed class DesignerSession
     /// <summary>
     /// Selects the specified control node.
     /// </summary>
-    /// <param name="node">The node to select, or <see langword="null"/> to select the form.</param>
+    /// <param name="node">The node to select, or <see langword="null"/> to select the design root.</param>
     public void SelectNode(DesignControlNode? node)
     {
         if (node is null)
@@ -276,8 +324,10 @@ public sealed class DesignerSession
     /// <param name="y">The document Y coordinate in logical pixels.</param>
     public void SelectAt(int x, int y)
     {
-        var result = Host.SelectAt(x, y);
-        Log(result.Node is null ? $"Selected {Document.FormName}." : $"Selected {result.Node.Name}.");
+        var result = Host.HitTest(x, y);
+        var selectedNode = GetComponentBoundary(result.Node);
+        Host.Selection.Select(selectedNode);
+        Log(selectedNode is null ? $"Selected {Document.FormName}." : $"Selected {selectedNode.Name}.");
     }
 
     /// <summary>
@@ -327,9 +377,15 @@ public sealed class DesignerSession
     /// <returns>The created design control node.</returns>
     public DesignControlNode AddControl(string typeName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
+
+        if (!DesignerControlReferenceGuard.CanReference(Document, typeName, CurrentProjectPath, out var error))
+            throw new InvalidOperationException(error);
+
         var parent = IsContainerNode(SelectedNode) ? SelectedNode : null;
         var index = CountControls(typeName) + 1;
-        var namePrefix = char.ToLowerInvariant(typeName[0]) + typeName[1..];
+        var shortTypeName = GetShortTypeName(typeName);
+        var namePrefix = char.ToLowerInvariant(shortTypeName[0]) + shortTypeName[1..];
         var node = new DesignControlNode
         {
             TypeName = typeName,
@@ -342,7 +398,7 @@ public sealed class DesignerSession
             }
         };
 
-        if (typeName == "Panel")
+        if (shortTypeName == "Panel")
             node.Properties["Text"] = DesignPropertyValue.FromString(string.Empty);
 
         DesignerSpecialContainers.InitializeNewNode(node);
@@ -365,7 +421,7 @@ public sealed class DesignerSession
     /// Moves a node to a target chosen in the document outline.
     /// </summary>
     /// <param name="node">The node being moved.</param>
-    /// <param name="target">The target row, or <see langword="null"/> to move the node to the form root.</param>
+    /// <param name="target">The target row, or <see langword="null"/> to move the node to the design root.</param>
     /// <returns><see langword="true"/> when the node was moved; otherwise, <see langword="false"/>.</returns>
     /// <remarks>
     /// Container targets receive the node as a child. Non-container targets receive the node
@@ -729,6 +785,13 @@ public sealed class DesignerSession
         }
 
         var clone = CloneForPaste(clipboardNode, offsetRoot: true);
+
+        if (!DesignerControlReferenceGuard.CanReferenceTree(Document, clone, CurrentProjectPath, out var error))
+        {
+            Log(error ?? "The copied control would create an invalid design reference.");
+            return false;
+        }
+
         var destination = GetPasteDestination(out var targetName);
         destination.Add(clone);
         Host.Selection.Select(clone);
@@ -791,6 +854,11 @@ public sealed class DesignerSession
 
         if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
             return true;
+
+        // A project-owned UserControl is a component boundary in its parent's designer. Its
+        // internal children belong to its own .mfdesign document and are never edited in place.
+        if (IsProjectUserControlType(node.TypeName))
+            return false;
 
         var type = ResolveControlType(node);
 
@@ -877,6 +945,33 @@ public sealed class DesignerSession
             ?? frameworkAssembly.GetType(typeName, throwOnError: false)
             ?? frameworkAssembly.GetType($"ModernFormsNext.{typeName}", throwOnError: false);
     }
+
+    internal bool IsProjectUserControlType(string typeName)
+        => projectUserControls.Any(control => DesignerProjectUserControlDiscovery.Matches(control, typeName));
+
+    private DesignControlNode? GetComponentBoundary(DesignControlNode? node)
+    {
+        if (node is null)
+            return null;
+
+        var boundary = IsProjectUserControlType(node.TypeName) ? node : null;
+
+        for (var parent = FindParent(node); parent is not null; parent = FindParent(parent))
+        {
+            if (IsProjectUserControlType(parent.TypeName))
+                boundary = parent;
+        }
+
+        return boundary ?? node;
+    }
+
+    internal Type GetRootControlType()
+        => Document.RootKind == DesignRootKind.UserControl ? typeof(UserControl) : typeof(Form);
+
+    internal string GetRootTypeName()
+        => Document.RootKind == DesignRootKind.UserControl
+            ? typeof(UserControl).FullName!
+            : typeof(Form).FullName!;
 
     internal DesignControlNode? FindParent(DesignControlNode node)
         => TryFindNodeWithParent(node, Document.Controls, parent: null, out var parentNode, out _, out _)
@@ -1102,10 +1197,13 @@ public sealed class DesignerSession
             if (!visible.Contains(point.X, point.Y))
                 continue;
 
-            var childResult = FindDeepestContainerAtPoint(node.Children, node, layout, draggedNode, point, visible);
+            if (!IsProjectUserControlType(node.TypeName))
+            {
+                var childResult = FindDeepestContainerAtPoint(node.Children, node, layout, draggedNode, point, visible);
 
-            if (childResult is not null)
-                return childResult;
+                if (childResult is not null)
+                    return childResult;
+            }
 
             if (IsContainerNode(node))
                 return node;
@@ -1356,12 +1454,14 @@ public sealed class DesignerSession
 
     private int CountControls(string typeName)
     {
-        var prefix = char.ToLowerInvariant(typeName[0]) + typeName[1..];
+        var shortTypeName = GetShortTypeName(typeName);
+        var prefix = char.ToLowerInvariant(shortTypeName[0]) + shortTypeName[1..];
         return EnumerateNodes().Count(item => item.Node.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private static DesignBounds GetDefaultBounds(string typeName, DesignControlNode? parent, int index)
     {
+        typeName = GetShortTypeName(typeName);
         var offset = Math.Min(index, 8) * 12;
         var originX = parent is null ? 80 : 24;
         var originY = parent is null ? 80 : 24;
@@ -1381,7 +1481,7 @@ public sealed class DesignerSession
     }
 
     private static string GetDefaultText(string typeName, int index)
-        => typeName switch
+        => GetShortTypeName(typeName) switch
         {
             "Button" => $"button{index}",
             "Label" => $"label{index}",
@@ -1390,6 +1490,13 @@ public sealed class DesignerSession
             "TabPage" => $"tabPage{index}",
             _ => string.Empty
         };
+
+    private static string GetShortTypeName(string typeName)
+    {
+        var normalized = DesignerProjectUserControlDiscovery.NormalizeTypeName(typeName);
+        var separator = normalized.LastIndexOf('.');
+        return separator >= 0 ? normalized[(separator + 1)..] : normalized;
+    }
 }
 
 internal sealed class DesignerOpenDocument
