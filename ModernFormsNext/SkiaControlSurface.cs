@@ -490,10 +490,10 @@ public sealed class SkiaControlSurface : IDisposable
     {
         foreach (var child in parent.Controls.GetAllControls().Reverse())
         {
-            if (!child.Visible || !child.Enabled || !child.Bounds.Contains(point))
+            if (!child.Visible || !child.Enabled || !child.PresentationContains(point))
                 continue;
 
-            var childPoint = new Point(point.X - child.Left, point.Y - child.Top);
+            Point childPoint = child.ParentPresentationPointToClient(point);
             var descendant = FindSelectableAt(child, childPoint);
             if (descendant is not null)
                 return descendant;
@@ -601,10 +601,10 @@ public sealed class SkiaControlSurface : IDisposable
     {
         foreach (var child in control.Controls.GetAllControls().Reverse())
         {
-            if (!child.Visible || !child.Enabled || !child.ScaledBounds.Contains(localPoint))
+            if (!child.Visible || !child.Enabled || !child.PresentationContains(localPoint))
                 continue;
 
-            var childPoint = new Point(localPoint.X - child.ScaledLeft, localPoint.Y - child.ScaledTop);
+            Point childPoint = child.ParentPresentationPointToClient(localPoint);
             var descendant = HitTest(child, childPoint);
             if (descendant is not null)
                 return descendant;
@@ -658,7 +658,7 @@ public sealed class SkiaControlSurface : IDisposable
         for (var current = target; current.Parent is not null; current = current.Parent)
             ancestors.Push(current);
         while (ancestors.TryPop(out var control))
-            result.Offset(-control.ScaledLeft, -control.ScaledTop);
+            result = control.ParentPresentationPointToClient(result);
         return result;
     }
 

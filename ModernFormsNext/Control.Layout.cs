@@ -607,7 +607,7 @@ public partial class Control
     [EditorBrowsable (EditorBrowsableState.Advanced)]
     protected void UpdateBounds (int x, int y, int width, int height)//, int clientWidth, int clientHeight)
     {
-
+        var oldBounds = new Rectangle (_x, _y, _width, _height);
         var newLocation = _x != x || _y != y;
         var newSize = Width != width || Height != height;// ||
                                                           //_clientWidth != clientWidth || _clientHeight != clientHeight;
@@ -618,6 +618,12 @@ public partial class Control
         _height = height;
         //_clientWidth = clientWidth;
         //_clientHeight = clientHeight;
+
+        // Logical geometry commits atomically before presentation animation starts. Layout
+        // engines, public bounds properties, and re-entrant change handlers therefore observe the
+        // final constrained rectangle, while rendering can still begin at the previous visual
+        // rectangle. A re-entrant target change retargets from the current presentation state.
+        UpdateLayoutPresentationBounds (oldBounds, new Rectangle (x, y, width, height));
 
         if (newLocation)
             OnLocationChanged (EventArgs.Empty);

@@ -39,7 +39,13 @@ namespace ModernFormsNext
             window.Input = OnInput;
             window.Paint = DoPaint;
             window.Resized = OnResize;
-            window.Closed = () => Closed?.Invoke (this, EventArgs.Empty);
+            window.Closed = () => {
+                // A secondary window can close without shutting down the process-wide scheduler.
+                // Release every control-owned animation so callbacks cannot retain its detached
+                // visual tree. The operation is idempotent with the explicit Close path below.
+                adapter.CancelOwnedControlAnimationsForSubtree ();
+                Closed?.Invoke (this, EventArgs.Empty);
+            };
             window.Deactivated = () => {
                 // If we're clicking off the form, deactivate any active menus
                 Application.ClosePopups ();
@@ -86,6 +92,7 @@ namespace ModernFormsNext
                 Application.OpenForms.Remove (f);
             }
             
+            adapter.CancelOwnedControlAnimationsForSubtree ();
             window.Dispose (); 
         }
 

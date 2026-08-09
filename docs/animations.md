@@ -9,6 +9,30 @@ The scheduler starts its single tick source when the first animation needs it an
 last animation completes, is canceled, or faults. It does not create a timer for each control or
 animation.
 
+## Animated layout
+
+Assign `Control.LayoutTransition` when a control should animate a complete layout result:
+
+```csharp
+card.LayoutTransition = new LayoutTransition
+{
+    Duration = TimeSpan.FromMilliseconds(250),
+    Easing = Easings.EaseOut
+};
+
+card.Bounds = new Rectangle(100, 50, 400, 200);
+```
+
+`Bounds` is the logical target immediately. Rendering, accessibility geometry, and hit testing use
+an internal presentation rectangle while it approaches that target. Dock, Anchor, flow, and table
+layout keep their existing semantics because they commit logical geometry before the transition.
+Retargeting begins at the current presentation rectangle, and disabling the transition snaps to the
+logical target and unregisters the control from the scheduler. No layout pass runs on animation
+frames.
+
+See [Animated layout architecture](architecture/animated-layout.md) for rendering, input,
+lifecycle, constraints, and current limitations.
+
 ## Basic control animation
 
 Use `Control.Animate` for a custom eased-progress callback owned by a control:
