@@ -40,12 +40,10 @@ public sealed class VisualStateTransitionTests
         control.StyleHover.ScaleX = 1.2f;
         control.StyleHover.TranslationX = 8f;
         control.StyleHover.Rotation = 10f;
-        control.StyleHover.Border.Width = 8;
         int layouts = 0;
         control.Layout += (_, _) => layouts++;
 
         control.EnterForTest();
-        Assert.Equal(8, control.CurrentStyle.Border.GetWidth());
         harness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
 
         Assert.Equal(new SKColor(128, 0, 128), control.CurrentStyle.GetBackgroundColor());

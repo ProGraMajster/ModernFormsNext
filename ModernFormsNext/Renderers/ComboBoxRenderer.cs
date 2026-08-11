@@ -41,7 +41,7 @@ namespace ModernFormsNext.Renderers
         {
             var glyph_size = e.LogicalToDeviceUnits (GLYPH_SIZE);
 
-            return new Rectangle (control.ScaledWidth - glyph_size, 0, glyph_size - e.LogicalToDeviceUnits (control.Padding.Right), control.ScaledHeight);
+            return new Rectangle (control.ScaledWidth - glyph_size, 0, glyph_size - e.LogicalToDeviceUnits (control.PresentationPadding.Right), control.ScaledHeight);
         }
 
         /// <summary>

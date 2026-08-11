@@ -60,6 +60,21 @@ public static class AnimationInterpolators
             Lerp(from.Height, to.Height, progress)));
 
     /// <summary>
+    /// Gets the component-wise <see cref="Padding"/> interpolator.
+    /// </summary>
+    /// <remarks>
+    /// Each side uses the same deterministic midpoint-away-from-zero rounding as
+    /// <see cref="Int32"/>. The interpolator does not clamp overshooting easing output; consumers
+    /// that require non-negative layout metrics must apply their normal layout constraints.
+    /// </remarks>
+    public static IAnimationInterpolator<Padding> Padding { get; } =
+        new DelegateInterpolator<Padding>(static (from, to, progress) => new Padding(
+            Int32.Interpolate(from.Left, to.Left, progress),
+            Int32.Interpolate(from.Top, to.Top, progress),
+            Int32.Interpolate(from.Right, to.Right, progress),
+            Int32.Interpolate(from.Bottom, to.Bottom, progress)));
+
+    /// <summary>
     /// Gets the alpha-aware <see cref="Color"/> interpolator.
     /// </summary>
     /// <remarks>Overshoot channel values are clamped to 0..255.</remarks>

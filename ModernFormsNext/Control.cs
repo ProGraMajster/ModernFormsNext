@@ -1752,11 +1752,12 @@ namespace ModernFormsNext
         public virtual Rectangle PaddedClientRectangle {
             get {
                 var client_rect = ClientRectangle;
+                var padding = PresentationPadding;
 
-                var x = client_rect.Left + Padding.Left;
-                var y = client_rect.Top + Padding.Top;
-                var w = client_rect.Width - Padding.Horizontal;
-                var h = client_rect.Height - Padding.Vertical;
+                var x = client_rect.Left + padding.Left;
+                var y = client_rect.Top + padding.Top;
+                var w = client_rect.Width - padding.Horizontal;
+                var h = client_rect.Height - padding.Vertical;
                 return new Rectangle (x, y, w, h);
             }
         }

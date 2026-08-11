@@ -408,7 +408,7 @@ namespace ModernFormsNext
             get
             {
                 var baseRectangle = base.DisplayRectangle;
-                var padding = Padding;
+                var padding = PresentationPadding;
                 int captionHeight = CaptionHeight;
 
                 return new Rectangle(
@@ -628,7 +628,7 @@ namespace ModernFormsNext
                 }
             }
 
-            var padding = Padding;
+            var padding = PresentationPadding;
             int captionHeight = CaptionHeight;
             int captionWidth = GetCaptionTextWidth();
 

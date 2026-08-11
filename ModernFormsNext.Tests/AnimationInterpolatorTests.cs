@@ -24,6 +24,11 @@ public sealed class AnimationInterpolatorTests
                 new RectangleF(0f, 0f, 10f, 10f),
                 new RectangleF(10f, 20f, 20f, 30f),
                 0.5f));
+        Assert.Equal(new Padding(5, 10, 15, 20),
+            AnimationInterpolators.Padding.Interpolate(
+                new Padding(0, 0, 10, 10),
+                new Padding(10, 20, 20, 30),
+                0.5f));
     }
 
     [Fact]

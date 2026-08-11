@@ -22,6 +22,7 @@ namespace ControlGallery
             tree.Items.Add ("Button", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Animations", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("Animated layout", ImageLoader.Get ("swatches.png"));
+            tree.Items.Add ("Layout-aware visual states", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("Animations and Interaction Effects", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("CheckBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("CheckedListBox", ImageLoader.Get ("button.png"));
@@ -108,6 +109,8 @@ namespace ControlGallery
                     return new AnimationSchedulerPanel ();
                 case "Animated layout":
                     return new AnimatedLayoutPanel ();
+                case "Layout-aware visual states":
+                    return new LayoutAwareVisualStatesPanel ();
                 case "Animations and Interaction Effects":
                     return new AnimationsAndInteractionEffectsPanel ();
                 case "Button":

@@ -24,10 +24,11 @@ internal static class TextImageLayoutEngine
 
     private static void CalculateFace (Control control, TextImageLayoutData layout)
     {
-        var left_border = control.Style.Border.Left.GetWidth ();
-        var top_border = control.Style.Border.Top.GetWidth ();
-        var right_border = control.Style.Border.Right.GetWidth ();
-        var bottom_border = control.Style.Border.Bottom.GetWidth ();
+        BorderStyle border = control.CurrentStyle.Border;
+        var left_border = border.Left.GetWidth ();
+        var top_border = border.Top.GetWidth ();
+        var right_border = border.Right.GetWidth ();
+        var bottom_border = border.Bottom.GetWidth ();
 
         var face = new Rectangle (
             layout.Client.X + left_border,
@@ -42,10 +43,11 @@ internal static class TextImageLayoutEngine
     private static void CalculateInitialField (Control control, TextImageLayoutData layout)
     {
         // The initial field is Control's ClientRectangle minus the border and padding.
-        var left_padding = control.Padding.Left;
-        var top_padding = control.Padding.Top;
-        var right_padding = control.Padding.Right;
-        var bottom_padding = control.Padding.Bottom;
+        Padding padding = control.PresentationPadding;
+        var left_padding = padding.Left;
+        var top_padding = padding.Top;
+        var right_padding = padding.Right;
+        var bottom_padding = padding.Bottom;
 
         var field = new Rectangle (
             layout.Face.X + left_padding,

@@ -107,8 +107,8 @@ namespace ModernFormsNext
         {
             var width = 0;
             var height = 0;
-            var extra_width = hscrollbar.Value + Padding.Right;
-            var extra_height = vscrollbar.Value + Padding.Bottom;
+            var extra_width = hscrollbar.Value + PresentationPadding.Right;
+            var extra_height = vscrollbar.Value + PresentationPadding.Bottom;
 
             foreach (var c in Controls) {
                 if (IsInternalScrollControl (c))
@@ -172,7 +172,7 @@ namespace ModernFormsNext
                 if (vscrollbar.Visible)
                     rect.Width -= vscrollbar.Width;
 
-                return LayoutUtils.DeflateRect (rect, Padding);
+                return LayoutUtils.DeflateRect (rect, PresentationPadding);
             }
         }
 

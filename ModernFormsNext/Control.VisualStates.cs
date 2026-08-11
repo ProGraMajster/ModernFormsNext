@@ -27,6 +27,7 @@ public partial class Control
     private float visualStateScaleX = 1f;
     private float visualStateScaleY = 1f;
     private float visualStateRotation;
+    private int visualStateTransitionGeneration;
     private Brush? subscribedStateBackgroundBrush;
     private Brush? subscribedStateForegroundBrush;
     private Brush? subscribedStateBorderBrush;
@@ -35,6 +36,8 @@ public partial class Control
 
     internal void CancelOwnedControlAnimations()
     {
+        VisualStateLayoutMetrics previousMetrics = CapturePresentationLayoutMetrics();
+        visualStateTransitionGeneration++;
         if (AnimationSchedulerOverride is { } scheduler)
             scheduler.CancelAll(this);
         else
@@ -44,6 +47,7 @@ public partial class Control
         {
             transitionStyle = null;
             ApplyStateTransforms(GetStyleForState(currentVisualState));
+            ApplyVisualStateLayoutMetrics(previousMetrics, CapturePresentationLayoutMetrics());
         }
     }
 
@@ -77,7 +81,8 @@ public partial class Control
     /// <remarks>
     /// <para>
     /// Each control starts with its own empty collection. Without a matching explicitly added
-    /// transition, state changes apply the target style immediately and only invalidate rendering.
+    /// transition, state changes apply the target style immediately. Render-only values invalidate
+    /// painting, while supported layout-aware metrics request one grouped layout pass.
     /// Container and data-surface controls do not enter the Pressed state merely because they
     /// receive pointer input; they must opt in through a pressed style or transition.
     /// </para>
@@ -114,6 +119,13 @@ public partial class Control
     internal Brush? EffectiveBackgroundBrush => BackgroundBrush ?? CurrentStyle.GetResolvedBackgroundBrush();
     internal Brush? EffectiveTextBrush => TextBrush ?? CurrentStyle.GetResolvedForegroundBrush();
     internal Brush? EffectiveBorderBrush => CurrentStyle.GetResolvedBorderBrush();
+
+    /// <summary>
+    /// Gets the padding used by current presentation layout without changing the persistent
+    /// <see cref="Padding"/> property.
+    /// </summary>
+    internal Padding PresentationPadding
+        => ResolveVisualStatePadding(transitionStyle ?? GetStyleForState(currentVisualState));
 
     internal ControlStyle ResolveCurrentStyle()
     {
@@ -176,10 +188,12 @@ public partial class Control
         if (targetState == previousState)
             return;
 
+        VisualStateLayoutMetrics previousMetrics = CapturePresentationLayoutMetrics();
         bool continuesActiveTransition = transitionStyle is not null;
         ControlStyle sourceStyle = transitionStyle ?? GetStyleForState(previousState);
         ControlStyle targetStyle = GetStyleForState(targetState);
         currentVisualState = targetState;
+        int generation = ++visualStateTransitionGeneration;
 
         if (Properties.GetObject(s_styleTransitionsProperty) is not VisualStateTransitionCollection transitions ||
             !transitions.TryGet(previousState, targetState, out VisualStateTransition? transition))
@@ -188,6 +202,7 @@ public partial class Control
                 EffectiveAnimationScheduler.Cancel(this, VisualStateAnimationKey);
             transitionStyle = null;
             ApplyStateTransforms(targetStyle);
+            ApplyVisualStateLayoutMetrics(previousMetrics, CapturePresentationLayoutMetrics());
             Invalidate();
             return;
         }
@@ -197,35 +212,101 @@ public partial class Control
             targetStyle,
             this,
             continuesActiveTransition);
+        TimeSpan duration = transition!.Duration;
+        Func<float, float> easing = transition.Easing;
         transitionStyle = runtime.AnimatedStyle;
-        EffectiveAnimationScheduler.StartFrames(
-            this,
-            VisualStateAnimationKey,
-            frame =>
+        try
+        {
+            EffectiveAnimationScheduler.StartFrames(
+                this,
+                VisualStateAnimationKey,
+                frame =>
+                {
+                    if (visualStateTransitionGeneration != generation)
+                        return;
+
+                    VisualStateLayoutMetrics beforeFrame = CapturePresentationLayoutMetrics();
+                    try
+                    {
+                        float easedProgress = frame.Progress switch
+                        {
+                            <= 0f => 0f,
+                            >= 1f => 1f,
+                            _ => easing(frame.Progress)
+                        };
+                        if (!float.IsFinite(easedProgress))
+                        {
+                            throw new InvalidOperationException(
+                                "The visual-state transition easing function returned NaN or infinity.");
+                        }
+
+                        runtime.Apply(easedProgress, this);
+                        if (visualStateTransitionGeneration != generation)
+                            return;
+
+                        // Raw timeline completion, rather than overshooting eased progress, owns
+                        // release of the transient presentation style.
+                        if (frame.Progress >= 1f)
+                            transitionStyle = null;
+
+                        ApplyVisualStateLayoutMetrics(beforeFrame, CapturePresentationLayoutMetrics());
+                        Invalidate();
+                    }
+                    catch
+                    {
+                        if (visualStateTransitionGeneration == generation)
+                        {
+                            transitionStyle = null;
+                            ApplyStateTransforms(targetStyle);
+                            try
+                            {
+                                ApplyVisualStateLayoutMetrics(
+                                    beforeFrame,
+                                    CapturePresentationLayoutMetrics());
+                                Invalidate();
+                            }
+                            catch
+                            {
+                                // Preserve the original callback failure reported by the scheduler.
+                            }
+                        }
+
+                        throw;
+                    }
+                },
+                new AnimationOptions
+                {
+                    Duration = duration,
+                    // Evaluate easing in the callback so a fault can release presentation metrics
+                    // before the scheduler marks and removes the shared entry.
+                    Easing = Easings.Linear,
+                    ReplacementMode = AnimationReplacementMode.Replace
+                });
+        }
+        catch
+        {
+            if (visualStateTransitionGeneration == generation)
             {
-                runtime.Apply(frame.EasedProgress, this);
-                // Easing is intentionally allowed to overshoot. Only raw timeline completion may
-                // release the transient style; otherwise an early eased value >= 1 makes the
-                // control jump to the target style while its animation is still active.
-                if (frame.Progress >= 1f)
-                    transitionStyle = null;
+                transitionStyle = null;
+                ApplyStateTransforms(targetStyle);
+                ApplyVisualStateLayoutMetrics(previousMetrics, CapturePresentationLayoutMetrics());
                 Invalidate();
-            },
-            new AnimationOptions
-            {
-                Duration = transition!.Duration,
-                Easing = transition.Easing,
-                ReplacementMode = AnimationReplacementMode.Replace
-            });
+            }
+
+            throw;
+        }
     }
 
     internal void RefreshVisualStateAfterThemeChange()
     {
+        VisualStateLayoutMetrics previousMetrics = CapturePresentationLayoutMetrics();
+        visualStateTransitionGeneration++;
         if (transitionStyle is not null)
             EffectiveAnimationScheduler.Cancel(this, VisualStateAnimationKey);
         transitionStyle = null;
         currentVisualState = ResolveVisualState();
         ApplyStateTransforms(GetStyleForState(currentVisualState));
+        ApplyVisualStateLayoutMetrics(previousMetrics, CapturePresentationLayoutMetrics());
     }
 
     private VisualState ResolveVisualState()
@@ -315,6 +396,56 @@ public partial class Control
         return created;
     }
 
+    private Padding ResolveVisualStatePadding(ControlStyle style)
+        => style.GetResolvedPadding() is { } padding
+            ? LayoutUtils.ClampNegativePaddingToZero(padding)
+            : Padding;
+
+    private VisualStateLayoutMetrics CapturePresentationLayoutMetrics()
+        => VisualStateLayoutMetrics.Capture(
+            transitionStyle ?? GetStyleForState(currentVisualState),
+            this);
+
+    private void ApplyVisualStateLayoutMetrics(
+        VisualStateLayoutMetrics previous,
+        VisualStateLayoutMetrics current)
+    {
+        if (previous == current || GetState(States.Disposing | States.Disposed))
+            return;
+
+        // Padding and border thickness both change the content rectangle. Batch all metrics from
+        // this scheduler frame into one self-layout. Auto-sized controls additionally ask their
+        // parent to measure once. The #25 suppression scope keeps resulting child bounds from
+        // starting a second eased transition for the same visual-state change.
+        Control transitionSuppressionRoot = AutoSize && Parent is not null ? Parent : this;
+        transitionSuppressionRoot.BeginAnimatedLayoutSizeCommit();
+        try
+        {
+            OnPresentationContentMetricsChanged();
+
+            SetState(States.LayoutIsDirty, true);
+            if (AutoSize && Parent is not null)
+                LayoutTransaction.DoLayout(Parent, this, PropertyNames.PreferredSize);
+            LayoutTransaction.DoLayout(this, this, PropertyNames.Padding);
+        }
+        finally
+        {
+            transitionSuppressionRoot.EndAnimatedLayoutSizeCommit();
+        }
+    }
+
+    /// <summary>
+    /// Notifies framework controls that cached content layout depends on presentation padding or
+    /// border thickness.
+    /// </summary>
+    /// <remarks>
+    /// This does not raise <see cref="PaddingChanged"/> because the persistent public
+    /// <see cref="Padding"/> value has not changed.
+    /// </remarks>
+    internal virtual void OnPresentationContentMetricsChanged()
+    {
+    }
+
     private void ApplyStateTransforms(ControlStyle style)
     {
         visualStateOpacity = Math.Clamp(style.GetResolvedOpacity() ?? 1f, 0f, 1f);
@@ -378,6 +509,18 @@ public partial class Control
                 from.ForegroundBrush, to.ForegroundBrush, foregroundInterpolator, progress);
             AnimatedStyle.BorderBrush = InterpolateBrush(
                 from.BorderBrush, to.BorderBrush, borderInterpolator, progress);
+            AnimatedStyle.Padding = LayoutUtils.ClampNegativePaddingToZero(
+                AnimationInterpolators.Padding.Interpolate(from.Padding, to.Padding, progress));
+            AnimatedStyle.Border.Width = AnimationInterpolators.Int32.Interpolate(
+                from.BorderWidth, to.BorderWidth, progress);
+            AnimatedStyle.Border.Left.Width = AnimationInterpolators.Int32.Interpolate(
+                from.BorderLeftWidth, to.BorderLeftWidth, progress);
+            AnimatedStyle.Border.Top.Width = AnimationInterpolators.Int32.Interpolate(
+                from.BorderTopWidth, to.BorderTopWidth, progress);
+            AnimatedStyle.Border.Right.Width = AnimationInterpolators.Int32.Interpolate(
+                from.BorderRightWidth, to.BorderRightWidth, progress);
+            AnimatedStyle.Border.Bottom.Width = AnimationInterpolators.Int32.Interpolate(
+                from.BorderBottomWidth, to.BorderBottomWidth, progress);
             control.visualStateOpacity = Lerp(from.Opacity, to.Opacity, progress);
             control.visualStateTranslationX = Lerp(from.TranslationX, to.TranslationX, progress);
             control.visualStateTranslationY = Lerp(from.TranslationY, to.TranslationY, progress);
@@ -439,6 +582,12 @@ public partial class Control
         Brush? BackgroundBrush,
         Brush? ForegroundBrush,
         Brush? BorderBrush,
+        Padding Padding,
+        int BorderWidth,
+        int BorderLeftWidth,
+        int BorderTopWidth,
+        int BorderRightWidth,
+        int BorderBottomWidth,
         float Opacity,
         float TranslationX,
         float TranslationY,
@@ -457,11 +606,33 @@ public partial class Control
                 style.GetResolvedBackgroundBrush(),
                 style.GetResolvedForegroundBrush(),
                 style.GetResolvedBorderBrush(),
+                control.ResolveVisualStatePadding(style),
+                style.Border.GetWidth(),
+                style.Border.Left.GetWidth(),
+                style.Border.Top.GetWidth(),
+                style.Border.Right.GetWidth(),
+                style.Border.Bottom.GetWidth(),
                 useCurrentTransform ? control.GetVisualOpacity() : Math.Clamp(style.GetResolvedOpacity() ?? 1f, 0f, 1f),
                 useCurrentTransform ? control.GetVisualTranslationX() : style.GetResolvedTranslationX() ?? 0f,
                 useCurrentTransform ? control.GetVisualTranslationY() : style.GetResolvedTranslationY() ?? 0f,
                 useCurrentTransform ? control.GetVisualScaleX() : style.GetResolvedScaleX() ?? 1f,
                 useCurrentTransform ? control.GetVisualScaleY() : style.GetResolvedScaleY() ?? 1f,
                 useCurrentTransform ? control.GetVisualRotation() : style.GetResolvedRotation() ?? 0f);
+    }
+
+    private readonly record struct VisualStateLayoutMetrics(
+        Padding Padding,
+        int BorderLeftWidth,
+        int BorderTopWidth,
+        int BorderRightWidth,
+        int BorderBottomWidth)
+    {
+        public static VisualStateLayoutMetrics Capture(ControlStyle style, Control control)
+            => new(
+                control.ResolveVisualStatePadding(style),
+                style.Border.Left.GetWidth(),
+                style.Border.Top.GetWidth(),
+                style.Border.Right.GetWidth(),
+                style.Border.Bottom.GetWidth());
     }
 }
