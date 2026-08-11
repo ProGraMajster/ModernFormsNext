@@ -8,8 +8,9 @@ rectangle. It does not introduce another visual tree, layout engine, timer, or p
 control implementation.
 
 The first version interpolates the complete `RectangleF` (`X`, `Y`, `Width`, and `Height`) as one
-value. Full visual-state orchestration, navigation transitions, designer editing, and Android-
-specific runtime integration remain separate work.
+value. Navigation transitions, designer editing, and Android-specific runtime integration remain
+separate work. Selected visual-state content metrics build on this foundation through the linked
+layout-aware contract below.
 
 ## Logical and presentation geometry
 
@@ -34,6 +35,11 @@ descendants commit their new logical bounds without starting redundant local tra
 that layout pass. The parent's presentation scaling already carries the complete subtree between
 the old and new sizes. Independent descendant changes outside that layout pass remain eligible for
 their own transitions.
+
+Visual-state padding and border metrics are a separate presentation input that can require a
+grouped layout when their rounded value changes. That path reuses this subsystem's descendant
+transition suppression so child rectangles are not eased twice. See
+[Layout-aware visual-state metrics](layout-aware-visual-state-metrics.md).
 
 ## Starting and retargeting
 
@@ -136,8 +142,9 @@ future known-easing editor can represent it without serializing arbitrary delega
 - the Visual Studio Designer has no transition editor or preview integration yet;
 - Android uses the shared scheduler contract, but broader Android animation-runtime work remains
   deferred to issue #29;
-- visual-state and higher-level layout-transition composition remain deferred to issues #26 and
-  #28.
+- layout-aware visual-state composition is defined in
+  [Layout-aware visual-state metrics](layout-aware-visual-state-metrics.md); Designer editing of
+  custom transition definitions remains deferred to issue #28.
 
 The ControlGallery **Animated layout** page provides manual checks for movement, resizing, rapid
 retargeting, hit testing, nested content, and disabling a transition mid-flight.

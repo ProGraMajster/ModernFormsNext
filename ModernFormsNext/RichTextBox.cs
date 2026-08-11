@@ -959,6 +959,13 @@ namespace ModernFormsNext
             RaiseContentsResizedIfNeeded();
         }
 
+        /// <inheritdoc/>
+        internal override void OnPresentationContentMetricsChanged()
+        {
+            base.OnPresentationContentMetricsChanged();
+            cachedRichTextBlock = null;
+        }
+
         /// <summary>
         /// Raises the <see cref="ContentsResized"/> event.
         /// </summary>

@@ -6,7 +6,13 @@ public sealed class VisualStateTransition
     private TimeSpan duration = TimeSpan.FromMilliseconds(150);
     private Func<float, float> easing = Easings.CubicOut;
 
-    /// <summary>Gets or sets the unscaled visual-only transition duration.</summary>
+    /// <summary>
+    /// Gets or sets the unscaled duration shared by visual and supported layout-aware metrics.
+    /// </summary>
+    /// <remarks>
+    /// A zero duration applies the target style immediately without starting the shared tick
+    /// source. Negative values are rejected.
+    /// </remarks>
     public TimeSpan Duration
     {
         get => duration;

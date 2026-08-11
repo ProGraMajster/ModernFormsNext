@@ -509,7 +509,7 @@ internal partial class DefaultLayout : LayoutEngine
             var containerPadding = Padding.Empty;
             if (container is Control control) {
                 // Calling this will respect Control.DefaultPadding.
-                containerPadding = control.Padding;
+                containerPadding = control.PresentationPadding;
             } else {
                 // Not likely to happen but handle this gracefully.
                 containerPadding = CommonProperties.GetPadding (container, Padding.Empty);

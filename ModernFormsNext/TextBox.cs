@@ -437,6 +437,13 @@ namespace ModernFormsNext
             document.Width = PaddedClientRectangle.Width;
         }
 
+        /// <inheritdoc/>
+        internal override void OnPresentationContentMetricsChanged ()
+        {
+            base.OnPresentationContentMetricsChanged ();
+            document.Width = PaddedClientRectangle.Width;
+        }
+
         /// <summary>
         /// Gets or sets a character to display instead of the actual text.
         /// </summary>

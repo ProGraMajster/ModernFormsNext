@@ -413,8 +413,22 @@ button.StyleTransitions.Add(
 
 `StylePressed`, `StyleFocused`, and `StyleDisabled` complement the existing `Style` and
 `StyleHover`. Compatible foreground, background, and border brushes, plus opacity, translation,
-scale, and rotation, interpolate. Layout metrics such as border width switch immediately and do
-not request layout per frame.
+scale, and rotation, interpolate. `ControlStyle.Padding` and aggregate or per-side border width use
+the same timeline as layout-aware metrics. Padding is interpolated component by component, and the
+control performs at most one grouped layout when rounded presentation metrics change.
+
+```csharp
+card.Style.Padding = new Padding(8);
+card.StyleHover.Padding = new Padding(20);
+card.Style.Border.Width = 1;
+card.StyleHover.Border.Width = 3;
+```
+
+The persistent `Control.Padding` fallback and state target styles never receive intermediate
+values. Docked content follows the presentation content rectangle. Child bounds transitions are
+suppressed during this metric-driven layout so the same state change is not eased twice. See
+[Layout-aware visual-state metrics](architecture/layout-aware-visual-state-metrics.md) for
+retargeting, invalidation, lifecycle, Anchor behavior, and current exclusions.
 
 Rapid state changes replace the old transition from its current presentation; the latest state is
 authoritative. Theme and dynamic-resource changes cancel the stale transition, re-resolve the

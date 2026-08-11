@@ -572,6 +572,10 @@ public class DocumentViewer : ScrollControl
     }
 
     /// <inheritdoc/>
+    internal override void OnPresentationContentMetricsChanged()
+        => InvalidateDocumentLayout(refreshImageSources: false);
+
+    /// <inheritdoc/>
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);

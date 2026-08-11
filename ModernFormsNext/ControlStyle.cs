@@ -115,6 +115,29 @@ namespace ModernFormsNext
         public float? Rotation { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional state-specific interior spacing of the control.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// A null value inherits the padding from <see cref="ParentStyle"/> and ultimately falls
+        /// back to <see cref="Control.Padding"/>. Non-negative values can be interpolated by a
+        /// configured visual-state transition. The control's persistent <see cref="Control.Padding"/>
+        /// value is not modified by that transition.
+        /// </para>
+        /// <para>
+        /// Padding affects content measurement and child layout. Assign state padding on the UI
+        /// thread before the state is activated.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// button.Style.Padding = new Padding(4);
+        /// button.StyleHover.Padding = new Padding(10);
+        /// </code>
+        /// </example>
+        public Padding? Padding { get; set; }
+
+        /// <summary>
         /// Gets the style from which unset values are inherited.
         /// </summary>
         /// <remarks>
@@ -233,6 +256,9 @@ namespace ModernFormsNext
 
         internal float? GetResolvedRotation()
             => ResolveNullableValue(static style => style.Rotation);
+
+        internal Padding? GetResolvedPadding()
+            => ResolveNullableValue(static style => style.Padding);
 
         internal int GetInheritanceTraversalLimit ()
             => StyleInheritanceTraversal.GetLimit(this, static style => style.ParentStyle);

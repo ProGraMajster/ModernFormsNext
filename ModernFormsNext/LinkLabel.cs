@@ -425,6 +425,13 @@ namespace ModernFormsNext
         }
 
         /// <inheritdoc/>
+        internal override void OnPresentationContentMetricsChanged()
+        {
+            InvalidateLayout();
+            Invalidate();
+        }
+
+        /// <inheritdoc/>
         protected override void OnPaint(PaintEventArgs e)
         {
             RenderManager.Render(this, e);

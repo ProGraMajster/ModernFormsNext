@@ -324,6 +324,13 @@ internal sealed class MarkdownEditorTextBox : RichTextBox
         UpdateDocumentWidth();
     }
 
+    /// <inheritdoc/>
+    internal override void OnPresentationContentMetricsChanged()
+    {
+        base.OnPresentationContentMetricsChanged();
+        UpdateDocumentWidth();
+    }
+
     protected internal override void OnThemeChanged(EventArgs e)
     {
         base.OnThemeChanged(e);
