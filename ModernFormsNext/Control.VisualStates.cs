@@ -531,9 +531,11 @@ public partial class Control
 
         private static IAnimationInterpolator<Brush>? TryCreateBrushInterpolator(Brush? from, Brush? to)
         {
-            if (from is null || to is null || from.GetType() != to.GetType())
+            if (from is null || to is null)
                 return null;
-            return AnimationInterpolators.CreateBrushInterpolator();
+            return AnimationInterpolators.TryCreateBrushInterpolator(from, to, out IAnimationInterpolator<Brush>? interpolator)
+                ? interpolator
+                : null;
         }
 
         private static Brush? InterpolateBrush(
@@ -544,18 +546,7 @@ public partial class Control
         {
             if (interpolator is null)
                 return to;
-            try
-            {
-                return interpolator.Interpolate(from!, to!, progress);
-            }
-            catch (InvalidOperationException)
-            {
-                return to;
-            }
-            catch (NotSupportedException)
-            {
-                return to;
-            }
+            return interpolator.Interpolate(from!, to!, progress);
         }
 
         private static SKColor Interpolate(SKColor from, SKColor to, float progress)

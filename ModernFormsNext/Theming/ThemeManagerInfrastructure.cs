@@ -168,7 +168,7 @@ internal sealed class ThemeTransitionPlan
 {
     private readonly List<ResourceColorTransition> resourceColors = [];
     private readonly List<ResourceNumberTransition> resourceNumbers = [];
-    private readonly List<BrushAnimationPlan> brushPlans = [];
+    private readonly List<ResourceBrushTransition> resourceBrushes = [];
     private readonly List<LegacyColorTransition> legacyColors = [];
 
     private ThemeTransitionPlan(
@@ -181,7 +181,7 @@ internal sealed class ThemeTransitionPlan
 
     public Dictionary<object, object?> Resources { get; }
     public Dictionary<string, object> LegacyValues { get; }
-    public bool HasAnimations => resourceColors.Count > 0 || resourceNumbers.Count > 0 || brushPlans.Count > 0 || legacyColors.Count > 0;
+    public bool HasAnimations => resourceColors.Count > 0 || resourceNumbers.Count > 0 || resourceBrushes.Count > 0 || legacyColors.Count > 0;
 
     public static ThemeTransitionPlan Create(
         Dictionary<object, object?> currentResources,
@@ -232,8 +232,8 @@ internal sealed class ThemeTransitionPlan
         using Application.ThemeTransitionFrameScope transitionFrame = Application.BeginThemeTransitionFrame();
         using Application.VisualInvalidationBatchScope batch = Application.BeginVisualInvalidationBatch();
 
-        foreach (BrushAnimationPlan brushPlan in brushPlans)
-            brushPlan.Apply(progress);
+        foreach (ResourceBrushTransition transition in resourceBrushes)
+            Resources[transition.Key] = transition.Plan.Interpolate(progress);
 
         foreach (ResourceColorTransition transition in resourceColors)
             Resources[transition.Key] = AnimationInterpolators.Color.Interpolate(transition.From, transition.To, progress);
@@ -259,17 +259,14 @@ internal sealed class ThemeTransitionPlan
         MfnBrush to,
         Dictionary<object, object?> targetResources)
     {
-        try
-        {
-            MfnBrush working = ThemeValueCloner.CloneBrush(from);
-            BrushAnimationPlan brushPlan = BrushAnimationPlan.Create(from, to, working);
-            targetResources[key] = working;
-            plan.brushPlans.Add(brushPlan);
-        }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
-        {
-            // Incompatible brush types or gradient stop counts switch immediately by contract.
-        }
+        if (!BrushAnimationPlan.TryCreateLocal(from, to, out BrushAnimationPlan? brushPlan))
+            return;
+
+        // The exact source reference remains visible at progress zero. Intermediate frames reuse
+        // the plan's private working brush, and completion replaces it with the exact resolved
+        // target reference so resource identity and notifications remain deterministic.
+        targetResources[key] = from;
+        plan.resourceBrushes.Add(new ResourceBrushTransition(key, brushPlan!));
     }
 
     private static SKColor Interpolate(SKColor from, SKColor to, float progress)
@@ -283,5 +280,6 @@ internal sealed class ThemeTransitionPlan
 
     private sealed record ResourceColorTransition(object Key, Color From, Color To);
     private sealed record ResourceNumberTransition(object Key, double From, double To);
+    private sealed record ResourceBrushTransition(object Key, BrushAnimationPlan Plan);
     private sealed record LegacyColorTransition(string Key, SKColor From, SKColor To);
 }

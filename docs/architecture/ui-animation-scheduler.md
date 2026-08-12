@@ -158,13 +158,15 @@ cover `float`, `double`, `int`, `PointF`, `SizeF`, `RectangleF`, `Color` includi
 results use explicit midpoint rounding. Color channels interpolate independently in the current
 sRGB byte representation; linear-light interpolation is deferred.
 
-Brush animation uses the recently introduced observable model without allocating a new brush on
-every tick. The generic Brush interpolator clones the source once and mutates that animation-local
-working value, leaving shared source and target instances unchanged. An explicit `AnimateTo` helper
-instead mutates an existing Brush in place when shared-resource animation is intended. Solid,
-linear, radial, and sweep brushes are supported. Gradient brushes require the same concrete type
-and stop count. Incompatible types or stop structures are rejected before scheduling. Discrete
-spread mode changes at completion.
+Brush animation uses the observable model without allocating a new brush on every tick. The generic
+Brush interpolator captures its endpoints once and mutates one animation-local working value,
+leaving shared source and target instances unchanged. It supports solid pairs, same-kind gradients
+with equal or different non-empty stop counts, and solid-to-linear/radial/sweep promotion. Stop
+normalization is planned once and preserves hard-stop multiplicity. Cross-kind gradients,
+`GlassBrush`, `NoBrush`, null, empty-to-populated gradients, and custom/derived brushes retain a
+discrete fallback. An explicit `AnimateTo` helper instead mutates an existing Brush in place and
+therefore still requires the same built-in type and stop count. Spread mode changes at completion.
+The full matrix is documented in [Brush interpolation compatibility](brush-interpolation.md).
 
 ## Invalidation
 
@@ -182,15 +184,17 @@ invalidation remain separate concerns.
 
 The owner of an explicit in-place brush animation is the brush itself. Its synchronous `Changed`
 event continues through the weak, reference-counted subscriptions introduced with dynamic
-resources. A local transition normally uses its control as owner and assigns the cloned working
-brush. Replacing a resource while its previous brush is animating does not transfer the animation
-to the new object: consumers rebind to the replacement, and the old animation can be canceled by
-its handle or owner key. A future ThemeManager should retain and cancel handles for all transition
-participants when a newer theme replaces a transition.
+resources. A local transition normally uses its control as owner and assigns its animation-local
+working brush. Replacing a resource while its previous brush is animating does not transfer an
+explicit in-place animation to the new object: consumers rebind to the replacement, and the old
+animation can be canceled by its handle or owner key. `ThemeManager` uses local value plans
+instead; it retains the published presentation brush when a newer theme replaces an active
+transition.
 
-The JSON ThemeManager should serialize target theme values, not live scheduler state or native
-timer data. Theme transitions will construct compatible local animation plans after resource
-resolution.
+The JSON ThemeManager serializes target theme values, not live scheduler state or native timer
+data. Theme transitions construct compatible local animation plans after resource resolution,
+publish the current presentation brush during a rapid replacement, and restore the exact target
+reference at completion.
 
 ## Future Shape and navigation work
 

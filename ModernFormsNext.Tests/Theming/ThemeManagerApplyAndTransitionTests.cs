@@ -187,13 +187,14 @@ public sealed class ThemeManagerApplyAndTransitionTests
         ThemeApplyResult result = harness.Manager.Apply(target, Animated());
         Assert.NotNull(result.Transition);
         Assert.Equal(1, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
-        var working = Assert.IsType<SolidColorBrush>(harness.Resources[BrushKey("Card")]);
+        var exactSource = Assert.IsType<SolidColorBrush>(harness.Resources[BrushKey("Card")]);
         harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
 
         Color middle = ResourceColor(harness, ThemeTokens.Colors.Background.ResourceKey);
+        var working = Assert.IsType<SolidColorBrush>(harness.Resources[BrushKey("Card")]);
         Assert.InRange(middle.R, 127, 128);
         Assert.Equal(5d, (double)harness.Resources[ResourceKey("Progress")]!, 6);
-        Assert.Same(working, harness.Resources[BrushKey("Card")]);
+        Assert.NotSame(exactSource, working);
         Assert.NotEqual(Color.Red.ToArgb(), working.PaintColor.ToArgb());
         Assert.NotEqual(Color.Blue.ToArgb(), working.PaintColor.ToArgb());
         Assert.Equal(0.5f, working.Opacity, 3);
@@ -201,6 +202,7 @@ public sealed class ThemeManagerApplyAndTransitionTests
         harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
         Assert.Equal(ThemeTransitionStatus.Completed, await result.Transition!.Completion);
         Assert.Equal(Color.White.ToArgb(), ResourceColor(harness, ThemeTokens.Colors.Background.ResourceKey).ToArgb());
+        Assert.NotSame(working, harness.Resources[BrushKey("Card")]);
         Assert.Equal(0, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
         Assert.False(harness.SchedulerHarness.TickSource.IsRunning);
     }
@@ -220,10 +222,11 @@ public sealed class ThemeManagerApplyAndTransitionTests
         harness.Manager.Apply(start, Immediate());
 
         ThemeApplyResult result = harness.Manager.Apply(target, Animated());
-        var working = Assert.IsAssignableFrom<GradientBrush>(harness.Resources[BrushKey("Gradient")]);
+        var exactSource = Assert.IsAssignableFrom<GradientBrush>(harness.Resources[BrushKey("Gradient")]);
         harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
 
-        Assert.Same(working, harness.Resources[BrushKey("Gradient")]);
+        var working = Assert.IsAssignableFrom<GradientBrush>(harness.Resources[BrushKey("Gradient")]);
+        Assert.NotSame(exactSource, working);
         Assert.Equal(0.5f, working.Opacity, 3);
         Assert.Equal(5f, working.Transform.M31, 3);
         Assert.Equal(10f, working.Transform.M32, 3);
@@ -234,29 +237,46 @@ public sealed class ThemeManagerApplyAndTransitionTests
 
         harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
         Assert.Equal(ThemeTransitionStatus.Completed, await result.Transition!.Completion);
+        Assert.NotSame(working, harness.Resources[BrushKey("Gradient")]);
     }
 
     [Fact]
-    public void LayoutTokensAndIncompatibleBrushesSwitchImmediately()
+    public async Task LayoutTokensSwitchImmediatelyWhileSolidToGradientBrushAnimates()
     {
         using var harness = new ThemeManagerTestHarness();
         ThemeDefinition start = Theme("incompatible.start", Color.Black);
         start.Spacing["LayoutGap"] = 4d;
         start.Brushes["Card"] = new SolidColorBrush(Color.Red);
+        start.Brushes["Categorical"] = new GlassBrush();
+        start.Brushes["CrossGradient"] = Gradient(
+            "radial", Color.Red, Color.Blue, 0f, 1f, Matrix3x2.Identity, 1f);
         ThemeDefinition target = Theme("incompatible.target", Color.Black);
         target.Spacing["LayoutGap"] = 20d;
         target.Brushes["Card"] = Gradient("linear", Color.Blue, Color.Green, 0f, 1f, Matrix3x2.Identity, 1f);
+        target.Brushes["Categorical"] = new NoBrush();
+        target.Brushes["CrossGradient"] = Gradient(
+            "linear", Color.Green, Color.White, 0f, 1f, Matrix3x2.Identity, 1f);
         harness.Manager.Apply(start, Immediate());
 
         ThemeApplyResult result = harness.Manager.Apply(target, Animated());
 
-        Assert.Null(result.Transition);
+        Assert.NotNull(result.Transition);
         Assert.Equal(20d, (double)harness.Resources[SpacingKey("LayoutGap")]!);
+        Assert.IsType<SolidColorBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.IsType<NoBrush>(harness.Resources[BrushKey("Categorical")]);
+        Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("CrossGradient")]);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        var working = Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.IsType<NoBrush>(harness.Resources[BrushKey("Categorical")]);
+        Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("CrossGradient")]);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        Assert.Equal(ThemeTransitionStatus.Completed, await result.Transition!.Completion);
         Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.NotSame(working, harness.Resources[BrushKey("Card")]);
     }
 
     [Fact]
-    public void DifferentGradientStopCountsSwitchThatBrushImmediately()
+    public async Task DifferentGradientStopCountsAnimateAndPublishExactTarget()
     {
         using var harness = new ThemeManagerTestHarness();
         ThemeDefinition start = Theme("stops.start", Color.Black);
@@ -267,11 +287,74 @@ public sealed class ThemeManagerApplyAndTransitionTests
         start.Brushes["Card"] = two;
         target.Brushes["Card"] = three;
         harness.Manager.Apply(start, Immediate());
+        int notifications = 0;
+        harness.Resources.ResourceChanged += (_, args) =>
+        {
+            if (Equals(args.Key, BrushKey("Card")))
+                notifications++;
+        };
 
         ThemeApplyResult result = harness.Manager.Apply(target, Animated());
 
-        Assert.Null(result.Transition);
-        Assert.Equal(3, Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]).GradientStops.Count);
+        Assert.NotNull(result.Transition);
+        Assert.Equal(2, Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]).GradientStops.Count);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        var working = Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.Equal(3, working.GradientStops.Count);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        Assert.Equal(ThemeTransitionStatus.Completed, await result.Transition!.Completion);
+        var exactTarget = Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.Equal(3, exactTarget.GradientStops.Count);
+        Assert.NotSame(working, exactTarget);
+        Assert.True(notifications >= 2);
+    }
+
+    [Fact]
+    public async Task BrushRetargetStartsFromPublishedPresentationAndLeavesOnlyLatestRun()
+    {
+        using var harness = new ThemeManagerTestHarness();
+        ThemeDefinition start = Theme("brush.rapid.start", Color.Black);
+        start.Brushes["Card"] = new SolidColorBrush(Color.Red);
+        ThemeDefinition firstTarget = Theme("brush.rapid.first", Color.Black);
+        firstTarget.Brushes["Card"] = Gradient(
+            "linear",
+            Color.Blue,
+            Color.Green,
+            0f,
+            1f,
+            Matrix3x2.Identity,
+            1f);
+        ThemeDefinition finalTarget = Theme("brush.rapid.final", Color.Black);
+        var finalBrush = Gradient(
+            "linear",
+            Color.Yellow,
+            Color.Magenta,
+            0f,
+            0.7f,
+            Matrix3x2.CreateTranslation(8f, 4f),
+            0.75f);
+        finalBrush.GradientStops.Add(new GradientStop(Color.White, 1f));
+        finalTarget.Brushes["Card"] = finalBrush;
+        harness.Manager.Apply(start, Immediate());
+
+        ThemeApplyResult first = harness.Manager.Apply(firstTarget, Animated());
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(25));
+        var presentationAtRetarget = Assert.IsType<LinearGradientBrush>(
+            harness.Resources[BrushKey("Card")]);
+
+        ThemeApplyResult latest = harness.Manager.Apply(finalTarget, Animated());
+
+        Assert.Equal(ThemeTransitionStatus.Canceled, await first.Transition!.Completion);
+        Assert.Same(presentationAtRetarget, harness.Resources[BrushKey("Card")]);
+        Assert.Equal(1, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(ThemeTransitionStatus.Completed, await latest.Transition!.Completion);
+        var exactTarget = Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.Equal(3, exactTarget.GradientStops.Count);
+        Assert.Equal(0.75f, exactTarget.Opacity, 3);
+        Assert.Equal(0, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.SchedulerHarness.TickSource.IsRunning);
     }
 
     [Fact]
@@ -316,14 +399,24 @@ public sealed class ThemeManagerApplyAndTransitionTests
     public async Task ExplicitCancellationSnapsToTargetAndLeavesNoOrphanedWork()
     {
         using var harness = new ThemeManagerTestHarness();
-        harness.Manager.Apply(Theme("cancel.red", Color.Red), Immediate());
-        ThemeApplyResult target = harness.Manager.Apply(Theme("cancel.blue", Color.Blue), Animated());
+        ThemeDefinition start = Theme("cancel.red", Color.Red);
+        start.Brushes["Card"] = new SolidColorBrush(Color.Red);
+        ThemeDefinition final = Theme("cancel.blue", Color.Blue);
+        var finalBrush = Gradient(
+            "linear", Color.Blue, Color.Green, 0f, 0.5f, Matrix3x2.Identity, 0.8f);
+        finalBrush.GradientStops.Add(new GradientStop(Color.White, 1f));
+        final.Brushes["Card"] = finalBrush;
+        harness.Manager.Apply(start, Immediate());
+        ThemeApplyResult target = harness.Manager.Apply(final, Animated());
         harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(25));
 
         target.Transition!.Cancel();
 
         Assert.Equal(ThemeTransitionStatus.Canceled, await target.Transition.Completion);
         Assert.Equal(Color.Blue.ToArgb(), ResourceColor(harness, ThemeTokens.Colors.Background.ResourceKey).ToArgb());
+        var appliedBrush = Assert.IsType<LinearGradientBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.Equal(3, appliedBrush.GradientStops.Count);
+        Assert.Equal(0.8f, appliedBrush.Opacity, 3);
         Assert.Equal(0, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
         Assert.False(harness.SchedulerHarness.TickSource.IsRunning);
     }
