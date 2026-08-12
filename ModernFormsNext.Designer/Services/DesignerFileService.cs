@@ -10,12 +10,17 @@ internal sealed class DesignerFileService
 {
     private readonly IDesignerHostEnvironment? environment;
     private readonly Func<string?>? currentDocumentPathProvider;
+    private readonly Func<IReadOnlyList<DesignAnimationDefinitionDescriptor>>? animationDefinitionsProvider;
     private readonly CSharpDesignerRoundTripService roundTrip = new();
 
-    public DesignerFileService(IDesignerHostEnvironment? environment = null, Func<string?>? currentDocumentPathProvider = null)
+    public DesignerFileService(
+        IDesignerHostEnvironment? environment = null,
+        Func<string?>? currentDocumentPathProvider = null,
+        Func<IReadOnlyList<DesignAnimationDefinitionDescriptor>>? animationDefinitionsProvider = null)
     {
         this.environment = environment;
         this.currentDocumentPathProvider = currentDocumentPathProvider;
+        this.animationDefinitionsProvider = animationDefinitionsProvider;
     }
 
     public DesignDocument LoadDesignDocument(string path)
@@ -39,7 +44,8 @@ internal sealed class DesignerFileService
             new CSharpDesignerGenerationOptions
             {
                 SourceFilePath = Path.GetFileName(designDocumentPath),
-                DesignHash = roundTrip.ComputeDesignHash(document)
+                DesignHash = roundTrip.ComputeDesignHash(document),
+                AnimationDefinitions = animationDefinitionsProvider?.Invoke() ?? []
             });
 
         if (!result.Succeeded)

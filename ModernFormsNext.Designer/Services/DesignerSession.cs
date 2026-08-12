@@ -117,6 +117,9 @@ public sealed class DesignerSession
 
     internal IReadOnlyList<DesignerProjectUserControlInfo> ProjectUserControls => projectUserControls;
 
+    internal IReadOnlyList<DesignAnimationDefinitionDescriptor> AnimationDefinitions
+        => DesignerProjectAnimationDefinitionDiscovery.Discover(CurrentProjectPath);
+
     internal IReadOnlyList<DesignerOpenDocument> OpenDocuments => openDocuments;
 
     internal int ActiveDocumentIndex => activeDocument is null ? -1 : openDocuments.IndexOf(activeDocument);

@@ -104,10 +104,20 @@ internal static class DesignerPropertyDialogEditors
             return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
         };
 
-    public static Func<DesignerPropertyDialogContext, Task<bool>> InteractionEffects(DesignControlNode control)
+    public static Func<DesignerPropertyDialogContext, Task<bool>> InteractionEffects(
+        IDictionary<string, DesignPropertyValue> properties)
         => async context =>
         {
-            var dialog = new DesignerInteractionEffectCollectionDialog(context.Session, control);
+            var dialog = new DesignerInteractionEffectCollectionDialog(context.Session, properties);
+            return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
+        };
+
+    public static Func<DesignerPropertyDialogContext, Task<bool>> Transition(
+        IDictionary<string, DesignPropertyValue> properties,
+        bool isLayout)
+        => async context =>
+        {
+            var dialog = new DesignerTransitionDialog(context.Session, properties, isLayout);
             return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
         };
 

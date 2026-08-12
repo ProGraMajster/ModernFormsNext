@@ -112,7 +112,7 @@ public sealed class InteractionEffectDesignerTests
     }
 
     [Fact]
-    public void UnsupportedEffectTypeIsRejectedWithoutMutation()
+    public void UnavailableEffectTypeIsPreservedWithoutInstantiation()
     {
         DesignPropertyValue unsupported = DesignPropertyValue.FromStructuredObject(
             "Example.UnsafeEffect",
@@ -121,9 +121,11 @@ public sealed class InteractionEffectDesignerTests
 
         bool success = InteractionEffectDesignerRegistry.TryReadCollection(value, out var entries, out var error);
 
-        Assert.False(success);
-        Assert.Empty(entries);
-        Assert.Contains("not supported", error, StringComparison.OrdinalIgnoreCase);
+        Assert.True(success, error);
+        DesignerInteractionEffectEntry entry = Assert.Single(entries);
+        Assert.False(entry.IsSupported);
+        Assert.Equal("Example.UnsafeEffect", entry.TypeName);
+        Assert.Equal(value.ObjectProperties!["Item0"].ObjectTypeName, entry.ToDesignValue().ObjectTypeName);
     }
 
     [Fact]
@@ -150,6 +152,13 @@ public sealed class InteractionEffectDesignerTests
     {
         DesignDocument document = CreateDocument(
             InteractionEffectDesignerRegistry.Create(InteractionEffectDesignerRegistry.RippleTypeName));
+        DesignerInteractionEffectEntry ripple = InteractionEffectDesignerRegistry.Create(
+            InteractionEffectDesignerRegistry.RippleTypeName);
+        Assert.True(InteractionEffectDesignerRegistry.TryApplyEditorText(
+            ripple,
+            "Enabled=false",
+            out var editError), editError);
+        document = CreateDocument(ripple);
         string code = new CSharpDesignerGenerator().Generate(document).Code;
         string[] unsupportedVariants =
         [
@@ -157,7 +166,7 @@ public sealed class InteractionEffectDesignerTests
                 "ModernFormsNext.Animations.RippleEffect",
                 "Example.RippleEffect",
                 StringComparison.Ordinal),
-            code.Replace("Enabled = true", "Unsupported = true", StringComparison.Ordinal)
+            code.Replace("Enabled = false", "Unsupported = true", StringComparison.Ordinal)
         ];
 
         foreach (string unsupportedCode in unsupportedVariants)

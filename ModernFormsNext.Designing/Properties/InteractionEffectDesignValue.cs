@@ -77,6 +77,13 @@ public static class InteractionEffectDesignValue
             error = "InteractionEffects.Count must be an integer from 0 through 64.";
             return false;
         }
+        if (value.ObjectProperties.Count != count + 1
+            || value.ObjectProperties.Keys.Any(name => name != "Count"
+                && !Enumerable.Range(0, count).Any(index => name == $"Item{index}")))
+        {
+            error = "InteractionEffects contains unsupported collection properties.";
+            return false;
+        }
 
         var result = new List<DesignPropertyValue>(count);
         for (int index = 0; index < count; index++)

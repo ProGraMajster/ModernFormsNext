@@ -23,6 +23,7 @@ public sealed class CSharpDesignerParser
     private readonly Dictionary<string, DesignControlNode> nodes = new(StringComparer.Ordinal);
     private readonly List<string> nodeOrder = [];
     private readonly List<ControlAddOperation> addOperations = [];
+    private IReadOnlyList<DesignAnimationDefinitionDescriptor> animationDefinitions = [];
 
     /// <summary>
     /// Parses generated C# designer source into a ModernFormsNext design document.
@@ -37,6 +38,7 @@ public sealed class CSharpDesignerParser
         ArgumentNullException.ThrowIfNull(sourceText);
 
         options ??= new CSharpDesignerParseOptions();
+        animationDefinitions = options.AnimationDefinitions ?? [];
         diagnostics.Clear();
         fields.Clear();
         nodes.Clear();
@@ -172,7 +174,7 @@ public sealed class CSharpDesignerParser
                 break;
 
             case ExpressionStatementSyntax { Expression: InvocationExpressionSyntax invocation }:
-                ProcessInvocation(invocation);
+                ProcessInvocation(invocation, document);
                 break;
 
             case EmptyStatementSyntax:
@@ -240,9 +242,9 @@ public sealed class CSharpDesignerParser
         AddUnsupported(assignment, "Unsupported assignment in InitializeComponent.");
     }
 
-    private void ProcessInvocation(InvocationExpressionSyntax invocation)
+    private void ProcessInvocation(InvocationExpressionSyntax invocation, DesignDocument document)
     {
-        if (TryProcessInteractionEffectAdd(invocation))
+        if (TryProcessInteractionEffectAdd(invocation, document) || TryProcessVisualStateTransitionAdd(invocation, document))
             return;
 
         if (TryReadControlsAdd(invocation, out var parentName, out var childName))
@@ -254,7 +256,7 @@ public sealed class CSharpDesignerParser
         AddUnsupported(invocation, "Unsupported method call in InitializeComponent.");
     }
 
-    private bool TryProcessInteractionEffectAdd(InvocationExpressionSyntax invocation)
+    private bool TryProcessInteractionEffectAdd(InvocationExpressionSyntax invocation, DesignDocument document)
     {
         if (invocation.Expression is not MemberAccessExpressionSyntax addAccess
             || !string.Equals(addAccess.Name.Identifier.ValueText, "Add", StringComparison.Ordinal)
@@ -265,11 +267,20 @@ public sealed class CSharpDesignerParser
             return false;
         }
 
-        string? ownerName = syntaxReader.GetObjectReferenceName(effectsAccess.Expression);
-        if (string.IsNullOrWhiteSpace(ownerName)
-            || !TryGetNode(ownerName, invocation, out DesignControlNode node))
-        {
+        string? ownerName = effectsAccess.Expression is ThisExpressionSyntax
+            ? "this"
+            : syntaxReader.GetObjectReferenceName(effectsAccess.Expression);
+        if (string.IsNullOrWhiteSpace(ownerName))
             return true;
+
+        IDictionary<string, DesignPropertyValue> properties;
+        if (string.Equals(ownerName, "this", StringComparison.Ordinal))
+            properties = document.Properties;
+        else
+        {
+            if (!TryGetNode(ownerName, invocation, out DesignControlNode node))
+                return true;
+            properties = node.Properties;
         }
 
         if (!TryReadInteractionEffect(invocation.ArgumentList.Arguments[0].Expression, out DesignPropertyValue effect))
@@ -278,19 +289,19 @@ public sealed class CSharpDesignerParser
             return true;
         }
 
-        node.Properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? existing);
+        properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? existing);
         if (!InteractionEffectDesignValue.TryRead(existing, out IReadOnlyList<DesignPropertyValue> effects, out string? error))
         {
             AddUnsupported(invocation, $"Cannot append interaction effect for '{ownerName}': {error}");
             return true;
         }
 
-        node.Properties[InteractionEffectDesignValue.PropertyName] =
+        properties[InteractionEffectDesignValue.PropertyName] =
             InteractionEffectDesignValue.Create(effects.Append(effect));
         return true;
     }
 
-    private static bool TryReadInteractionEffect(ExpressionSyntax expression, out DesignPropertyValue effect)
+    private bool TryReadInteractionEffect(ExpressionSyntax expression, out DesignPropertyValue effect)
     {
         effect = null!;
         if (expression is not ObjectCreationExpressionSyntax objectCreation
@@ -300,14 +311,10 @@ public sealed class CSharpDesignerParser
         }
 
         string typeName = objectCreation.Type.ToString();
-        bool isRipple = IsInteractionEffectType(typeName, "RippleEffect");
-        bool isPressScale = IsInteractionEffectType(typeName, "PressScaleEffect");
-        if (!isRipple && !isPressScale)
+        DesignAnimationDefinitionDescriptor? descriptor = FindEffectDescriptor(typeName);
+        if (descriptor is null)
             return false;
-
-        string[] supportedProperties = isRipple
-            ? ["Enabled", "Color", "Duration", "StartFromPointer", "RadiusMode", "FixedRadius", "Layer", "MaxConcurrentRipples", "OverflowPolicy"]
-            : ["Enabled", "PressedScale", "PressDuration", "ReleaseDuration"];
+        var byRuntimeName = descriptor.Properties.ToDictionary(item => item.RuntimePropertyName, StringComparer.Ordinal);
 
         var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
         foreach (ExpressionSyntax initializer in objectCreation.Initializer.Expressions)
@@ -325,47 +332,186 @@ public sealed class CSharpDesignerParser
                 _ => string.Empty
             };
             if (string.IsNullOrWhiteSpace(propertyName)
-                || !supportedProperties.Contains(propertyName, StringComparer.Ordinal))
+                || !byRuntimeName.TryGetValue(propertyName, out DesignAnimationPropertyDescriptor? property))
                 return false;
-
-            if (string.Equals(propertyName, "Color", StringComparison.Ordinal))
+            if (property.Kind == DesignAnimationPropertyKind.ColorArgb)
             {
                 if (!TryReadColorArgb(assignment.Right, out int argb))
                     return false;
-                if (!properties.TryAdd("ColorArgb", DesignPropertyValue.FromInt32(argb)))
+                if (!properties.TryAdd(property.Name, DesignPropertyValue.FromInt32(argb)))
+                    return false;
+                continue;
+            }
+            if (property.Kind == DesignAnimationPropertyKind.TimeSpan)
+            {
+                if (!TryReadTimeSpanMilliseconds(assignment.Right, out double milliseconds)
+                    || !IsAnimationNumberInRange(property, milliseconds))
+                    return false;
+                if (!properties.TryAdd(property.Name, DesignPropertyValue.FromDouble(milliseconds)))
+                    return false;
+                continue;
+            }
+            if (property.Kind == DesignAnimationPropertyKind.Easing)
+            {
+                if (!TryReadKnownEasing(assignment.Right, out string easing)
+                    || !properties.TryAdd(property.Name, DesignPropertyValue.FromString(easing)))
                     return false;
                 continue;
             }
 
-            string? durationProperty = propertyName switch
-            {
-                "Duration" when isRipple => "DurationMilliseconds",
-                "PressDuration" when isPressScale => "PressDurationMilliseconds",
-                "ReleaseDuration" when isPressScale => "ReleaseDurationMilliseconds",
-                _ => null
-            };
-            if (durationProperty is not null)
-            {
-                if (!TryReadTimeSpanMilliseconds(assignment.Right, out double milliseconds))
-                    return false;
-                if (!properties.TryAdd(durationProperty, DesignPropertyValue.FromDouble(milliseconds)))
-                    return false;
-                continue;
-            }
-
-            if (!TryReadDesignerValue(assignment.Right, out DesignPropertyValue value))
+            if (!TryReadDesignerValue(assignment.Right, out DesignPropertyValue value)
+                || !IsAnimationValueCompatible(property, value))
                 return false;
-            if (!properties.TryAdd(propertyName, value))
+            if (!properties.TryAdd(property.Name, value))
                 return false;
         }
 
-        effect = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        effect = DesignPropertyValue.FromStructuredObject(descriptor.TypeName, properties);
         return true;
     }
 
-    private static bool IsInteractionEffectType(string typeName, string shortName)
-        => string.Equals(typeName, shortName, StringComparison.Ordinal)
-        || string.Equals(typeName, "ModernFormsNext.Animations." + shortName, StringComparison.Ordinal);
+    private static bool IsAnimationValueCompatible(
+        DesignAnimationPropertyDescriptor property,
+        DesignPropertyValue value)
+        => property.Kind switch
+        {
+            DesignAnimationPropertyKind.Boolean => value.Kind == DesignPropertyValueKind.Boolean,
+            DesignAnimationPropertyKind.Int32 => value.Kind == DesignPropertyValueKind.Int32
+                && IsAnimationNumberInRange(property, Convert.ToDouble(value.Value, CultureInfo.InvariantCulture)),
+            DesignAnimationPropertyKind.Number => value.Kind is DesignPropertyValueKind.Int32 or DesignPropertyValueKind.Double
+                && IsAnimationNumberInRange(property, Convert.ToDouble(value.Value, CultureInfo.InvariantCulture))
+                && IsRepresentableRuntimeNumber(property, Convert.ToDouble(value.Value, CultureInfo.InvariantCulture)),
+            DesignAnimationPropertyKind.Enum => value.Kind == DesignPropertyValueKind.Enum
+                && IsExpectedEnumType(value.EnumTypeName, property.EnumTypeName)
+                && property.EnumMembers.Contains(value.GetString(), StringComparer.Ordinal),
+            DesignAnimationPropertyKind.String => value.Kind == DesignPropertyValueKind.String,
+            _ => false
+        };
+
+    private static bool IsAnimationNumberInRange(
+        DesignAnimationPropertyDescriptor property,
+        double number)
+        => double.IsFinite(number) && number >= property.Minimum && number <= property.Maximum;
+
+    private static bool IsRepresentableRuntimeNumber(
+        DesignAnimationPropertyDescriptor property,
+        double number)
+    {
+        if (property.RuntimeTypeName?.Split('.').Last() is not ("float" or "Single"))
+            return true;
+        float single = (float)number;
+        return float.IsFinite(single) && (single != 0f || number == 0d);
+    }
+
+    private static bool IsExpectedEnumType(string? actual, string? expected)
+    {
+        string normalizedActual = (actual ?? string.Empty).Replace("global::", string.Empty, StringComparison.Ordinal);
+        string normalizedExpected = (expected ?? string.Empty).Replace("global::", string.Empty, StringComparison.Ordinal);
+        return string.Equals(normalizedActual, normalizedExpected, StringComparison.Ordinal)
+            || string.Equals(normalizedActual, normalizedExpected.Split('.').Last(), StringComparison.Ordinal);
+    }
+
+    private DesignAnimationDefinitionDescriptor? FindEffectDescriptor(string typeName)
+    {
+        string normalized = typeName.Replace("global::", string.Empty, StringComparison.Ordinal);
+        return BuiltInAnimationDefinitionCatalog.Definitions.Concat(animationDefinitions)
+            .FirstOrDefault(item => item.Kind == DesignAnimationDefinitionKind.InteractionEffect
+                && (string.Equals(item.TypeName, normalized, StringComparison.Ordinal)
+                    || item.IsBuiltIn && string.Equals(item.TypeName.Split('.').Last(), normalized, StringComparison.Ordinal)));
+    }
+
+    private static bool TryReadKnownEasing(ExpressionSyntax expression, out string easing)
+    {
+        easing = expression is MemberAccessExpressionSyntax member
+            ? member.Name.Identifier.ValueText
+            : string.Empty;
+        return expression is MemberAccessExpressionSyntax easingMember
+            && IsTypeReference(easingMember.Expression, "Easings", "ModernFormsNext.Animations.Easings")
+            && KnownEasingDesignValue.IsKnown(easing);
+    }
+
+    private bool TryProcessVisualStateTransitionAdd(InvocationExpressionSyntax invocation, DesignDocument document)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax addAccess
+            || !string.Equals(addAccess.Name.Identifier.ValueText, "Add", StringComparison.Ordinal)
+            || addAccess.Expression is not MemberAccessExpressionSyntax collectionAccess
+            || !string.Equals(collectionAccess.Name.Identifier.ValueText, VisualStateTransitionDesignValue.PropertyName, StringComparison.Ordinal)
+            || invocation.ArgumentList.Arguments.Count != 3)
+            return false;
+
+        string? ownerName = collectionAccess.Expression is ThisExpressionSyntax
+            ? "this"
+            : syntaxReader.GetObjectReferenceName(collectionAccess.Expression);
+        if (string.IsNullOrWhiteSpace(ownerName))
+            return true;
+        if (!TryReadVisualState(invocation.ArgumentList.Arguments[0].Expression, out string from)
+            || !TryReadVisualState(invocation.ArgumentList.Arguments[1].Expression, out string to)
+            || !TryReadVisualStateTransition(invocation.ArgumentList.Arguments[2].Expression, out double duration, out string easing))
+        {
+            AddUnsupported(invocation, $"Unsupported visual-state transition initializer for '{ownerName}'.");
+            return true;
+        }
+
+        IDictionary<string, DesignPropertyValue> properties;
+        if (string.Equals(ownerName, "this", StringComparison.Ordinal))
+            properties = document.Properties;
+        else
+        {
+            if (!TryGetNode(ownerName, invocation, out DesignControlNode node))
+                return true;
+            properties = node.Properties;
+        }
+        properties.TryGetValue(VisualStateTransitionDesignValue.PropertyName, out var existing);
+        if (!VisualStateTransitionDesignValue.TryRead(existing, out var transitions, out string? error))
+        {
+            AddUnsupported(invocation, $"Cannot append visual-state transition for '{ownerName}': {error}");
+            return true;
+        }
+        try
+        {
+            properties[VisualStateTransitionDesignValue.PropertyName] = VisualStateTransitionDesignValue.Create(
+                transitions.Append(new DesignVisualStateTransition(from, to, duration, easing)));
+        }
+        catch (ArgumentException exception)
+        {
+            AddUnsupported(invocation, exception.Message);
+        }
+        return true;
+    }
+
+    private static bool TryReadVisualState(ExpressionSyntax expression, out string state)
+    {
+        state = expression is MemberAccessExpressionSyntax member ? member.Name.Identifier.ValueText : string.Empty;
+        return expression is MemberAccessExpressionSyntax stateMember
+            && IsTypeReference(stateMember.Expression, "VisualState", "ModernFormsNext.Animations.VisualState")
+            && state is "Normal" or "Hover" or "Pressed" or "Disabled" or "Focused";
+    }
+
+    private static bool TryReadVisualStateTransition(
+        ExpressionSyntax expression,
+        out double duration,
+        out string easing)
+    {
+        duration = 150d;
+        easing = "CubicOut";
+        if (expression is not ObjectCreationExpressionSyntax creation
+            || !IsTypeReference(creation.Type, "VisualStateTransition", "ModernFormsNext.Animations.VisualStateTransition")
+            || creation.Initializer is null)
+            return false;
+        foreach (ExpressionSyntax item in creation.Initializer.Expressions)
+        {
+            if (item is not AssignmentExpressionSyntax assignment)
+                return false;
+            string name = assignment.Left.ToString();
+            if (name == "Duration" && !TryReadTimeSpanMilliseconds(assignment.Right, out duration))
+                return false;
+            if (name == "Easing" && !TryReadKnownEasing(assignment.Right, out easing))
+                return false;
+            if (name is not ("Duration" or "Easing"))
+                return false;
+        }
+        return true;
+    }
 
     private static bool TryReadTimeSpanMilliseconds(ExpressionSyntax expression, out double milliseconds)
     {
@@ -373,7 +519,7 @@ public sealed class CSharpDesignerParser
         return expression is InvocationExpressionSyntax invocation
             && invocation.Expression is MemberAccessExpressionSyntax member
             && string.Equals(member.Name.Identifier.ValueText, "FromMilliseconds", StringComparison.Ordinal)
-            && member.Expression.ToString().EndsWith("TimeSpan", StringComparison.Ordinal)
+            && IsTypeReference(member.Expression, "TimeSpan", "System.TimeSpan")
             && invocation.ArgumentList.Arguments.Count == 1
             && TryReadDouble(invocation.ArgumentList.Arguments[0].Expression, out milliseconds)
             && double.IsFinite(milliseconds)
@@ -386,7 +532,7 @@ public sealed class CSharpDesignerParser
         if (expression is not InvocationExpressionSyntax invocation
             || invocation.Expression is not MemberAccessExpressionSyntax member
             || !string.Equals(member.Name.Identifier.ValueText, "FromArgb", StringComparison.Ordinal)
-            || !member.Expression.ToString().EndsWith("Color", StringComparison.Ordinal)
+            || !IsTypeReference(member.Expression, "Color", "System.Drawing.Color")
             || invocation.ArgumentList.Arguments.Count != 4)
         {
             return false;
@@ -457,7 +603,10 @@ public sealed class CSharpDesignerParser
                 break;
 
             default:
-                if (TryReadDesignerValue(valueExpression, out var value))
+                if (propertyPath == LayoutTransitionDesignValue.PropertyName
+                    && TryReadLayoutTransition(valueExpression, out var layoutTransition))
+                    node.Properties[propertyPath] = layoutTransition;
+                else if (TryReadDesignerValue(valueExpression, out var value))
                     node.Properties[propertyPath] = value;
                 else
                     AddUnsupported(valueExpression, $"Unsupported value assigned to '{ownerName}.{propertyPath}'.");
@@ -515,12 +664,50 @@ public sealed class CSharpDesignerParser
                 break;
 
             default:
-                if (TryReadDesignerValue(valueExpression, out var value))
+                if (propertyPath == LayoutTransitionDesignValue.PropertyName
+                    && TryReadLayoutTransition(valueExpression, out var layoutTransition))
+                    document.Properties[propertyPath] = layoutTransition;
+                else if (TryReadDesignerValue(valueExpression, out var value))
                     document.Properties[propertyPath] = value;
                 else
                     AddUnsupported(syntax, $"Unsupported design root property assignment '{propertyPath}'.");
                 break;
         }
+    }
+
+    private static bool TryReadLayoutTransition(ExpressionSyntax expression, out DesignPropertyValue value)
+    {
+        bool enabled = true;
+        double duration = 250d;
+        string easing = "EaseOut";
+        value = null!;
+        if (expression is not ObjectCreationExpressionSyntax creation
+            || !IsTypeReference(creation.Type, "LayoutTransition", "ModernFormsNext.Animations.LayoutTransition")
+            || creation.Initializer is null)
+            return false;
+        foreach (ExpressionSyntax item in creation.Initializer.Expressions)
+        {
+            if (item is not AssignmentExpressionSyntax assignment)
+                return false;
+            string name = assignment.Left.ToString();
+            if (name == "Enabled" && !TryReadBoolean(assignment.Right, out enabled))
+                return false;
+            if (name == "Duration" && !TryReadTimeSpanMilliseconds(assignment.Right, out duration))
+                return false;
+            if (name == "Easing" && !TryReadKnownEasing(assignment.Right, out easing))
+                return false;
+            if (name is not ("Enabled" or "Duration" or "Easing"))
+                return false;
+        }
+        value = LayoutTransitionDesignValue.Create(enabled, duration, easing);
+        return true;
+    }
+
+    private static bool IsTypeReference(SyntaxNode syntax, string shortName, string fullName)
+    {
+        string value = syntax.ToString().Replace("global::", string.Empty, StringComparison.Ordinal);
+        return string.Equals(value, shortName, StringComparison.Ordinal)
+            || string.Equals(value, fullName, StringComparison.Ordinal);
     }
 
     private void ProcessEventSubscription(

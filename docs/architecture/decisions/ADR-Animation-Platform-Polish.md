@@ -91,7 +91,9 @@ shared scheduler; disposal and cancellation clear their handles and visual state
 
 The runtime `InteractionEffectCollection` remains the owner-attached collection. Designer-only
 editing lives in `ModernFormsNext.Designer` and supports the built-in `RippleEffect` and
-`PressScaleEffect`. Unsupported effect types are not offered and are rejected when imported.
+`PressScaleEffect`. Issue #28 extends the same detached contract to explicitly attributed project
+effects discovered from source. Missing or changed project types are retained as unavailable
+definitions and never instantiated by Designer.
 
 The `.mfdesign` value is a deterministic structured object containing `Count` and ordered `ItemN`
 entries. Each entry stores a type discriminator and supported serializable properties. Generated

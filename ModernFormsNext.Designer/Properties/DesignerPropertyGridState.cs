@@ -623,6 +623,8 @@ internal sealed class DesignerPropertyGridState
         descriptors.Add(ReadOnly("X", "X", "Layout", originDescription, typeof(int), () => 0));
         descriptors.Add(ReadOnly("Y", "Y", "Layout", originDescription, typeof(int), () => 0));
         descriptors.Add(DesignerPropertyDescriptorFactory.CreateDocumentSize(playgroundState.Document));
+        descriptors.Add(InteractionEffectsProperty(playgroundState.Document.Properties));
+        AddAnimationDescriptors(descriptors, playgroundState.Document.Properties);
         descriptors.Add(FormSize("Width", "Width", size => size.Width, (width, height) => new DesignSize(width, height)));
         descriptors.Add(FormSize("Height", "Height", size => size.Height, (width, height) => new DesignSize(width, height)));
     }
@@ -697,7 +699,8 @@ internal sealed class DesignerPropertyGridState
 
     private void AddSpecialContainerDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode node)
     {
-        descriptors.Add(InteractionEffectsProperty(node));
+        descriptors.Add(InteractionEffectsProperty(node.Properties));
+        AddAnimationDescriptors(descriptors, node.Properties);
 
         if (DesignerSpecialContainers.IsTabControl(node))
             descriptors.Add(TabPagesProperty(node));
@@ -737,20 +740,64 @@ internal sealed class DesignerPropertyGridState
         }
     }
 
-    private static DesignerPropertyDescriptor InteractionEffectsProperty(DesignControlNode control)
+    private static void AddAnimationDescriptors(
+        List<DesignerPropertyDescriptor> descriptors,
+        IDictionary<string, DesignPropertyValue> properties)
+    {
+        descriptors.Add(TransitionProperty(properties, isLayout: true));
+        descriptors.Add(TransitionProperty(properties, isLayout: false));
+    }
+
+    private static DesignerPropertyDescriptor TransitionProperty(
+        IDictionary<string, DesignPropertyValue> properties,
+        bool isLayout)
+    {
+        string name = isLayout
+            ? LayoutTransitionDesignValue.PropertyName
+            : VisualStateTransitionDesignValue.PropertyName;
+        return new DesignerPropertyDescriptor
+        {
+            Name = name,
+            DisplayName = isLayout ? "Layout Transition" : "Visual State Transitions",
+            Category = isLayout ? "Behavior" : "Appearance",
+            Description = isLayout
+                ? "Configures logical-to-presentation bounds animation using the runtime LayoutTransition API."
+                : "Configures ordered runtime visual-state transition pairs.",
+            ValueType = typeof(string),
+            IsReadOnly = true,
+            HasDialogEditor = true,
+            DialogEditor = DesignerPropertyDialogEditors.Transition(properties, isLayout),
+            GetValue = () =>
+            {
+                if (!properties.TryGetValue(name, out var value))
+                    return "(none)";
+                if (isLayout)
+                {
+                    return LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out _, out _)
+                        ? enabled ? $"{duration:0.##} ms" : "Disabled"
+                        : "(invalid)";
+                }
+                return VisualStateTransitionDesignValue.TryRead(value, out var transitions, out _)
+                    ? $"{transitions.Count} transition{(transitions.Count == 1 ? string.Empty : "s")}" : "(invalid)";
+            }
+        };
+    }
+
+    private static DesignerPropertyDescriptor InteractionEffectsProperty(
+        IDictionary<string, DesignPropertyValue> properties)
         => new()
         {
             Name = InteractionEffectDesignValue.PropertyName,
             DisplayName = "InteractionEffects",
             Category = "Behavior",
-            Description = "Edits the ordered RippleEffect and PressScaleEffect collection without running effects in the Designer.",
+            Description = "Edits ordered built-in and explicitly source-described interaction effects without running project code in the Designer.",
             ValueType = typeof(string),
             IsReadOnly = true,
             HasDialogEditor = true,
-            DialogEditor = DesignerPropertyDialogEditors.InteractionEffects(control),
+            DialogEditor = DesignerPropertyDialogEditors.InteractionEffects(properties),
             GetValue = () =>
             {
-                control.Properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? value);
+                properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? value);
                 return InteractionEffectDesignValue.TryRead(value, out IReadOnlyList<DesignPropertyValue> effects, out _)
                     ? $"{effects.Count} effect{(effects.Count == 1 ? string.Empty : "s")}"
                     : "(invalid)";

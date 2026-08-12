@@ -28,8 +28,12 @@ public sealed class MfDesignFileGenerator
     /// </summary>
     /// <param name="document">The design document to generate from.</param>
     /// <param name="designDocumentPath">The source <c>.mfdesign</c> path.</param>
+    /// <param name="animationDefinitions">Optional source-discovered project effect descriptors.</param>
     /// <returns>The generated code and validation result.</returns>
-    public CSharpDesignerGenerationResult Generate(DesignDocument document, string designDocumentPath)
+    public CSharpDesignerGenerationResult Generate(
+        DesignDocument document,
+        string designDocumentPath,
+        IReadOnlyList<DesignAnimationDefinitionDescriptor>? animationDefinitions = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(designDocumentPath);
@@ -39,7 +43,8 @@ public sealed class MfDesignFileGenerator
             new CSharpDesignerGenerationOptions
             {
                 SourceFilePath = Path.GetFileName(designDocumentPath),
-                DesignHash = roundTrip.ComputeDesignHash(document)
+                DesignHash = roundTrip.ComputeDesignHash(document),
+                AnimationDefinitions = animationDefinitions ?? []
             });
     }
 

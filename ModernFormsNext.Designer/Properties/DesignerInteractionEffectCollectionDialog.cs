@@ -6,22 +6,36 @@ namespace ModernFormsNext.Designer.Properties;
 internal sealed class DesignerInteractionEffectCollectionDialog : Form
 {
     private readonly DesignerSession session;
-    private readonly DesignControlNode control;
+    private readonly IDictionary<string, DesignPropertyValue> properties;
     private readonly List<DesignerInteractionEffectEntry> entries;
+    private readonly IReadOnlyList<DesignAnimationDefinitionDescriptor> definitions;
+    private readonly ComboBox effectType;
     private readonly ListBox effectList;
     private readonly TextBox propertyEditor;
     private readonly Label errorLabel;
     private int loadedIndex = -1;
     private bool changingSelection;
+    private readonly string? loadError;
 
-    public DesignerInteractionEffectCollectionDialog(DesignerSession session, DesignControlNode control)
+    public DesignerInteractionEffectCollectionDialog(
+        DesignerSession session,
+        IDictionary<string, DesignPropertyValue> properties)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
-        this.control = control ?? throw new ArgumentNullException(nameof(control));
+        this.properties = properties ?? throw new ArgumentNullException(nameof(properties));
+        definitions = BuiltInAnimationDefinitionCatalog.Definitions
+            .Concat(session.AnimationDefinitions)
+            .Where(item => item.Kind == DesignAnimationDefinitionKind.InteractionEffect)
+            .GroupBy(item => item.TypeName, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
 
-        control.Properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? stored);
-        if (!InteractionEffectDesignerRegistry.TryReadCollection(stored, out entries, out string? error))
-            throw new InvalidOperationException(error);
+        properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? stored);
+        if (!InteractionEffectDesignerRegistry.TryReadCollection(stored, out entries, out string? error, definitions))
+        {
+            entries = [];
+            loadError = error ?? "The stored interaction-effect collection is malformed.";
+        }
 
         Text = "Interaction Effects Collection Editor";
         Name = "DesignerInteractionEffectCollectionDialog";
@@ -31,8 +45,10 @@ internal sealed class DesignerInteractionEffectCollectionDialog : Form
         Controls.Add(new Label { Left = 18, Top = 16, Width = 240, Height = 22, Text = "Members (runtime order)" });
         effectList = Controls.Add(new ListBox { Left = 18, Top = 42, Width = 250, Height = 330 });
 
-        var addRipple = Controls.Add(new Button { Left = 18, Top = 382, Width = 116, Height = 30, Text = "Add Ripple" });
-        var addPress = Controls.Add(new Button { Left = 142, Top = 382, Width = 126, Height = 30, Text = "Add PressScale" });
+        effectType = Controls.Add(new ComboBox { Left = 18, Top = 382, Width = 164, Height = 30 });
+        effectType.Items.AddRange(definitions.Select(item => (object)item.DisplayName).ToArray());
+        effectType.SelectedIndex = definitions.Count > 0 ? 0 : -1;
+        var add = Controls.Add(new Button { Left = 190, Top = 382, Width = 78, Height = 30, Text = "Add" });
         var remove = Controls.Add(new Button { Left = 18, Top = 418, Width = 78, Height = 30, Text = "Remove" });
         var up = Controls.Add(new Button { Left = 104, Top = 418, Width = 48, Height = 30, Text = "Up" });
         var down = Controls.Add(new Button { Left = 160, Top = 418, Width = 56, Height = 30, Text = "Down" });
@@ -61,8 +77,7 @@ internal sealed class DesignerInteractionEffectCollectionDialog : Form
         var cancel = Controls.Add(new Button { Left = 642, Top = 446, Width = 80, Height = 30, Text = "Cancel" });
 
         effectList.SelectedIndexChanged += (_, _) => ChangeSelection();
-        addRipple.Click += (_, _) => Add(InteractionEffectDesignerRegistry.RippleTypeName);
-        addPress.Click += (_, _) => Add(InteractionEffectDesignerRegistry.PressScaleTypeName);
+        add.Click += (_, _) => AddSelectedType();
         remove.Click += (_, _) => RemoveSelected();
         up.Click += (_, _) => MoveSelected(-1);
         down.Click += (_, _) => MoveSelected(1);
@@ -71,13 +86,32 @@ internal sealed class DesignerInteractionEffectCollectionDialog : Form
         cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
 
         RefreshList(selectIndex: entries.Count > 0 ? 0 : -1);
+
+        if (loadError is not null)
+        {
+            errorLabel.Text = loadError;
+            effectList.Enabled = false;
+            effectType.Enabled = false;
+            propertyEditor.Enabled = false;
+            add.Enabled = false;
+            remove.Enabled = false;
+            up.Enabled = false;
+            down.Enabled = false;
+            apply.Enabled = false;
+            ok.Enabled = false;
+            session.Log($"Interaction effect editor: {loadError}");
+        }
+
     }
 
-    private void Add(string typeName)
+    private void AddSelectedType()
     {
         if (!TryApplyLoaded())
             return;
-        entries.Add(InteractionEffectDesignerRegistry.Create(typeName));
+        int index = effectType.SelectedIndex;
+        if (index < 0 || index >= definitions.Count)
+            return;
+        entries.Add(InteractionEffectDesignerRegistry.Create(definitions[index].TypeName, definitions));
         RefreshList(entries.Count - 1);
     }
 
@@ -124,6 +158,7 @@ internal sealed class DesignerInteractionEffectCollectionDialog : Form
         propertyEditor.Text = selected >= 0 && selected < entries.Count
             ? InteractionEffectDesignerRegistry.FormatEditorText(entries[selected])
             : string.Empty;
+        propertyEditor.Enabled = selected >= 0 && selected < entries.Count && entries[selected].IsSupported;
         errorLabel.Text = string.Empty;
     }
 
@@ -149,9 +184,9 @@ internal sealed class DesignerInteractionEffectCollectionDialog : Form
             return;
 
         if (entries.Count == 0)
-            control.Properties.Remove(InteractionEffectDesignValue.PropertyName);
+            properties.Remove(InteractionEffectDesignValue.PropertyName);
         else
-            control.Properties[InteractionEffectDesignValue.PropertyName] =
+            properties[InteractionEffectDesignValue.PropertyName] =
                 InteractionEffectDesignerRegistry.WriteCollection(entries);
         DialogResult = DialogResult.OK;
     }
