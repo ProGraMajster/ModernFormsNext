@@ -115,14 +115,38 @@ public static class AnimationInterpolators
     /// <returns>A new stateful interpolator intended for one scheduled animation.</returns>
     /// <remarks>
     /// The interpolator creates one local working brush from the start value and mutates it on
-    /// subsequent calls. It supports solid, linear, radial, and sweep brushes. Gradient types must
-    /// match and contain the same number of stops. Source and target brushes are not mutated, which
-    /// prevents a local transition from unexpectedly changing other consumers of a shared dynamic
-    /// resource. Use <see cref="BrushAnimationExtensions.AnimateTo"/> for intentional in-place
-    /// resource animation.
+    /// subsequent intermediate calls. It supports solid, linear, radial, and sweep brushes.
+    /// Gradients of the same kind may have different stop counts; their color functions are
+    /// normalized once before interpolation. A solid brush can transition to or from any supported
+    /// gradient by using the gradient endpoint's geometry with a constant-color representation of
+    /// the solid endpoint. Different gradient kinds, glass, no-fill, custom, and derived brushes
+    /// are incompatible. Source and target brushes are not mutated, which prevents a local
+    /// transition from unexpectedly changing other consumers of a shared dynamic resource. At
+    /// progress zero and one the exact source and target references are returned. Use
+    /// <see cref="BrushAnimationExtensions.AnimateTo"/> for intentional in-place resource
+    /// animation. Visual-state and theme transitions probe compatibility before using this
+    /// interpolator and switch unsupported pairs discretely. Calling the returned interpolator
+    /// directly with an unsupported pair throws <see cref="ArgumentException"/>.
     /// </remarks>
     public static IAnimationInterpolator<MfnBrush> CreateBrushInterpolator()
         => new ReusableBrushInterpolator();
+
+    internal static bool TryCreateBrushInterpolator(
+        MfnBrush from,
+        MfnBrush to,
+        out IAnimationInterpolator<MfnBrush>? interpolator)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(to);
+        if (!BrushAnimationPlan.TryCreateLocal(from, to, out BrushAnimationPlan? plan))
+        {
+            interpolator = null;
+            return false;
+        }
+
+        interpolator = new ReusableBrushInterpolator(from, to, plan!);
+        return true;
+    }
 
     private static float Lerp(float from, float to, float progress) => from + ((to - from) * progress);
 
@@ -163,6 +187,20 @@ public static class AnimationInterpolators
         private MfnBrush? fromBrush;
         private MfnBrush? toBrush;
 
+        public ReusableBrushInterpolator()
+        {
+        }
+
+        public ReusableBrushInterpolator(
+            MfnBrush from,
+            MfnBrush to,
+            BrushAnimationPlan plan)
+        {
+            fromBrush = from;
+            toBrush = to;
+            this.plan = plan;
+        }
+
         public MfnBrush Interpolate(MfnBrush from, MfnBrush to, float progress)
         {
             ArgumentNullException.ThrowIfNull(from);
@@ -172,8 +210,7 @@ public static class AnimationInterpolators
 
             if (plan is null)
             {
-                MfnBrush workingBrush = BrushAnimationPlan.CloneSupportedBrush(from);
-                plan = BrushAnimationPlan.Create(from, to, workingBrush);
+                plan = BrushAnimationPlan.CreateLocal(from, to);
                 fromBrush = from;
                 toBrush = to;
             }
@@ -182,8 +219,7 @@ public static class AnimationInterpolators
                 throw new InvalidOperationException("A brush interpolator instance can be used for only one source and target pair.");
             }
 
-            plan.Apply(progress);
-            return plan.Destination;
+            return plan.Interpolate(progress);
         }
     }
 }

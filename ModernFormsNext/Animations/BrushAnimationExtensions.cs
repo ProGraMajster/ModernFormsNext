@@ -21,8 +21,12 @@ public static class BrushAnimationExtensions
     /// <para>
     /// Supported concrete types are <see cref="SolidColorBrush"/>,
     /// <see cref="LinearGradientBrush"/>, <see cref="RadialGradientBrush"/>, and
-    /// <see cref="SweepGradientBrush"/>. Gradient source and target must have the same number of
-    /// stops. Type and structure validation happens before the animation is scheduled.
+    /// <see cref="SweepGradientBrush"/>. Because this helper preserves and mutates the identity of
+    /// <paramref name="brush"/>, source and target must have the same concrete type and gradient
+    /// stop count. Value-style transitions that can replace a brush reference use
+    /// <see cref="AnimationInterpolators.CreateBrushInterpolator"/> and additionally support
+    /// normalized stop counts and solid-to-gradient transitions. Type and structure validation
+    /// happens before the in-place animation is scheduled.
     /// </para>
     /// <para>
     /// This method intentionally mutates <paramref name="brush"/>. If it is stored in a dynamic

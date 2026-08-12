@@ -130,6 +130,7 @@ public sealed class AnimationInterpolatorTests
         Assert.Equal(0f, from.GradientStops[0].Offset);
 
         var final = Assert.IsType<LinearGradientBrush>(interpolator.Interpolate(from, to, 1f));
+        Assert.Same(to, final);
         Assert.Equal(GradientSpreadMode.Reflect, final.SpreadMode);
         Assert.Equal(to.GradientStops[0].PaintColor.ToArgb(), final.GradientStops[0].PaintColor.ToArgb());
     }
@@ -183,7 +184,7 @@ public sealed class AnimationInterpolatorTests
     }
 
     [Fact]
-    public void BrushAnimationRejectsMismatchedTypesAndGradientStructuresBeforeScheduling()
+    public void InPlaceBrushAnimationRejectsMismatchedTypesAndGradientStructuresBeforeScheduling()
     {
         using var harness = new AnimationSchedulerTestHarness();
         var solid = new SolidColorBrush(Color.Red);

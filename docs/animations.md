@@ -321,9 +321,9 @@ remove a newer replacement because scheduler removal checks entry identity.
 
 There are two deliberately different Brush patterns.
 
-For a local transition, create one animation-local interpolator. It clones the source brush once,
-then reuses and mutates that working clone. The original and target remain unchanged, so other
-controls that share either endpoint are unaffected:
+For a local transition, create one animation-local interpolator. It captures the endpoints once,
+then reuses and mutates one working brush for intermediate frames. The original and target remain
+unchanged, so other controls that share either endpoint are unaffected:
 
 ```csharp
 ModernFormsNext.Drawing.Brush from = new SolidColorBrush(Color.MediumPurple);
@@ -354,11 +354,19 @@ AnimationHandle handle = sharedBrush.AnimateTo(
     easing: Easings.EaseInOut);
 ```
 
+Local transitions support solid-to-solid, same-kind gradient pairs with equal or different
+non-empty stop counts, and solid-to-linear/radial/sweep promotion. Exact endpoints retain their
+authored references; normalization never mutates authored brushes. Cross-kind gradients,
+`GlassBrush`, `NoBrush`, null, empty-to-populated gradients, and custom/derived brushes use the
+calling subsystem's discrete fallback. See the
+[brush interpolation compatibility matrix](architecture/brush-interpolation.md) for the precise
+normalization and fallback rules.
+
 In-place mutation raises the existing `Brush.Changed` notifications on the UI thread. Every live
-control using that brush repaints, and no layout is requested. Supported concrete pairs are
-`SolidColorBrush`, `LinearGradientBrush`, `RadialGradientBrush`, and `SweepGradientBrush`. Gradient
-pairs must have the same concrete type and stop count. Incompatible structures throw before the
-animation is scheduled; there is no implicit snap or structural blending.
+control using that brush repaints, and no layout is requested. Because the destination object's
+identity and stop collection must remain stable, this explicit compatibility helper continues to
+require matching built-in concrete types and equal gradient stop counts. Incompatible structures
+throw before the animation is scheduled.
 
 Compatible animations include color, opacity, `Matrix3x2` transform, linear start/end points,
 radial center/origin/radius, sweep angles, stop colors and offsets. `GradientSpreadMode` changes at
@@ -663,10 +671,10 @@ stops when no runnable work remains.
 
 ## Current limitations
 
-- There is no general animated-layout subsystem. Updating bounds or spacing uses the existing
-  setters and can be more expensive than render-only transforms.
-- Brush interpolation requires matching built-in concrete types and equal gradient stop counts.
-- Visual-state layout metrics switch discretely rather than interpolate.
+- Animated layout covers bounds, while visual-state metric interpolation currently covers padding
+  and border widths. Other layout-aware state metrics remain discrete.
+- Brush cross-kind geometry, `GlassBrush`, `NoBrush`, null, empty-to-populated gradients, and
+  custom/derived brush types switch discretely.
 - The Designer collection editor supports the built-in `RippleEffect` and `PressScaleEffect` only;
   custom effects and easing delegates remain code-first, and Designer undo/redo is not available.
 - Android platform preference refresh occurs on startup/foreground or explicit refresh; there is no
@@ -676,6 +684,7 @@ stops when no runnable work remains.
   validation.
 
 See [the scheduler architecture](architecture/ui-animation-scheduler.md), the
+[brush interpolation compatibility matrix](architecture/brush-interpolation.md), the
 [scheduler architecture decision](architecture/decisions/ADR-UI-Animation-Scheduler.md), the
 [composable-animation architecture decision](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md),
 the [animation platform polish decision](architecture/decisions/ADR-Animation-Platform-Polish.md),
