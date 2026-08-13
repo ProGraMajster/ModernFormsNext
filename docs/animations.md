@@ -675,8 +675,9 @@ stops when no runnable work remains.
   and border widths. Other layout-aware state metrics remain discrete.
 - Brush cross-kind geometry, `GlassBrush`, `NoBrush`, null, empty-to-populated gradients, and
   custom/derived brush types switch discretely.
-- The Designer collection editor supports the built-in `RippleEffect` and `PressScaleEffect` only;
-  custom effects and easing delegates remain code-first, and Designer undo/redo is not available.
+- The Designer supports built-in effects, explicitly source-described project effects, layout
+  transitions, visual-state transitions, and built-in easing identifiers. Custom easing delegates,
+  general `AnimationDefinition` activation, and Designer undo/redo remain code-first/unavailable.
 - Android platform preference refresh occurs on startup/foreground or explicit refresh; there is no
   live `ContentObserver` in this experimental stage.
 - Android is experimental; physical-device frame pacing, multi-touch rendering,
@@ -688,5 +689,6 @@ See [the scheduler architecture](architecture/ui-animation-scheduler.md), the
 [scheduler architecture decision](architecture/decisions/ADR-UI-Animation-Scheduler.md), the
 [composable-animation architecture decision](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md),
 the [animation platform polish decision](architecture/decisions/ADR-Animation-Platform-Polish.md),
+the [Designer animation/effect contract](designer-animation-effects.md),
 and **Animations and Interaction Effects** in `samples/ControlGallery` for implementation rationale
 and interactive checks.

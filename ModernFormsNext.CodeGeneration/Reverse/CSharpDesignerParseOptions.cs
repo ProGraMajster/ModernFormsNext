@@ -7,6 +7,9 @@ namespace ModernFormsNext.CodeGeneration.Reverse;
 /// </summary>
 public sealed class CSharpDesignerParseOptions
 {
+    /// <summary>Gets or sets detached descriptors for project interaction effects accepted by reverse sync.</summary>
+    /// <remarks>The parser uses metadata only and never loads or constructs the described types.</remarks>
+    public IReadOnlyList<DesignAnimationDefinitionDescriptor> AnimationDefinitions { get; set; } = [];
     /// <summary>
     /// Gets or sets the kind of design root represented by the generated partial class.
     /// </summary>

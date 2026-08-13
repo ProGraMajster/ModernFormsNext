@@ -36,6 +36,9 @@ internal sealed class DesignerPropertyGridState
     ];
 
     private readonly DesignerSession playgroundState;
+    private readonly Func<IReadOnlyList<DesignerPropertyDescriptor>>? detachedPropertyProvider;
+    private readonly Func<string>? detachedHeaderName;
+    private readonly Func<string>? detachedHeaderType;
     private readonly DesignMetadataReader metadataReader = new();
     private readonly HashSet<string> expandedProperties = new(StringComparer.Ordinal)
     {
@@ -55,6 +58,19 @@ internal sealed class DesignerPropertyGridState
         Refresh();
     }
 
+    internal DesignerPropertyGridState(
+        DesignerSession playgroundState,
+        Func<string> headerName,
+        Func<string> headerType,
+        Func<IReadOnlyList<DesignerPropertyDescriptor>> propertyProvider)
+    {
+        this.playgroundState = playgroundState ?? throw new ArgumentNullException(nameof(playgroundState));
+        detachedHeaderName = headerName ?? throw new ArgumentNullException(nameof(headerName));
+        detachedHeaderType = headerType ?? throw new ArgumentNullException(nameof(headerType));
+        detachedPropertyProvider = propertyProvider ?? throw new ArgumentNullException(nameof(propertyProvider));
+        Refresh();
+    }
+
     public event EventHandler? Changed;
 
     public DesignerPropertyGridMode Mode { get; private set; } = DesignerPropertyGridMode.Properties;
@@ -64,6 +80,8 @@ internal sealed class DesignerPropertyGridState
     public string HeaderName { get; private set; } = "No selection";
 
     public DesignerSession Session => playgroundState;
+
+    public bool SupportsEvents => detachedPropertyProvider is null;
 
     public string HeaderType { get; private set; } = string.Empty;
 
@@ -103,6 +121,9 @@ internal sealed class DesignerPropertyGridState
 
     public void SetMode(DesignerPropertyGridMode mode)
     {
+        if (mode == DesignerPropertyGridMode.Events && !SupportsEvents)
+            return;
+
         if (Mode == mode)
             return;
 
@@ -280,6 +301,12 @@ internal sealed class DesignerPropertyGridState
 
     public void Refresh()
     {
+        if (detachedPropertyProvider is not null)
+        {
+            RefreshDetachedProperties();
+            return;
+        }
+
         var document = playgroundState.Document;
         var selectedNode = playgroundState.SelectedNode;
         var selectedObjectChanged = hasSelectionSnapshot
@@ -321,6 +348,34 @@ internal sealed class DesignerPropertyGridState
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    private void RefreshDetachedProperties()
+    {
+        string? selectedPropertyName = SelectedProperty?.Identity;
+        string? editingPropertyName = EditingProperty?.Identity;
+
+        HeaderName = detachedHeaderName!();
+        HeaderType = detachedHeaderType!();
+        Properties = detachedPropertyProvider!()
+            .Where(property => property.IsVisible)
+            .ToArray();
+        Events = [];
+        ApplyExpansionState(Properties);
+        SelectedProperty = FindPropertyByIdentity(selectedPropertyName)
+            ?? Properties.FirstOrDefault();
+        SelectedEvent = null;
+        EditingProperty = IsEditing && editingPropertyName is not null
+            ? FindPropertyByIdentity(editingPropertyName)
+            : null;
+        EditingEvent = null;
+
+        if (IsEditing && EditingProperty is null)
+            ClearEditingState();
+
+        Mode = DesignerPropertyGridMode.Properties;
+        RebuildRows();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     private void ClearEditingState()
     {
         EditingProperty = null;
@@ -344,7 +399,8 @@ internal sealed class DesignerPropertyGridState
         }
 
         var propertyName = SelectedProperty.DisplayName;
-        playgroundState.NotifyDocumentChanged();
+        if (detachedPropertyProvider is null)
+            playgroundState.NotifyDocumentChanged();
         playgroundState.Log($"Updated {HeaderName}.{propertyName}.");
         return true;
     }
@@ -623,6 +679,8 @@ internal sealed class DesignerPropertyGridState
         descriptors.Add(ReadOnly("X", "X", "Layout", originDescription, typeof(int), () => 0));
         descriptors.Add(ReadOnly("Y", "Y", "Layout", originDescription, typeof(int), () => 0));
         descriptors.Add(DesignerPropertyDescriptorFactory.CreateDocumentSize(playgroundState.Document));
+        descriptors.Add(InteractionEffectsProperty(playgroundState.Document.Properties));
+        AddAnimationDescriptors(descriptors, playgroundState.Document.Properties);
         descriptors.Add(FormSize("Width", "Width", size => size.Width, (width, height) => new DesignSize(width, height)));
         descriptors.Add(FormSize("Height", "Height", size => size.Height, (width, height) => new DesignSize(width, height)));
     }
@@ -697,7 +755,8 @@ internal sealed class DesignerPropertyGridState
 
     private void AddSpecialContainerDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode node)
     {
-        descriptors.Add(InteractionEffectsProperty(node));
+        descriptors.Add(InteractionEffectsProperty(node.Properties));
+        AddAnimationDescriptors(descriptors, node.Properties);
 
         if (DesignerSpecialContainers.IsTabControl(node))
             descriptors.Add(TabPagesProperty(node));
@@ -737,20 +796,64 @@ internal sealed class DesignerPropertyGridState
         }
     }
 
-    private static DesignerPropertyDescriptor InteractionEffectsProperty(DesignControlNode control)
+    private static void AddAnimationDescriptors(
+        List<DesignerPropertyDescriptor> descriptors,
+        IDictionary<string, DesignPropertyValue> properties)
+    {
+        descriptors.Add(TransitionProperty(properties, isLayout: true));
+        descriptors.Add(TransitionProperty(properties, isLayout: false));
+    }
+
+    private static DesignerPropertyDescriptor TransitionProperty(
+        IDictionary<string, DesignPropertyValue> properties,
+        bool isLayout)
+    {
+        string name = isLayout
+            ? LayoutTransitionDesignValue.PropertyName
+            : VisualStateTransitionDesignValue.PropertyName;
+        return new DesignerPropertyDescriptor
+        {
+            Name = name,
+            DisplayName = isLayout ? "Layout Transition" : "Visual State Transitions",
+            Category = isLayout ? "Behavior" : "Appearance",
+            Description = isLayout
+                ? "Configures logical-to-presentation bounds animation using the runtime LayoutTransition API."
+                : "Configures ordered runtime visual-state transition pairs.",
+            ValueType = typeof(string),
+            IsReadOnly = true,
+            HasDialogEditor = true,
+            DialogEditor = DesignerPropertyDialogEditors.Transition(properties, isLayout),
+            GetValue = () =>
+            {
+                if (!properties.TryGetValue(name, out var value))
+                    return "(none)";
+                if (isLayout)
+                {
+                    return LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out _, out _)
+                        ? enabled ? $"{duration:0.##} ms" : "Disabled"
+                        : "(invalid)";
+                }
+                return VisualStateTransitionDesignValue.TryRead(value, out var transitions, out _)
+                    ? $"{transitions.Count} transition{(transitions.Count == 1 ? string.Empty : "s")}" : "(invalid)";
+            }
+        };
+    }
+
+    private static DesignerPropertyDescriptor InteractionEffectsProperty(
+        IDictionary<string, DesignPropertyValue> properties)
         => new()
         {
             Name = InteractionEffectDesignValue.PropertyName,
             DisplayName = "InteractionEffects",
             Category = "Behavior",
-            Description = "Edits the ordered RippleEffect and PressScaleEffect collection without running effects in the Designer.",
+            Description = "Edits ordered built-in and explicitly source-described interaction effects without running project code in the Designer.",
             ValueType = typeof(string),
             IsReadOnly = true,
             HasDialogEditor = true,
-            DialogEditor = DesignerPropertyDialogEditors.InteractionEffects(control),
+            DialogEditor = DesignerPropertyDialogEditors.InteractionEffects(properties),
             GetValue = () =>
             {
-                control.Properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? value);
+                properties.TryGetValue(InteractionEffectDesignValue.PropertyName, out DesignPropertyValue? value);
                 return InteractionEffectDesignValue.TryRead(value, out IReadOnlyList<DesignPropertyValue> effects, out _)
                     ? $"{effects.Count} effect{(effects.Count == 1 ? string.Empty : "s")}"
                     : "(invalid)";

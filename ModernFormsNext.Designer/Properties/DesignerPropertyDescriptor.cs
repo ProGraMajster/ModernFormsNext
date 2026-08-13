@@ -38,6 +38,16 @@ internal sealed class DesignerPropertyDescriptor
 
     public IReadOnlyList<string>? StandardValues { get; init; }
 
+    public decimal? NumericMinimum { get; init; }
+
+    public decimal? NumericMaximum { get; init; }
+
+    public decimal? NumericIncrement { get; init; }
+
+    public int NumericDecimalPlaces { get; init; }
+
+    public bool UseBooleanCheckBox { get; init; }
+
     public Func<object?> GetValue { get; init; } = () => null;
 
     public Func<string, (bool Success, string? Error)> CommitText { get; init; } = _ => (false, "The property is read-only.");

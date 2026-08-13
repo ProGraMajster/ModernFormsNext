@@ -336,7 +336,9 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
                     NamespaceOverride = fileInfo.Namespace,
                     ClassNameOverride = fileInfo.ClassName,
                     FormNameOverride = fileInfo.ClassName,
-                    RootKind = fileInfo.RootKind
+                    RootKind = fileInfo.RootKind,
+                    AnimationDefinitions = ModernFormsNext.Designer.Services.DesignerProjectAnimationDefinitionDiscovery.Discover(
+                        FindNearestProjectPath(fileInfo.CodeFilePath))
                 });
 
             if (parseResult.Success && parseResult.Document is not null)
@@ -356,5 +358,18 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         };
 
         DesignDocumentSerializer.Default.Save(fileInfo.DesignFilePath, document);
+    }
+
+    private static string? FindNearestProjectPath(string path)
+    {
+        string? directory = File.Exists(path) ? Path.GetDirectoryName(path) : path;
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            string? project = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
+            if (project is not null)
+                return project;
+            directory = Directory.GetParent(directory)?.FullName;
+        }
+        return null;
     }
 }

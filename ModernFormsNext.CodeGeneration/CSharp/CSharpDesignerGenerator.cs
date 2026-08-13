@@ -135,7 +135,7 @@ public sealed class CSharpDesignerGenerator
             writer.WriteLine();
 
         foreach (var control in controls)
-            WriteControlInitialization(writer, control, controlExpressions[control], validation);
+            WriteControlInitialization(writer, control, controlExpressions[control], validation, options);
 
         foreach (var control in controls)
             WriteControlEvents(writer, control, controlExpressions[control]);
@@ -159,7 +159,8 @@ public sealed class CSharpDesignerGenerator
                 || document.RootKind == DesignRootKind.Form && string.Equals(property.Key, "Text", StringComparison.Ordinal))
                 continue;
 
-            WritePropertyAssignment(writer, "this", property.Key, property.Value, "design root", validation);
+            if (!TryWriteAnimationProperty(writer, "this", property.Key, property.Value, "design root", validation, options))
+                WritePropertyAssignment(writer, "this", property.Key, property.Value, "design root", validation);
         }
 
         foreach (var eventBinding in document.Events)
@@ -244,7 +245,8 @@ public sealed class CSharpDesignerGenerator
         CodeWriter writer,
         DesignControlNode control,
         string controlExpression,
-        DesignDocumentValidationResult validation)
+        DesignDocumentValidationResult validation,
+        CSharpDesignerGenerationOptions options)
     {
         writer.WriteLine($"        {controlExpression}.Name = {CSharpLiteralWriter.WriteStringLiteral(control.Name)};");
         writer.WriteLine($"        {controlExpression}.Bounds = new System.Drawing.Rectangle({control.Bounds.X}, {control.Bounds.Y}, {control.Bounds.Width}, {control.Bounds.Height});");
@@ -259,9 +261,12 @@ public sealed class CSharpDesignerGenerator
 
             if (string.Equals(property.Key, InteractionEffectDesignValue.PropertyName, StringComparison.Ordinal))
             {
-                WriteInteractionEffects(writer, controlExpression, property.Value, control.Name, validation);
+                WriteInteractionEffects(writer, controlExpression, property.Value, control.Name, validation, options);
                 continue;
             }
+
+            if (TryWriteAnimationProperty(writer, controlExpression, property.Key, property.Value, control.Name, validation, options))
+                continue;
 
             WritePropertyAssignment(writer, controlExpression, property.Key, property.Value, control.Name, validation);
         }
@@ -274,7 +279,8 @@ public sealed class CSharpDesignerGenerator
         string targetExpression,
         DesignPropertyValue value,
         string ownerName,
-        DesignDocumentValidationResult validation)
+        DesignDocumentValidationResult validation,
+        CSharpDesignerGenerationOptions options)
     {
         if (!InteractionEffectDesignValue.TryRead(value, out IReadOnlyList<DesignPropertyValue> effects, out string? error))
         {
@@ -286,7 +292,7 @@ public sealed class CSharpDesignerGenerator
         {
             try
             {
-                string expression = WriteInteractionEffect(effects[index]);
+                string expression = WriteInteractionEffect(effects[index], options);
                 writer.WriteLine($"        {targetExpression}.InteractionEffects.Add({expression});");
             }
             catch (Exception exception) when (exception is NotSupportedException
@@ -300,45 +306,178 @@ public sealed class CSharpDesignerGenerator
         }
     }
 
-    private static string WriteInteractionEffect(DesignPropertyValue effect)
+    private static string WriteInteractionEffect(
+        DesignPropertyValue effect,
+        CSharpDesignerGenerationOptions options)
     {
         IReadOnlyDictionary<string, DesignPropertyValue> properties = effect.ObjectProperties
             ?? throw new FormatException("The effect description does not contain properties.");
         string typeName = effect.ObjectTypeName ?? string.Empty;
 
-        if (IsEffectType(typeName, "RippleEffect"))
+        DesignAnimationDefinitionDescriptor descriptor = FindEffectDescriptor(typeName, options.AnimationDefinitions)
+            ?? throw new NotSupportedException($"Interaction effect type '{typeName}' is not registered for code generation.");
+        ValidateEffectDescriptor(descriptor);
+        ValidateEffectProperties(properties, descriptor.Properties.Select(item => item.Name).ToArray());
+
+        var assignments = new List<string>(properties.Count);
+        foreach (DesignAnimationPropertyDescriptor property in descriptor.Properties)
         {
-            ValidateEffectProperties(properties,
-                "Enabled", "ColorArgb", "DurationMilliseconds", "StartFromPointer", "RadiusMode",
-                "FixedRadius", "Layer", "MaxConcurrentRipples", "OverflowPolicy");
-            int argb = ReadInt(properties, "ColorArgb", unchecked((int)0x5AFFFFFF));
-            uint color = unchecked((uint)argb);
-            return "new ModernFormsNext.Animations.RippleEffect { "
-                + $"Enabled = {ReadBoolLiteral(properties, "Enabled", true)}, "
-                + $"Color = System.Drawing.Color.FromArgb({color >> 24}, {(color >> 16) & 0xFF}, {(color >> 8) & 0xFF}, {color & 0xFF}), "
-                + $"Duration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "DurationMilliseconds", 450d)}), "
-                + $"StartFromPointer = {ReadBoolLiteral(properties, "StartFromPointer", true)}, "
-                + $"RadiusMode = {ReadEnumLiteral(properties, "RadiusMode", "ModernFormsNext.Animations.RippleRadiusMode", "CoverControl", "CoverControl", "Fixed")}, "
-                + $"FixedRadius = {ReadFloatLiteral(properties, "FixedRadius", 48d)}, "
-                + $"Layer = {ReadEnumLiteral(properties, "Layer", "ModernFormsNext.Animations.RippleLayer", "AboveBackgroundBelowContent", "AboveBackgroundBelowContent", "AboveContent")}, "
-                + $"MaxConcurrentRipples = {ReadInt(properties, "MaxConcurrentRipples", 4)}, "
-                + $"OverflowPolicy = {ReadEnumLiteral(properties, "OverflowPolicy", "ModernFormsNext.Animations.RippleOverflowPolicy", "RemoveOldest", "RemoveOldest", "RemoveNewest", "IgnoreNew", "ReplaceAll")} "
-                + "}";
+            if (properties.TryGetValue(property.Name, out DesignPropertyValue? stored))
+                assignments.Add($"{property.RuntimePropertyName} = {WriteAnimationValue(property, stored)}");
+        }
+        string initializer = assignments.Count == 0 ? string.Empty : " " + string.Join(", ", assignments) + " ";
+        return $"new {descriptor.TypeName} {{" + initializer + "}";
+    }
+
+    private static DesignAnimationDefinitionDescriptor? FindEffectDescriptor(
+        string typeName,
+        IReadOnlyList<DesignAnimationDefinitionDescriptor> customDefinitions)
+    {
+        string normalized = typeName.Replace("global::", string.Empty, StringComparison.Ordinal);
+        return BuiltInAnimationDefinitionCatalog.Definitions.Concat(customDefinitions ?? [])
+            .FirstOrDefault(item => item.Kind == DesignAnimationDefinitionKind.InteractionEffect
+                && (string.Equals(item.TypeName, normalized, StringComparison.Ordinal)
+                    || item.IsBuiltIn && string.Equals(item.TypeName.Split('.').Last(), normalized, StringComparison.Ordinal)));
+    }
+
+    private static string WriteAnimationValue(
+        DesignAnimationPropertyDescriptor descriptor,
+        DesignPropertyValue value)
+        => descriptor.Kind switch
+        {
+            DesignAnimationPropertyKind.Boolean when value.Kind == DesignPropertyValueKind.Boolean
+                => value.Value is true ? "true" : "false",
+            DesignAnimationPropertyKind.Int32 when value.Kind == DesignPropertyValueKind.Int32
+                => WriteAnimationInteger(descriptor, value),
+            DesignAnimationPropertyKind.Number when value.Kind is DesignPropertyValueKind.Int32 or DesignPropertyValueKind.Double
+                => WriteAnimationNumber(descriptor, value, descriptor.RuntimeTypeName),
+            DesignAnimationPropertyKind.TimeSpan when value.Kind is DesignPropertyValueKind.Int32 or DesignPropertyValueKind.Double
+                => $"System.TimeSpan.FromMilliseconds({WriteAnimationNumber(descriptor, value, null)})",
+            DesignAnimationPropertyKind.Easing when value.Kind == DesignPropertyValueKind.String
+                && KnownEasingDesignValue.IsKnown(value.GetString())
+                => $"ModernFormsNext.Animations.Easings.{value.GetString()}",
+            DesignAnimationPropertyKind.Enum when value.Kind == DesignPropertyValueKind.Enum
+                && descriptor.EnumMembers.Contains(value.GetString(), StringComparer.Ordinal)
+                => $"{descriptor.EnumTypeName}.{value.GetString()}",
+            DesignAnimationPropertyKind.ColorArgb when value.Kind == DesignPropertyValueKind.Int32
+                => WriteColor(value),
+            DesignAnimationPropertyKind.String when value.Kind == DesignPropertyValueKind.String
+                => CSharpLiteralWriter.WriteStringLiteral(value.GetString()),
+            _ => throw new FormatException($"Property '{descriptor.Name}' has an invalid designer value.")
+        };
+
+    private static void ValidateEffectDescriptor(DesignAnimationDefinitionDescriptor descriptor)
+    {
+        if (!IsQualifiedIdentifier(descriptor.TypeName))
+            throw new NotSupportedException($"Interaction effect type name '{descriptor.TypeName}' is not safe C# syntax.");
+        if (descriptor.Properties.Select(item => item.Name).Distinct(StringComparer.Ordinal).Count() != descriptor.Properties.Count
+            || descriptor.Properties.Select(item => item.RuntimePropertyName).Distinct(StringComparer.Ordinal).Count() != descriptor.Properties.Count)
+            throw new NotSupportedException($"Interaction effect descriptor '{descriptor.TypeName}' contains duplicate properties.");
+
+        foreach (DesignAnimationPropertyDescriptor property in descriptor.Properties)
+        {
+            if (!CSharpIdentifierSanitizer.IsValidIdentifier(property.Name)
+                || !CSharpIdentifierSanitizer.IsValidIdentifier(property.RuntimePropertyName))
+                throw new NotSupportedException($"Interaction effect descriptor '{descriptor.TypeName}' contains an invalid property name.");
+            if (property.Kind == DesignAnimationPropertyKind.Enum
+                && (!IsQualifiedIdentifier(property.EnumTypeName)
+                    || property.EnumMembers.Any(member => !CSharpIdentifierSanitizer.IsValidIdentifier(member))))
+                throw new NotSupportedException($"Enum metadata for '{descriptor.TypeName}.{property.Name}' is not safe C# syntax.");
+            if (property.Minimum > property.Maximum)
+                throw new NotSupportedException($"Numeric metadata for '{descriptor.TypeName}.{property.Name}' has an invalid range.");
+        }
+    }
+
+    private static bool IsQualifiedIdentifier(string? value)
+        => !string.IsNullOrWhiteSpace(value)
+        && value.Split('.').All(CSharpIdentifierSanitizer.IsValidIdentifier);
+
+    private static string WriteAnimationInteger(
+        DesignAnimationPropertyDescriptor descriptor,
+        DesignPropertyValue value)
+    {
+        int number = Convert.ToInt32(value.Value, CultureInfo.InvariantCulture);
+        ValidateAnimationNumber(descriptor, number);
+        return number.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string WriteAnimationNumber(
+        DesignAnimationPropertyDescriptor descriptor,
+        DesignPropertyValue value,
+        string? runtimeTypeName)
+    {
+        double number = Convert.ToDouble(value.Value, CultureInfo.InvariantCulture);
+        ValidateAnimationNumber(descriptor, number);
+
+        bool requiresSingleLiteral = runtimeTypeName?.Split('.').Last() is "float" or "Single";
+        if (requiresSingleLiteral)
+        {
+            float single = (float)number;
+            if (!float.IsFinite(single) || single == 0f && number != 0d)
+                throw new FormatException($"Property '{descriptor.Name}' cannot be represented as a finite Single value.");
         }
 
-        if (IsEffectType(typeName, "PressScaleEffect"))
-        {
-            ValidateEffectProperties(properties,
-                "Enabled", "PressedScale", "PressDurationMilliseconds", "ReleaseDurationMilliseconds");
-            return "new ModernFormsNext.Animations.PressScaleEffect { "
-                + $"Enabled = {ReadBoolLiteral(properties, "Enabled", true)}, "
-                + $"PressedScale = {ReadFloatLiteral(properties, "PressedScale", 0.97d)}, "
-                + $"PressDuration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "PressDurationMilliseconds", 80d)}), "
-                + $"ReleaseDuration = System.TimeSpan.FromMilliseconds({ReadDoubleLiteral(properties, "ReleaseDurationMilliseconds", 120d)}) "
-                + "}";
-        }
+        string literal = number.ToString("R", CultureInfo.InvariantCulture);
+        return requiresSingleLiteral ? literal + "f" : literal;
+    }
 
-        throw new NotSupportedException($"Interaction effect type '{typeName}' is not registered for code generation.");
+    private static void ValidateAnimationNumber(
+        DesignAnimationPropertyDescriptor descriptor,
+        double number)
+    {
+        if (!double.IsFinite(number))
+            throw new FormatException($"Property '{descriptor.Name}' must be finite.");
+        if (number < descriptor.Minimum || number > descriptor.Maximum)
+        {
+            throw new FormatException(
+                $"Property '{descriptor.Name}' must be between "
+                + $"{descriptor.Minimum.ToString("R", CultureInfo.InvariantCulture)} and "
+                + $"{descriptor.Maximum.ToString("R", CultureInfo.InvariantCulture)}.");
+        }
+    }
+
+    private static string WriteColor(DesignPropertyValue value)
+    {
+        uint color = unchecked((uint)Convert.ToInt32(value.Value, CultureInfo.InvariantCulture));
+        return $"System.Drawing.Color.FromArgb({color >> 24}, {(color >> 16) & 0xFF}, {(color >> 8) & 0xFF}, {color & 0xFF})";
+    }
+
+    private static bool TryWriteAnimationProperty(
+        CodeWriter writer,
+        string targetExpression,
+        string propertyName,
+        DesignPropertyValue value,
+        string ownerName,
+        DesignDocumentValidationResult validation,
+        CSharpDesignerGenerationOptions options)
+    {
+        if (string.Equals(propertyName, InteractionEffectDesignValue.PropertyName, StringComparison.Ordinal))
+        {
+            WriteInteractionEffects(writer, targetExpression, value, ownerName, validation, options);
+            return true;
+        }
+        if (string.Equals(propertyName, LayoutTransitionDesignValue.PropertyName, StringComparison.Ordinal))
+        {
+            if (!LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out string easing, out string? error))
+                validation.AddWarning($"LayoutTransition on '{ownerName}' was skipped: {error}");
+            else
+                writer.WriteLine($"        {targetExpression}.LayoutTransition = new ModernFormsNext.Animations.LayoutTransition {{ Enabled = {(enabled ? "true" : "false")}, Duration = System.TimeSpan.FromMilliseconds({duration.ToString("R", CultureInfo.InvariantCulture)}), Easing = ModernFormsNext.Animations.Easings.{easing} }};");
+            return true;
+        }
+        if (string.Equals(propertyName, VisualStateTransitionDesignValue.PropertyName, StringComparison.Ordinal))
+        {
+            if (!VisualStateTransitionDesignValue.TryRead(value, out var transitions, out string? error))
+            {
+                validation.AddWarning($"StyleTransitions on '{ownerName}' was skipped: {error}");
+                return true;
+            }
+            foreach (DesignVisualStateTransition transition in transitions)
+            {
+                writer.WriteLine($"        {targetExpression}.StyleTransitions.Add(ModernFormsNext.Animations.VisualState.{transition.From}, ModernFormsNext.Animations.VisualState.{transition.To}, new ModernFormsNext.Animations.VisualStateTransition {{ Duration = System.TimeSpan.FromMilliseconds({transition.DurationMilliseconds.ToString("R", CultureInfo.InvariantCulture)}), Easing = ModernFormsNext.Animations.Easings.{transition.Easing} }});");
+            }
+            return true;
+        }
+        return false;
     }
 
     private static void ValidateEffectProperties(
@@ -349,91 +488,6 @@ public sealed class CSharpDesignerGenerator
         string? unsupported = properties.Keys.FirstOrDefault(name => !supported.Contains(name));
         if (unsupported is not null)
             throw new NotSupportedException($"Property '{unsupported}' is not supported for this interaction effect.");
-    }
-
-    private static bool IsEffectType(string typeName, string shortName)
-        => string.Equals(typeName, shortName, StringComparison.Ordinal)
-        || string.Equals(typeName, "ModernFormsNext.Animations." + shortName, StringComparison.Ordinal);
-
-    private static int ReadInt(
-        IReadOnlyDictionary<string, DesignPropertyValue> properties,
-        string name,
-        int fallback)
-    {
-        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
-            return fallback;
-        if (value.Kind != DesignPropertyValueKind.Int32 || value.Value is not int result)
-            throw new FormatException($"Property '{name}' must be a 32-bit integer.");
-        return result;
-    }
-
-    private static string ReadDoubleLiteral(
-        IReadOnlyDictionary<string, DesignPropertyValue> properties,
-        string name,
-        double fallback)
-    {
-        double result;
-        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
-        {
-            result = fallback;
-        }
-        else if (value.Kind is DesignPropertyValueKind.Double or DesignPropertyValueKind.Int32)
-        {
-            result = Convert.ToDouble(value.Value, CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            throw new FormatException($"Property '{name}' must be numeric.");
-        }
-        if (!double.IsFinite(result))
-            throw new FormatException($"Property '{name}' must be finite.");
-        return result.ToString("R", CultureInfo.InvariantCulture);
-    }
-
-    private static string ReadFloatLiteral(
-        IReadOnlyDictionary<string, DesignPropertyValue> properties,
-        string name,
-        double fallback)
-    {
-        float result = (float)double.Parse(
-            ReadDoubleLiteral(properties, name, fallback),
-            CultureInfo.InvariantCulture);
-        if (!float.IsFinite(result))
-            throw new FormatException($"Property '{name}' must fit in a finite single-precision value.");
-        return result.ToString("R", CultureInfo.InvariantCulture) + "f";
-    }
-
-    private static string ReadBoolLiteral(
-        IReadOnlyDictionary<string, DesignPropertyValue> properties,
-        string name,
-        bool fallback)
-    {
-        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
-            return fallback ? "true" : "false";
-        if (value.Kind != DesignPropertyValueKind.Boolean || value.Value is not bool result)
-            throw new FormatException($"Property '{name}' must be a Boolean.");
-        return result ? "true" : "false";
-    }
-
-    private static string ReadEnumLiteral(
-        IReadOnlyDictionary<string, DesignPropertyValue> properties,
-        string name,
-        string enumTypeName,
-        string fallbackMember,
-        params string[] supportedMembers)
-    {
-        if (!properties.TryGetValue(name, out DesignPropertyValue? value))
-            return enumTypeName + "." + fallbackMember;
-        string shortTypeName = enumTypeName.Split('.').Last();
-        string member = value.GetString();
-        if (value.Kind != DesignPropertyValueKind.Enum
-            || (!string.Equals(value.EnumTypeName, enumTypeName, StringComparison.Ordinal)
-                && !string.Equals(value.EnumTypeName, shortTypeName, StringComparison.Ordinal))
-            || !supportedMembers.Contains(member, StringComparer.Ordinal))
-        {
-            throw new FormatException($"Property '{name}' is not a supported {shortTypeName} value.");
-        }
-        return enumTypeName + "." + member;
     }
 
     private static void WritePropertyAssignment(

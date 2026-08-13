@@ -55,8 +55,11 @@ internal sealed class DesignerPropertyGridRenderer
 
         DrawToolbarButton(e, "Categorized", 8, top + 5, 88, state.SortMode == DesignerPropertySortMode.Categorized);
         DrawToolbarButton(e, "A-Z", 100, top + 5, 44, state.SortMode == DesignerPropertySortMode.Alphabetical);
-        DrawToolbarButton(e, "Properties", 154, top + 5, 82, state.Mode == DesignerPropertyGridMode.Properties);
-        DrawToolbarButton(e, "Events", 240, top + 5, Math.Max(58, width - 248), state.Mode == DesignerPropertyGridMode.Events);
+        if (state.SupportsEvents)
+        {
+            DrawToolbarButton(e, "Properties", 154, top + 5, 82, state.Mode == DesignerPropertyGridMode.Properties);
+            DrawToolbarButton(e, "Events", 240, top + 5, Math.Max(58, width - 248), state.Mode == DesignerPropertyGridMode.Events);
+        }
     }
 
     private static void DrawToolbarButton(PaintEventArgs e, string text, int x, int y, int width, bool selected)

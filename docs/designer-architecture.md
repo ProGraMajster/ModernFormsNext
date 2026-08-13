@@ -1,5 +1,9 @@
 # ModernFormsNext Designer Architecture
 
+Animation/effect Property Grid editing, source-only custom-effect discovery, stable easing IDs,
+and round-trip boundaries are documented separately in
+[Designer animation and interaction-effect definitions](designer-animation-effects.md).
+
 ModernFormsNext designer support is split into small projects with separate responsibilities.
 The goal is to keep the document model, code generation, reusable designer UI, standalone test
 host, and Visual Studio integration independent from each other.

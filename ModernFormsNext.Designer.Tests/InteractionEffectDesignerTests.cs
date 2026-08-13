@@ -49,11 +49,11 @@ public sealed class InteractionEffectDesignerTests
     {
         DesignerInteractionEffectEntry ripple =
             InteractionEffectDesignerRegistry.Create(InteractionEffectDesignerRegistry.RippleTypeName);
-        string edited = InteractionEffectDesignerRegistry.FormatEditorText(ripple)
-            .Replace("DurationMilliseconds=450", "DurationMilliseconds=275", StringComparison.Ordinal)
-            .Replace("OverflowPolicy=RemoveOldest", "OverflowPolicy=IgnoreNew", StringComparison.Ordinal)
-            .Replace("ColorArgb=#5AFFFFFF", "ColorArgb=#7F102030", StringComparison.Ordinal);
-        Assert.True(InteractionEffectDesignerRegistry.TryApplyEditorText(ripple, edited, out var error), error);
+        Assert.True(SetEffectProperty(ripple, "DurationMilliseconds", DesignPropertyValue.FromDouble(275d), out var error), error);
+        Assert.True(SetEffectProperty(ripple, "OverflowPolicy", DesignPropertyValue.FromEnum(
+            "ModernFormsNext.Animations.RippleOverflowPolicy",
+            "IgnoreNew"), out error), error);
+        Assert.True(SetEffectProperty(ripple, "ColorArgb", DesignPropertyValue.FromInt32(unchecked((int)0x7F102030)), out error), error);
         DesignDocument document = CreateDocument(ripple);
 
         var generated = new CSharpDesignerGenerator().Generate(document);
@@ -112,7 +112,7 @@ public sealed class InteractionEffectDesignerTests
     }
 
     [Fact]
-    public void UnsupportedEffectTypeIsRejectedWithoutMutation()
+    public void UnavailableEffectTypeIsPreservedWithoutInstantiation()
     {
         DesignPropertyValue unsupported = DesignPropertyValue.FromStructuredObject(
             "Example.UnsafeEffect",
@@ -121,9 +121,11 @@ public sealed class InteractionEffectDesignerTests
 
         bool success = InteractionEffectDesignerRegistry.TryReadCollection(value, out var entries, out var error);
 
-        Assert.False(success);
-        Assert.Empty(entries);
-        Assert.Contains("not supported", error, StringComparison.OrdinalIgnoreCase);
+        Assert.True(success, error);
+        DesignerInteractionEffectEntry entry = Assert.Single(entries);
+        Assert.False(entry.IsSupported);
+        Assert.Equal("Example.UnsafeEffect", entry.TypeName);
+        Assert.Equal(value.ObjectProperties!["Item0"].ObjectTypeName, entry.ToDesignValue().ObjectTypeName);
     }
 
     [Fact]
@@ -150,6 +152,10 @@ public sealed class InteractionEffectDesignerTests
     {
         DesignDocument document = CreateDocument(
             InteractionEffectDesignerRegistry.Create(InteractionEffectDesignerRegistry.RippleTypeName));
+        DesignerInteractionEffectEntry ripple = InteractionEffectDesignerRegistry.Create(
+            InteractionEffectDesignerRegistry.RippleTypeName);
+        Assert.True(SetEffectProperty(ripple, "Enabled", DesignPropertyValue.FromBoolean(false), out var editError), editError);
+        document = CreateDocument(ripple);
         string code = new CSharpDesignerGenerator().Generate(document).Code;
         string[] unsupportedVariants =
         [
@@ -157,7 +163,7 @@ public sealed class InteractionEffectDesignerTests
                 "ModernFormsNext.Animations.RippleEffect",
                 "Example.RippleEffect",
                 StringComparison.Ordinal),
-            code.Replace("Enabled = true", "Unsupported = true", StringComparison.Ordinal)
+            code.Replace("Enabled = false", "Unsupported = true", StringComparison.Ordinal)
         ];
 
         foreach (string unsupportedCode in unsupportedVariants)
@@ -316,4 +322,15 @@ public sealed class InteractionEffectDesignerTests
 
     private static int CountOccurrences(string text, string value)
         => text.Split(value, StringSplitOptions.None).Length - 1;
+
+    private static bool SetEffectProperty(
+        DesignerInteractionEffectEntry entry,
+        string name,
+        DesignPropertyValue value,
+        out string? error)
+        => InteractionEffectDesignerRegistry.TrySetProperty(
+            entry,
+            entry.Descriptor!.Properties.Single(property => property.Name == name),
+            value,
+            out error);
 }

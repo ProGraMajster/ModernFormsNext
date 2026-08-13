@@ -21,8 +21,10 @@ ModernFormsNext 1.9.0. It does not change the release status or authorize public
   or replace all active waves. The existing eviction property remains source-compatible.
 - Windows observes the native client-area animation preference without polling. Experimental
   Android reads the global animator and transition scales on startup/foreground entry.
-- The Designer Property Grid has a detached, scheduler-free collection editor for ordered built-in
-  ripple and press-scale effects with stable `.mfdesign` and generated-code round trips.
+- The Designer Property Grid has detached, scheduler-free editors for ordered interaction effects,
+  layout transitions, and visual-state transitions with stable `.mfdesign` and generated-code
+  round trips. Explicitly attributed project effects are discovered from source without loading
+  the application assembly.
 - The common render order is background, effects below content, content, effects above content,
   then the focus ring. Built-in clipping respects control bounds and corner radius.
 - One application visual-invalidation batch wraps every scheduler tick, coalescing repaint per
@@ -49,9 +51,12 @@ device/emulator validation for frame pacing, background/foreground transitions, 
 rendering, platform setting changes, and orientation changes. Android refreshes platform animation
 scales on foreground entry rather than maintaining a live settings observer. Visual-state layout
 metrics switch immediately rather than interpolate and incompatible Brush structures switch
-discretely. The Designer editor currently supports only the built-in ripple and press-scale effect
-descriptions; custom effects and easing remain code-first, and the Designer has no undo/redo stack.
+discretely. Designer documents serialize only built-in easing identifiers; custom delegate easing
+and general `AnimationDefinition` activation remain code-first. The Designer still has no global
+undo/redo stack and does not execute or preview project effect code.
 
 See [UI animations](animations.md) and the
 [composable-animation ADR](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md),
 plus the [animation platform polish ADR](architecture/decisions/ADR-Animation-Platform-Polish.md).
+Designer serialization and isolation are detailed in
+[Designer animation and interaction-effect definitions](designer-animation-effects.md).

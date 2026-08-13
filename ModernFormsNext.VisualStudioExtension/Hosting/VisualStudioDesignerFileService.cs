@@ -1,5 +1,6 @@
 using ModernFormsNext.Designing;
 using ModernFormsNext.VisualStudioExtension.Editors;
+using ModernFormsNext.Designer.Services;
 
 namespace ModernFormsNext.VisualStudioExtension.Hosting;
 
@@ -24,7 +25,10 @@ public sealed class VisualStudioDesignerFileService
 
         documentAdapter.Save(designDocumentPath, document);
 
-        var generation = fileGenerator.Generate(document, designDocumentPath);
+        var generation = fileGenerator.Generate(
+            document,
+            designDocumentPath,
+            DesignerProjectAnimationDefinitionDiscovery.Discover(FindProjectPath(designDocumentPath)));
 
         if (!generation.Succeeded)
             throw new InvalidOperationException("Designer code generation failed: " + string.Join("; ", generation.Validation.Errors));
@@ -32,5 +36,18 @@ public sealed class VisualStudioDesignerFileService
         var generatedCodePath = fileGenerator.GetGeneratedCodePath(designDocumentPath);
         File.WriteAllText(generatedCodePath, generation.Code);
         return generatedCodePath;
+    }
+
+    private static string FindProjectPath(string designDocumentPath)
+    {
+        string? directory = Path.GetDirectoryName(Path.GetFullPath(designDocumentPath));
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            string? project = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
+            if (project is not null)
+                return project;
+            directory = Directory.GetParent(directory)?.FullName;
+        }
+        return Path.GetDirectoryName(Path.GetFullPath(designDocumentPath)) ?? string.Empty;
     }
 }

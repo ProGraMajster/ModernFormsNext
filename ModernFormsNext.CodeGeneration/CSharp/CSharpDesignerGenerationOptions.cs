@@ -1,3 +1,5 @@
+using ModernFormsNext.Designing;
+
 namespace ModernFormsNext.CodeGeneration.CSharp;
 
 /// <summary>
@@ -5,6 +7,14 @@ namespace ModernFormsNext.CodeGeneration.CSharp;
 /// </summary>
 public sealed class CSharpDesignerGenerationOptions
 {
+    /// <summary>
+    /// Gets or sets detached descriptors for explicitly designable project interaction effects.
+    /// </summary>
+    /// <remarks>
+    /// The generator never loads the project assembly. Hosts populate this list from safe source
+    /// discovery. Built-in effect descriptors are always available and need not be repeated.
+    /// </remarks>
+    public IReadOnlyList<DesignAnimationDefinitionDescriptor> AnimationDefinitions { get; set; } = [];
     /// <summary>
     /// Gets or sets an optional namespace that replaces the namespace stored in the design document.
     /// </summary>

@@ -57,7 +57,10 @@ public sealed class ModernFormsDesignerShell : Panel
         this.options = options ?? new ModernFormsDesignerOptions();
         Session = new DesignerSession(environment, this.options.InitialControlRenderMode);
 
-        var files = new DesignerFileService(environment, () => Session.CurrentDocumentPath);
+        var files = new DesignerFileService(
+            environment,
+            () => Session.CurrentDocumentPath,
+            () => Session.AnimationDefinitions);
         commands = new DesignerCommandService(Session, files, this.options);
 
         Style.BackgroundColor = DesignerColors.AppBackground;
