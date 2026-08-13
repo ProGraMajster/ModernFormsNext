@@ -15,13 +15,15 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     private readonly DesignerFileService? fileService;
     private TextBox? textEditor;
     private ComboBox? comboEditor;
+    private CheckBox? booleanEditor;
+    private NumericUpDown? numericEditor;
     private bool committingEdit;
     private bool preserveInitialTextSelection;
     private bool replaceInitialTextSelectionOnInput;
     private int scrollOffset;
 
     public DesignerPropertyGrid(DesignerSession playgroundState, string title = "Properties")
-        : this(playgroundState, fileService: null, title)
+        : this(new DesignerPropertyGridState(playgroundState), fileService: null, title)
     {
     }
 
@@ -29,10 +31,31 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         DesignerSession playgroundState,
         DesignerFileService? fileService,
         string title = "Properties")
+        : this(new DesignerPropertyGridState(playgroundState), fileService, title)
+    {
+    }
+
+    internal DesignerPropertyGrid(
+        DesignerSession playgroundState,
+        Func<string> headerName,
+        Func<string> headerType,
+        Func<IReadOnlyList<DesignerPropertyDescriptor>> propertyProvider,
+        string title = "Properties")
+        : this(
+            new DesignerPropertyGridState(playgroundState, headerName, headerType, propertyProvider),
+            fileService: null,
+            title)
+    {
+    }
+
+    private DesignerPropertyGrid(
+        DesignerPropertyGridState state,
+        DesignerFileService? fileService,
+        string title)
         : base(title)
     {
         this.fileService = fileService;
-        state = new DesignerPropertyGridState(playgroundState);
+        this.state = state;
         renderer = new DesignerPropertyGridRenderer();
         controller = new DesignerPropertyGridController(state, renderer);
         TabStop = true;
@@ -53,13 +76,30 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         };
     }
 
-    internal bool IsEditingValue => textEditor is not null || comboEditor is not null || state.IsEditing;
+    internal bool IsEditingValue
+        => textEditor is not null
+        || comboEditor is not null
+        || booleanEditor is not null
+        || numericEditor is not null
+        || state.IsEditing;
+
+    internal void RefreshProperties()
+    {
+        CancelEdit();
+        state.Refresh();
+    }
 
     public void BeginEdit(DesignerPropertyGridRow row, Rectangle bounds)
     {
         CancelEdit();
         state.SelectRow(row);
         state.BeginEditing();
+
+        if (TryBeginBooleanEdit(row, bounds))
+            return;
+
+        if (TryBeginNumericEdit(row, bounds))
+            return;
 
         if (TryBeginListComboEdit(row, bounds))
             return;
@@ -118,7 +158,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             if (!changed)
                 return;
 
-            state.Session.NotifyDocumentChanged();
+            if (state.SupportsEvents)
+                state.Session.NotifyDocumentChanged();
             state.Session.Log($"Updated {state.HeaderName}.{row.Property.DisplayName}.");
             state.Refresh();
             Invalidate();
@@ -201,7 +242,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
     private bool EndEdit()
     {
-        if (textEditor is null && comboEditor is null)
+        if (textEditor is null && comboEditor is null && booleanEditor is null && numericEditor is null)
             return true;
 
         committingEdit = true;
@@ -221,6 +262,16 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             else if (comboEditor is not null)
             {
                 committed = CommitComboEdit();
+            }
+            else if (booleanEditor is not null)
+            {
+                state.UpdateEditingText(booleanEditor.Checked ? "True" : "False");
+                committed = state.CommitEditing();
+            }
+            else if (numericEditor is not null)
+            {
+                state.UpdateEditingText(numericEditor.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                committed = state.CommitEditing();
             }
         }
         finally
@@ -281,6 +332,72 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         return true;
     }
 
+    private bool TryBeginBooleanEdit(DesignerPropertyGridRow row, Rectangle bounds)
+    {
+        if (row.Property is not { UseBooleanCheckBox: true, ValueType: var valueType } property
+            || (Nullable.GetUnderlyingType(valueType) ?? valueType) != typeof(bool))
+        {
+            return false;
+        }
+
+        booleanEditor = new CheckBox
+        {
+            Left = bounds.Left + 4,
+            Top = bounds.Top,
+            Width = Math.Max(1, bounds.Width - 8),
+            Height = bounds.Height,
+            Text = string.Empty,
+            Checked = property.GetValue() is bool value && value
+        };
+        booleanEditor.CheckedChanged += BooleanEditor_CheckedChanged;
+        booleanEditor.LostFocus += BooleanEditor_LostFocus;
+
+        Controls.Add(booleanEditor);
+        booleanEditor.BringToFront();
+        booleanEditor.Select();
+        return true;
+    }
+
+    private bool TryBeginNumericEdit(DesignerPropertyGridRow row, Rectangle bounds)
+    {
+        if (row.Property is not { NumericMinimum: { } minimum, NumericMaximum: { } maximum } property)
+            return false;
+
+        decimal current;
+        try
+        {
+            double numericValue = Convert.ToDouble(property.GetValue(), System.Globalization.CultureInfo.InvariantCulture);
+            current = numericValue <= (double)minimum ? minimum
+                : numericValue >= (double)maximum ? maximum
+                : (decimal)numericValue;
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+        {
+            current = minimum;
+        }
+
+        numericEditor = new NumericUpDown
+        {
+            Left = bounds.Left,
+            Top = bounds.Top,
+            Width = bounds.Width,
+            Height = Math.Max(bounds.Height, 24),
+            AllowDecimalValues = property.NumericDecimalPlaces > 0,
+            DecimalPlaces = property.NumericDecimalPlaces,
+            Minimum = minimum,
+            Maximum = maximum,
+            Increment = property.NumericIncrement ?? (property.NumericDecimalPlaces > 0 ? 0.1m : 1m),
+            Value = Math.Clamp(current, minimum, maximum)
+        };
+        numericEditor.ValueCommitted += NumericEditor_ValueCommitted;
+        numericEditor.LostFocus += NumericEditor_LostFocus;
+
+        Controls.Add(numericEditor);
+        numericEditor.BringToFront();
+        numericEditor.Select();
+        return true;
+    }
+
     private void RemoveEditors()
     {
         if (textEditor is not null)
@@ -307,6 +424,24 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             comboEditor.Dispose();
             comboEditor = null;
         }
+
+        if (booleanEditor is not null)
+        {
+            booleanEditor.CheckedChanged -= BooleanEditor_CheckedChanged;
+            booleanEditor.LostFocus -= BooleanEditor_LostFocus;
+            Controls.Remove(booleanEditor);
+            booleanEditor.Dispose();
+            booleanEditor = null;
+        }
+
+        if (numericEditor is not null)
+        {
+            numericEditor.ValueCommitted -= NumericEditor_ValueCommitted;
+            numericEditor.LostFocus -= NumericEditor_LostFocus;
+            Controls.Remove(numericEditor);
+            numericEditor.Dispose();
+            numericEditor = null;
+        }
     }
 
     private void ClampScrollOffset()
@@ -325,7 +460,12 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         }
         else
         {
-            comboEditor?.Select();
+            if (comboEditor is not null)
+                comboEditor.Select();
+            else if (booleanEditor is not null)
+                booleanEditor.Select();
+            else
+                numericEditor?.Select();
         }
     }
 
@@ -418,14 +558,30 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         EndEditOrCancelOnFocusLoss();
     }
 
+    private void BooleanEditor_CheckedChanged(object? sender, EventArgs e)
+        => EndEdit();
+
+    private void BooleanEditor_LostFocus(object? sender, EventArgs e)
+        => EndEditOrCancelOnFocusLoss();
+
+    private void NumericEditor_ValueCommitted(object? sender, EventArgs e)
+        => EndEdit();
+
+    private void NumericEditor_LostFocus(object? sender, EventArgs e)
+        => EndEditOrCancelOnFocusLoss();
+
     private void EndEditOrCancelOnFocusLoss()
     {
-        if (textEditor is null && comboEditor is null)
+        if (textEditor is null && comboEditor is null && booleanEditor is null && numericEditor is null)
             return;
 
         committingEdit = true;
         var editingEvent = state.EditingEvent;
-        var committedText = textEditor?.Text ?? GetComboValueText();
+        var committedText = textEditor?.Text
+            ?? (comboEditor is not null ? GetComboValueText() : null)
+            ?? (booleanEditor is not null ? (booleanEditor.Checked ? "True" : "False") : null)
+            ?? numericEditor?.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ?? string.Empty;
 
         try
         {
@@ -433,6 +589,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
                 state.UpdateEditingText(textEditor.Text);
             else if (comboEditor is not null)
                 state.UpdateEditingText(GetComboValueText());
+            else
+                state.UpdateEditingText(committedText);
 
             if (!state.CommitEditing())
                 state.CancelEditing();
@@ -483,7 +641,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     private static bool UsesComboEditor(DesignerPropertyDescriptor property)
     {
         var type = Nullable.GetUnderlyingType(property.ValueType) ?? property.ValueType;
-        return type == typeof(bool) || type.IsEnum;
+        return property.StandardValues is not null || type.IsEnum;
     }
 
     private void EnsureEventHandlerMethod(DesignerEventDescriptor? eventDescriptor, string handlerName)

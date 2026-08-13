@@ -36,6 +36,9 @@ internal sealed class DesignerPropertyGridState
     ];
 
     private readonly DesignerSession playgroundState;
+    private readonly Func<IReadOnlyList<DesignerPropertyDescriptor>>? detachedPropertyProvider;
+    private readonly Func<string>? detachedHeaderName;
+    private readonly Func<string>? detachedHeaderType;
     private readonly DesignMetadataReader metadataReader = new();
     private readonly HashSet<string> expandedProperties = new(StringComparer.Ordinal)
     {
@@ -55,6 +58,19 @@ internal sealed class DesignerPropertyGridState
         Refresh();
     }
 
+    internal DesignerPropertyGridState(
+        DesignerSession playgroundState,
+        Func<string> headerName,
+        Func<string> headerType,
+        Func<IReadOnlyList<DesignerPropertyDescriptor>> propertyProvider)
+    {
+        this.playgroundState = playgroundState ?? throw new ArgumentNullException(nameof(playgroundState));
+        detachedHeaderName = headerName ?? throw new ArgumentNullException(nameof(headerName));
+        detachedHeaderType = headerType ?? throw new ArgumentNullException(nameof(headerType));
+        detachedPropertyProvider = propertyProvider ?? throw new ArgumentNullException(nameof(propertyProvider));
+        Refresh();
+    }
+
     public event EventHandler? Changed;
 
     public DesignerPropertyGridMode Mode { get; private set; } = DesignerPropertyGridMode.Properties;
@@ -64,6 +80,8 @@ internal sealed class DesignerPropertyGridState
     public string HeaderName { get; private set; } = "No selection";
 
     public DesignerSession Session => playgroundState;
+
+    public bool SupportsEvents => detachedPropertyProvider is null;
 
     public string HeaderType { get; private set; } = string.Empty;
 
@@ -103,6 +121,9 @@ internal sealed class DesignerPropertyGridState
 
     public void SetMode(DesignerPropertyGridMode mode)
     {
+        if (mode == DesignerPropertyGridMode.Events && !SupportsEvents)
+            return;
+
         if (Mode == mode)
             return;
 
@@ -280,6 +301,12 @@ internal sealed class DesignerPropertyGridState
 
     public void Refresh()
     {
+        if (detachedPropertyProvider is not null)
+        {
+            RefreshDetachedProperties();
+            return;
+        }
+
         var document = playgroundState.Document;
         var selectedNode = playgroundState.SelectedNode;
         var selectedObjectChanged = hasSelectionSnapshot
@@ -321,6 +348,34 @@ internal sealed class DesignerPropertyGridState
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    private void RefreshDetachedProperties()
+    {
+        string? selectedPropertyName = SelectedProperty?.Identity;
+        string? editingPropertyName = EditingProperty?.Identity;
+
+        HeaderName = detachedHeaderName!();
+        HeaderType = detachedHeaderType!();
+        Properties = detachedPropertyProvider!()
+            .Where(property => property.IsVisible)
+            .ToArray();
+        Events = [];
+        ApplyExpansionState(Properties);
+        SelectedProperty = FindPropertyByIdentity(selectedPropertyName)
+            ?? Properties.FirstOrDefault();
+        SelectedEvent = null;
+        EditingProperty = IsEditing && editingPropertyName is not null
+            ? FindPropertyByIdentity(editingPropertyName)
+            : null;
+        EditingEvent = null;
+
+        if (IsEditing && EditingProperty is null)
+            ClearEditingState();
+
+        Mode = DesignerPropertyGridMode.Properties;
+        RebuildRows();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     private void ClearEditingState()
     {
         EditingProperty = null;
@@ -344,7 +399,8 @@ internal sealed class DesignerPropertyGridState
         }
 
         var propertyName = SelectedProperty.DisplayName;
-        playgroundState.NotifyDocumentChanged();
+        if (detachedPropertyProvider is null)
+            playgroundState.NotifyDocumentChanged();
         playgroundState.Log($"Updated {HeaderName}.{propertyName}.");
         return true;
     }

@@ -27,7 +27,7 @@ internal sealed class DesignerInteractionEffectEntry
         => DesignPropertyValue.FromStructuredObject(TypeName, Properties);
 
     public override string ToString()
-        => Descriptor?.DisplayName ?? $"{TypeName.Split('.').Last()} (unavailable)";
+        => Descriptor?.DisplayName ?? $"{TypeName.Split('.').Last()} (Unavailable)";
 
     private static SortedDictionary<string, DesignPropertyValue> Copy(
         IReadOnlyDictionary<string, DesignPropertyValue> properties)
@@ -94,65 +94,54 @@ internal static class InteractionEffectDesignerRegistry
         return InteractionEffectDesignValue.Create(entries.Select(entry => entry.ToDesignValue()));
     }
 
-    public static string FormatEditorText(DesignerInteractionEffectEntry entry)
+    public static DesignPropertyValue GetEffectiveValue(
+        DesignerInteractionEffectEntry entry,
+        DesignAnimationPropertyDescriptor definition)
     {
-        if (entry.Descriptor is null)
-            return "This effect type is unavailable. Its serialized definition is preserved.";
-
-        return string.Join(
-            Environment.NewLine,
-            entry.Descriptor.Properties.Select(definition =>
-                $"{definition.Name}={Format(definition, GetEffective(entry, definition))}"));
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(definition);
+        return GetEffective(entry, definition);
     }
 
-    public static bool TryApplyEditorText(
+    public static bool TrySetProperty(
         DesignerInteractionEffectEntry entry,
-        string text,
+        DesignAnimationPropertyDescriptor definition,
+        DesignPropertyValue value,
         out string? error)
     {
-        if (entry.Descriptor is null)
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (entry.Descriptor is null
+            || !entry.Descriptor.Properties.Any(item => ReferenceEquals(item, definition)))
         {
+            error = "The effect property descriptor is unavailable.";
+            return false;
+        }
+
+        try
+        {
+            if (!TryParse(definition, Format(definition, value), out DesignPropertyValue normalized, out error))
+                return false;
+
+            var properties = new SortedDictionary<string, DesignPropertyValue>(entry.Properties, StringComparer.Ordinal);
+            if (Equivalent(normalized, definition.DefaultValue))
+                properties.Remove(definition.Name);
+            else
+                properties[definition.Name] = normalized;
+            entry.ReplaceProperties(properties);
             error = null;
             return true;
         }
-
-        var byName = entry.Descriptor.Properties.ToDictionary(item => item.Name, StringComparer.Ordinal);
-        var parsed = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (string rawLine in text.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n'))
+        catch (Exception exception) when (exception is InvalidCastException
+            or InvalidOperationException
+            or FormatException
+            or OverflowException)
         {
-            string line = rawLine.Trim();
-            if (line.Length == 0)
-                continue;
-            int separator = line.IndexOf('=');
-            if (separator <= 0)
-            {
-                error = $"'{line}' must use Property=Value syntax.";
-                return false;
-            }
-            string name = line[..separator].Trim();
-            string input = line[(separator + 1)..].Trim();
-            if (!byName.TryGetValue(name, out DesignAnimationPropertyDescriptor? definition))
-            {
-                error = $"Property '{name}' is not supported for {entry}.";
-                return false;
-            }
-            if (!seen.Add(name))
-            {
-                error = $"Property '{name}' is duplicated.";
-                return false;
-            }
-            if (!TryParse(definition, input, out DesignPropertyValue value, out error))
-                return false;
-            if (!Equivalent(value, definition.DefaultValue))
-                parsed[name] = value;
+            error = $"Value for {definition.Name} is invalid: {exception.Message}";
+            return false;
         }
-
-        // Missing lines mean reset-to-default, which keeps documents and generated code compact.
-        entry.ReplaceProperties(parsed);
-        error = null;
-        return true;
     }
 
     private static bool TryNormalizeProperties(
@@ -282,4 +271,74 @@ internal static class InteractionEffectDesignerRegistry
         => left.Kind == right.Kind
         && Equals(left.Value, right.Value)
         && string.Equals(left.EnumTypeName, right.EnumTypeName, StringComparison.Ordinal);
+}
+
+internal sealed class DesignerInteractionEffectCollectionEditorModel
+{
+    private readonly List<DesignerInteractionEffectEntry> entries;
+    private readonly IReadOnlyList<DesignAnimationDefinitionDescriptor> definitions;
+
+    public DesignerInteractionEffectCollectionEditorModel(
+        DesignPropertyValue? stored,
+        IEnumerable<DesignAnimationDefinitionDescriptor> definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        this.definitions = definitions
+            .Where(item => item.Kind == DesignAnimationDefinitionKind.InteractionEffect)
+            .GroupBy(item => item.TypeName, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+
+        if (!InteractionEffectDesignerRegistry.TryReadCollection(
+            stored,
+            out entries,
+            out string? error,
+            this.definitions))
+        {
+            entries = [];
+            LoadError = error ?? "The stored interaction-effect collection is malformed.";
+        }
+    }
+
+    public IReadOnlyList<DesignerInteractionEffectEntry> Entries => entries;
+
+    public IReadOnlyList<DesignAnimationDefinitionDescriptor> Definitions => definitions;
+
+    public string? LoadError { get; }
+
+    public DesignerInteractionEffectEntry Add(string typeName)
+    {
+        DesignerInteractionEffectEntry entry = InteractionEffectDesignerRegistry.Create(typeName, definitions);
+        entries.Add(entry);
+        return entry;
+    }
+
+    public bool RemoveAt(int index)
+    {
+        if (index < 0 || index >= entries.Count)
+            return false;
+        entries.RemoveAt(index);
+        return true;
+    }
+
+    public bool Move(int index, int delta)
+    {
+        int target = index + delta;
+        if (index < 0 || index >= entries.Count || target < 0 || target >= entries.Count)
+            return false;
+        DesignerInteractionEffectEntry entry = entries[index];
+        entries.RemoveAt(index);
+        entries.Insert(target, entry);
+        return true;
+    }
+
+    public void Apply(IDictionary<string, DesignPropertyValue> properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        if (entries.Count == 0)
+            properties.Remove(InteractionEffectDesignValue.PropertyName);
+        else
+            properties[InteractionEffectDesignValue.PropertyName] =
+                InteractionEffectDesignerRegistry.WriteCollection(entries);
+    }
 }

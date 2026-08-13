@@ -136,13 +136,13 @@ internal sealed class DesignerPropertyGridController
             return true;
         }
 
-        if (Hit(x, 154, 82))
+        if (state.SupportsEvents && Hit(x, 154, 82))
         {
             state.SetMode(DesignerPropertyGridMode.Properties);
             return true;
         }
 
-        if (Hit(x, 240, Math.Max(58, width - 248)))
+        if (state.SupportsEvents && Hit(x, 240, Math.Max(58, width - 248)))
         {
             state.SetMode(DesignerPropertyGridMode.Events);
             return true;

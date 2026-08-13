@@ -16,10 +16,8 @@ public sealed class AnimationEffectDefinitionDesignerTests
     {
         DesignerInteractionEffectEntry entry = InteractionEffectDesignerRegistry.Create(
             InteractionEffectDesignerRegistry.PressScaleTypeName);
-        Assert.True(InteractionEffectDesignerRegistry.TryApplyEditorText(
-            entry,
-            "PressDurationMilliseconds=95\nEasing=EaseInOut",
-            out string? error), error);
+        Assert.True(SetEffectProperty(entry, "PressDurationMilliseconds", DesignPropertyValue.FromDouble(95d), out string? error), error);
+        Assert.True(SetEffectProperty(entry, "Easing", DesignPropertyValue.FromString("EaseInOut"), out error), error);
         DesignDocument document = CreateDocument();
         Assert.Single(document.Controls).Properties[InteractionEffectDesignValue.PropertyName] =
             InteractionEffectDesignerRegistry.WriteCollection([entry]);
@@ -492,19 +490,17 @@ public sealed class AnimationEffectDefinitionDesignerTests
     [Fact]
     public void TransitionResetRemovesOptionalSerializedValues()
     {
-        Assert.True(DesignerTransitionEditorModel.TryParseLayout(
-            "Enabled=true\nDurationMilliseconds=200\nEasing=EaseOut",
-            out DesignPropertyValue layout,
-            out string? error), error);
-        Assert.True(LayoutTransitionDesignValue.TryRead(layout, out _, out _, out _, out error), error);
-        Assert.False(DesignerTransitionEditorModel.TryParseLayout(
-            "DurationMilliseconds=-1",
-            out _,
-            out error));
-        Assert.Contains("not supported", error, StringComparison.OrdinalIgnoreCase);
+        var layout = new DesignerLayoutTransitionEditorModel(
+            LayoutTransitionDesignValue.Create(true, 200d, "EaseOut"));
+        layout.Reset();
+        Assert.True(layout.TryCreateValue(out DesignPropertyValue? resetLayout, out string? error), error);
+        Assert.Null(resetLayout);
 
-        Assert.True(DesignerTransitionEditorModel.TryParseVisualStates(string.Empty, out var empty, out error), error);
-        Assert.True(VisualStateTransitionDesignValue.TryRead(empty, out var transitions, out error), error);
+        var visual = new DesignerVisualStateTransitionEditorModel(
+            VisualStateTransitionDesignValue.Create([new("Normal", "Hover", 100d, "Linear")]));
+        visual.Reset();
+        Assert.True(visual.TryCreateValue(out DesignPropertyValue resetVisual, out error), error);
+        Assert.True(VisualStateTransitionDesignValue.TryRead(resetVisual, out var transitions, out error), error);
         Assert.Empty(transitions);
     }
 
@@ -520,6 +516,17 @@ public sealed class AnimationEffectDefinitionDesignerTests
                 { Minimum = 0d, RuntimeTypeName = "System.TimeSpan" },
                 new("Easing", "Easing", DesignAnimationPropertyKind.Easing, DesignPropertyValue.FromString("Linear"))
             ]);
+
+    private static bool SetEffectProperty(
+        DesignerInteractionEffectEntry entry,
+        string name,
+        DesignPropertyValue value,
+        out string? error)
+        => InteractionEffectDesignerRegistry.TrySetProperty(
+            entry,
+            entry.Descriptor!.Properties.Single(property => property.Name == name),
+            value,
+            out error);
 
     private static DesignDocument CreateDocument()
     {
