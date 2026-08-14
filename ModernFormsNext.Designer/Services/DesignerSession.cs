@@ -1,6 +1,9 @@
 using ModernFormsNext;
+using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
+using ModernFormsNext.Drawing;
+using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Services;
 
@@ -184,11 +187,11 @@ public sealed class DesignerSession
         if (string.IsNullOrWhiteSpace(designPath))
             return false;
 
-        var sourcePath = Path.ChangeExtension(designPath, ".cs");
+        var sourcePath = IOPath.ChangeExtension(designPath, ".cs");
         var matchingControls = projectUserControls
             .Where(control => string.Equals(
-                Path.GetFullPath(control.SourceFilePath),
-                Path.GetFullPath(sourcePath),
+                IOPath.GetFullPath(control.SourceFilePath),
+                IOPath.GetFullPath(sourcePath),
                 StringComparison.OrdinalIgnoreCase))
             .Take(2)
             .ToArray();
@@ -403,6 +406,8 @@ public sealed class DesignerSession
 
         if (shortTypeName == "Panel")
             node.Properties["Text"] = DesignPropertyValue.FromString(string.Empty);
+
+        InitializeShapeDefaults(node, shortTypeName);
 
         DesignerSpecialContainers.InitializeNewNode(node);
 
@@ -1479,8 +1484,53 @@ public sealed class DesignerSession
             "Label" => new DesignBounds(originX + offset, originY + offset, 100, 24),
             "TextBox" => new DesignBounds(originX + offset, originY + offset, 150, 25),
             "RichTextBox" => new DesignBounds(originX + offset, originY + offset, 220, 96),
+            "Line" => new DesignBounds(originX + offset, originY + offset, 120, 40),
+            "Ellipse" or "Circle" or "Polygon" or "Polyline" or "Path" => new DesignBounds(originX + offset, originY + offset, 120, 90),
             _ => new DesignBounds(originX + offset, originY + offset, 90, 28)
         };
+    }
+
+    private static void InitializeShapeDefaults(DesignControlNode node, string shortTypeName)
+    {
+        if (shortTypeName is not ("Ellipse" or "Circle" or "Line" or "Polygon" or "Polyline" or "Path"))
+            return;
+
+        node.Properties.Remove("Text");
+        var stroke = new SolidColorBrush(new SKColor(0x31, 0x5B, 0xA6));
+        node.Properties["Stroke"] = DesignerPropertyValueEditor.ToDesignPropertyValue(stroke, typeof(Brush));
+        node.Properties["StrokeThickness"] = DesignPropertyValue.FromDouble(2);
+
+        if (shortTypeName is "Ellipse" or "Circle" or "Polygon" or "Path")
+        {
+            var fill = new SolidColorBrush(new SKColor(0x70, 0xA1, 0xF5, 0x88));
+            node.Properties["Fill"] = DesignerPropertyValueEditor.ToDesignPropertyValue(fill, typeof(Brush));
+        }
+
+        switch (shortTypeName)
+        {
+            case "Line":
+                node.Properties["StartPoint"] = DesignerPropertyValueEditor.ToDesignPropertyValue(new System.Drawing.PointF(8, 20), typeof(System.Drawing.PointF));
+                node.Properties["EndPoint"] = DesignerPropertyValueEditor.ToDesignPropertyValue(new System.Drawing.PointF(112, 20), typeof(System.Drawing.PointF));
+                break;
+            case "Polygon":
+                node.Properties["Points"] = DesignerPropertyValueEditor.ToDesignPropertyValue(
+                    new PointCollection([new(60, 6), new(114, 82), new(6, 82)]),
+                    typeof(PointCollection));
+                break;
+            case "Polyline":
+                node.Properties["Points"] = DesignerPropertyValueEditor.ToDesignPropertyValue(
+                    new PointCollection([new(6, 68), new(32, 24), new(62, 62), new(88, 18), new(114, 50)]),
+                    typeof(PointCollection));
+                break;
+            case "Path":
+                var geometry = new PathGeometry();
+                var figure = new PathFigure(new System.Drawing.PointF(8, 72), isClosed: true);
+                figure.Segments.Add(new QuadraticBezierSegment(new System.Drawing.PointF(30, 4), new System.Drawing.PointF(60, 34)));
+                figure.Segments.Add(new BezierSegment(new System.Drawing.PointF(78, 4), new System.Drawing.PointF(110, 20), new System.Drawing.PointF(112, 72)));
+                geometry.Figures.Add(figure);
+                node.Properties["Data"] = DesignerPropertyValueEditor.ToDesignPropertyValue(geometry, typeof(Geometry));
+                break;
+        }
     }
 
     private static string GetDefaultText(string typeName, int index)

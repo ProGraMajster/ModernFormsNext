@@ -38,7 +38,7 @@ public sealed class ModernFormsDesignableFileDetector
     public ModernFormsDesignableFileInfo? Inspect(string codeFilePath)
     {
         if (string.IsNullOrWhiteSpace(codeFilePath)
-            || !string.Equals(Path.GetExtension(codeFilePath), ".cs", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(IOPath.GetExtension(codeFilePath), ".cs", StringComparison.OrdinalIgnoreCase)
             || codeFilePath.EndsWith(".Designer.cs", StringComparison.OrdinalIgnoreCase))
         {
             return null;
@@ -53,7 +53,7 @@ public sealed class ModernFormsDesignableFileDetector
 
         ClassDeclarationSyntax? classDeclaration = null;
         string? namespaceName = null;
-        string? className = Path.GetFileNameWithoutExtension(codeFilePath);
+        string? className = IOPath.GetFileNameWithoutExtension(codeFilePath);
         string? baseTypeName = null;
         var isPartial = false;
         var rootKind = DesignRootKind.Form;
@@ -264,16 +264,16 @@ public sealed class ModernFormsDesignableFileDetector
 
     private static ProjectInspectionResult ReadProjectInfo(string codeFilePath)
     {
-        var projectPath = FindNearestProjectFile(Path.GetDirectoryName(codeFilePath));
+        var projectPath = FindNearestProjectFile(IOPath.GetDirectoryName(codeFilePath));
 
         if (projectPath is null)
             return ProjectInspectionResult.Empty;
 
         try
         {
-            var projectDirectory = Path.GetDirectoryName(projectPath) ?? string.Empty;
-            var relativePath = Path.GetRelativePath(projectDirectory, codeFilePath).Replace('\\', '/');
-            var fileName = Path.GetFileName(codeFilePath);
+            var projectDirectory = IOPath.GetDirectoryName(projectPath) ?? string.Empty;
+            var relativePath = IOPath.GetRelativePath(projectDirectory, codeFilePath).Replace('\\', '/');
+            var fileName = IOPath.GetFileName(codeFilePath);
             var project = XDocument.Load(projectPath);
 
             var hasModernFormsReference = project.Descendants().Any(element =>
@@ -290,7 +290,7 @@ public sealed class ModernFormsDesignableFileDetector
                     var include = (string?)element.Attribute("Include") ?? (string?)element.Attribute("Update");
 
                     return include is not null
-                        && string.Equals(Path.GetFileName(include), "ModernFormsNext.csproj", StringComparison.OrdinalIgnoreCase);
+                        && string.Equals(IOPath.GetFileName(include), "ModernFormsNext.csproj", StringComparison.OrdinalIgnoreCase);
                 }
 
                 return false;

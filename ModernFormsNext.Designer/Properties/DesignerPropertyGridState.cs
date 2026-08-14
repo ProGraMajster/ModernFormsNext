@@ -945,8 +945,11 @@ internal sealed class DesignerPropertyGridState
             var description = GetPropertyDescription(
                 metadata.Description ?? "Designer metadata does not provide a description for this property.",
                 unsupported);
-            var complexCanEdit = metadata.Serialize
-                && !unsupported
+            // TryCreateRuntimeDescriptor below is the allow-list for complex values that have a
+            // deterministic editor and serializer. Do not require the primitive-only metadata
+            // Serialize flag for those values, otherwise Brush, PointCollection, and Geometry
+            // appear read-only despite their dedicated structured support.
+            var complexCanEdit = !unsupported
                 && (!metadata.ReadOnly || (Nullable.GetUnderlyingType(metadata.PropertyType) ?? metadata.PropertyType) == typeof(ControlStyle));
 
             if (DesignerPropertyDescriptorFactory.TryCreateRuntimeDescriptor(

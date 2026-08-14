@@ -146,7 +146,7 @@ public static class Help
 
         try
         {
-            string candidate = Path.GetFullPath(partialUri, AppContext.BaseDirectory);
+            string candidate = System.IO.Path.GetFullPath(partialUri, AppContext.BaseDirectory);
             if (File.Exists(candidate) || Directory.Exists(candidate))
                 return new Uri(candidate);
         }

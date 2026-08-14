@@ -37,11 +37,17 @@ public partial class Control
                 if (Owner is not { } owner || !owner.Visible)
                     return Rectangle.Empty;
 
-                // Transform both corners so an animated size on any ancestor contributes the same
-                // presentation scale that composition and nested hit testing apply to the child.
-                Point location = owner.PointToScreen(Point.Empty);
+                // Transform all corners. Two diagonal corners are insufficient after rotation or
+                // a negative presentation scale and can produce inverted or undersized bounds.
+                Point topLeft = owner.PointToScreen(Point.Empty);
+                Point topRight = owner.PointToScreen(new Point(owner.ScaledWidth, 0));
+                Point bottomLeft = owner.PointToScreen(new Point(0, owner.ScaledHeight));
                 Point bottomRight = owner.PointToScreen(new Point(owner.ScaledWidth, owner.ScaledHeight));
-                return Rectangle.FromLTRB(location.X, location.Y, bottomRight.X, bottomRight.Y);
+                int left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+                int top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+                int right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+                int bottom = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+                return Rectangle.FromLTRB(left, top, right, bottom);
             }
         }
 
@@ -279,6 +285,7 @@ public partial class Control
                 TableLayoutPanel => AccessibleRole.Pane,
                 Panel => AccessibleRole.Pane,
                 PictureBox => AccessibleRole.Graphic,
+                Shape => AccessibleRole.Graphic,
                 ProgressBar => AccessibleRole.ProgressBar,
                 RadioButton => AccessibleRole.RadioButton,
                 ScrollBar => AccessibleRole.ScrollBar,

@@ -143,7 +143,7 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         if (root is null)
             return;
 
-        rows.Add(new SolutionExplorerRow(Path.GetFileName(root), "S", 0, false, root));
+        rows.Add(new SolutionExplorerRow(IOPath.GetFileName(root), "S", 0, false, root));
         AddDirectoryRows(root, root, depth: 1);
     }
 
@@ -153,10 +153,10 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
             return;
 
         foreach (var childDirectory in Directory.EnumerateDirectories(directory)
-                     .Where(path => !SkippedDirectories.Contains(Path.GetFileName(path)))
+                     .Where(path => !SkippedDirectories.Contains(IOPath.GetFileName(path)))
                      .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
-            rows.Add(new SolutionExplorerRow(Path.GetFileName(childDirectory), "[]", depth, false, childDirectory));
+            rows.Add(new SolutionExplorerRow(IOPath.GetFileName(childDirectory), "[]", depth, false, childDirectory));
             AddDirectoryRows(root, childDirectory, depth + 1);
 
             if (rows.Count >= MaxRows)
@@ -167,7 +167,7 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
                      .OrderBy(path => GetFileRank(path))
                      .ThenBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
-            rows.Add(new SolutionExplorerRow(Path.GetFileName(file), GetFileGlyph(file), depth, IsDocumentRelated(file), file));
+            rows.Add(new SolutionExplorerRow(IOPath.GetFileName(file), GetFileGlyph(file), depth, IsDocumentRelated(file), file));
 
             if (rows.Count >= MaxRows)
                 return;
@@ -179,11 +179,11 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         if (string.IsNullOrWhiteSpace(row.Path) || !File.Exists(row.Path))
             return;
 
-        var extension = Path.GetExtension(row.Path);
+        var extension = IOPath.GetExtension(row.Path);
         var designPath = string.Equals(extension, ".mfdesign", StringComparison.OrdinalIgnoreCase)
             ? row.Path
             : string.Equals(extension, ".cs", StringComparison.OrdinalIgnoreCase)
-                ? Path.ChangeExtension(row.Path, ".mfdesign")
+                ? IOPath.ChangeExtension(row.Path, ".mfdesign")
                 : null;
 
         if (designPath is null)
@@ -191,7 +191,7 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
 
         if (!File.Exists(designPath))
         {
-            state.Log($"No ModernFormsNext design file exists for {Path.GetFileName(row.Path)}.");
+            state.Log($"No ModernFormsNext design file exists for {IOPath.GetFileName(row.Path)}.");
             return;
         }
 
@@ -199,11 +199,11 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         {
             var document = DesignDocumentSerializer.Default.Load(designPath);
             state.OpenDocument(document, designPath);
-            state.Log($"Opened {Path.GetFileName(designPath)} from Solution Explorer.");
+            state.Log($"Opened {IOPath.GetFileName(designPath)} from Solution Explorer.");
         }
         catch (Exception ex)
         {
-            state.Log($"Could not open {Path.GetFileName(designPath)}: {ex.Message}");
+            state.Log($"Could not open {IOPath.GetFileName(designPath)}: {ex.Message}");
         }
     }
 
@@ -212,8 +212,8 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         if (state.CurrentDocumentPath is null)
             return false;
 
-        var currentBase = Path.GetFileNameWithoutExtension(state.CurrentDocumentPath);
-        return string.Equals(Path.GetFileNameWithoutExtension(file), currentBase, StringComparison.OrdinalIgnoreCase);
+        var currentBase = IOPath.GetFileNameWithoutExtension(state.CurrentDocumentPath);
+        return string.Equals(IOPath.GetFileNameWithoutExtension(file), currentBase, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? GetProjectRoot(string? projectPath, string? documentPath)
@@ -221,7 +221,7 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         if (!string.IsNullOrWhiteSpace(projectPath))
         {
             if (File.Exists(projectPath))
-                return Path.GetDirectoryName(projectPath);
+                return IOPath.GetDirectoryName(projectPath);
 
             if (Directory.Exists(projectPath))
                 return projectPath;
@@ -229,23 +229,23 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
 
         var directory = string.IsNullOrWhiteSpace(documentPath)
             ? null
-            : Path.GetDirectoryName(documentPath);
+            : IOPath.GetDirectoryName(documentPath);
 
         while (!string.IsNullOrWhiteSpace(directory))
         {
             if (Directory.EnumerateFiles(directory, "*.csproj").Any())
                 return directory;
 
-            directory = Path.GetDirectoryName(directory);
+            directory = IOPath.GetDirectoryName(directory);
         }
 
         return string.IsNullOrWhiteSpace(documentPath)
             ? null
-            : Path.GetDirectoryName(documentPath);
+            : IOPath.GetDirectoryName(documentPath);
     }
 
     private static int GetFileRank(string path)
-        => Path.GetExtension(path).ToLowerInvariant() switch
+        => IOPath.GetExtension(path).ToLowerInvariant() switch
         {
             ".csproj" => 0,
             ".cs" => 1,
@@ -254,7 +254,7 @@ internal sealed class SolutionExplorerPanel : DesignerPanelBase
         };
 
     private static string GetFileGlyph(string path)
-        => Path.GetExtension(path).ToLowerInvariant() switch
+        => IOPath.GetExtension(path).ToLowerInvariant() switch
         {
             ".csproj" => "C#",
             ".cs" => "C#",

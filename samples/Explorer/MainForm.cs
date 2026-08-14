@@ -28,7 +28,7 @@ namespace Explore
             var item = e.Value;
 
             if (item.Tag is string s && s == "Directory")
-                SetSelectedDirectory (Path.Combine (current_directory, item.Text));
+                SetSelectedDirectory (System.IO.Path.Combine (current_directory, item.Text));
         }
 
         private void Tree_ItemSelected (object sender, EventArgs<TreeViewItem> e)
@@ -51,15 +51,15 @@ namespace Explore
 
             try {
                 foreach (var d in Directory.EnumerateDirectories (directory).Take (30))
-                    view.Items.Add (new ListViewItem { Text = Path.GetFileName (d), Image = ImageLoader.Get ("folder-closed.png"), Tag = "Directory" });
+                    view.Items.Add (new ListViewItem { Text = System.IO.Path.GetFileName (d), Image = ImageLoader.Get ("folder-closed.png"), Tag = "Directory" });
 
                 directories = view.Items.Count;
 
                 if (!tree_item.HasChildren)
-                    tree_item.Items.AddRange (view.Items.Select (l => new TreeViewItem (l.Text) { Image = ImageLoader.Get ("folder.png"), Tag = Path.Combine (current_directory, l.Text) }));
+                    tree_item.Items.AddRange (view.Items.Select (l => new TreeViewItem (l.Text) { Image = ImageLoader.Get ("folder.png"), Tag = System.IO.Path.Combine (current_directory, l.Text) }));
 
                 foreach (var f in Directory.EnumerateFiles (directory).Take (50))
-                    view.Items.Add (new ListViewItem { Text = Path.GetFileName (f), Image = ImageLoader.Get ("new.png") });
+                    view.Items.Add (new ListViewItem { Text = System.IO.Path.GetFileName (f), Image = ImageLoader.Get ("new.png") });
 
                 files = view.Items.Count - directories;
 
@@ -121,7 +121,7 @@ namespace Explore
 
         private void ParentFolder_Clicked (object sender, EventArgs args)
         {
-            var parent_folder = Path.GetDirectoryName (current_directory);
+            var parent_folder = System.IO.Path.GetDirectoryName (current_directory);
 
             if (parent_folder != null)
                 SetSelectedDirectory (parent_folder);

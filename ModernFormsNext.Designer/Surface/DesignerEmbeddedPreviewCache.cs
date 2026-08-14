@@ -167,17 +167,17 @@ internal sealed class DesignerEmbeddedPreviewCache
         documentIndexBuilt = true;
 
         foreach (var sourceGroup in projectUserControls.GroupBy(
-            control => Path.GetFullPath(control.SourceFilePath),
+            control => IOPath.GetFullPath(control.SourceFilePath),
             StringComparer.OrdinalIgnoreCase))
         {
             var controls = sourceGroup.ToArray();
-            var siblingPath = Path.ChangeExtension(sourceGroup.Key, ".mfdesign");
+            var siblingPath = IOPath.ChangeExtension(sourceGroup.Key, ".mfdesign");
 
             // A sibling path is the strongest source-level association and also lets the caller
             // report malformed or stale identity data precisely. TryGetPreview still validates the
             // document identity and root kind before exposing a projection.
             if (controls.Length == 1 && File.Exists(siblingPath))
-                documentPathsByType[controls[0].FullName] = Path.GetFullPath(siblingPath);
+                documentPathsByType[controls[0].FullName] = IOPath.GetFullPath(siblingPath);
         }
 
         var unresolvedControls = projectUserControls
@@ -219,7 +219,7 @@ internal sealed class DesignerEmbeddedPreviewCache
 
     private CachedPreviewSource GetOrRefreshSource(string path)
     {
-        var normalizedPath = Path.GetFullPath(path);
+        var normalizedPath = IOPath.GetFullPath(path);
         sourcesByPath.TryGetValue(normalizedPath, out var cached);
         var observedLastWriteTimeUtc = default(DateTime);
         var observedLength = -1L;

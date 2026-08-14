@@ -24,7 +24,7 @@ public sealed class AndroidToolingContractTests
     public void RepositoryContainsTheCompleteAndroidCommandLineWorkflow()
     {
         foreach (var script in RequiredScripts)
-            Assert.True(File.Exists(Path.Combine(AndroidScriptsDirectory, script)), $"Missing Android script: {script}");
+            Assert.True(File.Exists(IOPath.Combine(AndroidScriptsDirectory, script)), $"Missing Android script: {script}");
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public sealed class AndroidToolingContractTests
     [Fact]
     public void ToolingHasPureParsersTimeoutCancellationAndNoUserSpecificPath()
     {
-        var module = File.ReadAllText(Path.Combine(AndroidScriptsDirectory, "AndroidTools.psm1"));
+        var module = File.ReadAllText(IOPath.Combine(AndroidScriptsDirectory, "AndroidTools.psm1"));
 
         Assert.Contains("ConvertFrom-AdbDevicesOutput", module, StringComparison.Ordinal);
         Assert.Contains("ConvertFrom-AvdListOutput", module, StringComparison.Ordinal);
@@ -74,8 +74,8 @@ public sealed class AndroidToolingContractTests
     [Fact]
     public void AndroidHostUsesTheSharedImePipelineWithoutNativeEditText()
     {
-        var host = File.ReadAllText(Path.Combine(SampleDirectory, "Platforms", "Android", "AndroidAppHost.cs"));
-        var page = File.ReadAllText(Path.Combine(SampleDirectory, "MainPage.cs"));
+        var host = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android", "AndroidAppHost.cs"));
+        var page = File.ReadAllText(IOPath.Combine(SampleDirectory, "MainPage.cs"));
 
         Assert.Contains("controlSurface.SetComposingText", host, StringComparison.Ordinal);
         Assert.Contains("controlSurface.DeleteSurroundingText", host, StringComparison.Ordinal);
@@ -86,11 +86,11 @@ public sealed class AndroidToolingContractTests
     }
 
     private static string ReadScript(string name)
-        => File.ReadAllText(Path.Combine(AndroidScriptsDirectory, name));
+        => File.ReadAllText(IOPath.Combine(AndroidScriptsDirectory, name));
 
-    private static string AndroidScriptsDirectory => Path.Combine(RepositoryRoot, "scripts", "android");
+    private static string AndroidScriptsDirectory => IOPath.Combine(RepositoryRoot, "scripts", "android");
 
-    private static string SampleDirectory => Path.Combine(
+    private static string SampleDirectory => IOPath.Combine(
         RepositoryRoot,
         "samples",
         "ModernFormsNext.CrossPlatform.Sample");
@@ -100,7 +100,7 @@ public sealed class AndroidToolingContractTests
         get
         {
             var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ModernFormsNext.slnx")))
+            while (directory is not null && !File.Exists(IOPath.Combine(directory.FullName, "ModernFormsNext.slnx")))
                 directory = directory.Parent;
 
             return directory?.FullName

@@ -20,7 +20,7 @@ public class MarkdownImageAssetWorkflowTests
         Assert.Equal("assets/images/source.png", result.MarkdownSource);
         Assert.True(File.Exists(result.DestinationPath));
         Assert.DoesNotContain('\\', result.MarkdownSource!);
-        Assert.False(Path.IsPathFullyQualified(result.MarkdownSource!));
+        Assert.False(IOPath.IsPathFullyQualified(result.MarkdownSource!));
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public class MarkdownImageAssetWorkflowTests
     {
         public TemporaryImageFiles()
         {
-            Root = Path.Combine(Path.GetTempPath(), "ModernFormsNext.Tests", Guid.NewGuid().ToString("N"));
+            Root = IOPath.Combine(IOPath.GetTempPath(), "ModernFormsNext.Tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Root);
         }
 
@@ -238,20 +238,20 @@ public class MarkdownImageAssetWorkflowTests
         public MarkdownImageAssetOptions CreateOptions(string relativeDestination)
             => new()
             {
-                DestinationDirectory = Path.Combine(Root, relativeDestination.Replace('/', Path.DirectorySeparatorChar)),
+                DestinationDirectory = IOPath.Combine(Root, relativeDestination.Replace('/', IOPath.DirectorySeparatorChar)),
                 MarkdownBaseDirectory = Root
             };
 
         public string CreateBytes(string name, byte[] bytes)
         {
-            var path = Path.Combine(Root, name);
+            var path = IOPath.Combine(Root, name);
             File.WriteAllBytes(path, bytes);
             return path;
         }
 
         public string CreatePng(string name, SKColor color, bool overwrite = false)
         {
-            var path = Path.Combine(Root, name);
+            var path = IOPath.Combine(Root, name);
             if (File.Exists(path) && !overwrite)
                 throw new IOException("The test image already exists.");
 

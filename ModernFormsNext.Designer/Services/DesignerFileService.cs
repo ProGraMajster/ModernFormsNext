@@ -43,7 +43,7 @@ internal sealed class DesignerFileService
             document,
             new CSharpDesignerGenerationOptions
             {
-                SourceFilePath = Path.GetFileName(designDocumentPath),
+                SourceFilePath = IOPath.GetFileName(designDocumentPath),
                 DesignHash = roundTrip.ComputeDesignHash(document),
                 AnimationDefinitions = animationDefinitionsProvider?.Invoke() ?? []
             });
@@ -94,7 +94,7 @@ internal sealed class DesignerFileService
             .OfType<MethodDeclarationSyntax>()
             .Any(method => string.Equals(method.Identifier.ValueText, handlerName, StringComparison.Ordinal)))
         {
-            return new DesignerEventHandlerFileResult(true, codePath, $"Event handler {handlerName} already exists in {Path.GetFileName(codePath)}.");
+            return new DesignerEventHandlerFileResult(true, codePath, $"Event handler {handlerName} already exists in {IOPath.GetFileName(codePath)}.");
         }
 
         var lineEnding = sourceText.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
@@ -108,7 +108,7 @@ internal sealed class DesignerFileService
         var updatedText = sourceText.Insert(insertionIndex, methodText);
         File.WriteAllText(codePath, updatedText);
 
-        return new DesignerEventHandlerFileResult(true, codePath, $"Added event handler {handlerName} to {Path.GetFileName(codePath)}.");
+        return new DesignerEventHandlerFileResult(true, codePath, $"Added event handler {handlerName} to {IOPath.GetFileName(codePath)}.");
     }
 
     private string GetDesignDocumentPath(DesignDocument document)
@@ -121,7 +121,7 @@ internal sealed class DesignerFileService
         if (!string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
             return DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!;
 
-        return Path.Combine(AppContext.BaseDirectory, $"{document.ClassName}.mfdesign");
+        return IOPath.Combine(AppContext.BaseDirectory, $"{document.ClassName}.mfdesign");
     }
 
     private string GetGeneratedCodePath(DesignDocument document)
@@ -131,24 +131,24 @@ internal sealed class DesignerFileService
         if (!string.IsNullOrWhiteSpace(activeDocumentPath))
         {
             var designPath = DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!;
-            var directory = Path.GetDirectoryName(designPath);
-            var fileName = Path.GetFileNameWithoutExtension(designPath);
+            var directory = IOPath.GetDirectoryName(designPath);
+            var fileName = IOPath.GetFileNameWithoutExtension(designPath);
 
             if (!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(fileName))
-                return Path.Combine(directory, $"{fileName}.Designer.cs");
+                return IOPath.Combine(directory, $"{fileName}.Designer.cs");
         }
 
         if (!string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
         {
             var designPath = DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!;
-            var directory = Path.GetDirectoryName(designPath);
-            var fileName = Path.GetFileNameWithoutExtension(designPath);
+            var directory = IOPath.GetDirectoryName(designPath);
+            var fileName = IOPath.GetFileNameWithoutExtension(designPath);
 
             if (!string.IsNullOrWhiteSpace(directory) && !string.IsNullOrWhiteSpace(fileName))
-                return Path.Combine(directory, $"{fileName}.Designer.cs");
+                return IOPath.Combine(directory, $"{fileName}.Designer.cs");
         }
 
-        return Path.Combine(AppContext.BaseDirectory, $"{document.ClassName}.Designer.cs");
+        return IOPath.Combine(AppContext.BaseDirectory, $"{document.ClassName}.Designer.cs");
     }
 
     private string? GetFormCodePath(DesignDocument document)
@@ -156,16 +156,16 @@ internal sealed class DesignerFileService
         var activeDocumentPath = currentDocumentPathProvider?.Invoke();
 
         if (!string.IsNullOrWhiteSpace(activeDocumentPath))
-            return Path.Combine(
-                Path.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!) ?? string.Empty,
-                $"{Path.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!)}.cs");
+            return IOPath.Combine(
+                IOPath.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!) ?? string.Empty,
+                $"{IOPath.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!)}.cs");
 
         if (!string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
-            return Path.Combine(
-                Path.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!) ?? string.Empty,
-                $"{Path.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!)}.cs");
+            return IOPath.Combine(
+                IOPath.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!) ?? string.Empty,
+                $"{IOPath.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!)}.cs");
 
-        return Path.Combine(AppContext.BaseDirectory, $"{document.ClassName}.cs");
+        return IOPath.Combine(AppContext.BaseDirectory, $"{document.ClassName}.cs");
     }
 
     private static string WriteEventHandlerParameters(Type? eventHandlerType)

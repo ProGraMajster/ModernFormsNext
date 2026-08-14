@@ -259,7 +259,7 @@ public sealed class MarkdownEditorPanel : Panel
         {
             e.AssetOptions = new MarkdownImageAssetOptions
             {
-                DestinationDirectory = Path.Combine(AppContext.BaseDirectory, "MarkdownEditorAssets"),
+                DestinationDirectory = System.IO.Path.Combine(AppContext.BaseDirectory, "MarkdownEditorAssets"),
                 MarkdownBaseDirectory = AppContext.BaseDirectory,
                 CollisionBehavior = dialog.CollisionBehavior
             };

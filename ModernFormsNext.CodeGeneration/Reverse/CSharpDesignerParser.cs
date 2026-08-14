@@ -1171,11 +1171,8 @@ public sealed class CSharpDesignerParser
     {
         value = null!;
 
-        if (expression is not ObjectCreationExpressionSyntax objectCreation
-            || objectCreation.ArgumentList is null)
-        {
+        if (expression is not ObjectCreationExpressionSyntax objectCreation)
             return false;
-        }
 
         var typeName = objectCreation.Type.ToString();
         var propertyValues = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
@@ -1196,6 +1193,24 @@ public sealed class CSharpDesignerParser
             return true;
         }
 
+        if ((IsType(typeName, "PointF") || IsType(typeName, "SKPoint"))
+            && TryReadDoubleObjectArguments(objectCreation, 2, out double[] floatPoint))
+        {
+            propertyValues["X"] = DesignPropertyValue.FromDouble(floatPoint[0]);
+            propertyValues["Y"] = DesignPropertyValue.FromDouble(floatPoint[1]);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
+        if (IsType(typeName, "SKSize")
+            && TryReadDoubleObjectArguments(objectCreation, 2, out double[] floatSize))
+        {
+            propertyValues["Width"] = DesignPropertyValue.FromDouble(floatSize[0]);
+            propertyValues["Height"] = DesignPropertyValue.FromDouble(floatSize[1]);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
         if ((IsType(typeName, "Rectangle") || IsType(typeName, "Bounds"))
             && TryReadObjectArguments(expression, 4, out var rectangle))
         {
@@ -1207,10 +1222,32 @@ public sealed class CSharpDesignerParser
             return true;
         }
 
-        if (IsType(typeName, "SKColor")
-            && objectCreation.ArgumentList.Arguments.Count is 3 or 4)
+        if ((IsType(typeName, "RectangleF") || IsType(typeName, "SKRect"))
+            && TryReadDoubleObjectArguments(objectCreation, 4, out double[] floatRectangle))
         {
-            var arguments = objectCreation.ArgumentList.Arguments;
+            string[] names = IsType(typeName, "SKRect")
+                ? ["Left", "Top", "Right", "Bottom"]
+                : ["X", "Y", "Width", "Height"];
+            for (int index = 0; index < names.Length; index++)
+                propertyValues[names[index]] = DesignPropertyValue.FromDouble(floatRectangle[index]);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
+        if (IsType(typeName, "Matrix3x2")
+            && TryReadDoubleObjectArguments(objectCreation, 6, out double[] matrix))
+        {
+            string[] names = ["M11", "M12", "M21", "M22", "M31", "M32"];
+            for (int index = 0; index < names.Length; index++)
+                propertyValues[names[index]] = DesignPropertyValue.FromDouble(matrix[index]);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
+        if (IsType(typeName, "SKColor")
+            && objectCreation.ArgumentList is { Arguments.Count: 3 or 4 } colorArgumentList)
+        {
+            var arguments = colorArgumentList.Arguments;
             if (!TryReadInt32(arguments[0].Expression, out var r)
                 || !TryReadInt32(arguments[1].Expression, out var g)
                 || !TryReadInt32(arguments[2].Expression, out var b))
@@ -1233,7 +1270,270 @@ public sealed class CSharpDesignerParser
             return true;
         }
 
+        if (IsType(typeName, "PointCollection"))
+            return TryReadPointCollection(objectCreation, typeName, out value);
+
+        if (IsType(typeName, "GradientStop")
+            && TryReadStructuredArgument(objectCreation, 0, out DesignPropertyValue stopColor)
+            && objectCreation.ArgumentList?.Arguments.Count == 2
+            && TryReadDouble(objectCreation.ArgumentList.Arguments[1].Expression, out double stopOffset))
+        {
+            propertyValues["Color"] = stopColor;
+            propertyValues["Offset"] = DesignPropertyValue.FromDouble(stopOffset);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
+        if (IsType(typeName, "LineGeometry"))
+            return TryReadLineGeometry(objectCreation, typeName, out value);
+
+        if (IsType(typeName, "RectangleGeometry") || IsType(typeName, "EllipseGeometry"))
+            return TryReadRectangleGeometry(objectCreation, typeName, out value);
+
+        if (IsType(typeName, "PathGeometry"))
+            return TryReadPathGeometry(objectCreation, typeName, out value);
+
+        if (IsType(typeName, "SolidColorBrush"))
+        {
+            if (!TryReadStructuredArgument(objectCreation, 0, out DesignPropertyValue color))
+                return false;
+            propertyValues["Color"] = color;
+            ReadSimpleInitializerAssignments(objectCreation, propertyValues);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
+        if (IsType(typeName, "GlassBrush")
+            || IsType(typeName, "LinearGradientBrush")
+            || IsType(typeName, "RadialGradientBrush")
+            || IsType(typeName, "SweepGradientBrush"))
+        {
+            ReadSimpleInitializerAssignments(objectCreation, propertyValues, "GradientStops");
+            ReadCollectionInitializer(objectCreation, "GradientStops", "GradientStop", propertyValues);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
         return false;
+    }
+
+    private static bool TryReadDoubleObjectArguments(
+        ObjectCreationExpressionSyntax objectCreation,
+        int count,
+        out double[] values)
+    {
+        values = [];
+        if (objectCreation.ArgumentList?.Arguments.Count != count)
+            return false;
+
+        values = new double[count];
+        for (int index = 0; index < count; index++)
+        {
+            if (!TryReadDouble(objectCreation.ArgumentList.Arguments[index].Expression, out values[index]))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool TryReadStructuredArgument(
+        ObjectCreationExpressionSyntax objectCreation,
+        int index,
+        out DesignPropertyValue value)
+    {
+        value = null!;
+        return objectCreation.ArgumentList is not null
+            && objectCreation.ArgumentList.Arguments.Count > index
+            && TryReadDesignerValue(objectCreation.ArgumentList.Arguments[index].Expression, out value);
+    }
+
+    private static bool TryReadPointCollection(
+        ObjectCreationExpressionSyntax objectCreation,
+        string typeName,
+        out DesignPropertyValue value)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        int count = 0;
+        if (objectCreation.Initializer is not null)
+        {
+            foreach (ExpressionSyntax expression in objectCreation.Initializer.Expressions)
+            {
+                if (TryReadDesignerValue(expression, out DesignPropertyValue point))
+                    properties[$"Point{count++}"] = point;
+                else
+                {
+                    value = null!;
+                    return false;
+                }
+            }
+        }
+        properties["Count"] = DesignPropertyValue.FromInt32(count);
+        value = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        return true;
+    }
+
+    private static bool TryReadLineGeometry(
+        ObjectCreationExpressionSyntax objectCreation,
+        string typeName,
+        out DesignPropertyValue value)
+    {
+        value = null!;
+        if (!TryReadStructuredArgument(objectCreation, 0, out DesignPropertyValue start)
+            || !TryReadStructuredArgument(objectCreation, 1, out DesignPropertyValue end))
+            return false;
+
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+        {
+            ["StartPoint"] = start,
+            ["EndPoint"] = end
+        };
+        ReadSimpleInitializerAssignments(objectCreation, properties);
+        value = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        return true;
+    }
+
+    private static bool TryReadRectangleGeometry(
+        ObjectCreationExpressionSyntax objectCreation,
+        string typeName,
+        out DesignPropertyValue value)
+    {
+        value = null!;
+        if (!TryReadStructuredArgument(objectCreation, 0, out DesignPropertyValue rectangle))
+            return false;
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+        {
+            ["Rect"] = rectangle
+        };
+        ReadSimpleInitializerAssignments(objectCreation, properties);
+        value = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        return true;
+    }
+
+    private static bool TryReadPathGeometry(
+        ObjectCreationExpressionSyntax objectCreation,
+        string typeName,
+        out DesignPropertyValue value)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        ReadSimpleInitializerAssignments(objectCreation, properties, "Figures");
+        ReadCollectionInitializer(objectCreation, "Figures", "Figure", properties);
+        value = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        return true;
+    }
+
+    private static void ReadSimpleInitializerAssignments(
+        ObjectCreationExpressionSyntax objectCreation,
+        SortedDictionary<string, DesignPropertyValue> properties,
+        params string[] excludedNames)
+    {
+        if (objectCreation.Initializer is null)
+            return;
+
+        foreach (ExpressionSyntax expression in objectCreation.Initializer.Expressions)
+        {
+            if (expression is AssignmentExpressionSyntax assignment
+                && assignment.Left is IdentifierNameSyntax name
+                && !excludedNames.Contains(name.Identifier.ValueText, StringComparer.Ordinal)
+                && TryReadDesignerValue(assignment.Right, out DesignPropertyValue propertyValue))
+            {
+                properties[name.Identifier.ValueText] = propertyValue;
+            }
+        }
+    }
+
+    private static void ReadCollectionInitializer(
+        ObjectCreationExpressionSyntax objectCreation,
+        string propertyName,
+        string itemPrefix,
+        SortedDictionary<string, DesignPropertyValue> properties)
+    {
+        int count = 0;
+        if (objectCreation.Initializer is not null)
+        {
+            foreach (AssignmentExpressionSyntax assignment in objectCreation.Initializer.Expressions.OfType<AssignmentExpressionSyntax>())
+            {
+                if (assignment.Left is not IdentifierNameSyntax name
+                    || !string.Equals(name.Identifier.ValueText, propertyName, StringComparison.Ordinal)
+                    || assignment.Right is not InitializerExpressionSyntax collection)
+                    continue;
+
+                foreach (ExpressionSyntax item in collection.Expressions)
+                {
+                    if (TryReadPathInitializerItem(item, itemPrefix, out DesignPropertyValue itemValue))
+                        properties[$"{itemPrefix}{count++}"] = itemValue;
+                }
+            }
+        }
+        properties[$"{propertyName.TrimEnd('s')}Count"] = DesignPropertyValue.FromInt32(count);
+    }
+
+    private static bool TryReadPathInitializerItem(
+        ExpressionSyntax expression,
+        string itemPrefix,
+        out DesignPropertyValue value)
+    {
+        if (string.Equals(itemPrefix, "Figure", StringComparison.Ordinal))
+            return TryReadPathFigure(expression, out value);
+        if (string.Equals(itemPrefix, "Segment", StringComparison.Ordinal))
+            return TryReadPathSegment(expression, out value);
+        return TryReadDesignerValue(expression, out value);
+    }
+
+    private static bool TryReadPathFigure(ExpressionSyntax expression, out DesignPropertyValue value)
+    {
+        value = null!;
+        if (expression is not ObjectCreationExpressionSyntax creation
+            || !IsType(creation.Type.ToString(), "PathFigure")
+            || !TryReadStructuredArgument(creation, 0, out DesignPropertyValue start)
+            || creation.ArgumentList?.Arguments.Count != 2
+            || !TryReadBoolean(creation.ArgumentList.Arguments[1].Expression, out bool isClosed))
+            return false;
+
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+        {
+            ["StartPoint"] = start,
+            ["IsClosed"] = DesignPropertyValue.FromBoolean(isClosed)
+        };
+        ReadCollectionInitializer(creation, "Segments", "Segment", properties);
+        value = DesignPropertyValue.FromStructuredObject(creation.Type.ToString(), properties);
+        return true;
+    }
+
+    private static bool TryReadPathSegment(ExpressionSyntax expression, out DesignPropertyValue value)
+    {
+        value = null!;
+        if (expression is not ObjectCreationExpressionSyntax creation)
+            return false;
+
+        string typeName = creation.Type.ToString();
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        if (IsType(typeName, "LineSegment")
+            && TryReadStructuredArgument(creation, 0, out DesignPropertyValue point))
+        {
+            properties["Point"] = point;
+        }
+        else if (IsType(typeName, "QuadraticBezierSegment")
+            && TryReadStructuredArgument(creation, 0, out DesignPropertyValue control)
+            && TryReadStructuredArgument(creation, 1, out point))
+        {
+            properties["ControlPoint"] = control;
+            properties["Point"] = point;
+        }
+        else if (IsType(typeName, "BezierSegment")
+            && TryReadStructuredArgument(creation, 0, out DesignPropertyValue control1)
+            && TryReadStructuredArgument(creation, 1, out DesignPropertyValue control2)
+            && TryReadStructuredArgument(creation, 2, out point))
+        {
+            properties["ControlPoint1"] = control1;
+            properties["ControlPoint2"] = control2;
+            properties["Point"] = point;
+        }
+        else
+        {
+            return false;
+        }
+
+        value = DesignPropertyValue.FromStructuredObject(typeName, properties);
+        return true;
     }
 
     private static bool IsType(string typeName, string expectedSuffix)

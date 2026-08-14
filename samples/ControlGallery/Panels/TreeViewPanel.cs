@@ -66,7 +66,7 @@ namespace ControlGallery.Panels
 
         private TreeViewItem CreateDirectoryNode (string path, int level)
         {
-            var tvi = new TreeViewItem (Path.GetFileName (path)) { Image = ImageLoader.Get ("folder.png") };
+            var tvi = new TreeViewItem (System.IO.Path.GetFileName (path)) { Image = ImageLoader.Get ("folder.png") };
 
             if (level > 3)
                 return tvi;

@@ -127,7 +127,7 @@ public sealed class UserControlDesignerTests
     public void ImportDesignerCodePreservesActiveUserControlRootKind()
     {
         using var project = TemporaryDesignerProject.Create("namespace Example; public class Placeholder { }");
-        var designerPath = Path.Combine(project.DirectoryPath, "NavigationPanel.Designer.cs");
+        var designerPath = IOPath.Combine(project.DirectoryPath, "NavigationPanel.Designer.cs");
         File.WriteAllText(
             designerPath,
             """
@@ -365,7 +365,7 @@ public sealed class UserControlDesignerTests
             Name = "controlA1",
             Bounds = new DesignBounds(0, 0, 100, 100)
         });
-        DesignDocumentSerializer.Default.Save(Path.Combine(project.DirectoryPath, "ControlB.mfdesign"), controlB);
+        DesignDocumentSerializer.Default.Save(IOPath.Combine(project.DirectoryPath, "ControlB.mfdesign"), controlB);
 
         var allowed = DesignerControlReferenceGuard.CanReference(
             controlA,
@@ -415,10 +415,10 @@ public sealed class UserControlDesignerTests
             """);
         foreach (var excludedDirectoryName in new[] { "bin", "obj", "artifacts", ".git", ".vs" })
         {
-            var excludedDirectory = Path.Combine(project.DirectoryPath, excludedDirectoryName);
+            var excludedDirectory = IOPath.Combine(project.DirectoryPath, excludedDirectoryName);
             Directory.CreateDirectory(excludedDirectory);
             File.WriteAllText(
-                Path.Combine(excludedDirectory, $"Hidden{excludedDirectoryName.TrimStart('.')}Control.cs"),
+                IOPath.Combine(excludedDirectory, $"Hidden{excludedDirectoryName.TrimStart('.')}Control.cs"),
                 $"using ModernFormsNext; public class Hidden{excludedDirectoryName.TrimStart('.')}Control : UserControl {{ }}");
         }
 
@@ -449,9 +449,9 @@ public sealed class UserControlDesignerTests
             public class ControlA : UserControl { }
             public class ControlB : UserControl { }
             """);
-        File.WriteAllText(Path.Combine(project.DirectoryPath, "Empty.mfdesign"), string.Empty);
+        File.WriteAllText(IOPath.Combine(project.DirectoryPath, "Empty.mfdesign"), string.Empty);
         File.WriteAllText(
-            Path.Combine(project.DirectoryPath, "StructurallyBroken.mfdesign"),
+            IOPath.Combine(project.DirectoryPath, "StructurallyBroken.mfdesign"),
             """{ "className": "Broken", "controls": null }""");
         var controlA = CreateUserControlDocument("ControlA");
 
@@ -483,8 +483,8 @@ public sealed class UserControlDesignerTests
         var controlC = CreateUserControlDocument("ControlC");
         controlB.Controls.Add(CreateControlReference("Example.ControlC", "controlC1"));
         controlC.Controls.Add(CreateControlReference("Example.ControlA", "controlA1"));
-        DesignDocumentSerializer.Default.Save(Path.Combine(project.DirectoryPath, "ControlB.mfdesign"), controlB);
-        DesignDocumentSerializer.Default.Save(Path.Combine(project.DirectoryPath, "ControlC.mfdesign"), controlC);
+        DesignDocumentSerializer.Default.Save(IOPath.Combine(project.DirectoryPath, "ControlB.mfdesign"), controlB);
+        DesignDocumentSerializer.Default.Save(IOPath.Combine(project.DirectoryPath, "ControlC.mfdesign"), controlC);
 
         var allowed = DesignerControlReferenceGuard.CanReference(
             controlA,
@@ -517,7 +517,7 @@ public sealed class UserControlDesignerTests
         File.WriteAllText(
             project.ProjectFilePath,
             """<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="ModernFormsNext" Version="1.9.0" /></ItemGroup></Project>""");
-        var sourcePath = Path.Combine(project.DirectoryPath, "Controls.cs");
+        var sourcePath = IOPath.Combine(project.DirectoryPath, "Controls.cs");
 
         var result = new ModernFormsDesignableFileDetector().Inspect(sourcePath);
 
@@ -549,7 +549,7 @@ public sealed class UserControlDesignerTests
             """<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="ModernFormsNext" Version="1.9.0" /></ItemGroup></Project>""");
 
         var result = new ModernFormsDesignableFileDetector().Inspect(
-            Path.Combine(project.DirectoryPath, "Controls.cs"));
+            IOPath.Combine(project.DirectoryPath, "Controls.cs"));
 
         Assert.False(Assert.IsType<ModernFormsDesignableFileInfo>(result).IsDesignable);
     }
@@ -565,7 +565,7 @@ public sealed class UserControlDesignerTests
 
             public partial class RenamedControl : UserControl { }
             """);
-        var designPath = Path.Combine(project.DirectoryPath, "Controls.mfdesign");
+        var designPath = IOPath.Combine(project.DirectoryPath, "Controls.mfdesign");
         var environment = new TestDesignerEnvironment(project.ProjectFilePath, designPath);
         var session = new DesignerSession(environment);
         var document = CreateUserControlDocument("OldControl");
@@ -591,14 +591,14 @@ public sealed class UserControlDesignerTests
         Assert.Contains(firstSession.ProjectUserControls, control => control.FullName == "OldNamespace.OldControl");
 
         File.WriteAllText(
-            Path.Combine(project.DirectoryPath, "Controls.cs"),
+            IOPath.Combine(project.DirectoryPath, "Controls.cs"),
             "using ModernFormsNext; namespace NewNamespace; public class RenamedControl : UserControl { }");
         var reopenedSession = new DesignerSession(new TestDesignerEnvironment(project.ProjectFilePath));
 
         Assert.DoesNotContain(reopenedSession.ProjectUserControls, control => control.FullName == "OldNamespace.OldControl");
         Assert.Contains(reopenedSession.ProjectUserControls, control => control.FullName == "NewNamespace.RenamedControl");
 
-        File.Delete(Path.Combine(project.DirectoryPath, "Controls.cs"));
+        File.Delete(IOPath.Combine(project.DirectoryPath, "Controls.cs"));
         var afterDeletion = new DesignerSession(new TestDesignerEnvironment(project.ProjectFilePath));
         var parent = new DesignDocument
         {
@@ -623,8 +623,8 @@ public sealed class UserControlDesignerTests
     public void DesignerGenerationDoesNotModifyUserCodeFile()
     {
         using var project = TemporaryDesignerProject.Create("namespace Example; public class Placeholder { }");
-        var designPath = Path.Combine(project.DirectoryPath, "NavigationPanel.mfdesign");
-        var userCodePath = Path.Combine(project.DirectoryPath, "NavigationPanel.cs");
+        var designPath = IOPath.Combine(project.DirectoryPath, "NavigationPanel.mfdesign");
+        var userCodePath = IOPath.Combine(project.DirectoryPath, "NavigationPanel.cs");
         const string userCode = """
             using ModernFormsNext;
 
@@ -647,7 +647,7 @@ public sealed class UserControlDesignerTests
 
         Assert.Equal(designPath, savedPath);
         Assert.True(generated.Succeeded, string.Join(Environment.NewLine, generated.Errors));
-        Assert.Equal(Path.Combine(project.DirectoryPath, "NavigationPanel.Designer.cs"), generated.Path);
+        Assert.Equal(IOPath.Combine(project.DirectoryPath, "NavigationPanel.Designer.cs"), generated.Path);
         Assert.Equal(userCode, File.ReadAllText(userCodePath));
     }
 
@@ -703,11 +703,11 @@ public sealed class UserControlDesignerTests
 
         public static TemporaryDesignerProject Create(string source)
         {
-            var directory = Path.Combine(Path.GetTempPath(), $"ModernFormsNextDesignerTests-{Guid.NewGuid():N}");
+            var directory = IOPath.Combine(IOPath.GetTempPath(), $"ModernFormsNextDesignerTests-{Guid.NewGuid():N}");
             Directory.CreateDirectory(directory);
-            var projectPath = Path.Combine(directory, "Example.csproj");
+            var projectPath = IOPath.Combine(directory, "Example.csproj");
             File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
-            File.WriteAllText(Path.Combine(directory, "Controls.cs"), source);
+            File.WriteAllText(IOPath.Combine(directory, "Controls.cs"), source);
             return new TemporaryDesignerProject(directory, projectPath);
         }
 

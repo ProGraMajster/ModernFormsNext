@@ -134,27 +134,32 @@ public partial class Control
 
     internal bool PresentationContains(Point parentPoint)
     {
-        RectangleF bounds = ScaledPresentationBounds;
-        return bounds.Width > 0f && bounds.Height > 0f &&
-            parentPoint.X >= bounds.Left && parentPoint.X < bounds.Right &&
-            parentPoint.Y >= bounds.Top && parentPoint.Y < bounds.Bottom;
+        if (!TryParentPresentationPointToClient(parentPoint, out PointF clientPoint))
+            return false;
+
+        return HitTestClient(clientPoint);
     }
+
+    /// <summary>
+    /// Determines whether a presentation-space point mapped into this control hits its content.
+    /// </summary>
+    /// <param name="clientPoint">The point in the same scaled client coordinate space used by the control's back buffer.</param>
+    /// <returns><see langword="true"/> when the point should target this control.</returns>
+    /// <remarks>
+    /// The default implementation tests the rectangular client area. Vector controls override this
+    /// hook to test their rendered geometry. The owning presentation pipeline has already inverted
+    /// layout and render transforms before this method is called.
+    /// </remarks>
+    internal virtual bool HitTestClient(PointF clientPoint)
+        => clientPoint.X >= 0f && clientPoint.Y >= 0f &&
+            clientPoint.X < ScaledWidth && clientPoint.Y < ScaledHeight;
 
     internal Point ParentPresentationPointToClient(Point parentPoint)
     {
-        RectangleF presentation = ScaledPresentationBounds;
-        float localX = parentPoint.X - presentation.X;
-        float localY = parentPoint.Y - presentation.Y;
-        int targetWidth = ScaledWidth;
-        int targetHeight = ScaledHeight;
+        if (!TryParentPresentationPointToClient(parentPoint, out PointF clientPoint))
+            return Point.Empty;
 
-        int x = presentation.Width > 0f && targetWidth > 0
-            ? (int)MathF.Floor(localX * targetWidth / presentation.Width)
-            : 0;
-        int y = presentation.Height > 0f && targetHeight > 0
-            ? (int)MathF.Floor(localY * targetHeight / presentation.Height)
-            : 0;
-        return new Point(x, y);
+        return new Point((int)MathF.Floor(clientPoint.X), (int)MathF.Floor(clientPoint.Y));
     }
 
     internal Point ClientPointToParentPresentation(Point clientPoint)
@@ -162,15 +167,68 @@ public partial class Control
         RectangleF presentation = ScaledPresentationBounds;
         int targetWidth = ScaledWidth;
         int targetHeight = ScaledHeight;
-        float x = targetWidth > 0
-            ? presentation.X + (clientPoint.X * presentation.Width / targetWidth)
-            : presentation.X;
-        float y = targetHeight > 0
-            ? presentation.Y + (clientPoint.Y * presentation.Height / targetHeight)
-            : presentation.Y;
+        float x = targetWidth > 0 ? clientPoint.X * presentation.Width / targetWidth : 0f;
+        float y = targetHeight > 0 ? clientPoint.Y * presentation.Height / targetHeight : 0f;
+
+        float centerX = presentation.Width / 2f;
+        float centerY = presentation.Height / 2f;
+        x = (x - centerX) * EffectiveScaleX;
+        y = (y - centerY) * EffectiveScaleY;
+
+        float radians = EffectiveRotation * (MathF.PI / 180f);
+        float cosine = MathF.Cos(radians);
+        float sine = MathF.Sin(radians);
+        float rotatedX = (x * cosine) - (y * sine);
+        float rotatedY = (x * sine) + (y * cosine);
+        x = presentation.X + (EffectiveTranslationX * ScaleFactor.Width) + centerX + rotatedX;
+        y = presentation.Y + (EffectiveTranslationY * ScaleFactor.Height) + centerY + rotatedY;
+
         return new Point(
             (int)MathF.Round(x, MidpointRounding.AwayFromZero),
             (int)MathF.Round(y, MidpointRounding.AwayFromZero));
+    }
+
+    private bool TryParentPresentationPointToClient(Point parentPoint, out PointF clientPoint)
+    {
+        RectangleF presentation = ScaledPresentationBounds;
+        int targetWidth = ScaledWidth;
+        int targetHeight = ScaledHeight;
+        if (presentation.Width <= 0f || presentation.Height <= 0f || targetWidth <= 0 || targetHeight <= 0)
+        {
+            clientPoint = default;
+            return false;
+        }
+
+        float scaleX = EffectiveScaleX;
+        float scaleY = EffectiveScaleY;
+        if (!float.IsFinite(scaleX) || !float.IsFinite(scaleY) ||
+            MathF.Abs(scaleX) <= 0.000001f || MathF.Abs(scaleY) <= 0.000001f)
+        {
+            clientPoint = default;
+            return false;
+        }
+
+        float drawX = presentation.X + (EffectiveTranslationX * ScaleFactor.Width);
+        float drawY = presentation.Y + (EffectiveTranslationY * ScaleFactor.Height);
+        float centerX = presentation.Width / 2f;
+        float centerY = presentation.Height / 2f;
+        float x = parentPoint.X - drawX - centerX;
+        float y = parentPoint.Y - drawY - centerY;
+
+        // DrawBackBuffer applies rotation after scale. Invert those operations in reverse order
+        // so pointer routing observes the exact same presentation geometry as composition.
+        float radians = EffectiveRotation * (MathF.PI / 180f);
+        float cosine = MathF.Cos(radians);
+        float sine = MathF.Sin(radians);
+        float unrotatedX = (x * cosine) + (y * sine);
+        float unrotatedY = (-x * sine) + (y * cosine);
+        float presentationX = (unrotatedX / scaleX) + centerX;
+        float presentationY = (unrotatedY / scaleY) + centerY;
+
+        clientPoint = new PointF(
+            presentationX * targetWidth / presentation.Width,
+            presentationY * targetHeight / presentation.Height);
+        return float.IsFinite(clientPoint.X) && float.IsFinite(clientPoint.Y);
     }
 
     internal void DrawBackBuffer(SKCanvas canvas, SKBitmap buffer, float parentOffsetX = 0f, float parentOffsetY = 0f)

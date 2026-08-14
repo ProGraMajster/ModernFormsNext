@@ -310,11 +310,11 @@ public sealed class AnimationEffectDefinitionDesignerTests
     [Fact]
     public void SourceDiscoveryRequiresOptInAndNeverExecutesConstructors()
     {
-        string directory = Path.Combine(Path.GetTempPath(), $"mfn-animation-discovery-{Guid.NewGuid():N}");
+        string directory = IOPath.Combine(IOPath.GetTempPath(), $"mfn-animation-discovery-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
         {
-            File.WriteAllText(Path.Combine(directory, "Effects.cs"), """
+            File.WriteAllText(IOPath.Combine(directory, "Effects.cs"), """
                 using EffectRoot = ModernFormsNext.Animations.InteractionEffect;
                 using DefinitionMarker = ModernFormsNext.Animations.DesignableAnimationDefinitionAttribute;
                 using PropertyMarker = ModernFormsNext.Animations.DesignableAnimationPropertyAttribute;
@@ -355,11 +355,11 @@ public sealed class AnimationEffectDefinitionDesignerTests
     [Fact]
     public void AnimationDefinitionMetadataIsDiscoveredButNotOfferedAsInteractionEffect()
     {
-        string directory = Path.Combine(Path.GetTempPath(), $"mfn-animation-definition-{Guid.NewGuid():N}");
+        string directory = IOPath.Combine(IOPath.GetTempPath(), $"mfn-animation-definition-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
         {
-            File.WriteAllText(Path.Combine(directory, "Pulse.cs"), """
+            File.WriteAllText(IOPath.Combine(directory, "Pulse.cs"), """
                 using ModernFormsNext.Animations;
                 namespace Example;
                 [DesignableAnimationDefinition("Pulse")]
@@ -557,7 +557,7 @@ public sealed class AnimationEffectDefinitionDesignerTests
             public partial class MainForm : ModernFormsNext.Form { }
             """;
         string[] trustedAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))
-            ?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
+            ?.Split(IOPath.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
         IEnumerable<MetadataReference> references = trustedAssemblies
             .Concat(AppDomain.CurrentDomain.GetAssemblies()
                 .Where(assembly => !assembly.IsDynamic && !string.IsNullOrWhiteSpace(assembly.Location))

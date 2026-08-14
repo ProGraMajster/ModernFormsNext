@@ -42,7 +42,7 @@ public sealed class MfDesignFileGenerator
             document,
             new CSharpDesignerGenerationOptions
             {
-                SourceFilePath = Path.GetFileName(designDocumentPath),
+                SourceFilePath = IOPath.GetFileName(designDocumentPath),
                 DesignHash = roundTrip.ComputeDesignHash(document),
                 AnimationDefinitions = animationDefinitions ?? []
             });
@@ -57,8 +57,8 @@ public sealed class MfDesignFileGenerator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(designDocumentPath);
 
-        var directory = Path.GetDirectoryName(designDocumentPath) ?? string.Empty;
-        var name = Path.GetFileNameWithoutExtension(designDocumentPath);
-        return Path.Combine(directory, $"{name}.Designer.cs");
+        var directory = IOPath.GetDirectoryName(designDocumentPath) ?? string.Empty;
+        var name = IOPath.GetFileNameWithoutExtension(designDocumentPath);
+        return IOPath.Combine(directory, $"{name}.Designer.cs");
     }
 }

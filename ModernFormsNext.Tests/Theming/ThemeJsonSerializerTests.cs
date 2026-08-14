@@ -83,7 +83,7 @@ public sealed class ThemeJsonSerializerTests
         Assert.Equal(theme.Id, fromStream.Id);
         Assert.True(stream.CanRead);
 
-        string path = Path.Combine(Path.GetTempPath(), $"mfn-theme-{Guid.NewGuid():N}.json");
+        string path = IOPath.Combine(IOPath.GetTempPath(), $"mfn-theme-{Guid.NewGuid():N}.json");
         try
         {
             serializer.SaveFile(theme, path);

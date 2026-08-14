@@ -40,7 +40,7 @@ public sealed class VisualStudioDesignerFileService
 
     private static string FindProjectPath(string designDocumentPath)
     {
-        string? directory = Path.GetDirectoryName(Path.GetFullPath(designDocumentPath));
+        string? directory = IOPath.GetDirectoryName(IOPath.GetFullPath(designDocumentPath));
         while (!string.IsNullOrWhiteSpace(directory))
         {
             string? project = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
@@ -48,6 +48,6 @@ public sealed class VisualStudioDesignerFileService
                 return project;
             directory = Directory.GetParent(directory)?.FullName;
         }
-        return Path.GetDirectoryName(Path.GetFullPath(designDocumentPath)) ?? string.Empty;
+        return IOPath.GetDirectoryName(IOPath.GetFullPath(designDocumentPath)) ?? string.Empty;
     }
 }

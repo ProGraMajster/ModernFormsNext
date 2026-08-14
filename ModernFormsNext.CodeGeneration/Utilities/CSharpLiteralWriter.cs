@@ -124,6 +124,11 @@ public static class CSharpLiteralWriter
             return $"new System.Drawing.Rectangle({ReadInt(properties, "X")}, {ReadInt(properties, "Y")}, {ReadInt(properties, "Width")}, {ReadInt(properties, "Height")})";
         }
 
+        if (IsType(typeName, "System.Drawing.RectangleF"))
+        {
+            return $"new System.Drawing.RectangleF({ReadFloat(properties, "X")}, {ReadFloat(properties, "Y")}, {ReadFloat(properties, "Width")}, {ReadFloat(properties, "Height")})";
+        }
+
         if (IsType(typeName, "ModernFormsNext.Padding"))
         {
             return $"new Padding({ReadInt(properties, "Left")}, {ReadInt(properties, "Top")}, {ReadInt(properties, "Right")}, {ReadInt(properties, "Bottom")})";
@@ -156,6 +161,34 @@ public static class CSharpLiteralWriter
             var style = WriteFontStyle(properties);
             return $"new Font({name}, {size}, {style})";
         }
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.PointCollection"))
+            return WritePointCollection(properties);
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.LineGeometry"))
+        {
+            return "new ModernFormsNext.Drawing.LineGeometry("
+                + ReadValue(properties, "StartPoint", "System.Drawing.PointF.Empty") + ", "
+                + ReadValue(properties, "EndPoint", "System.Drawing.PointF.Empty") + ")"
+                + WriteGeometryInitializer(properties);
+        }
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.RectangleGeometry"))
+        {
+            return "new ModernFormsNext.Drawing.RectangleGeometry("
+                + ReadValue(properties, "Rect", "System.Drawing.RectangleF.Empty") + ")"
+                + WriteGeometryInitializer(properties);
+        }
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.EllipseGeometry"))
+        {
+            return "new ModernFormsNext.Drawing.EllipseGeometry("
+                + ReadValue(properties, "Rect", "System.Drawing.RectangleF.Empty") + ")"
+                + WriteGeometryInitializer(properties);
+        }
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.PathGeometry"))
+            return WritePathGeometry(properties);
 
         if (IsType(typeName, "ModernFormsNext.Drawing.SolidColorBrush"))
         {
@@ -294,6 +327,88 @@ public static class CSharpLiteralWriter
         return stops.Count == 0
             ? string.Empty
             : $", GradientStops = {{ {string.Join(", ", stops)} }}";
+    }
+
+    private static string WritePointCollection(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+    {
+        var points = new List<string>();
+        int count = ReadInt(properties, "Count");
+        for (int index = 0; index < count; index++)
+        {
+            if (properties.TryGetValue($"Point{index}", out DesignPropertyValue? point))
+                points.Add(WriteValue(point));
+        }
+        return points.Count == 0
+            ? "new ModernFormsNext.Drawing.PointCollection()"
+            : $"new ModernFormsNext.Drawing.PointCollection {{ {string.Join(", ", points)} }}";
+    }
+
+    private static string WriteGeometryInitializer(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+        => properties.TryGetValue("Transform", out DesignPropertyValue? transform)
+            ? $" {{ Transform = {WriteValue(transform)} }}"
+            : string.Empty;
+
+    private static string WritePathGeometry(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+    {
+        var figures = new List<string>();
+        int count = ReadInt(properties, "FigureCount");
+        for (int index = 0; index < count; index++)
+        {
+            if (properties.TryGetValue($"Figure{index}", out DesignPropertyValue? figure))
+                figures.Add(WritePathFigure(figure));
+        }
+
+        var assignments = new List<string>
+        {
+            "FillRule = " + ReadValue(properties, "FillRule", "ModernFormsNext.Drawing.GeometryFillRule.Winding"),
+            "Transform = " + ReadValue(properties, "Transform", "System.Numerics.Matrix3x2.Identity")
+        };
+        if (figures.Count > 0)
+            assignments.Add($"Figures = {{ {string.Join(", ", figures)} }}");
+        return $"new ModernFormsNext.Drawing.PathGeometry {{ {string.Join(", ", assignments)} }}";
+    }
+
+    private static string WritePathFigure(DesignPropertyValue value)
+    {
+        IReadOnlyDictionary<string, DesignPropertyValue> properties = value.ObjectProperties
+            ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        var segments = new List<string>();
+        int count = ReadInt(properties, "SegmentCount");
+        for (int index = 0; index < count; index++)
+        {
+            if (properties.TryGetValue($"Segment{index}", out DesignPropertyValue? segment))
+                segments.Add(WritePathSegment(segment));
+        }
+
+        string result = "new ModernFormsNext.Drawing.PathFigure("
+            + ReadValue(properties, "StartPoint", "System.Drawing.PointF.Empty") + ", "
+            + ReadBoolLiteral(properties, "IsClosed") + ")";
+        return segments.Count == 0
+            ? result
+            : result + $" {{ Segments = {{ {string.Join(", ", segments)} }} }}";
+    }
+
+    private static string WritePathSegment(DesignPropertyValue value)
+    {
+        string typeName = value.ObjectTypeName ?? string.Empty;
+        IReadOnlyDictionary<string, DesignPropertyValue> properties = value.ObjectProperties
+            ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        if (IsType(typeName, "ModernFormsNext.Drawing.LineSegment"))
+            return $"new ModernFormsNext.Drawing.LineSegment({ReadValue(properties, "Point", "System.Drawing.PointF.Empty")})";
+        if (IsType(typeName, "ModernFormsNext.Drawing.QuadraticBezierSegment"))
+        {
+            return "new ModernFormsNext.Drawing.QuadraticBezierSegment("
+                + ReadValue(properties, "ControlPoint", "System.Drawing.PointF.Empty") + ", "
+                + ReadValue(properties, "Point", "System.Drawing.PointF.Empty") + ")";
+        }
+        if (IsType(typeName, "ModernFormsNext.Drawing.BezierSegment"))
+        {
+            return "new ModernFormsNext.Drawing.BezierSegment("
+                + ReadValue(properties, "ControlPoint1", "System.Drawing.PointF.Empty") + ", "
+                + ReadValue(properties, "ControlPoint2", "System.Drawing.PointF.Empty") + ", "
+                + ReadValue(properties, "Point", "System.Drawing.PointF.Empty") + ")";
+        }
+        throw new NotSupportedException($"Unsupported path segment type '{typeName}'.");
     }
 
     private static string WriteFontStyle(IReadOnlyDictionary<string, DesignPropertyValue> properties)

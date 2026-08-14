@@ -202,7 +202,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     private static string? FindNearestProjectPath(string path)
     {
         var directory = File.Exists(path)
-            ? Path.GetDirectoryName(path)
+            ? IOPath.GetDirectoryName(path)
             : Directory.Exists(path)
                 ? path
                 : null;

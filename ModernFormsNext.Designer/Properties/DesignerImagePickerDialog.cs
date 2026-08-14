@@ -120,12 +120,12 @@ internal sealed class DesignerImagePickerDialog : Form
         }
 
         foreach (var path in Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories)
-                     .Where(path => ImageExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                     .Where(path => ImageExtensions.Contains(IOPath.GetExtension(path), StringComparer.OrdinalIgnoreCase))
                      .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                      .Take(500))
         {
             imagePaths.Add(path);
-            imageList.Items.Add(Path.GetRelativePath(projectDirectory, path));
+            imageList.Items.Add(IOPath.GetRelativePath(projectDirectory, path));
         }
 
         if (imagePaths.Count == 0)
@@ -151,7 +151,7 @@ internal sealed class DesignerImagePickerDialog : Form
         if (string.IsNullOrWhiteSpace(designDocumentPath))
             return null;
 
-        var directory = Path.GetDirectoryName(designDocumentPath);
+        var directory = IOPath.GetDirectoryName(designDocumentPath);
         return string.IsNullOrWhiteSpace(directory) ? null : directory;
     }
 }

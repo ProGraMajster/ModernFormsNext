@@ -57,6 +57,7 @@ namespace ControlGallery
             tree.Items.Add ("Ribbon", ImageLoader.Get ("button.png"));
             tree.Items.Add ("RichTextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ScrollableControl", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Shapes", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("ScrollBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("SplitContainer", ImageLoader.Get ("button.png"));
             tree.Items.Add ("StatusBar", ImageLoader.Get ("button.png"));
@@ -180,6 +181,8 @@ namespace ControlGallery
                     return new RichTextBoxPanel();
                 case "ScrollableControl":
                     return new ScrollableControlPanel ();
+                case "Shapes":
+                    return new ShapesPanel ();
                 case "ScrollBar":
                     return new ScrollBarPanel ();
                 case "SplitContainer":
