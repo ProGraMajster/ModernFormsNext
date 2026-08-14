@@ -50,13 +50,13 @@ public static class MarkdownImageAssetProcessor
                 return Failed("The destination directory must be configured by the host.");
             if (string.IsNullOrWhiteSpace(options.MarkdownBaseDirectory))
                 return Failed("The Markdown base directory must be configured by the host.");
-            if (!Path.IsPathFullyQualified(options.DestinationDirectory)
-                || !Path.IsPathFullyQualified(options.MarkdownBaseDirectory))
+            if (!System.IO.Path.IsPathFullyQualified(options.DestinationDirectory)
+                || !System.IO.Path.IsPathFullyQualified(options.MarkdownBaseDirectory))
             {
                 return Failed("Asset destination and Markdown base directories must be fully qualified.");
             }
 
-            var fullSourcePath = Path.GetFullPath(sourcePath);
+            var fullSourcePath = System.IO.Path.GetFullPath(sourcePath);
             var sourceInfo = new FileInfo(fullSourcePath);
             if (!sourceInfo.Exists)
                 return Failed("The selected image file does not exist.");
@@ -72,15 +72,15 @@ public static class MarkdownImageAssetProcessor
                 return Failed("The image content does not match its file extension.");
             }
 
-            var destinationDirectory = Path.GetFullPath(options.DestinationDirectory);
-            var markdownBaseDirectory = Path.GetFullPath(options.MarkdownBaseDirectory);
+            var destinationDirectory = System.IO.Path.GetFullPath(options.DestinationDirectory);
+            var markdownBaseDirectory = System.IO.Path.GetFullPath(options.MarkdownBaseDirectory);
             Directory.CreateDirectory(destinationDirectory);
 
             var preferredName = string.IsNullOrWhiteSpace(options.PreferredFileName)
                 ? sourceInfo.Name
                 : options.PreferredFileName;
             var sanitizedName = SanitizeFileName(preferredName!, extension);
-            var destinationPath = Path.Combine(destinationDirectory, sanitizedName);
+            var destinationPath = System.IO.Path.Combine(destinationDirectory, sanitizedName);
 
             if (File.Exists(destinationPath))
             {
@@ -105,7 +105,7 @@ public static class MarkdownImageAssetProcessor
             if (pathValidation is not null)
                 return pathValidation;
 
-            temporaryPath = Path.Combine(destinationDirectory, $".mfn-{Guid.NewGuid():N}.tmp");
+            temporaryPath = System.IO.Path.Combine(destinationDirectory, $".mfn-{Guid.NewGuid():N}.tmp");
             await CopyLimitedAsync(fullSourcePath, temporaryPath, options.MaxFileBytes, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -218,12 +218,12 @@ public static class MarkdownImageAssetProcessor
 
     private static string GetUniquePath(string path)
     {
-        var directory = Path.GetDirectoryName(path) ?? string.Empty;
-        var name = Path.GetFileNameWithoutExtension(path);
-        var extension = Path.GetExtension(path);
+        var directory = System.IO.Path.GetDirectoryName(path) ?? string.Empty;
+        var name = System.IO.Path.GetFileNameWithoutExtension(path);
+        var extension = System.IO.Path.GetExtension(path);
         for (var suffix = 2; suffix < int.MaxValue; suffix++)
         {
-            var candidate = Path.Combine(directory, $"{name}-{suffix}{extension}");
+            var candidate = System.IO.Path.Combine(directory, $"{name}-{suffix}{extension}");
             if (!File.Exists(candidate))
                 return candidate;
         }
@@ -266,11 +266,11 @@ public static class MarkdownImageAssetProcessor
 
     private static string SanitizeFileName(string preferredName, string sourceExtension)
     {
-        var baseName = Path.GetFileNameWithoutExtension(preferredName).Trim().TrimEnd('.');
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(preferredName).Trim().TrimEnd('.');
         if (baseName.Length == 0)
             baseName = "image";
 
-        var invalid = Path.GetInvalidFileNameChars();
+        var invalid = System.IO.Path.GetInvalidFileNameChars();
         var portableInvalid = "<>:\"/\\|?*";
         var sanitized = new string(baseName
             .Select(character => invalid.Contains(character) || portableInvalid.Contains(character) ? '_' : character)
@@ -294,8 +294,8 @@ public static class MarkdownImageAssetProcessor
         MarkdownImageAssetOptions options,
         out string markdownSource)
     {
-        markdownSource = Path.GetRelativePath(markdownBaseDirectory, destinationPath);
-        if (Path.IsPathFullyQualified(markdownSource) && !options.AllowAbsoluteMarkdownSource)
+        markdownSource = System.IO.Path.GetRelativePath(markdownBaseDirectory, destinationPath);
+        if (System.IO.Path.IsPathFullyQualified(markdownSource) && !options.AllowAbsoluteMarkdownSource)
             return Failed("A relative Markdown path cannot be formed for the selected destination.");
 
         markdownSource = markdownSource.Replace('\\', '/');

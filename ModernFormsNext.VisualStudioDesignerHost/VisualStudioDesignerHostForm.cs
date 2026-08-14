@@ -98,14 +98,14 @@ public sealed class VisualStudioDesignerHostForm : Form
     private static string GetWindowTitle(string? designDocumentPath)
         => string.IsNullOrWhiteSpace(designDocumentPath)
             ? "ModernFormsNext Designer"
-            : $"{Path.GetFileName(designDocumentPath)} [Design] - ModernFormsNext Designer";
+            : $"{IOPath.GetFileName(designDocumentPath)} [Design] - ModernFormsNext Designer";
 
     private static string? FindNearestProjectPath(string? path)
     {
         var directory = string.IsNullOrWhiteSpace(path)
             ? null
             : File.Exists(path)
-                ? Path.GetDirectoryName(path)
+                ? IOPath.GetDirectoryName(path)
                 : Directory.Exists(path)
                     ? path
                     : null;

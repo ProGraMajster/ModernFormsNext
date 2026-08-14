@@ -248,7 +248,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
 
         try
         {
-            var candidate = NormalizeExistingFilePath(Path.GetFullPath(Path.Combine(projectDirectory, canonicalName)));
+            var candidate = NormalizeExistingFilePath(IOPath.GetFullPath(IOPath.Combine(projectDirectory, canonicalName)));
 
             return candidate;
         }
@@ -282,7 +282,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
             return rootName;
 
         return File.Exists(rootName)
-            ? Path.GetDirectoryName(rootName)
+            ? IOPath.GetDirectoryName(rootName)
             : null;
     }
 
@@ -293,7 +293,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         if (candidate.Trim().Length == 0)
             return null;
 
-        if (Path.IsPathRooted(candidate) && File.Exists(candidate))
+        if (IOPath.IsPathRooted(candidate) && File.Exists(candidate))
             return candidate;
 
         var sourceExtensionIndex = candidate.IndexOf(".cs", StringComparison.OrdinalIgnoreCase);
@@ -303,7 +303,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
 
         var sourcePath = candidate.Substring(0, sourceExtensionIndex + 3);
 
-        return Path.IsPathRooted(sourcePath) && File.Exists(sourcePath)
+        return IOPath.IsPathRooted(sourcePath) && File.Exists(sourcePath)
             ? sourcePath
             : null;
     }
@@ -351,8 +351,8 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         var document = new DesignDocument
         {
             Namespace = fileInfo.Namespace ?? string.Empty,
-            ClassName = fileInfo.ClassName ?? Path.GetFileNameWithoutExtension(fileInfo.CodeFilePath),
-            FormName = fileInfo.ClassName ?? Path.GetFileNameWithoutExtension(fileInfo.CodeFilePath),
+            ClassName = fileInfo.ClassName ?? IOPath.GetFileNameWithoutExtension(fileInfo.CodeFilePath),
+            FormName = fileInfo.ClassName ?? IOPath.GetFileNameWithoutExtension(fileInfo.CodeFilePath),
             RootKind = fileInfo.RootKind,
             Size = new DesignSize(900, 600)
         };
@@ -362,7 +362,7 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
 
     private static string? FindNearestProjectPath(string path)
     {
-        string? directory = File.Exists(path) ? Path.GetDirectoryName(path) : path;
+        string? directory = File.Exists(path) ? IOPath.GetDirectoryName(path) : path;
         while (!string.IsNullOrWhiteSpace(directory))
         {
             string? project = Directory.GetFiles(directory, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();

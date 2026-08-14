@@ -14,7 +14,7 @@ public sealed class ModernFormsDesignFileLocator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(codeFilePath);
 
-        return Path.ChangeExtension(codeFilePath, ".mfdesign");
+        return IOPath.ChangeExtension(codeFilePath, ".mfdesign");
     }
 
     /// <summary>
@@ -26,9 +26,9 @@ public sealed class ModernFormsDesignFileLocator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(codeFilePath);
 
-        var directory = Path.GetDirectoryName(codeFilePath) ?? string.Empty;
-        var fileName = Path.GetFileNameWithoutExtension(codeFilePath);
-        return Path.Combine(directory, $"{fileName}.Designer.cs");
+        var directory = IOPath.GetDirectoryName(codeFilePath) ?? string.Empty;
+        var fileName = IOPath.GetFileNameWithoutExtension(codeFilePath);
+        return IOPath.Combine(directory, $"{fileName}.Designer.cs");
     }
 
     /// <summary>
@@ -40,6 +40,6 @@ public sealed class ModernFormsDesignFileLocator
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(designFilePath);
 
-        return Path.ChangeExtension(designFilePath, ".cs");
+        return IOPath.ChangeExtension(designFilePath, ".cs");
     }
 }

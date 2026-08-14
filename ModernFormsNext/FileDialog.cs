@@ -30,12 +30,12 @@ namespace ModernFormsNext
         /// Gets or sets the selected files. If there are multiple files selected, the first one is returned.
         /// </summary>
         public string? FileName {
-            get => FileNames.Count > 0 ? Path.GetFullPath (FileNames[0]) : null;
+            get => FileNames.Count > 0 ? System.IO.Path.GetFullPath (FileNames[0]) : null;
             set {
                 FileNames.Clear ();
 
                 if (value != null)
-                    FileNames.Add (Path.GetFullPath (value));
+                    FileNames.Add (System.IO.Path.GetFullPath (value));
             }
         }
 

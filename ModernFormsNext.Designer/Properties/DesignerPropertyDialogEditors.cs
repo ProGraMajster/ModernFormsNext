@@ -80,6 +80,51 @@ internal static class DesignerPropertyDialogEditors
             return true;
         };
 
+    public static Func<DesignerPropertyDialogContext, Task<bool>> PointCollection(
+        Func<ModernFormsNext.Drawing.PointCollection?> getPoints,
+        Func<ModernFormsNext.Drawing.PointCollection, (bool Success, string? Error)> setPoints)
+        => async context =>
+        {
+            var dialog = new DesignerPointCollectionDialog(getPoints());
+            if (await dialog.ShowDialog(context.Owner) != DialogResult.OK)
+                return false;
+
+            var result = setPoints(dialog.Points);
+            if (!result.Success)
+            {
+                context.Session.Log($"Point collection editor failed: {result.Error}");
+                return false;
+            }
+
+            return true;
+        };
+
+    public static Func<DesignerPropertyDialogContext, Task<bool>> PathGeometry(
+        Func<ModernFormsNext.Drawing.Geometry?> getGeometry,
+        Func<ModernFormsNext.Drawing.Geometry, (bool Success, string? Error)> setGeometry)
+        => async context =>
+        {
+            ModernFormsNext.Drawing.Geometry? current = getGeometry();
+            if (current is not null and not ModernFormsNext.Drawing.PathGeometry)
+            {
+                context.Session.Log("The structured geometry dialog edits PathGeometry. Use the inline editor for LineGeometry, RectangleGeometry, or EllipseGeometry.");
+                return false;
+            }
+
+            var dialog = new DesignerPathGeometryDialog(current as ModernFormsNext.Drawing.PathGeometry);
+            if (await dialog.ShowDialog(context.Owner) != DialogResult.OK)
+                return false;
+
+            var result = setGeometry(dialog.Geometry);
+            if (!result.Success)
+            {
+                context.Session.Log($"Path geometry editor failed: {result.Error}");
+                return false;
+            }
+
+            return true;
+        };
+
     public static Func<DesignerPropertyDialogContext, Task<bool>> ImageLocation(DesignControlNode node)
         => async context =>
         {

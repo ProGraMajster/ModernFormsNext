@@ -29,6 +29,7 @@ internal static class DesignerPropertyValueEditor
             System.Drawing.Point point => $"{point.X}, {point.Y}",
             System.Drawing.PointF point => $"{point.X.ToString("R", CultureInfo.InvariantCulture)}, {point.Y.ToString("R", CultureInfo.InvariantCulture)}",
             System.Drawing.Rectangle rectangle => $"{rectangle.X}, {rectangle.Y}, {rectangle.Width}, {rectangle.Height}",
+            System.Drawing.RectangleF rectangle => $"{rectangle.X.ToString("R", CultureInfo.InvariantCulture)}, {rectangle.Y.ToString("R", CultureInfo.InvariantCulture)}, {rectangle.Width.ToString("R", CultureInfo.InvariantCulture)}, {rectangle.Height.ToString("R", CultureInfo.InvariantCulture)}",
             SKPoint point => $"{point.X.ToString("R", CultureInfo.InvariantCulture)}, {point.Y.ToString("R", CultureInfo.InvariantCulture)}",
             SKSize size => $"{size.Width.ToString("R", CultureInfo.InvariantCulture)}, {size.Height.ToString("R", CultureInfo.InvariantCulture)}",
             SKRect rect => $"{rect.Left.ToString("R", CultureInfo.InvariantCulture)}, {rect.Top.ToString("R", CultureInfo.InvariantCulture)}, {rect.Right.ToString("R", CultureInfo.InvariantCulture)}, {rect.Bottom.ToString("R", CultureInfo.InvariantCulture)}",
@@ -40,6 +41,8 @@ internal static class DesignerPropertyValueEditor
             ModernFormsNext.Drawing.RadialGradientBrush radialBrush => $"RadialGradientBrush ({radialBrush.GradientStops.Count} stops)",
             ModernFormsNext.Drawing.SweepGradientBrush sweepBrush => $"SweepGradientBrush ({sweepBrush.GradientStops.Count} stops)",
             ModernFormsNext.Drawing.Brush => "<custom brush>",
+            ModernFormsNext.Drawing.PointCollection points => WritePointCollectionText(points),
+            ModernFormsNext.Drawing.Geometry geometry => WriteGeometryText(geometry),
             ModernFormsNext.Font font => $"{font.FamilyName}, {font.SizeInPoints.ToString("G", CultureInfo.InvariantCulture)}pt",
             float floatValue => floatValue.ToString("R", CultureInfo.InvariantCulture),
             double doubleValue => doubleValue.ToString("R", CultureInfo.InvariantCulture),
@@ -142,8 +145,14 @@ internal static class DesignerPropertyValueEditor
         if (targetType == typeof(System.Drawing.Point))
             return TryParsePoint(trimmed, out value, out error);
 
+        if (targetType == typeof(System.Drawing.PointF))
+            return TryParsePointF(trimmed, out value, out error);
+
         if (targetType == typeof(System.Drawing.Rectangle))
             return TryParseRectangle(trimmed, out value, out error);
+
+        if (targetType == typeof(System.Drawing.RectangleF))
+            return TryParseRectangleF(trimmed, out value, out error);
 
         if (targetType == typeof(DesignSize))
             return TryParseDesignSize(trimmed, out value, out error);
@@ -184,6 +193,12 @@ internal static class DesignerPropertyValueEditor
 
         if (targetType == typeof(ModernFormsNext.Font))
             return TryParseFont(trimmed, out value, out error);
+
+        if (targetType == typeof(ModernFormsNext.Drawing.PointCollection))
+            return TryParsePointCollection(trimmed, out value, out error);
+
+        if (typeof(ModernFormsNext.Drawing.Geometry).IsAssignableFrom(targetType))
+            return TryParseGeometry(trimmed, out value, out error);
 
         error = $"Values of type '{targetType.Name}' are not editable yet.";
         value = null;
@@ -255,6 +270,15 @@ internal static class DesignerPropertyValueEditor
                 ["Height"] = DesignPropertyValue.FromInt32(rectangle.Height)
             });
 
+        if (value is System.Drawing.RectangleF rectangleF)
+            return DesignPropertyValue.FromStructuredObject(typeof(System.Drawing.RectangleF).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+            {
+                ["X"] = DesignPropertyValue.FromDouble(rectangleF.X),
+                ["Y"] = DesignPropertyValue.FromDouble(rectangleF.Y),
+                ["Width"] = DesignPropertyValue.FromDouble(rectangleF.Width),
+                ["Height"] = DesignPropertyValue.FromDouble(rectangleF.Height)
+            });
+
         if (value is DesignBounds designBounds)
             return DesignPropertyValue.FromStructuredObject(typeof(DesignBounds).FullName!, new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
             {
@@ -320,6 +344,12 @@ internal static class DesignerPropertyValueEditor
 
         if (value is ModernFormsNext.Drawing.SweepGradientBrush sweepGradientBrush)
             return ToSweepGradientBrushPropertyValue(sweepGradientBrush);
+
+        if (value is ModernFormsNext.Drawing.PointCollection points)
+            return ToPointCollectionPropertyValue(points);
+
+        if (value is ModernFormsNext.Drawing.Geometry geometry)
+            return ToGeometryPropertyValue(geometry);
 
         if (value is ModernFormsNext.Font font)
             return ToFontPropertyValue(font);
@@ -459,6 +489,83 @@ internal static class DesignerPropertyValueEditor
         }
     }
 
+    private static DesignPropertyValue ToPointCollectionPropertyValue(ModernFormsNext.Drawing.PointCollection points)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+        {
+            ["Count"] = DesignPropertyValue.FromInt32(points.Count)
+        };
+        for (int index = 0; index < points.Count; index++)
+            properties[$"Point{index}"] = ToDesignPropertyValue(points[index], typeof(System.Drawing.PointF));
+        return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.PointCollection).FullName!, properties);
+    }
+
+    private static DesignPropertyValue ToGeometryPropertyValue(ModernFormsNext.Drawing.Geometry geometry)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+        {
+            ["Transform"] = ToDesignPropertyValue(geometry.Transform, typeof(Matrix3x2))
+        };
+
+        switch (geometry)
+        {
+            case ModernFormsNext.Drawing.LineGeometry line:
+                properties["StartPoint"] = ToDesignPropertyValue(line.StartPoint, typeof(System.Drawing.PointF));
+                properties["EndPoint"] = ToDesignPropertyValue(line.EndPoint, typeof(System.Drawing.PointF));
+                break;
+            case ModernFormsNext.Drawing.RectangleGeometry rectangle:
+                properties["Rect"] = ToDesignPropertyValue(rectangle.Rect, typeof(System.Drawing.RectangleF));
+                break;
+            case ModernFormsNext.Drawing.EllipseGeometry ellipse:
+                properties["Rect"] = ToDesignPropertyValue(ellipse.Rect, typeof(System.Drawing.RectangleF));
+                break;
+            case ModernFormsNext.Drawing.PathGeometry path:
+                properties["FillRule"] = DesignPropertyValue.FromEnum(
+                    typeof(ModernFormsNext.Drawing.GeometryFillRule).FullName!,
+                    path.FillRule.ToString());
+                properties["FigureCount"] = DesignPropertyValue.FromInt32(path.Figures.Count);
+                for (int index = 0; index < path.Figures.Count; index++)
+                    properties[$"Figure{index}"] = ToPathFigurePropertyValue(path.Figures[index]);
+                break;
+        }
+
+        return DesignPropertyValue.FromStructuredObject(geometry.GetType().FullName!, properties);
+    }
+
+    private static DesignPropertyValue ToPathFigurePropertyValue(ModernFormsNext.Drawing.PathFigure figure)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+        {
+            ["StartPoint"] = ToDesignPropertyValue(figure.StartPoint, typeof(System.Drawing.PointF)),
+            ["IsClosed"] = DesignPropertyValue.FromBoolean(figure.IsClosed),
+            ["SegmentCount"] = DesignPropertyValue.FromInt32(figure.Segments.Count)
+        };
+        for (int index = 0; index < figure.Segments.Count; index++)
+            properties[$"Segment{index}"] = ToPathSegmentPropertyValue(figure.Segments[index]);
+        return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.PathFigure).FullName!, properties);
+    }
+
+    private static DesignPropertyValue ToPathSegmentPropertyValue(ModernFormsNext.Drawing.PathSegment segment)
+    {
+        var properties = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        switch (segment)
+        {
+            case ModernFormsNext.Drawing.LineSegment line:
+                properties["Point"] = ToDesignPropertyValue(line.Point, typeof(System.Drawing.PointF));
+                break;
+            case ModernFormsNext.Drawing.QuadraticBezierSegment quadratic:
+                properties["ControlPoint"] = ToDesignPropertyValue(quadratic.ControlPoint, typeof(System.Drawing.PointF));
+                properties["Point"] = ToDesignPropertyValue(quadratic.Point, typeof(System.Drawing.PointF));
+                break;
+            case ModernFormsNext.Drawing.BezierSegment cubic:
+                properties["ControlPoint1"] = ToDesignPropertyValue(cubic.ControlPoint1, typeof(System.Drawing.PointF));
+                properties["ControlPoint2"] = ToDesignPropertyValue(cubic.ControlPoint2, typeof(System.Drawing.PointF));
+                properties["Point"] = ToDesignPropertyValue(cubic.Point, typeof(System.Drawing.PointF));
+                break;
+        }
+        return DesignPropertyValue.FromStructuredObject(segment.GetType().FullName!, properties);
+    }
+
     public static string ToHex(SKColor color)
         => color.Alpha == byte.MaxValue
             ? $"#{color.Red:X2}{color.Green:X2}{color.Blue:X2}"
@@ -479,6 +586,13 @@ internal static class DesignerPropertyValueEditor
 
         if (targetType == typeof(System.Drawing.PointF))
             return new System.Drawing.PointF((float)ReadDouble(properties, "X"), (float)ReadDouble(properties, "Y"));
+
+        if (targetType == typeof(System.Drawing.RectangleF))
+            return new System.Drawing.RectangleF(
+                (float)ReadDouble(properties, "X"),
+                (float)ReadDouble(properties, "Y"),
+                (float)ReadDouble(properties, "Width"),
+                (float)ReadDouble(properties, "Height"));
 
         if (targetType == typeof(Matrix3x2))
             return new Matrix3x2(
@@ -599,7 +713,391 @@ internal static class DesignerPropertyValueEditor
             return new ModernFormsNext.Font(ReadString(properties, "Name", "Segoe UI"), (float)ReadDouble(properties, "Size", 9), style);
         }
 
+        if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.PointCollection))
+            || targetType == typeof(ModernFormsNext.Drawing.PointCollection))
+        {
+            var result = new ModernFormsNext.Drawing.PointCollection();
+            int count = ReadInt(properties, "Count");
+            for (int index = 0; index < count; index++)
+            {
+                if (properties.TryGetValue($"Point{index}", out DesignPropertyValue? pointValue)
+                    && FromDesignPropertyValue(pointValue, typeof(System.Drawing.PointF)) is System.Drawing.PointF point)
+                {
+                    result.Add(point);
+                }
+            }
+            return result;
+        }
+
+        if (typeof(ModernFormsNext.Drawing.Geometry).IsAssignableFrom(targetType)
+            || IsGeometryTypeName(value.ObjectTypeName))
+        {
+            return FromGeometryPropertyValue(value, properties);
+        }
+
         return value;
+    }
+
+    private static ModernFormsNext.Drawing.Geometry FromGeometryPropertyValue(
+        DesignPropertyValue value,
+        IReadOnlyDictionary<string, DesignPropertyValue> properties)
+    {
+        ModernFormsNext.Drawing.Geometry geometry;
+        if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.LineGeometry)))
+        {
+            geometry = new ModernFormsNext.Drawing.LineGeometry(
+                ReadPointF(properties, "StartPoint"),
+                ReadPointF(properties, "EndPoint"));
+        }
+        else if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.RectangleGeometry)))
+        {
+            geometry = new ModernFormsNext.Drawing.RectangleGeometry(ReadRectangleF(properties, "Rect"));
+        }
+        else if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.EllipseGeometry)))
+        {
+            geometry = new ModernFormsNext.Drawing.EllipseGeometry(ReadRectangleF(properties, "Rect"));
+        }
+        else
+        {
+            var path = new ModernFormsNext.Drawing.PathGeometry();
+            if (properties.TryGetValue("FillRule", out DesignPropertyValue? fillRuleValue)
+                && FromDesignPropertyValue(fillRuleValue, typeof(ModernFormsNext.Drawing.GeometryFillRule)) is ModernFormsNext.Drawing.GeometryFillRule fillRule)
+            {
+                path.FillRule = fillRule;
+            }
+
+            int count = ReadInt(properties, "FigureCount");
+            for (int index = 0; index < count; index++)
+            {
+                if (properties.TryGetValue($"Figure{index}", out DesignPropertyValue? figureValue))
+                    path.Figures.Add(FromPathFigurePropertyValue(figureValue));
+            }
+            geometry = path;
+        }
+
+        if (properties.TryGetValue("Transform", out DesignPropertyValue? transformValue)
+            && FromDesignPropertyValue(transformValue, typeof(Matrix3x2)) is Matrix3x2 transform)
+        {
+            geometry.Transform = transform;
+        }
+        return geometry;
+    }
+
+    private static ModernFormsNext.Drawing.PathFigure FromPathFigurePropertyValue(DesignPropertyValue value)
+    {
+        IReadOnlyDictionary<string, DesignPropertyValue> properties = value.ObjectProperties
+            ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        var figure = new ModernFormsNext.Drawing.PathFigure(
+            ReadPointF(properties, "StartPoint"),
+            ReadBool(properties, "IsClosed"));
+        int count = ReadInt(properties, "SegmentCount");
+        for (int index = 0; index < count; index++)
+        {
+            if (properties.TryGetValue($"Segment{index}", out DesignPropertyValue? segmentValue)
+                && FromPathSegmentPropertyValue(segmentValue) is { } segment)
+            {
+                figure.Segments.Add(segment);
+            }
+        }
+        return figure;
+    }
+
+    private static ModernFormsNext.Drawing.PathSegment? FromPathSegmentPropertyValue(DesignPropertyValue value)
+    {
+        IReadOnlyDictionary<string, DesignPropertyValue> properties = value.ObjectProperties
+            ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+        if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.LineSegment)))
+            return new ModernFormsNext.Drawing.LineSegment(ReadPointF(properties, "Point"));
+        if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.QuadraticBezierSegment)))
+        {
+            return new ModernFormsNext.Drawing.QuadraticBezierSegment(
+                ReadPointF(properties, "ControlPoint"),
+                ReadPointF(properties, "Point"));
+        }
+        if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.BezierSegment)))
+        {
+            return new ModernFormsNext.Drawing.BezierSegment(
+                ReadPointF(properties, "ControlPoint1"),
+                ReadPointF(properties, "ControlPoint2"),
+                ReadPointF(properties, "Point"));
+        }
+        return null;
+    }
+
+    private static string WritePointCollectionText(ModernFormsNext.Drawing.PointCollection points)
+        => string.Join("; ", points.Select(FormatPoint));
+
+    private static string WriteGeometryText(ModernFormsNext.Drawing.Geometry geometry)
+    {
+        string transform = geometry.Transform == Matrix3x2.Identity
+            ? string.Empty
+            : $"transform({FormatMatrix(geometry.Transform)}) ";
+
+        return geometry switch
+        {
+            ModernFormsNext.Drawing.LineGeometry line =>
+                $"{transform}line {FormatPoint(line.StartPoint)} {FormatPoint(line.EndPoint)}",
+            ModernFormsNext.Drawing.RectangleGeometry rectangle =>
+                $"{transform}rectangle {FormatRectangle(rectangle.Rect)}",
+            ModernFormsNext.Drawing.EllipseGeometry ellipse =>
+                $"{transform}ellipse {FormatRectangle(ellipse.Rect)}",
+            ModernFormsNext.Drawing.PathGeometry path =>
+                $"{transform}path {path.FillRule.ToString().ToLowerInvariant()} {WritePathFigures(path)}".TrimEnd(),
+            _ => geometry.GetType().Name
+        };
+    }
+
+    private static string WritePathFigures(ModernFormsNext.Drawing.PathGeometry path)
+    {
+        var parts = new List<string>();
+        foreach (ModernFormsNext.Drawing.PathFigure figure in path.Figures)
+        {
+            parts.Add("M");
+            parts.Add(FormatPoint(figure.StartPoint));
+            foreach (ModernFormsNext.Drawing.PathSegment segment in figure.Segments)
+            {
+                switch (segment)
+                {
+                    case ModernFormsNext.Drawing.LineSegment line:
+                        parts.Add("L");
+                        parts.Add(FormatPoint(line.Point));
+                        break;
+                    case ModernFormsNext.Drawing.QuadraticBezierSegment quadratic:
+                        parts.Add("Q");
+                        parts.Add(FormatPoint(quadratic.ControlPoint));
+                        parts.Add(FormatPoint(quadratic.Point));
+                        break;
+                    case ModernFormsNext.Drawing.BezierSegment cubic:
+                        parts.Add("C");
+                        parts.Add(FormatPoint(cubic.ControlPoint1));
+                        parts.Add(FormatPoint(cubic.ControlPoint2));
+                        parts.Add(FormatPoint(cubic.Point));
+                        break;
+                }
+            }
+
+            if (figure.IsClosed)
+                parts.Add("Z");
+        }
+        return string.Join(' ', parts);
+    }
+
+    private static string FormatPoint(System.Drawing.PointF point)
+        => $"{point.X.ToString("R", CultureInfo.InvariantCulture)},{point.Y.ToString("R", CultureInfo.InvariantCulture)}";
+
+    private static string FormatRectangle(System.Drawing.RectangleF rectangle)
+        => $"{rectangle.X.ToString("R", CultureInfo.InvariantCulture)},{rectangle.Y.ToString("R", CultureInfo.InvariantCulture)},{rectangle.Width.ToString("R", CultureInfo.InvariantCulture)},{rectangle.Height.ToString("R", CultureInfo.InvariantCulture)}";
+
+    private static string FormatMatrix(Matrix3x2 matrix)
+        => string.Join(',', new[] { matrix.M11, matrix.M12, matrix.M21, matrix.M22, matrix.M31, matrix.M32 }
+            .Select(value => value.ToString("R", CultureInfo.InvariantCulture)));
+
+    private static bool TryParsePointF(string text, out object? value, out string? error)
+    {
+        if (TryReadFloatList(text, 2, out float[] parts, out error))
+        {
+            value = new System.Drawing.PointF(parts[0], parts[1]);
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryParseRectangleF(string text, out object? value, out string? error)
+    {
+        if (TryReadFloatList(text, 4, out float[] parts, out error))
+        {
+            if (parts[2] < 0 || parts[3] < 0)
+            {
+                value = null;
+                error = "Rectangle width and height cannot be negative.";
+                return false;
+            }
+
+            value = new System.Drawing.RectangleF(parts[0], parts[1], parts[2], parts[3]);
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryParsePointCollection(string text, out object? value, out string? error)
+    {
+        var points = new ModernFormsNext.Drawing.PointCollection();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            value = points;
+            error = null;
+            return true;
+        }
+
+        foreach (string token in text.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!TryParsePointF(token, out object? pointValue, out error)
+                || pointValue is not System.Drawing.PointF point)
+            {
+                value = null;
+                error = "Expected points as 'x,y; x,y; ...'.";
+                return false;
+            }
+            points.Add(point);
+        }
+
+        value = points;
+        error = null;
+        return true;
+    }
+
+    private static bool TryParseGeometry(string text, out object? value, out string? error)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.Equals(text, "null", StringComparison.OrdinalIgnoreCase))
+        {
+            value = null;
+            error = null;
+            return true;
+        }
+
+        string[] tokens = text.Split((char[]?)null, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        int index = 0;
+        Matrix3x2 transform = Matrix3x2.Identity;
+        if (tokens[index].StartsWith("transform(", StringComparison.OrdinalIgnoreCase))
+        {
+            string token = tokens[index++];
+            if (!token.EndsWith(')'))
+                return FailGeometry("Expected transform(m11,m12,m21,m22,m31,m32).", out value, out error);
+            if (!TryReadFloatList(token[10..^1], 6, out float[] matrix, out _))
+                return FailGeometry("Expected six finite transform components.", out value, out error);
+            transform = new Matrix3x2(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+        }
+
+        if (index >= tokens.Length)
+            return FailGeometry("Expected line, rectangle, ellipse, or path geometry.", out value, out error);
+
+        string kind = tokens[index++].ToLowerInvariant();
+        ModernFormsNext.Drawing.Geometry? geometry;
+        switch (kind)
+        {
+            case "line":
+                if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF start)
+                    || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF end)
+                    || index != tokens.Length)
+                {
+                    return FailGeometry("Expected 'line x1,y1 x2,y2'.", out value, out error);
+                }
+                geometry = new ModernFormsNext.Drawing.LineGeometry(start, end);
+                break;
+            case "rectangle":
+            case "ellipse":
+                if (index >= tokens.Length
+                    || !TryParseRectangleF(tokens[index++], out object? rectangleValue, out _)
+                    || rectangleValue is not System.Drawing.RectangleF rectangle
+                    || index != tokens.Length)
+                {
+                    return FailGeometry($"Expected '{kind} x,y,width,height'.", out value, out error);
+                }
+                geometry = kind == "rectangle"
+                    ? new ModernFormsNext.Drawing.RectangleGeometry(rectangle)
+                    : new ModernFormsNext.Drawing.EllipseGeometry(rectangle);
+                break;
+            case "path":
+                geometry = ParsePathGeometry(tokens, ref index, out error);
+                if (geometry is null)
+                {
+                    value = null;
+                    return false;
+                }
+                break;
+            default:
+                return FailGeometry("Expected line, rectangle, ellipse, or path geometry.", out value, out error);
+        }
+
+        geometry.Transform = transform;
+        value = geometry;
+        error = null;
+        return true;
+    }
+
+    private static ModernFormsNext.Drawing.PathGeometry? ParsePathGeometry(
+        string[] tokens,
+        ref int index,
+        out string? error)
+    {
+        var path = new ModernFormsNext.Drawing.PathGeometry();
+        if (index < tokens.Length
+            && Enum.TryParse(tokens[index], ignoreCase: true, out ModernFormsNext.Drawing.GeometryFillRule fillRule))
+        {
+            path.FillRule = fillRule;
+            index++;
+        }
+
+        ModernFormsNext.Drawing.PathFigure? figure = null;
+        while (index < tokens.Length)
+        {
+            string command = tokens[index++].ToUpperInvariant();
+            switch (command)
+            {
+                case "M":
+                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF start))
+                        return FailPath("Command M requires one point.", out error);
+                    figure = new ModernFormsNext.Drawing.PathFigure(start);
+                    path.Figures.Add(figure);
+                    break;
+                case "L" when figure is not null:
+                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF linePoint))
+                        return FailPath("Command L requires one point.", out error);
+                    figure.Segments.Add(new ModernFormsNext.Drawing.LineSegment(linePoint));
+                    break;
+                case "Q" when figure is not null:
+                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF control)
+                        || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF quadraticPoint))
+                        return FailPath("Command Q requires a control point and an end point.", out error);
+                    figure.Segments.Add(new ModernFormsNext.Drawing.QuadraticBezierSegment(control, quadraticPoint));
+                    break;
+                case "C" when figure is not null:
+                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF control1)
+                        || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF control2)
+                        || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF cubicPoint))
+                        return FailPath("Command C requires two control points and an end point.", out error);
+                    figure.Segments.Add(new ModernFormsNext.Drawing.BezierSegment(control1, control2, cubicPoint));
+                    break;
+                case "Z" when figure is not null:
+                    figure.IsClosed = true;
+                    break;
+                default:
+                    return FailPath("Path commands must start with M and use M, L, Q, C, or Z.", out error);
+            }
+        }
+
+        error = null;
+        return path;
+    }
+
+    private static bool TryReadPointToken(string[] tokens, ref int index, out System.Drawing.PointF point)
+    {
+        point = default;
+        if (index >= tokens.Length
+            || !TryParsePointF(tokens[index++], out object? pointValue, out _)
+            || pointValue is not System.Drawing.PointF parsed)
+        {
+            return false;
+        }
+        point = parsed;
+        return true;
+    }
+
+    private static bool FailGeometry(string message, out object? value, out string? error)
+    {
+        value = null;
+        error = message;
+        return false;
+    }
+
+    private static ModernFormsNext.Drawing.PathGeometry? FailPath(string message, out string? error)
+    {
+        error = message;
+        return null;
     }
 
     private static bool TryParseSize(string text, out object? value, out string? error)
@@ -839,9 +1337,10 @@ internal static class DesignerPropertyValueEditor
 
         for (var i = 0; i < tokens.Length; i++)
         {
-            if (!float.TryParse(tokens[i], NumberStyles.Float, CultureInfo.InvariantCulture, out parts[i]))
+            if (!float.TryParse(tokens[i], NumberStyles.Float, CultureInfo.InvariantCulture, out parts[i])
+                || !float.IsFinite(parts[i]))
             {
-                error = "Expected numeric values.";
+                error = "Expected finite numeric values.";
                 return false;
             }
         }
@@ -900,6 +1399,35 @@ internal static class DesignerPropertyValueEditor
     private static bool IsStructuredType(DesignPropertyValue value, Type type)
         => string.Equals(value.ObjectTypeName, type.FullName, StringComparison.Ordinal)
         || string.Equals(value.ObjectTypeName, type.Name, StringComparison.Ordinal);
+
+    private static bool IsGeometryTypeName(string? typeName)
+        => typeName is not null
+        && new[]
+        {
+            typeof(ModernFormsNext.Drawing.LineGeometry),
+            typeof(ModernFormsNext.Drawing.RectangleGeometry),
+            typeof(ModernFormsNext.Drawing.EllipseGeometry),
+            typeof(ModernFormsNext.Drawing.PathGeometry)
+        }.Any(type => string.Equals(typeName, type.FullName, StringComparison.Ordinal)
+            || string.Equals(typeName, type.Name, StringComparison.Ordinal));
+
+    private static System.Drawing.PointF ReadPointF(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        System.Drawing.PointF fallback = default)
+        => properties.TryGetValue(name, out DesignPropertyValue? value)
+            && FromDesignPropertyValue(value, typeof(System.Drawing.PointF)) is System.Drawing.PointF point
+                ? point
+                : fallback;
+
+    private static System.Drawing.RectangleF ReadRectangleF(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string name,
+        System.Drawing.RectangleF fallback = default)
+        => properties.TryGetValue(name, out DesignPropertyValue? value)
+            && FromDesignPropertyValue(value, typeof(System.Drawing.RectangleF)) is System.Drawing.RectangleF rectangle
+                ? rectangle
+                : fallback;
 
     private static SKColor ReadColor(
         IReadOnlyDictionary<string, DesignPropertyValue> properties,

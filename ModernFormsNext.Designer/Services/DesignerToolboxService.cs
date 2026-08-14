@@ -120,7 +120,8 @@ internal sealed class DesignerToolboxService
         {
             "Common" => 0,
             "Containers" => 1,
-            "Components" => 2,
+            "Shapes" => 2,
+            "Components" => 3,
             _ => 10
         };
 

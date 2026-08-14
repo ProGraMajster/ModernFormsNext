@@ -73,7 +73,7 @@ internal sealed class DesignerHostIpcServer : IDisposable
     {
         try
         {
-            var path = Path.Combine(Path.GetTempPath(), "ModernFormsNextDesignerHost.log");
+            var path = IOPath.Combine(IOPath.GetTempPath(), "ModernFormsNextDesignerHost.log");
             File.AppendAllText(path, $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}");
         }
         catch

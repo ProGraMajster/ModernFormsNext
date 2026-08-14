@@ -95,10 +95,10 @@ internal static class DesignerProjectUserControlDiscovery
             return null;
 
         if (Directory.Exists(projectPath))
-            return Path.GetFullPath(projectPath);
+            return IOPath.GetFullPath(projectPath);
 
         return File.Exists(projectPath)
-            ? Path.GetDirectoryName(Path.GetFullPath(projectPath))
+            ? IOPath.GetDirectoryName(IOPath.GetFullPath(projectPath))
             : null;
     }
 
@@ -189,9 +189,9 @@ internal static class DesignerProjectUserControlDiscovery
 
     internal static bool IsExcludedProjectArtifact(string path, string projectDirectory)
     {
-        var relative = Path.GetRelativePath(projectDirectory, path);
+        var relative = IOPath.GetRelativePath(projectDirectory, path);
         return relative
-            .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Split(IOPath.DirectorySeparatorChar, IOPath.AltDirectorySeparatorChar)
             .Any(segment => segment.Equals("bin", StringComparison.OrdinalIgnoreCase)
                 || segment.Equals("obj", StringComparison.OrdinalIgnoreCase)
                 || segment.Equals("artifacts", StringComparison.OrdinalIgnoreCase)

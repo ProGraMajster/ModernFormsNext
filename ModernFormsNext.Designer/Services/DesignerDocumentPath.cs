@@ -9,8 +9,8 @@ internal static class DesignerDocumentPath
 
         try
         {
-            var fullPath = Path.GetFullPath(path);
-            var extension = Path.GetExtension(fullPath);
+            var fullPath = IOPath.GetFullPath(path);
+            var extension = IOPath.GetExtension(fullPath);
 
             if (string.Equals(extension, ".mfdesign", StringComparison.OrdinalIgnoreCase))
                 return fullPath;
@@ -18,13 +18,13 @@ internal static class DesignerDocumentPath
             if (!string.Equals(extension, ".cs", StringComparison.OrdinalIgnoreCase))
                 return fullPath;
 
-            var directory = Path.GetDirectoryName(fullPath) ?? string.Empty;
-            var fileName = Path.GetFileNameWithoutExtension(fullPath);
+            var directory = IOPath.GetDirectoryName(fullPath) ?? string.Empty;
+            var fileName = IOPath.GetFileNameWithoutExtension(fullPath);
 
             if (fileName.EndsWith(".Designer", StringComparison.OrdinalIgnoreCase))
                 fileName = fileName[..^".Designer".Length];
 
-            return Path.Combine(directory, $"{fileName}.mfdesign");
+            return IOPath.Combine(directory, $"{fileName}.mfdesign");
         }
         catch
         {

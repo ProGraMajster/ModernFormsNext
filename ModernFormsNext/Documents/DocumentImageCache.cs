@@ -289,9 +289,9 @@ internal sealed class DocumentImageCache : IDisposable
                 return await ReadFileLimitedAsync(uri.LocalPath, limits, cancellationToken).ConfigureAwait(false);
         }
 
-        var path = Path.IsPathRooted(source)
+        var path = System.IO.Path.IsPathRooted(source)
             ? source
-            : Path.GetFullPath(source, AppContext.BaseDirectory);
+            : System.IO.Path.GetFullPath(source, AppContext.BaseDirectory);
 
         return await ReadFileLimitedAsync(path, limits, cancellationToken).ConfigureAwait(false);
     }

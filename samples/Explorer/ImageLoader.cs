@@ -14,7 +14,7 @@ namespace Explore
         public static SKBitmap Get (string filename)
         {
             if (!_cache.ContainsKey (filename.ToLowerInvariant ()))
-                _cache.Add (filename.ToLowerInvariant (), SKBitmap.Decode (Path.Combine (_defaultLocation, filename)));
+                _cache.Add (filename.ToLowerInvariant (), SKBitmap.Decode (System.IO.Path.Combine (_defaultLocation, filename)));
 
             return _cache[filename.ToLowerInvariant ()];
         }

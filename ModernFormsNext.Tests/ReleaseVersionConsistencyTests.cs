@@ -36,7 +36,7 @@ public sealed class ReleaseVersionConsistencyTests
             .EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
             .Where(path => !ContainsGeneratedDirectory(path))
             .Where(path => string.Equals(ElementValue(XDocument.Load(path), "IsPackable"), "true", StringComparison.OrdinalIgnoreCase))
-            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+            .Select(path => IOPath.GetRelativePath(root, path).Replace('\\', '/'))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
@@ -113,14 +113,14 @@ public sealed class ReleaseVersionConsistencyTests
 
     private static void AssertRegistrationVersion(string relativePath)
     {
-        string text = File.ReadAllText(Path.Combine(FindRepositoryRoot(), relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        string text = File.ReadAllText(IOPath.Combine(FindRepositoryRoot(), relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
         Assert.Contains($"InstalledProductRegistration", text, StringComparison.Ordinal);
         Assert.Contains($"\"{ExpectedVersion}\"", text, StringComparison.Ordinal);
         Assert.DoesNotContain("\"1.8.0\"", text, StringComparison.Ordinal);
     }
 
     private static XDocument LoadXml(string relativePath)
-        => XDocument.Load(Path.Combine(FindRepositoryRoot(), relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        => XDocument.Load(IOPath.Combine(FindRepositoryRoot(), relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
 
     private static string? ElementValue(XDocument document, string name)
         => document.Descendants().FirstOrDefault(element => element.Name.LocalName == name)?.Value.Trim();
@@ -136,8 +136,8 @@ public sealed class ReleaseVersionConsistencyTests
     {
         for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "Directory.Build.props"))
-                && File.Exists(Path.Combine(directory.FullName, "ModernFormsNext.slnx")))
+            if (File.Exists(IOPath.Combine(directory.FullName, "Directory.Build.props"))
+                && File.Exists(IOPath.Combine(directory.FullName, "ModernFormsNext.slnx")))
                 return directory.FullName;
         }
 

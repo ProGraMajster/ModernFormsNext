@@ -207,6 +207,12 @@ internal static class DesignerPropertyDescriptorFactory
             return true;
         }
 
+        if (type == typeof(System.Drawing.PointF))
+        {
+            descriptor = CreateStoredPointFDescriptor(node, name, displayName, category, description, propertyType, fallbackValue, canEdit, isAdvanced);
+            return true;
+        }
+
         if (type == typeof(Padding))
         {
             descriptor = CreateStoredPaddingDescriptor(node, name, displayName, category, description, propertyType, fallbackValue, canEdit, isAdvanced);
@@ -252,6 +258,54 @@ internal static class DesignerPropertyDescriptorFactory
         if (typeof(ModernFormsNext.Drawing.Brush).IsAssignableFrom(type))
         {
             descriptor = CreateStoredBrushDescriptor(node, name, displayName, category, description, propertyType, fallbackValue as ModernFormsNext.Drawing.Brush, canEdit, isAdvanced);
+            return true;
+        }
+
+        if (type == typeof(ModernFormsNext.Drawing.PointCollection))
+        {
+            Func<ModernFormsNext.Drawing.PointCollection?> getPoints = () =>
+                GetStoredValue(node, name, propertyType, fallbackValue) as ModernFormsNext.Drawing.PointCollection;
+            descriptor = CreateStoredRoot(
+                node,
+                name,
+                displayName,
+                category,
+                description,
+                propertyType,
+                fallbackValue,
+                canEdit,
+                isAdvanced,
+                DesignerPropertyDialogEditors.PointCollection(
+                    getPoints,
+                    points =>
+                    {
+                        SetStoredValue(node, name, points, propertyType);
+                        return (true, null);
+                    }));
+            return true;
+        }
+
+        if (typeof(ModernFormsNext.Drawing.Geometry).IsAssignableFrom(type))
+        {
+            Func<ModernFormsNext.Drawing.Geometry?> getGeometry = () =>
+                GetStoredValue(node, name, propertyType, fallbackValue) as ModernFormsNext.Drawing.Geometry;
+            descriptor = CreateStoredRoot(
+                node,
+                name,
+                displayName,
+                category,
+                description,
+                propertyType,
+                fallbackValue,
+                canEdit,
+                isAdvanced,
+                DesignerPropertyDialogEditors.PathGeometry(
+                    getGeometry,
+                    geometry =>
+                    {
+                        SetStoredValue(node, name, geometry, propertyType);
+                        return (true, null);
+                    }));
             return true;
         }
 
@@ -335,6 +389,23 @@ internal static class DesignerPropertyDescriptorFactory
         var root = CreateStoredRoot(node, path, displayName, category, description, valueType, fallbackValue, canEdit, isAdvanced);
         root.Children.Add(CreateStoredPointChild(node, path, "X", "X", "Horizontal position.", valueType, fallbackValue, point => point.X, (point, value) => new System.Drawing.Point(value, point.Y), 1, canEdit, category));
         root.Children.Add(CreateStoredPointChild(node, path, "Y", "Y", "Vertical position.", valueType, fallbackValue, point => point.Y, (point, value) => new System.Drawing.Point(point.X, value), 1, canEdit, category));
+        return root;
+    }
+
+    private static DesignerPropertyDescriptor CreateStoredPointFDescriptor(
+        DesignControlNode node,
+        string path,
+        string displayName,
+        string category,
+        string description,
+        Type valueType,
+        object? fallbackValue,
+        bool canEdit,
+        bool isAdvanced)
+    {
+        var root = CreateStoredRoot(node, path, displayName, category, description, valueType, fallbackValue, canEdit, isAdvanced);
+        root.Children.Add(CreateStoredPointFChild(node, path, "X", "X", "Horizontal position in logical pixels.", valueType, fallbackValue, point => point.X, (point, value) => new System.Drawing.PointF(value, point.Y), 1, canEdit, category));
+        root.Children.Add(CreateStoredPointFChild(node, path, "Y", "Y", "Vertical position in logical pixels.", valueType, fallbackValue, point => point.Y, (point, value) => new System.Drawing.PointF(point.X, value), 1, canEdit, category));
         return root;
     }
 
@@ -518,7 +589,8 @@ internal static class DesignerPropertyDescriptorFactory
         Type valueType,
         object? fallbackValue,
         bool canEdit,
-        bool isAdvanced)
+        bool isAdvanced,
+        Func<DesignerPropertyDialogContext, Task<bool>>? dialogEditor = null)
         => new()
         {
             Name = path,
@@ -530,6 +602,8 @@ internal static class DesignerPropertyDescriptorFactory
             IsReadOnly = !canEdit,
             IsAdvanced = isAdvanced,
             ShouldSerialize = canEdit,
+            HasDialogEditor = canEdit && dialogEditor is not null,
+            DialogEditor = canEdit ? dialogEditor : null,
             GetValue = () => GetStoredValue(node, path, valueType, fallbackValue),
             CommitText = text =>
             {
@@ -1461,6 +1535,34 @@ internal static class DesignerPropertyDescriptorFactory
             depth,
             isReadOnly: !canEdit);
 
+    private static DesignerPropertyDescriptor CreateStoredPointFChild(
+        DesignControlNode node,
+        string path,
+        string name,
+        string displayName,
+        string description,
+        Type valueType,
+        object? fallbackValue,
+        Func<System.Drawing.PointF, float> getValue,
+        Func<System.Drawing.PointF, float, System.Drawing.PointF> update,
+        int depth,
+        bool canEdit,
+        string category)
+        => CreateFloatChild(
+            name,
+            $"{path}.{name}",
+            displayName,
+            category,
+            description,
+            () => getValue(GetStoredPointF(node, path, valueType, fallbackValue)),
+            value =>
+            {
+                SetStoredValue(node, path, update(GetStoredPointF(node, path, valueType, fallbackValue), value), valueType);
+                return (true, null);
+            },
+            depth,
+            isReadOnly: !canEdit);
+
     private static DesignerPropertyDescriptor CreateStoredSkPointChild(
         DesignControlNode node,
         string path,
@@ -1770,6 +1872,11 @@ internal static class DesignerPropertyDescriptorFactory
         => GetStoredValue(node, path, valueType, fallbackValue) is System.Drawing.Point point
             ? point
             : System.Drawing.Point.Empty;
+
+    private static System.Drawing.PointF GetStoredPointF(DesignControlNode node, string path, Type valueType, object? fallbackValue)
+        => GetStoredValue(node, path, valueType, fallbackValue) is System.Drawing.PointF point
+            ? point
+            : System.Drawing.PointF.Empty;
 
     private static Padding GetStoredPadding(DesignControlNode node, string path, Type valueType, object? fallbackValue)
         => GetStoredValue(node, path, valueType, fallbackValue) is Padding padding

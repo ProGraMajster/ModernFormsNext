@@ -42,7 +42,7 @@ public sealed class CustomUserControlPreviewTests
         Assert.Single(parent.Controls);
         Assert.Empty(parent.Controls[0].Children);
 
-        var parentPath = Path.Combine(project.DirectoryPath, "MainForm.mfdesign");
+        var parentPath = IOPath.Combine(project.DirectoryPath, "MainForm.mfdesign");
         var files = new DesignerFileService(new TestDesignerEnvironment(project.ProjectFilePath, parentPath));
         files.SaveDesignDocument(parent);
 
@@ -146,7 +146,7 @@ public sealed class CustomUserControlPreviewTests
         project.AddUserControlSource(sourceDocument.Namespace, sourceDocument.ClassName);
 
         if (invalidDocument)
-            File.WriteAllText(Path.Combine(project.DirectoryPath, "Sidebar.mfdesign"), "{ invalid json");
+            File.WriteAllText(IOPath.Combine(project.DirectoryPath, "Sidebar.mfdesign"), "{ invalid json");
 
         var session = CreateSession(project, CreateParentDocument("Example.Sidebar", 40, 50, 300, 200));
         var exception = Record.Exception(() => Render(new DesignerSurfaceRenderer(), session));
@@ -160,7 +160,7 @@ public sealed class CustomUserControlPreviewTests
     {
         using var project = new TemporaryPreviewProject();
         project.AddUserControlSource("Example", "Sidebar");
-        File.WriteAllText(Path.Combine(project.DirectoryPath, "Sidebar.mfdesign"), string.Empty);
+        File.WriteAllText(IOPath.Combine(project.DirectoryPath, "Sidebar.mfdesign"), string.Empty);
         var session = CreateSession(project, CreateParentDocument("Example.Sidebar", 40, 50, 300, 200));
 
         var exception = Record.Exception(() => Render(new DesignerSurfaceRenderer(), session));
@@ -174,7 +174,7 @@ public sealed class CustomUserControlPreviewTests
     {
         using var project = new TemporaryPreviewProject();
         project.AddUserControlSource("Example", "Sidebar");
-        var path = Path.Combine(project.DirectoryPath, "Sidebar.mfdesign");
+        var path = IOPath.Combine(project.DirectoryPath, "Sidebar.mfdesign");
         File.WriteAllText(path, "{ invalid json");
         var cache = new DesignerEmbeddedPreviewCache(
             project.ProjectFilePath,
@@ -200,7 +200,7 @@ public sealed class CustomUserControlPreviewTests
         using var project = new TemporaryPreviewProject();
         project.AddUserControlSource("Example", "Sidebar");
         File.WriteAllText(
-            Path.Combine(project.DirectoryPath, "Sidebar.mfdesign"),
+            IOPath.Combine(project.DirectoryPath, "Sidebar.mfdesign"),
             """
             {
               "namespace": "Example",
@@ -237,7 +237,7 @@ public sealed class CustomUserControlPreviewTests
         var staleDocument = CreateUserControlDocument(documentNamespace, documentClassName, 300, 200);
         staleDocument.Controls.Add(CreateNode("Label", "staleLabel", 10, 10, 100, 24, "Stale"));
         DesignDocumentSerializer.Default.Save(
-            Path.Combine(project.DirectoryPath, "Sidebar.mfdesign"),
+            IOPath.Combine(project.DirectoryPath, "Sidebar.mfdesign"),
             staleDocument);
         var session = CreateSession(project, CreateParentDocument("Example.Sidebar", 40, 50, 300, 200));
 
@@ -255,7 +255,7 @@ public sealed class CustomUserControlPreviewTests
         var formDocument = CreateUserControlDocument("Example", "Sidebar", 300, 200);
         formDocument.RootKind = DesignRootKind.Form;
         DesignDocumentSerializer.Default.Save(
-            Path.Combine(project.DirectoryPath, "Sidebar.mfdesign"),
+            IOPath.Combine(project.DirectoryPath, "Sidebar.mfdesign"),
             formDocument);
         var session = CreateSession(project, CreateParentDocument("Example.Sidebar", 40, 50, 300, 200));
 
@@ -514,9 +514,9 @@ public sealed class CustomUserControlPreviewTests
     {
         public TemporaryPreviewProject()
         {
-            DirectoryPath = Path.Combine(Path.GetTempPath(), $"ModernFormsNextPreviewTests-{Guid.NewGuid():N}");
+            DirectoryPath = IOPath.Combine(IOPath.GetTempPath(), $"ModernFormsNextPreviewTests-{Guid.NewGuid():N}");
             Directory.CreateDirectory(DirectoryPath);
-            ProjectFilePath = Path.Combine(DirectoryPath, "Example.csproj");
+            ProjectFilePath = IOPath.Combine(DirectoryPath, "Example.csproj");
             File.WriteAllText(ProjectFilePath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
         }
 
@@ -527,7 +527,7 @@ public sealed class CustomUserControlPreviewTests
         public string AddUserControl(DesignDocument document)
         {
             AddUserControlSource(document.Namespace, document.ClassName);
-            var path = Path.Combine(DirectoryPath, $"{document.ClassName}.mfdesign");
+            var path = IOPath.Combine(DirectoryPath, $"{document.ClassName}.mfdesign");
             DesignDocumentSerializer.Default.Save(path, document);
             return path;
         }
@@ -535,7 +535,7 @@ public sealed class CustomUserControlPreviewTests
         public void AddUserControlSource(string namespaceName, string className)
         {
             File.WriteAllText(
-                Path.Combine(DirectoryPath, $"{className}.cs"),
+                IOPath.Combine(DirectoryPath, $"{className}.cs"),
                 $$"""
                 using ModernFormsNext;
 

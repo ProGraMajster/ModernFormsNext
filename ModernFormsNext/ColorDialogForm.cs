@@ -46,7 +46,10 @@ namespace ModernFormsNext
             originalColor = initialColor;
             SelectedColor = initialColor;
             Text = TextForm;
-            Size = new Size (760, 520);
+            // Child coordinates are relative to the usable area below the managed title bar.
+            // Form.Size includes that title bar, which previously removed enough client height
+            // to clip the blue channel slider and the bottom of the dialog buttons.
+            ClientSize = new Size (760, 520);
             StartPosition = FormStartPosition.CenterParent;
             Resizeable = false;
             AllowMaximize = false;

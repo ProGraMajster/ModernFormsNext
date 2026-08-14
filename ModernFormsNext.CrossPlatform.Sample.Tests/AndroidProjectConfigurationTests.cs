@@ -65,7 +65,7 @@ public sealed class AndroidProjectConfigurationTests
         Assert.Equal("apk", Property(project, "AndroidPackageFormats").Value);
         Assert.Equal("23.0", Property(project, "SupportedOSPlatformVersion").Value);
 
-        var mainActivity = File.ReadAllText(Path.Combine(SampleDirectory, "Platforms", "Android", "MainActivity.cs"));
+        var mainActivity = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android", "MainActivity.cs"));
         Assert.Contains($"Name = \"{ActivityName}\"", mainActivity, StringComparison.Ordinal);
         Assert.Contains("MainLauncher = true", mainActivity, StringComparison.Ordinal);
         Assert.Contains("Exported = true", mainActivity, StringComparison.Ordinal);
@@ -74,7 +74,7 @@ public sealed class AndroidProjectConfigurationTests
     [Fact]
     public void ManifestDeclaresOnlyTheOptionalCameraPermission()
     {
-        var manifest = XDocument.Load(Path.Combine(SampleDirectory, "Platforms", "Android", "AndroidManifest.xml"));
+        var manifest = XDocument.Load(IOPath.Combine(SampleDirectory, "Platforms", "Android", "AndroidManifest.xml"));
         XNamespace android = "http://schemas.android.com/apk/res/android";
         XNamespace tools = "http://schemas.android.com/tools";
 
@@ -89,7 +89,7 @@ public sealed class AndroidProjectConfigurationTests
         Assert.DoesNotContain("android.permission.WRITE_EXTERNAL_STORAGE", effectivePermissions);
     }
 
-    private static string SampleDirectory => Path.Combine(
+    private static string SampleDirectory => IOPath.Combine(
         RepositoryRoot,
         "samples",
         "ModernFormsNext.CrossPlatform.Sample");
@@ -99,7 +99,7 @@ public sealed class AndroidProjectConfigurationTests
         get
         {
             var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "ModernFormsNext.slnx")))
+            while (directory is not null && !File.Exists(IOPath.Combine(directory.FullName, "ModernFormsNext.slnx")))
                 directory = directory.Parent;
 
             return directory?.FullName
@@ -108,7 +108,7 @@ public sealed class AndroidProjectConfigurationTests
     }
 
     private static XDocument LoadProject()
-        => XDocument.Load(Path.Combine(SampleDirectory, "ModernFormsNext.CrossPlatform.Sample.csproj"));
+        => XDocument.Load(IOPath.Combine(SampleDirectory, "ModernFormsNext.CrossPlatform.Sample.csproj"));
 
     private static XElement Property(XContainer container, string name)
         => Assert.Single(container.Descendants(), element => element.Name.LocalName == name);
