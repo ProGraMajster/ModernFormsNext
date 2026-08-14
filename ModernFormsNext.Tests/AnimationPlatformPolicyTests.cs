@@ -40,6 +40,65 @@ public sealed class AnimationPlatformPolicyTests
     }
 
     [Fact]
+    public void FractionalPlatformScaleAppliesToNewAnimationsWithoutDisablingMotion()
+    {
+        var provider = new TestPlatformAnimationSettings(durationScale: 0.5d);
+        using var harness = new AnimationSchedulerTestHarness(animationSettings: provider);
+
+        AnimationHandle handle = harness.Scheduler.Start(
+            new object(),
+            "ShortenedByPlatform",
+            _ => { },
+            new AnimationOptions { Duration = TimeSpan.FromMilliseconds(200) });
+
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(99));
+        Assert.Equal(AnimationState.Running, handle.State);
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(1));
+
+        Assert.Equal(AnimationState.Completed, handle.State);
+        Assert.False(harness.Policy.ReducedMotion);
+        Assert.Equal(0.5d, harness.Scheduler.GetPlatformDiagnostics().PlatformDurationScale);
+    }
+
+    [Fact]
+    public void DynamicScaleZeroCompletesActiveAnimationAtEndpointAndStopsTicks()
+    {
+        var provider = new TestPlatformAnimationSettings();
+        using var harness = new AnimationSchedulerTestHarness(animationSettings: provider);
+        float value = 0f;
+        AnimationHandle handle = harness.Scheduler.Start(
+            new object(),
+            "DynamicScaleZero",
+            progress => value = progress,
+            new AnimationOptions { Duration = TimeSpan.FromSeconds(1) });
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        provider.Set(reducedMotion: true, animationsEnabled: false, durationScale: 0d);
+
+        Assert.Equal(AnimationState.Completed, handle.State);
+        Assert.Equal(1f, value);
+        Assert.False(harness.TickSource.IsRunning);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
+    public void ApplicationAndPlatformDurationScalesComposeForNewAnimations()
+    {
+        var provider = new TestPlatformAnimationSettings(durationScale: 0.5d);
+        using var harness = new AnimationSchedulerTestHarness(animationSettings: provider);
+        harness.Policy.DurationScale = 2d;
+
+        AnimationHandle handle = harness.Scheduler.Start(
+            new object(),
+            "ComposedScale",
+            _ => { },
+            new AnimationOptions { Duration = TimeSpan.FromMilliseconds(100) });
+        harness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(AnimationState.Completed, handle.State);
+    }
+
+    [Fact]
     public void RepeatedRefreshAndStartsDoNotDuplicateProviderSubscription()
     {
         var provider = new TestPlatformAnimationSettings();

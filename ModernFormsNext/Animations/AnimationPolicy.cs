@@ -17,6 +17,7 @@ public sealed class AnimationPolicy
     private bool reducedMotion;
     private bool platformReducedMotion;
     private double durationScale = 1d;
+    private double platformDurationScale = 1d;
 
     /// <summary>
     /// Gets or sets whether animations are enabled.
@@ -104,7 +105,8 @@ public sealed class AnimationPolicy
         get
         {
             lock (sync)
-                return !animationsEnabled || reducedMotion || platformReducedMotion || durationScale == 0d;
+                return !animationsEnabled || reducedMotion || platformReducedMotion ||
+                    durationScale == 0d || platformDurationScale == 0d;
         }
     }
 
@@ -123,14 +125,37 @@ public sealed class AnimationPolicy
         }
     }
 
-    internal void SetPlatformReducedMotion(bool value)
+    internal double EffectiveDurationScale
     {
+        get
+        {
+            lock (sync)
+            {
+                double effective = durationScale * platformDurationScale;
+                return double.IsFinite(effective) ? effective : double.MaxValue;
+            }
+        }
+    }
+
+    internal void SetPlatformAnimationSettings(bool reducedMotionRequested, double nativeDurationScale)
+    {
+        if (!double.IsFinite(nativeDurationScale) || nativeDurationScale < 0d)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(nativeDurationScale),
+                nativeDurationScale,
+                "Platform duration scale must be finite and non-negative.");
+        }
+
         bool changed;
         lock (sync)
         {
             bool previous = reducedMotion || platformReducedMotion;
-            platformReducedMotion = value;
-            changed = previous != (reducedMotion || platformReducedMotion);
+            double previousScale = platformDurationScale;
+            platformReducedMotion = reducedMotionRequested;
+            platformDurationScale = nativeDurationScale;
+            changed = previous != (reducedMotion || platformReducedMotion) ||
+                previousScale != platformDurationScale;
         }
 
         if (changed)

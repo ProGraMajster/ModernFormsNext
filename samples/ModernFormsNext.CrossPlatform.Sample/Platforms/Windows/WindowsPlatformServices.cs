@@ -16,6 +16,16 @@ internal sealed class WindowsPlatformServices : ISamplePlatformServices
 
     public string HostState => "Desktop window active";
 
+    public string AnimationRuntimeStatus
+    {
+        get
+        {
+            var diagnostics = ModernFormsNext.Animations.AnimationScheduler.Default.GetDiagnostics();
+            return $"Shared timer active: {diagnostics.IsTickSourceRunning}; " +
+                $"scheduler active: {diagnostics.ActiveAnimationCount}; ticks: {diagnostics.TickCount}";
+        }
+    }
+
     public IPlatformDispatcher Dispatcher => dispatcher;
 
     public bool SupportsPermissionAction => false;

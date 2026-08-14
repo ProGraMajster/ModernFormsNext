@@ -1,5 +1,7 @@
+using ModernFormsNext.Animations;
 using ModernFormsNext.WindowKit.Platform.Permissions;
 using SkiaSharp;
+using System.Drawing;
 
 namespace ModernFormsNext.CrossPlatform.Sample;
 
@@ -10,7 +12,8 @@ namespace ModernFormsNext.CrossPlatform.Sample;
 /// Every visible widget is a framework control. Android renders this exact tree through
 /// <see cref="SkiaControlSurface"/>; it does not replace the controls with native Android views.
 /// The page intentionally exercises text input, Unicode, layout, scrolling, focus, lifecycle
-/// diagnostics, dispatching, and an explicitly initiated permission flow.
+/// diagnostics, dispatching, shared animations and effects, theme transitions, reduced motion,
+/// and an explicitly initiated permission flow.
 /// </remarks>
 public sealed class MainPage : Control
 {
@@ -32,6 +35,8 @@ public sealed class MainPage : Control
     private readonly Label serviceResultLabel;
     private readonly Label focusLabel;
     private readonly Label clickLabel;
+    private readonly Label animationRuntimeLabel;
+    private readonly Label animationStatusLabel;
     private readonly Label unicodeLabel;
     private readonly Label longContentLabel;
     private readonly TextBox nameTextBox;
@@ -43,11 +48,22 @@ public sealed class MainPage : Control
     private readonly Button dispatcherButton;
     private readonly Button lifecycleButton;
     private readonly FlowLayoutPanel permissionButtons;
+    private readonly FlowLayoutPanel animationButtons;
+    private readonly Panel animationStage;
+    private readonly Panel animationCard;
+    private readonly Button effectButton;
+    private readonly Button startAnimationsButton;
+    private readonly Button stopAnimationsButton;
+    private readonly Button themeButton;
+    private readonly Button reducedMotionButton;
     private readonly Button permissionCheckButton;
     private readonly Button permissionRequestButton;
     private readonly Button settingsButton;
     private readonly Label[] diagnosticLabels;
     private int displayedRenderBucket = -1;
+    private AnimationRun? activeDemoRun;
+    private bool alternateAnimationTarget;
+    private bool darkTheme;
 
     /// <summary>Creates the shared page for an application.</summary>
     /// <param name="app">The owning shared application.</param>
@@ -78,10 +94,13 @@ public sealed class MainPage : Control
         serviceResultLabel = CreateLabel(string.Empty);
         focusLabel = CreateLabel(string.Empty);
         clickLabel = CreateLabel(string.Empty);
+        animationRuntimeLabel = CreateLabel(string.Empty);
+        animationStatusLabel = CreateLabel("Animation smoke controls are ready.");
         unicodeLabel = CreateLabel("Unicode: Zażółć gęślą jaźń · 你好 · مرحبًا · 👋🏽 🚀");
         longContentLabel = CreateLabel(
-            "Scrollable content: resize the Windows window or rotate the Android device. " +
-            "The same shared layout remains active while the native host updates its logical surface.");
+            "Manual smoke: use two fingers on the effect button; start and rapidly retarget; " +
+            "rotate/resize; background and resume; change Android animator scale; then verify " +
+            "active work and the frame callback return to idle without losing TextBox focus.");
 
         nameTextBox = new TextBox { Text = "ModernFormsNext" };
         multiLineTextBox = new TextBox
@@ -104,6 +123,74 @@ public sealed class MainPage : Control
             WrapContents = true
         };
         permissionButtons.Controls.AddRange([permissionCheckButton, permissionRequestButton, settingsButton]);
+
+        effectButton = new Button
+        {
+            Text = "Ripple + press scale + visual state",
+            Ripple = new RippleEffect
+            {
+                Color = Color.FromArgb(105, 255, 255, 255),
+                Duration = TimeSpan.FromMilliseconds(500),
+                StartFromPointer = true,
+                MaxConcurrentRipples = 4
+            },
+            PressEffect = new PressScaleEffect
+            {
+                PressedScale = 0.94f,
+                PressDuration = TimeSpan.FromMilliseconds(90),
+                ReleaseDuration = TimeSpan.FromMilliseconds(140)
+            }
+        };
+        effectButton.Style.BackgroundColor = SKColors.SlateBlue;
+        effectButton.Style.ForegroundColor = SKColors.White;
+        effectButton.StyleHover.BackgroundColor = SKColors.MediumPurple;
+        effectButton.StyleHover.ScaleX = 1.03f;
+        effectButton.StyleHover.ScaleY = 1.03f;
+        effectButton.StylePressed.BackgroundColor = SKColors.DarkSlateBlue;
+        AddStateTransition(effectButton, VisualState.Normal, VisualState.Hover);
+        AddStateTransition(effectButton, VisualState.Normal, VisualState.Pressed);
+        AddStateTransition(effectButton, VisualState.Hover, VisualState.Normal);
+        AddStateTransition(effectButton, VisualState.Hover, VisualState.Pressed);
+        AddStateTransition(effectButton, VisualState.Pressed, VisualState.Normal);
+        AddStateTransition(effectButton, VisualState.Pressed, VisualState.Hover);
+
+        animationStage = new Panel { BackColor = new SKColor(236, 240, 247) };
+        animationCard = new Panel
+        {
+            Bounds = new Rectangle(12, 18, 118, 72),
+            BackColor = SKColors.CornflowerBlue,
+            LayoutTransition = new LayoutTransition
+            {
+                Duration = TimeSpan.FromMilliseconds(520),
+                Easing = Easings.EaseOut
+            }
+        };
+        animationStage.SetResourceReference(nameof(Control.BackgroundBrush), "SurfaceGlow");
+        animationCard.SetResourceReference(nameof(Control.BackgroundBrush), "PrimaryGradient");
+        animationCard.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Text = "Layout + visual animation",
+            TextAlign = ModernFormsNext.ContentAlignment.MiddleCenter,
+            ForeColor = SKColors.White
+        });
+        animationStage.Controls.Add(animationCard);
+
+        startAnimationsButton = new Button { Text = "Start / retarget" };
+        stopAnimationsButton = new Button { Text = "Stop / reset" };
+        themeButton = new Button { Text = "Theme transition" };
+        reducedMotionButton = new Button { Text = "Reduced motion" };
+        animationButtons = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true
+        };
+        animationButtons.Controls.AddRange([
+            startAnimationsButton,
+            stopAnimationsButton,
+            themeButton,
+            reducedMotionButton
+        ]);
 
         diagnosticLabels =
         [
@@ -175,6 +262,15 @@ public sealed class MainPage : Control
         permissionCheckButton.Click += async (_, _) => await RunPermissionActionAsync(requestPermission: false);
         permissionRequestButton.Click += async (_, _) => await RunPermissionActionAsync(requestPermission: true);
         settingsButton.Click += async (_, _) => await OpenSettingsAsync();
+        effectButton.Click += (_, _) =>
+        {
+            app.State.LastInput = "Ripple/press/state button clicked";
+            RefreshStatus();
+        };
+        startAnimationsButton.Click += (_, _) => StartAnimationSmoke();
+        stopAnimationsButton.Click += (_, _) => StopAnimationSmoke();
+        themeButton.Click += (_, _) => ToggleAnimatedTheme();
+        reducedMotionButton.Click += (_, _) => ToggleReducedMotion();
 
         TrackFocus(nameTextBox, "Single-line TextBox");
         TrackFocus(multiLineTextBox, "Multiline TextBox");
@@ -193,6 +289,11 @@ public sealed class MainPage : Control
             dispatcherButton,
             lifecycleButton,
             permissionButtons,
+            animationRuntimeLabel,
+            effectButton,
+            animationButtons,
+            animationStage,
+            animationStatusLabel,
             longContentLabel
         ]);
         Controls.Add(scrollArea);
@@ -221,11 +322,21 @@ public sealed class MainPage : Control
         serviceResultLabel.Text = $"Service result: {app.State.LastServiceResult}";
         focusLabel.Text = $"Shared focus: {app.State.FocusedControl}";
         clickLabel.Text = $"Shared clicks: {app.State.ClickCount}";
+        AnimationSchedulerDiagnostics animationDiagnostics = AnimationScheduler.Default.GetDiagnostics();
+        AnimationPlatformDiagnostics platformAnimation = AnimationScheduler.Default.GetPlatformDiagnostics();
+        animationRuntimeLabel.Text =
+            $"Scheduler active: {animationDiagnostics.ActiveAnimationCount}; " +
+            $"state: {(animationDiagnostics.IsPaused ? "paused" : animationDiagnostics.IsTickSourceRunning ? "active" : "idle")}; " +
+            $"platform scale: {platformAnimation.PlatformDurationScale:0.##}. " +
+            app.PlatformServices.AnimationRuntimeStatus;
         greetingLabel.Text = $"Label bound to TextBox: Hello, {nameTextBox.Text}!";
         clickButton.Enabled = enabledCheckBox.Checked;
         permissionCheckButton.Enabled = platform.SupportsPermissionAction;
         permissionRequestButton.Enabled = platform.SupportsPermissionAction;
         settingsButton.Enabled = platform.SupportsPermissionAction;
+        reducedMotionButton.Text = AnimationScheduler.Default.Policy.ReducedMotion
+            ? "Reduced motion: on"
+            : "Reduced motion: off";
         Invalidate();
     }
 
@@ -359,6 +470,14 @@ public sealed class MainPage : Control
         foreach (var button in permissionButtons.Controls.OfType<Button>())
             button.SetBounds(0, 0, permissionButtonWidth, 42);
         SetRow(permissionButtons, margin, ref y, contentWidth, contentWidth < 620 ? 146 : 50, gap);
+        SetRow(animationRuntimeLabel, margin, ref y, contentWidth, 54, gap);
+        SetRow(effectButton, margin, ref y, contentWidth, 48, gap);
+        var animationButtonWidth = Math.Max(150, Math.Min(220, (contentWidth - 12) / 2));
+        foreach (var button in animationButtons.Controls.OfType<Button>())
+            button.SetBounds(0, 0, animationButtonWidth, 38);
+        SetRow(animationButtons, margin, ref y, contentWidth, contentWidth < 650 ? 92 : 46, gap);
+        SetRow(animationStage, margin, ref y, contentWidth, 132, gap);
+        SetRow(animationStatusLabel, margin, ref y, contentWidth, 54, gap);
         SetRow(longContentLabel, margin, ref y, contentWidth, 76, margin);
 
         scrollArea.PerformLayout();
@@ -374,6 +493,90 @@ public sealed class MainPage : Control
         PlatformPermissionStatus.NotSupported => "Not supported",
         _ => status.ToString()
     };
+
+    private void StartAnimationSmoke()
+    {
+        activeDemoRun?.Cancel();
+        alternateAnimationTarget = !alternateAnimationTarget;
+        animationCard.Bounds = alternateAnimationTarget
+            ? new Rectangle(Math.Max(12, animationStage.Width - 190), 34, 166, 82)
+            : new Rectangle(12, 18, 118, 72);
+        activeDemoRun = Animation.Parallel(
+                animationCard.RotateTo(alternateAnimationTarget ? 8f : -8f, SmokeAnimationOptions(620)),
+                animationCard.ScaleTo(alternateAnimationTarget ? 1.08f : 0.96f, SmokeAnimationOptions(620)),
+                animationCard.FadeTo(alternateAnimationTarget ? 0.72f : 1f, SmokeAnimationOptions(620)))
+            .Start(AnimationScheduler.Default);
+        animationStatusLabel.Text =
+            "Started simultaneous LayoutTransition, transform, opacity, and state-capable effects. " +
+            "Rotate or resize while it runs, then retarget rapidly.";
+        RefreshStatus();
+    }
+
+    private void StopAnimationSmoke()
+    {
+        activeDemoRun?.Cancel();
+        activeDemoRun = null;
+        if (animationCard.LayoutTransition is { } transition)
+        {
+            transition.Enabled = false;
+            transition.Enabled = true;
+        }
+        animationCard.Rotation = 0f;
+        animationCard.ScaleX = 1f;
+        animationCard.ScaleY = 1f;
+        animationCard.Opacity = 1f;
+        animationCard.Bounds = new Rectangle(12, 18, 118, 72);
+        animationStatusLabel.Text = "Animations canceled and presentation state reset.";
+        RefreshStatus();
+    }
+
+    private void ToggleAnimatedTheme()
+    {
+        darkTheme = !darkTheme;
+        ThemeApplyResult result = ThemeManager.Current.Apply(
+            darkTheme ? BuiltInThemes.Dark : BuiltInThemes.Light,
+            new ThemeApplyOptions
+            {
+                Transition = new ThemeTransitionOptions
+                {
+                    Enabled = true,
+                    Duration = TimeSpan.FromMilliseconds(650),
+                    Easing = ThemeEasing.EaseInOut,
+                    RespectReducedMotion = true
+                }
+            });
+        animationStatusLabel.Text = result.Success
+            ? $"Theme '{result.Snapshot!.Name}' committed; transition: {result.Transition?.State.ToString() ?? "immediate"}."
+            : "Theme transition was rejected; inspect diagnostics.";
+        RefreshStatus();
+    }
+
+    private void ToggleReducedMotion()
+    {
+        AnimationPolicy policy = AnimationScheduler.Default.Policy;
+        policy.ReducedMotion = !policy.ApplicationReducedMotion;
+        animationStatusLabel.Text = policy.ReducedMotion
+            ? "Reduced motion enabled: active work must snap to exact targets and return idle."
+            : "Application reduced motion disabled; Android system scale remains authoritative.";
+        RefreshStatus();
+    }
+
+    private static void AddStateTransition(Button button, VisualState from, VisualState to)
+        => button.StyleTransitions.Add(
+            from,
+            to,
+            new VisualStateTransition
+            {
+                Duration = TimeSpan.FromMilliseconds(150),
+                Easing = Easings.CubicOut
+            });
+
+    private static AnimationOptions SmokeAnimationOptions(int milliseconds)
+        => new()
+        {
+            Duration = TimeSpan.FromMilliseconds(milliseconds),
+            Easing = Easings.CubicOut
+        };
 
     private static Label CreateLabel(string text) => new() { Text = text };
 

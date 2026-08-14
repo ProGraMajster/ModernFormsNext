@@ -41,11 +41,54 @@ public sealed class PlatformAnimationSettingsSnapshot
         bool fallbackUsed,
         PlatformAnimationProviderState providerState,
         string? lastError)
+        : this(
+            source,
+            reducedMotion,
+            animationsEnabled,
+            durationScale: 1d,
+            lastPlatformUpdate,
+            fallbackUsed,
+            providerState,
+            lastError)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a platform animation-preference snapshot with a native duration scale.
+    /// </summary>
+    /// <param name="source">A stable human-readable source identifier.</param>
+    /// <param name="reducedMotion">Whether the platform requests reduced motion.</param>
+    /// <param name="animationsEnabled">Whether the platform permits UI animations.</param>
+    /// <param name="durationScale">
+    /// The finite non-negative native multiplier applied to newly started animation durations.
+    /// </param>
+    /// <param name="lastPlatformUpdate">The last native read attempt, in UTC.</param>
+    /// <param name="fallbackUsed">Whether compatibility defaults were used.</param>
+    /// <param name="providerState">The provider health state.</param>
+    /// <param name="lastError">The last non-sensitive native error, if any.</param>
+    public PlatformAnimationSettingsSnapshot(
+        string source,
+        bool reducedMotion,
+        bool animationsEnabled,
+        double durationScale,
+        DateTimeOffset? lastPlatformUpdate,
+        bool fallbackUsed,
+        PlatformAnimationProviderState providerState,
+        string? lastError)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        if (!double.IsFinite(durationScale) || durationScale < 0d)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(durationScale),
+                durationScale,
+                "Platform animation duration scale must be finite and non-negative.");
+        }
+
         Source = source;
         ReducedMotion = reducedMotion;
         AnimationsEnabled = animationsEnabled;
+        DurationScale = durationScale;
         LastPlatformUpdate = lastPlatformUpdate;
         FallbackUsed = fallbackUsed;
         ProviderState = providerState;
@@ -60,6 +103,14 @@ public sealed class PlatformAnimationSettingsSnapshot
 
     /// <summary>Gets whether the platform permits UI animations.</summary>
     public bool AnimationsEnabled { get; }
+
+    /// <summary>
+    /// Gets the native duration multiplier applied to newly started shared animations.
+    /// </summary>
+    /// <remarks>
+    /// A value of zero requires deterministic endpoint completion without starting a frame source.
+    /// </remarks>
+    public double DurationScale { get; }
 
     /// <summary>Gets the last native read attempt, in UTC.</summary>
     public DateTimeOffset? LastPlatformUpdate { get; }

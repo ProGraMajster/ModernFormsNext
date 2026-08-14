@@ -6,6 +6,7 @@ namespace ModernFormsNext.Animations;
 public sealed partial class AnimationScheduler
 {
     private IPlatformApplicationLifecycle? platformLifecycle;
+    private long platformLifecycleVersion;
 
     partial void BindPlatformLifecycleCore()
     {
@@ -25,6 +26,7 @@ public sealed partial class AnimationScheduler
 
     private void BindPlatformLifecycle(IPlatformApplicationLifecycle lifecycle)
     {
+        long version;
         lock (sync)
         {
             if (platformLifecycle is not null || isShutdown)
@@ -32,9 +34,10 @@ public sealed partial class AnimationScheduler
 
             lifecycle.StateChanged += HandlePlatformLifecycleChanged;
             platformLifecycle = lifecycle;
+            version = ++platformLifecycleVersion;
         }
 
-        ApplyPlatformLifecycleState(lifecycle.State);
+        ApplyPlatformLifecycleState(lifecycle.State, version);
     }
 
     partial void UnbindPlatformLifecycle()
@@ -44,6 +47,7 @@ public sealed partial class AnimationScheduler
         {
             lifecycle = platformLifecycle;
             platformLifecycle = null;
+            platformLifecycleVersion++;
         }
 
         if (lifecycle is not null)
@@ -53,16 +57,41 @@ public sealed partial class AnimationScheduler
     private void HandlePlatformLifecycleChanged(
         object? sender,
         PlatformApplicationLifecycleChangedEventArgs e)
-        => ApplyPlatformLifecycleState(e.CurrentState);
+    {
+        long version;
+        lock (sync)
+        {
+            if (isShutdown || !ReferenceEquals(sender, platformLifecycle))
+                return;
+            version = ++platformLifecycleVersion;
+        }
 
-    private void ApplyPlatformLifecycleState(PlatformApplicationLifecycleState state)
+        ApplyPlatformLifecycleState(e.CurrentState, version);
+    }
+
+    private void ApplyPlatformLifecycleState(
+        PlatformApplicationLifecycleState state,
+        long version)
     {
         if (state == PlatformApplicationLifecycleState.Foreground)
         {
             RefreshPlatformPolicyAfterForeground();
-            Resume();
+
+            lock (sync)
+            {
+                // A background event can arrive while the foreground settings refresh is in
+                // progress. Never let that stale foreground continuation restart frame demand.
+                if (!isShutdown && version == platformLifecycleVersion)
+                    Resume();
+            }
         }
         else if (state is PlatformApplicationLifecycleState.Background or PlatformApplicationLifecycleState.NoHost)
-            Pause();
+        {
+            lock (sync)
+            {
+                if (!isShutdown && version == platformLifecycleVersion)
+                    Pause();
+            }
+        }
     }
 }

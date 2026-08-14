@@ -24,6 +24,9 @@ public interface ISamplePlatformServices
     /// <summary>Gets the current native host lifecycle description.</summary>
     string HostState { get; }
 
+    /// <summary>Gets a compact platform animation-runtime diagnostic description.</summary>
+    string AnimationRuntimeStatus { get; }
+
     /// <summary>Gets the platform UI dispatcher.</summary>
     IPlatformDispatcher Dispatcher { get; }
 

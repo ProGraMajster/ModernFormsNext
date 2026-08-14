@@ -93,6 +93,7 @@ public sealed class SampleApplicationTests
         public string OperatingSystem { get; } = operatingSystem;
         public string BackendName { get; } = backendName;
         public string HostState => "Test host";
+        public string AnimationRuntimeStatus => "Test animation runtime";
         public FakeDispatcher FakeDispatcher { get; } = new();
         public PlatformPermissionStatus CheckStatus { get; set; } = PlatformPermissionStatus.Granted;
         public PlatformPermissionStatus RequestStatus { get; set; } = PlatformPermissionStatus.Granted;

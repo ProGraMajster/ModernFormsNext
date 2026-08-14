@@ -439,6 +439,25 @@ public sealed class ThemeManagerApplyAndTransitionTests
     }
 
     [Fact]
+    public void ZeroDurationScaleCommitsExactThemeTargetWithoutCreatingTransitionWork()
+    {
+        using var harness = new ThemeManagerTestHarness();
+        harness.Manager.Apply(Theme("scale-zero.start", Color.Red), Immediate());
+        harness.SchedulerHarness.Policy.DurationScale = 0d;
+
+        ThemeApplyResult result = harness.Manager.Apply(
+            Theme("scale-zero.target", Color.Blue),
+            Animated());
+
+        Assert.Null(result.Transition);
+        Assert.Equal(
+            Color.Blue.ToArgb(),
+            ResourceColor(harness, ThemeTokens.Colors.Background.ResourceKey).ToArgb());
+        Assert.Equal(0, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        Assert.False(harness.SchedulerHarness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public async Task SchedulerAnimationPolicyCanCompleteActiveTransitionImmediately()
     {
         using var harness = new ThemeManagerTestHarness();

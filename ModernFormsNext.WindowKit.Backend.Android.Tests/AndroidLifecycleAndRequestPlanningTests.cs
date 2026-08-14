@@ -1,6 +1,7 @@
 using ModernFormsNext.WindowKit.Backend.Android.Lifecycle;
 using ModernFormsNext.WindowKit.Backend.Android.Permissions;
 using ModernFormsNext.WindowKit.Platform.Permissions;
+using System.Runtime.CompilerServices;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Tests;
 
@@ -21,6 +22,18 @@ public sealed class AndroidLifecycleAndRequestPlanningTests
         Assert.Null(reference.Target);
     }
 
+    [Fact]
+    public void ActivityHostReferenceDoesNotKeepAnOtherwiseUnreferencedHostAlive()
+    {
+        WeakHostReference<object> reference = CreateCollectibleHostReference();
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert.Null(reference.Target);
+    }
+
     [Theory]
     [InlineData(PlatformPermissionStatus.NotDeclared)]
     [InlineData(PlatformPermissionStatus.NotSupported)]
@@ -38,5 +51,13 @@ public sealed class AndroidLifecycleAndRequestPlanningTests
     public void NonTerminalPermissionStatusCanContinueToPlatformSpecificHandling(PlatformPermissionStatus status)
     {
         Assert.True(AndroidPermissionRequestPlanner.ShouldContinueRequestFlow(status));
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakHostReference<object> CreateCollectibleHostReference()
+    {
+        var reference = new WeakHostReference<object>();
+        reference.Set(new object());
+        return reference;
     }
 }

@@ -153,6 +153,25 @@ public sealed class AnimationSchedulerTests
     }
 
     [Fact]
+    public void ZeroDurationOnUiThreadPublishesEndpointInlineWithoutPosting()
+    {
+        var dispatcher = new ImmediateAnimationDispatcher();
+        using var harness = new AnimationSchedulerTestHarness(dispatcher);
+        float value = 0f;
+
+        AnimationHandle handle = harness.Scheduler.Start(
+            new object(),
+            "ImmediateUiThread",
+            progress => value = progress,
+            Options(0));
+
+        Assert.Equal(1f, value);
+        Assert.Equal(AnimationState.Completed, handle.State);
+        Assert.Equal(0, dispatcher.PostCount);
+        Assert.False(harness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public async Task StartFromBackgroundMarshalsAllUpdatesToUiDispatcher()
     {
         var dispatcher = new QueuedAnimationDispatcher();
@@ -308,6 +327,35 @@ public sealed class AnimationSchedulerTests
 
         harness.Dispose();
         Assert.Equal(0, lifecycle.SubscriberCount);
+    }
+
+    [Fact]
+    public async Task StaleInitialForegroundCannotOvertakeBackgroundDuringLifecycleBinding()
+    {
+        using var lifecycle = new BlockingInitialLifecycle(PlatformApplicationLifecycleState.Foreground);
+        var clock = new ManualAnimationClock();
+        var tickSource = new ManualAnimationTickSource();
+        Task<AnimationScheduler> createScheduler = Task.Run(() => new AnimationScheduler(
+            clock,
+            new ImmediateAnimationDispatcher(),
+            tickSource,
+            new AnimationPolicy(),
+            lifecycle));
+        Assert.True(lifecycle.InitialStateReadStarted.Wait(TimeSpan.FromSeconds(5)));
+
+        lifecycle.Publish(PlatformApplicationLifecycleState.Background);
+        lifecycle.ReleaseInitialStateRead();
+
+        using AnimationScheduler scheduler = await createScheduler;
+        AnimationHandle handle = scheduler.Start(
+            new object(),
+            "LifecycleBindingRace",
+            _ => { },
+            Options(100));
+
+        Assert.Equal(AnimationState.Paused, handle.State);
+        Assert.True(scheduler.GetDiagnostics().IsPaused);
+        Assert.False(tickSource.IsRunning);
     }
 
     [Fact]
@@ -652,5 +700,54 @@ public sealed class AnimationSchedulerTests
     private sealed class EasingCallbackOwner
     {
         public float Ease(float progress) => progress;
+    }
+
+    private sealed class BlockingInitialLifecycle : IPlatformApplicationLifecycle, IDisposable
+    {
+        private readonly PlatformApplicationLifecycleState initialState;
+        private readonly ManualResetEventSlim releaseInitialStateRead = new();
+        private int initialRead = 1;
+        private PlatformApplicationLifecycleState state;
+
+        public BlockingInitialLifecycle(PlatformApplicationLifecycleState initialState)
+        {
+            this.initialState = initialState;
+            state = initialState;
+        }
+
+        public ManualResetEventSlim InitialStateReadStarted { get; } = new();
+
+        public PlatformApplicationLifecycleState State
+        {
+            get
+            {
+                if (Interlocked.Exchange(ref initialRead, 0) != 0)
+                {
+                    InitialStateReadStarted.Set();
+                    if (!releaseInitialStateRead.Wait(TimeSpan.FromSeconds(10)))
+                        throw new TimeoutException("The test did not release the initial lifecycle read.");
+                    return initialState;
+                }
+
+                return state;
+            }
+        }
+
+        public event EventHandler<PlatformApplicationLifecycleChangedEventArgs>? StateChanged;
+
+        public void Publish(PlatformApplicationLifecycleState value)
+        {
+            PlatformApplicationLifecycleState previous = state;
+            state = value;
+            StateChanged?.Invoke(this, new PlatformApplicationLifecycleChangedEventArgs(previous, value));
+        }
+
+        public void ReleaseInitialStateRead() => releaseInitialStateRead.Set();
+
+        public void Dispose()
+        {
+            InitialStateReadStarted.Dispose();
+            releaseInitialStateRead.Dispose();
+        }
     }
 }
