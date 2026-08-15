@@ -28,7 +28,6 @@ public sealed class MainActivity : Activity
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
-        AndroidWindowKit.ObserveHostActivity(this);
         var application = (SampleApplication)Application!;
         var enableInputDiagnostics = Intent?.GetBooleanExtra(
             AndroidAppHost.EnableInputDiagnosticsIntentExtra,

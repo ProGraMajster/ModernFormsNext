@@ -1,6 +1,7 @@
 using Android.Content;
 using Android.Views;
 using Android.Views.InputMethods;
+using ModernFormsNext.WindowKit.Backend;
 using SkiaSharp;
 using SkiaSharp.Views.Android;
 using System.Text.Json;
@@ -16,14 +17,16 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// <remarks>
 /// Create and use the view on the Android main thread. The owning activity must forward its
 /// lifecycle and dispose the host from <c>OnDestroy</c>. Rendering occurs only after explicit
-/// invalidation or a size change; there is no continuous render timer. The view is a custom Skia
-/// surface and does not introduce an Android native-control UI tree for framework controls.
+/// invalidation or a size change. Shared animation work uses the backend's idle-aware Choreographer
+/// source; there is no continuous or per-control render timer. The view is a custom Skia surface
+/// and does not introduce an Android native-control UI tree for framework controls.
 /// </remarks>
 public sealed class AndroidSkiaHostView : SKCanvasView
 {
     private readonly AndroidSurfaceHostState state = new();
     private readonly Action<string>? diagnosticSink;
     private readonly bool detailedDiagnostics;
+    private readonly AndroidAnimationSurfaceRegistration? animationSurfaceRegistration;
     private SharedInputConnection? activeInputConnection;
     private KeyEventObservation? lastKeyEvent;
     private long inputDiagnosticSequence;
@@ -42,6 +45,9 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     {
         this.diagnosticSink = diagnosticSink;
         detailedDiagnostics = enableDetailedDiagnostics;
+        animationSurfaceRegistration =
+            (PlatformServiceRegistry.GetService<IPlatformAnimationFrameSource>() as
+                AndroidChoreographerAnimationFrameSource)?.CreateSurfaceRegistration();
         Focusable = true;
         FocusableInTouchMode = true;
     }
@@ -140,6 +146,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     {
         ThrowIfDisposed();
         state.Start();
+        UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Skia surface activity started.", diagnosticSink);
     }
 
@@ -151,6 +158,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             state.Start();
 
         state.Resume();
+        UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Skia surface resumed.", diagnosticSink);
         RequestRender();
     }
@@ -161,6 +169,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         ThrowIfDisposed();
         var primaryPointerId = state.PrimaryPointerId;
         EmitCancellations(state.Pause(), primaryPointerId);
+        UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Skia surface paused.", diagnosticSink);
     }
 
@@ -170,6 +179,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         ThrowIfDisposed();
         var primaryPointerId = state.PrimaryPointerId;
         EmitCancellations(state.Stop(), primaryPointerId);
+        UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Skia surface stopped.", diagnosticSink);
     }
 
@@ -306,33 +316,26 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         if (motionEvent is null || disposed || state.LifecycleState != AndroidSurfaceLifecycleState.Resumed)
             return false;
 
-        var action = motionEvent.ActionMasked;
-        if (action == MotionEventActions.Cancel)
+        AndroidMotionEventPlan plan = AndroidMotionEventPlan.Create(
+            TranslateMotionEventAction(motionEvent.ActionMasked),
+            motionEvent.PointerCount,
+            motionEvent.ActionIndex);
+        if (plan.CancelAll)
         {
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.CancelActivePointers(), primaryPointerId);
             return true;
         }
 
-        if (action == MotionEventActions.Move)
-        {
-            for (var index = 0; index < motionEvent.PointerCount; index++)
-                EmitPointer(motionEvent, index, AndroidPointerAction.Move);
-            return true;
-        }
-
-        var changedIndex = motionEvent.ActionIndex;
-        var translatedAction = action switch
-        {
-            MotionEventActions.Down or MotionEventActions.PointerDown => AndroidPointerAction.Down,
-            MotionEventActions.Up or MotionEventActions.PointerUp => AndroidPointerAction.Up,
-            _ => (AndroidPointerAction?)null
-        };
-
-        if (translatedAction is null)
+        if (plan.EventCount == 0 || plan.PointerAction is not { } pointerAction)
             return base.OnTouchEvent(motionEvent);
 
-        EmitPointer(motionEvent, changedIndex, translatedAction.Value);
+        for (var translatedIndex = 0; translatedIndex < plan.EventCount; translatedIndex++)
+        {
+            int pointerIndex = plan.GetPointerIndex(translatedIndex);
+            EmitPointer(motionEvent, pointerIndex, pointerAction);
+        }
+
         return true;
     }
 
@@ -345,6 +348,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
 
         if (state.AttachSurface())
             PostInvalidateOnAnimation();
+        UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Native Skia surface attached.", diagnosticSink);
     }
 
@@ -355,6 +359,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         {
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.DetachSurface(), primaryPointerId);
+            UpdateAnimationSurfaceRegistration();
             AndroidLogger.Write("Native Skia surface detached.", diagnosticSink);
         }
 
@@ -421,6 +426,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             disposed = true;
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.Dispose(), primaryPointerId);
+            animationSurfaceRegistration?.Dispose();
             Render = null;
             Pointer = null;
             TextCommitted = null;
@@ -458,6 +464,9 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         return changed;
     }
 
+    private void UpdateAnimationSurfaceRegistration()
+        => animationSurfaceRegistration?.SetActive(state.CanRender);
+
     private void EmitPointer(MotionEvent motionEvent, int index, AndroidPointerAction action)
     {
         var pointerId = motionEvent.GetPointerId(index);
@@ -485,6 +494,18 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             logicalY,
             isPrimary));
     }
+
+    private static AndroidMotionEventAction TranslateMotionEventAction(MotionEventActions action)
+        => action switch
+        {
+            MotionEventActions.Down => AndroidMotionEventAction.Down,
+            MotionEventActions.PointerDown => AndroidMotionEventAction.PointerDown,
+            MotionEventActions.Move => AndroidMotionEventAction.Move,
+            MotionEventActions.PointerUp => AndroidMotionEventAction.PointerUp,
+            MotionEventActions.Up => AndroidMotionEventAction.Up,
+            MotionEventActions.Cancel => AndroidMotionEventAction.Cancel,
+            _ => AndroidMotionEventAction.Other
+        };
 
     private void EmitCancellations(IReadOnlyList<int> pointerIds, int? primaryPointerId)
     {

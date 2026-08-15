@@ -11,14 +11,17 @@ namespace ModernFormsNext.WindowKit.Backend.Android;
 /// Initializes the Android-specific WindowKit platform foundation.
 /// </summary>
 /// <remarks>
-/// This first backend version registers lifecycle, dispatcher, and permission infrastructure. It
-/// does not yet provide the ModernFormsNext Android window/rendering implementation, clipboard,
+/// The backend registers lifecycle, dispatcher, permission, animation-frame, and motion-policy
+/// infrastructure. The experimental shared-control host renders one control tree through Skia;
+/// Android still does not implement the complete ModernFormsNext window contract, clipboard,
 /// camera, media, WebView, notifications, file pickers, sharing, or drag-and-drop services.
 /// </remarks>
 public sealed class AndroidWindowKitBackend : IWindowKitBackend
 {
     private readonly object sync = new();
     private readonly AndroidWindowKitOptions options;
+    private AndroidPlatformAnimationSettings animationSettings = null!;
+    private AndroidChoreographerAnimationFrameSource animationFrameSource = null!;
 
     /// <summary>
     /// Creates an Android backend using explicit host options.
@@ -60,6 +63,29 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
     /// </summary>
     public AndroidPlatformInfo PlatformInfo { get; private set; } = null!;
 
+    /// <summary>Returns a snapshot of Android frame, lifecycle, and reduced-motion integration.</summary>
+    public AndroidAnimationRuntimeDiagnostics GetAnimationRuntimeDiagnostics()
+    {
+        if (!IsInitialized)
+        {
+            throw new InvalidOperationException(
+                "The Android backend must be initialized before animation diagnostics are available.");
+        }
+
+        AndroidAnimationFrameSourceDiagnostics frame = animationFrameSource.GetDiagnostics();
+        PlatformAnimationSettingsSnapshot settings = animationSettings.Current;
+        return new AndroidAnimationRuntimeDiagnostics(
+            ActivityTracker.State,
+            frame.CallbackPending,
+            frame.SchedulerDemand,
+            frame.ActiveSurfaceCount,
+            frame.PostedCallbackCount,
+            frame.DeliveredCallbackCount,
+            settings.DurationScale,
+            animationSettings.IsObserverRegistered,
+            animationSettings.LastObserverError);
+    }
+
     /// <inheritdoc/>
     public void Initialize()
     {
@@ -82,6 +108,8 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             ApplicationContext = new AndroidApplicationContext(options.ApplicationContext);
             ActivityTracker = new AndroidActivityTracker(options.ActivityProvider, options.DiagnosticSink);
             Dispatcher = new AndroidMainThreadDispatcher();
+            animationSettings = new AndroidPlatformAnimationSettings(ApplicationContext.Context);
+            animationFrameSource = new AndroidChoreographerAnimationFrameSource(options.DiagnosticSink);
             Permissions = new AndroidPermissionService(
                 ApplicationContext.Context,
                 ActivityTracker,
@@ -91,13 +119,16 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             PlatformInfo = new AndroidPlatformInfo();
 
             ApplicationContext.Application.RegisterActivityLifecycleCallbacks(ActivityTracker);
+            IPlatformApplicationLifecycle lifecycle = ActivityTracker;
+            lifecycle.StateChanged += HandleApplicationLifecycleChanged;
+            animationSettings.SetHostActive(lifecycle.State == PlatformApplicationLifecycleState.Foreground);
 
             // Register only services that are genuinely implemented. In particular, there is no
             // IWindowingPlatform or clipboard registration until Android UI/rendering support exists.
             PlatformServiceRegistry.Register<IPlatformDispatcher>(Dispatcher);
             PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(ActivityTracker);
-            PlatformServiceRegistry.Register<IPlatformAnimationSettings>(
-                new AndroidPlatformAnimationSettings(ApplicationContext.Context));
+            PlatformServiceRegistry.Register<IPlatformAnimationSettings>(animationSettings);
+            PlatformServiceRegistry.Register<IPlatformAnimationFrameSource>(animationFrameSource);
             PlatformServiceRegistry.Register<IPermissionService>(Permissions);
 
             IsInitialized = true;
@@ -106,4 +137,9 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
                 options.DiagnosticSink);
         }
     }
+
+    private void HandleApplicationLifecycleChanged(
+        object? sender,
+        PlatformApplicationLifecycleChangedEventArgs e)
+        => animationSettings.SetHostActive(e.CurrentState == PlatformApplicationLifecycleState.Foreground);
 }

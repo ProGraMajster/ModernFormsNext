@@ -7,7 +7,10 @@ both targets. Platform startup and native adaptation are isolated under `Platfor
 
 The shared page uses real ModernFormsNext controls and exercises scrolling, resizing, single-line
 and multiline IME input, Polish/Asian/RTL text, emoji, focus, buttons, checkboxes, flow layout,
-dispatcher callbacks, lifecycle/density diagnostics, and an explicit camera permission flow.
+dispatcher callbacks, lifecycle/density diagnostics, an explicit camera permission flow, and the
+shared animation runtime. The animation smoke section covers ripple, press scale, visual states,
+layout/presentation transitions, simultaneous animations, theme transitions, reduced motion, and
+idle-to-wake diagnostics.
 
 Windows attaches `App.Root` to a normal ModernFormsNext `Form`. Android creates one Skia view and
 adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the same framework
@@ -26,4 +29,7 @@ From the repository root:
 ```
 
 See [`docs/cross-platform-sample.md`](../../docs/cross-platform-sample.md) for Visual Studio steps,
-ADB/emulator commands, limitations, and the complete manual validation checklist.
+ADB/emulator commands, limitations, and the general manual validation checklist. The animation-
+specific architecture, support matrix, and rotate/background/multi-touch/reduced-motion checklist
+are in
+[`docs/architecture/android-animation-runtime.md`](../../docs/architecture/android-animation-runtime.md).

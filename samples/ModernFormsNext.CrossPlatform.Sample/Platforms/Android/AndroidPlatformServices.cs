@@ -24,6 +24,22 @@ internal sealed class AndroidPlatformServices(AndroidWindowKitBackend backend) :
         _ => "Activity unknown"
     };
 
+    public string AnimationRuntimeStatus
+    {
+        get
+        {
+            AndroidAnimationRuntimeDiagnostics diagnostics = backend.GetAnimationRuntimeDiagnostics();
+            return $"Choreographer pending: {diagnostics.FrameCallbackPending}; " +
+                $"demand: {diagnostics.SchedulerDemand}; active surfaces: {diagnostics.ActiveSurfaceCount}; " +
+                $"frames delivered/posted: {diagnostics.DeliveredFrameCallbackCount}/{diagnostics.PostedFrameCallbackCount}; " +
+                $"animator scale: {diagnostics.DurationScale:0.##}; " +
+                $"observer: {(diagnostics.ContentObserverRegistered ? "registered" : "idle")}" +
+                (string.IsNullOrWhiteSpace(diagnostics.ObserverError)
+                    ? string.Empty
+                    : $"; observer error: {diagnostics.ObserverError}");
+        }
+    }
+
     public IPlatformDispatcher Dispatcher => backend.Dispatcher;
 
     public bool SupportsPermissionAction => true;

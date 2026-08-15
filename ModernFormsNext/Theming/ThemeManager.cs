@@ -374,6 +374,7 @@ public sealed class ThemeManager
         bool transitionEnabled = options.Transition.Enabled &&
             options.Transition.Duration > TimeSpan.Zero &&
             !environment.IsDesignMode &&
+            !scheduler.Policy.ShouldCompleteImmediately &&
             (!options.Transition.RespectReducedMotion || !environment.IsReducedMotionRequested);
         ThemeTransitionPlan? plan = transitionEnabled
             ? ThemeTransitionPlan.Create(oldResources, targetResources, oldLegacy, targetLegacy)

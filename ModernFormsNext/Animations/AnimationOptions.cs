@@ -96,7 +96,7 @@ public sealed class AnimationOptions
     internal AnimationOptionsSnapshot CreateSnapshot(AnimationPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(policy);
-        double scale = policy.DurationScale;
+        double scale = policy.EffectiveDurationScale;
         return new AnimationOptionsSnapshot(
             ScaleTime(Duration, scale),
             ScaleTime(Delay, scale),

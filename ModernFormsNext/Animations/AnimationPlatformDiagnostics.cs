@@ -11,6 +11,7 @@ public sealed class AnimationPlatformDiagnostics
         string source,
         bool reducedMotion,
         bool animationsEnabled,
+        double platformDurationScale,
         DateTimeOffset? lastPlatformUpdate,
         bool fallbackUsed,
         PlatformAnimationProviderState providerState,
@@ -19,6 +20,7 @@ public sealed class AnimationPlatformDiagnostics
         Source = source;
         ReducedMotion = reducedMotion;
         AnimationsEnabled = animationsEnabled;
+        PlatformDurationScale = platformDurationScale;
         LastPlatformUpdate = lastPlatformUpdate;
         FallbackUsed = fallbackUsed;
         ProviderState = providerState;
@@ -33,6 +35,9 @@ public sealed class AnimationPlatformDiagnostics
 
     /// <summary>Gets whether animations are effectively enabled.</summary>
     public bool AnimationsEnabled { get; }
+
+    /// <summary>Gets the native duration multiplier applied to newly started animations.</summary>
+    public double PlatformDurationScale { get; }
 
     /// <summary>Gets the last native provider read attempt, in UTC.</summary>
     public DateTimeOffset? LastPlatformUpdate { get; }

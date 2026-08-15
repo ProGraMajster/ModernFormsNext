@@ -48,7 +48,9 @@ public sealed partial class AnimationScheduler
         return new AnimationPlatformDiagnostics(
             snapshot.Source,
             reducedMotion,
-            Policy.AnimationsEnabled && snapshot.AnimationsEnabled && !reducedMotion,
+            Policy.AnimationsEnabled && snapshot.AnimationsEnabled &&
+                snapshot.DurationScale > 0d && !reducedMotion,
+            snapshot.DurationScale,
             snapshot.LastPlatformUpdate,
             snapshot.FallbackUsed,
             snapshot.ProviderState,
@@ -123,7 +125,9 @@ public sealed partial class AnimationScheduler
                     return;
             }
 
-            Policy.SetPlatformReducedMotion(snapshot.ReducedMotion || !snapshot.AnimationsEnabled);
+            Policy.SetPlatformAnimationSettings(
+                snapshot.ReducedMotion || !snapshot.AnimationsEnabled,
+                snapshot.DurationScale);
         }
 
         try

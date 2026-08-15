@@ -67,7 +67,9 @@ The existing public helpers remain adapters. The new implementation consists of:
 
 - one `AnimationScheduler.Default` instance for the current UI process;
 - an internal monotonic clock based on `Stopwatch.GetTimestamp`;
-- one shared periodic tick source, created on first use and stopped when idle;
+- one shared idle-aware tick source, created on first use, late-bound to a backend source, and
+  stopped when idle;
+- an optional platform-neutral frame-source service, implemented by Android with Choreographer;
 - a dispatcher adapter that prefers the registered Android `IPlatformDispatcher` and otherwise
   uses WindowKit `Dispatcher.UIThread`;
 - an owner-and-key identity for replacement;
@@ -91,12 +93,19 @@ finite active animation still completes according to monotonic time when the dis
 
 ## Android requirements
 
-Android already registers `IPlatformDispatcher` backed by its main `Looper`. The scheduler uses
-that service when present, so shared controls and brushes are mutated on the Android main thread.
-The Android activity tracker will expose the platform-neutral lifecycle contract: backgrounding
-pauses the scheduler and stops ticks, while foregrounding resumes from the same effective time.
-The background duration is excluded, preventing a visual jump after resume. Android support
-remains experimental and physical-device frame pacing still requires manual validation.
+Android registers `IPlatformDispatcher` backed by its main `Looper` and an
+`IPlatformAnimationFrameSource` backed by Choreographer. The scheduler uses these services when
+present, even if `AnimationScheduler.Default` was read before backend startup, so shared controls
+and brushes are mutated on the Android main thread and frames follow the display cadence without
+assuming 60 Hz. Active fallback demand hands off once without delivering a duplicate tick. The
+Choreographer instance is acquired only from a main-Looper reconciliation. The source keeps at
+most one callback pending and is
+gated by scheduler demand plus an attached, resumed Skia surface. The activity tracker exposes the
+platform-neutral lifecycle contract: backgrounding pauses the scheduler and stops callbacks, while
+foregrounding resumes from the same effective time. The background duration is excluded,
+preventing a visual jump after resume. See
+[Android animation runtime architecture](android-animation-runtime.md). Physical-device frame
+pacing still requires manual validation.
 
 ## UI thread model
 
@@ -215,14 +224,15 @@ scheduler subscribes once, marshals provider changes through its UI dispatcher, 
 then releases provider and scheduler locks before user-visible completion callbacks can run.
 Startup and foreground entry explicitly refresh the snapshot. Windows additionally refreshes from
 the existing message-only WindowKit window on `WM_SETTINGCHANGE`; no poller, timer, or native handle
-is introduced. Experimental Android reads its global animator/transition scales when a usable
-Activity context exists and refreshes on foreground entry rather than using a live observer.
+is introduced. Experimental Android reads the exact global animator duration scale from the
+application context and uses a lifecycle-aware ContentObserver for changes while foregrounded.
 
 When animations are disabled, reduced motion is requested, or duration scale is zero, newly started
 animations apply their final value once on the UI thread and complete without a timer. Disabling
 motion while animations are active completes them through the same final-value path. A positive
-duration scale is captured when an entry starts; for example, 0.5 halves its duration and 2 doubles
-it. Native read failures retain compatibility defaults and are visible through
+application duration scale is multiplied by the platform scale and captured when an entry starts;
+for example, 0.5 halves its duration and 2 doubles it. Native read failures retain compatibility
+defaults and are visible through
 `GetPlatformDiagnostics()` instead of failing application startup.
 
 ## Performance and memory risks

@@ -4,37 +4,37 @@ namespace ModernFormsNext.WindowKit.Backend.Android;
 
 internal static class AndroidAnimationScaleEvaluator
 {
-    internal const string SourceName = "Android Settings.Global animation scales";
+    private const float MaximumSupportedScale = 100f;
+    internal const string SourceName = "Android Settings.Global animator_duration_scale";
 
     public static PlatformAnimationSettingsSnapshot CreateSnapshot(
         float? animatorDurationScale,
-        float? transitionAnimationScale,
         DateTimeOffset lastUpdate,
         string? error = null)
     {
         if (error is not null ||
             animatorDurationScale is not { } animator ||
-            transitionAnimationScale is not { } transition ||
             !float.IsFinite(animator) ||
-            !float.IsFinite(transition) ||
             animator < 0f ||
-            transition < 0f)
+            animator > MaximumSupportedScale)
         {
             return new PlatformAnimationSettingsSnapshot(
                 SourceName,
                 reducedMotion: false,
                 animationsEnabled: true,
+                durationScale: 1d,
                 lastUpdate,
                 fallbackUsed: true,
                 PlatformAnimationProviderState.Fallback,
                 error ?? "Android animation scales are unavailable or invalid.");
         }
 
-        bool enabled = animator > 0f && transition > 0f;
+        bool enabled = animator > 0f;
         return new PlatformAnimationSettingsSnapshot(
             SourceName,
             reducedMotion: !enabled,
             animationsEnabled: enabled,
+            durationScale: animator,
             lastUpdate,
             fallbackUsed: false,
             PlatformAnimationProviderState.Ready,

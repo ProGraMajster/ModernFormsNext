@@ -63,7 +63,7 @@ public sealed partial class AnimationScheduler : IDisposable
     private long totalTickTimestampDelta;
 
     private AnimationScheduler()
-        : this(new StopwatchAnimationClock(), new DefaultAnimationDispatcher(), new ThreadPoolAnimationTickSource(), new AnimationPolicy())
+        : this(new StopwatchAnimationClock(), new DefaultAnimationDispatcher(), CreateDefaultTickSource(), new AnimationPolicy())
     {
     }
 
@@ -512,6 +512,9 @@ public sealed partial class AnimationScheduler : IDisposable
 
     private static AnimationScheduler CreateDefault() => new();
 
+    private static IAnimationTickSource CreateDefaultTickSource()
+        => new PlatformAnimationTickSource();
+
     private void RequestTick()
     {
         if (Interlocked.Exchange(ref tickPosted, 1) != 0)
@@ -519,7 +522,13 @@ public sealed partial class AnimationScheduler : IDisposable
 
         try
         {
-            dispatcher.Post(ProcessTick);
+            // Android Choreographer invokes the source on the UI thread. Process that display
+            // signal inline so invalidation can participate in the same frame instead of always
+            // slipping to the next vsync. Timer-backed sources still marshal through Post.
+            if (dispatcher.CheckAccess())
+                ProcessTick();
+            else
+                dispatcher.Post(ProcessTick);
         }
         catch (Exception exception)
         {
@@ -658,7 +667,12 @@ public sealed partial class AnimationScheduler : IDisposable
     {
         try
         {
-            dispatcher.Post(() => CompleteImmediately(entry));
+            // Scale zero and reduced motion must publish the exact endpoint before a UI-thread
+            // caller returns. Background callers retain the normal dispatcher marshalling path.
+            if (dispatcher.CheckAccess())
+                CompleteImmediately(entry);
+            else
+                dispatcher.Post(() => CompleteImmediately(entry));
         }
         catch (Exception exception)
         {

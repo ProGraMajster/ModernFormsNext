@@ -55,6 +55,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
     public TestPlatformAnimationSettings(
         bool reducedMotion = false,
         bool animationsEnabled = true,
+        double durationScale = 1d,
         PlatformAnimationProviderState providerState = PlatformAnimationProviderState.Ready,
         bool fallbackUsed = false,
         string? lastError = null)
@@ -62,6 +63,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
         current = CreateSnapshot(
             reducedMotion,
             animationsEnabled,
+            durationScale,
             providerState,
             fallbackUsed,
             lastError);
@@ -120,6 +122,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
     public void Set(
         bool reducedMotion,
         bool animationsEnabled = true,
+        double durationScale = 1d,
         PlatformAnimationProviderState providerState = PlatformAnimationProviderState.Ready,
         bool fallbackUsed = false,
         string? lastError = null)
@@ -127,6 +130,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
         PlatformAnimationSettingsSnapshot next = CreateSnapshot(
             reducedMotion,
             animationsEnabled,
+            durationScale,
             providerState,
             fallbackUsed,
             lastError);
@@ -136,6 +140,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
     public void SetOnNextRefresh(
         bool reducedMotion,
         bool animationsEnabled = true,
+        double durationScale = 1d,
         PlatformAnimationProviderState providerState = PlatformAnimationProviderState.Ready,
         bool fallbackUsed = false,
         string? lastError = null)
@@ -145,6 +150,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
             nextRefresh = CreateSnapshot(
                 reducedMotion,
                 animationsEnabled,
+                durationScale,
                 providerState,
                 fallbackUsed,
                 lastError);
@@ -168,6 +174,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
     private static PlatformAnimationSettingsSnapshot CreateSnapshot(
         bool reducedMotion,
         bool animationsEnabled,
+        double durationScale,
         PlatformAnimationProviderState providerState,
         bool fallbackUsed,
         string? lastError)
@@ -175,6 +182,7 @@ internal sealed class TestPlatformAnimationSettings : IPlatformAnimationSettings
             "Deterministic test provider",
             reducedMotion,
             animationsEnabled,
+            durationScale,
             DateTimeOffset.UnixEpoch,
             fallbackUsed,
             providerState,

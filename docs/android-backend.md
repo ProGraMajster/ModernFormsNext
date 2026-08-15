@@ -6,7 +6,7 @@
 > supported vertical slice and current limitations.
 
 The Android backend is an early platform foundation with an experimental shared-control Skia
-surface, not a complete ModernFormsNext window backend.
+surface and shared animation-runtime integration, not a complete ModernFormsNext window backend.
 Windows remains the primary and best-supported runtime. The Android project targets
 `net10.0-android` with API 23 as its current minimum and has no MAUI or AndroidX dependency.
 
@@ -41,27 +41,31 @@ the current host. A delayed callback from the old activity therefore cannot eras
 activity that has already been created or resumed. A permission request owned by the old activity
 completes with a diagnostic instead of hanging; the host can retry after the replacement activity
 is resumed. When initialization occurs inside the first activity's `OnCreate`, call
-`ObserveHostActivity` once so that activity is immediately available. Subsequent transitions are
-automatic.
+`ObserveHostActivity` only if a service must use that not-yet-resumed Activity immediately.
+Animation surfaces must be marked active only from their normal start/resume lifecycle. Subsequent
+Activity transitions are automatic.
 
 An optional `ActivityProvider` exists for hosts with their own lifecycle integration. It is invoked
 on demand; the delegate must not keep destroyed activities alive.
 
-### Experimental platform animation preference
+### Experimental animation runtime and platform preference
 
 The backend registers `AndroidPlatformAnimationSettings` through the shared backend service
 registry. When an application context exists, it reads
-`Settings.Global.ANIMATOR_DURATION_SCALE` and `TRANSITION_ANIMATION_SCALE`; a zero value in either
-setting requests reduced motion. The animation scheduler combines that snapshot with application
-policy on the UI dispatcher.
+`Settings.Global.ANIMATOR_DURATION_SCALE`. Its exact scalar is combined with application policy on
+the UI dispatcher; zero requests reduced motion and immediate, deterministic targets.
 
 The provider refreshes during startup, on foreground entry, and when application code calls
-`AnimationScheduler.RefreshPlatformPolicy()`. It deliberately does not register a process-lifetime
-`ContentObserver` in this experimental stage. A missing application context or failed settings
-read uses compatibility defaults, records a fallback diagnostic, and does not fail application
-startup.
-The settings evaluator and lifecycle refresh path have deterministic host-side tests, but runtime
-behavior still requires device/emulator validation.
+`AnimationScheduler.RefreshPlatformPolicy()`. A main-thread ContentObserver is registered only
+while the application is foregrounded and the scheduler is subscribed; it uses the application
+resolver and unregisters on background or disposal. A missing context, failed read, or observer
+failure uses compatibility defaults or refresh fallback, records diagnostics, and does not fail
+application startup.
+
+The scheduler uses one demand-driven Choreographer callback while an attached and resumed Skia
+surface exists. It does not assume 60 Hz or maintain a timer per control. Detailed ownership,
+frame, lifecycle, cleanup, capability, and validation guidance is in
+[Android animation runtime architecture](architecture/android-animation-runtime.md).
 
 ## Dispatcher
 
@@ -87,7 +91,8 @@ invalidation, and disposal.
 including framework layout, paint, hit testing, pointer capture, selection, and committed-text
 routing. This is the pipeline used by `ModernFormsNext.CrossPlatform.Sample`.
 
-The view renders only after invalidation or resize. It does not run a permanent frame timer.
+The view renders only after invalidation or resize. It does not run a permanent frame timer; the
+shared animation scheduler requests Choreographer callbacks only while animation work remains.
 Canvas and Android objects remain platform-owned; the adapter borrows the shared control root so
 activity recreation can detach and reattach without discarding application state.
 

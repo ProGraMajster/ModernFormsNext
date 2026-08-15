@@ -315,6 +315,41 @@ public sealed class AnimatedLayoutTests
     }
 
     [Fact]
+    public void RepeatedSurfaceResizeRetargetsWithoutLogicalOrPresentationDrift()
+    {
+        using var harness = new AnimationSchedulerTestHarness();
+        using var root = new Panel { Size = new Size(200, 100) };
+        using var child = new Control { Size = new Size(50, 30), Dock = DockStyle.Right };
+        root.Controls.Add(child);
+        using var surface = new SkiaControlSurface(root);
+        surface.Resize(200, 100);
+        child.AnimationSchedulerOverride = harness.Scheduler;
+        child.LayoutTransition = LinearTransition();
+
+        surface.Resize(300, 100);
+        harness.AdvanceAndTick(Duration / 2);
+        Assert.Equal(250, child.Left);
+        Assert.Equal(200, Rectangle.Round(child.PresentationBounds).Left);
+
+        surface.Resize(240, 100);
+        Assert.Equal(190, child.Left);
+        Assert.Equal(200, Rectangle.Round(child.PresentationBounds).Left);
+        harness.AdvanceAndTick(Duration);
+        Assert.Equal(child.Bounds, Rectangle.Round(child.PresentationBounds));
+
+        surface.Resize(360, 100);
+        harness.AdvanceAndTick(Duration / 2);
+        surface.Resize(220, 100);
+        Assert.Equal(170, child.Left);
+        harness.AdvanceAndTick(Duration);
+
+        Assert.Equal(new Rectangle(170, 0, 50, 100), child.Bounds);
+        Assert.Equal(child.Bounds, Rectangle.Round(child.PresentationBounds));
+        Assert.False(child.HasActiveLayoutTransition);
+        Assert.Equal(0, harness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+    }
+
+    [Fact]
     public void AnchorLayoutAnimatesComputedWidthWithoutChangingAnchorSemantics()
     {
         using var harness = new AnimationSchedulerTestHarness();
