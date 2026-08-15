@@ -12,30 +12,38 @@ internal sealed class DesignerLayoutEngine
     public DesignerLayoutResult Layout(DesignDocument document, DesignSize rootSize)
     {
         var bounds = new Dictionary<DesignControlNode, DesignBounds>();
-        var documentClientBounds = new DesignBounds(0, 0, Math.Max(1, rootSize.Width), Math.Max(1, rootSize.Height));
+        var documentBounds = new DesignBounds(0, 0, Math.Max(1, rootSize.Width), Math.Max(1, rootSize.Height));
+        var documentContentBounds = document.RootKind == DesignRootKind.UserControl
+            ? DesignerLayoutProperties.GetPaddedContentBounds(documentBounds, DesignerLayoutProperties.GetPadding(document.Properties))
+            : documentBounds;
 
-        LayoutGenericChildren(document.Controls, documentClientBounds, document.Size, bounds);
+        LayoutGenericChildren(document.Controls, documentBounds, documentContentBounds, document.Size, bounds);
 
         return new DesignerLayoutResult(bounds);
     }
 
     private static void LayoutGenericChildren(
         DesignControlCollection children,
-        DesignBounds parentClientBounds,
+        DesignBounds parentBounds,
+        DesignBounds parentContentBounds,
         DesignSize parentDesignSize,
         IDictionary<DesignControlNode, DesignBounds> bounds)
     {
-        var remaining = new DesignBounds(0, 0, Math.Max(0, parentClientBounds.Width), Math.Max(0, parentClientBounds.Height));
+        var remaining = new DesignBounds(
+            parentContentBounds.X - parentBounds.X,
+            parentContentBounds.Y - parentBounds.Y,
+            Math.Max(0, parentContentBounds.Width),
+            Math.Max(0, parentContentBounds.Height));
 
         // The persisted collection is front-to-back. As at runtime, the front-most child consumes
         // dock space first; authored X/Y values are ignored for docked controls while thickness is
         // taken from Height (Top/Bottom) or Width (Left/Right).
         foreach (var child in children)
         {
-            var localBounds = GetLocalBounds(child, remaining, parentClientBounds, parentDesignSize);
+            var localBounds = GetLocalBounds(child, remaining, parentBounds, parentDesignSize);
             var absoluteBounds = new DesignBounds(
-                parentClientBounds.X + localBounds.X,
-                parentClientBounds.Y + localBounds.Y,
+                parentBounds.X + localBounds.X,
+                parentBounds.Y + localBounds.Y,
                 Math.Max(0, localBounds.Width),
                 Math.Max(0, localBounds.Height));
 
@@ -52,33 +60,34 @@ internal sealed class DesignerLayoutEngine
         IDictionary<DesignControlNode, DesignBounds> bounds)
     {
         DesignerSpecialContainers.EnsureSpecialChildren(container);
+        var contentBounds = DesignerLayoutProperties.GetContainerContentBounds(container, containerBounds);
 
         if (DesignerSpecialContainers.IsSplitContainer(container))
         {
-            LayoutSplitContainer(container, containerBounds, bounds);
+            LayoutSplitContainer(container, contentBounds, bounds);
             return;
         }
 
         if (DesignerSpecialContainers.IsTabControl(container))
         {
-            LayoutTabControl(container, containerBounds, bounds);
+            LayoutTabControl(container, contentBounds, bounds);
             return;
         }
 
         if (DesignerSpecialContainers.IsFlowLayoutPanel(container))
         {
-            LayoutFlowLayoutPanel(container, containerBounds, bounds);
+            LayoutFlowLayoutPanel(container, contentBounds, bounds);
             return;
         }
 
         if (DesignerSpecialContainers.IsTableLayoutPanel(container))
         {
-            LayoutTableLayoutPanel(container, containerBounds, bounds);
+            LayoutTableLayoutPanel(container, contentBounds, bounds);
             return;
         }
 
         if (container.Children.Count > 0)
-            LayoutGenericChildren(container.Children, containerBounds, GetDesignSize(container), bounds);
+            LayoutGenericChildren(container.Children, containerBounds, contentBounds, GetDesignSize(container), bounds);
     }
 
     private static void LayoutSplitContainer(
@@ -114,8 +123,18 @@ internal sealed class DesignerLayoutEngine
             effectiveBounds[panel2] = panel2Bounds;
             panel1.Bounds = new DesignBounds(0, 0, panel1Bounds.Width, panel1Bounds.Height);
             panel2.Bounds = new DesignBounds(distance + splitterWidth, 0, panel2Bounds.Width, panel2Bounds.Height);
-            LayoutGenericChildren(panel1.Children, panel1Bounds, panel1DesignSize, effectiveBounds);
-            LayoutGenericChildren(panel2.Children, panel2Bounds, panel2DesignSize, effectiveBounds);
+            LayoutGenericChildren(
+                panel1.Children,
+                panel1Bounds,
+                DesignerLayoutProperties.GetContainerContentBounds(panel1, panel1Bounds),
+                panel1DesignSize,
+                effectiveBounds);
+            LayoutGenericChildren(
+                panel2.Children,
+                panel2Bounds,
+                DesignerLayoutProperties.GetContainerContentBounds(panel2, panel2Bounds),
+                panel2DesignSize,
+                effectiveBounds);
         }
         else
         {
@@ -132,8 +151,18 @@ internal sealed class DesignerLayoutEngine
             effectiveBounds[panel2] = panel2Bounds;
             panel1.Bounds = new DesignBounds(0, 0, panel1Bounds.Width, panel1Bounds.Height);
             panel2.Bounds = new DesignBounds(0, distance + splitterWidth, panel2Bounds.Width, panel2Bounds.Height);
-            LayoutGenericChildren(panel1.Children, panel1Bounds, panel1DesignSize, effectiveBounds);
-            LayoutGenericChildren(panel2.Children, panel2Bounds, panel2DesignSize, effectiveBounds);
+            LayoutGenericChildren(
+                panel1.Children,
+                panel1Bounds,
+                DesignerLayoutProperties.GetContainerContentBounds(panel1, panel1Bounds),
+                panel1DesignSize,
+                effectiveBounds);
+            LayoutGenericChildren(
+                panel2.Children,
+                panel2Bounds,
+                DesignerLayoutProperties.GetContainerContentBounds(panel2, panel2Bounds),
+                panel2DesignSize,
+                effectiveBounds);
         }
     }
 
@@ -159,7 +188,12 @@ internal sealed class DesignerLayoutEngine
         }
 
         if (DesignerSpecialContainers.GetSelectedTabPage(tabControl) is { } selectedPage)
-            LayoutGenericChildren(selectedPage.Children, pageBounds, pageDesignSizes[selectedPage], effectiveBounds);
+            LayoutGenericChildren(
+                selectedPage.Children,
+                pageBounds,
+                DesignerLayoutProperties.GetContainerContentBounds(selectedPage, pageBounds),
+                pageDesignSizes[selectedPage],
+                effectiveBounds);
     }
 
     private static void LayoutFlowLayoutPanel(
@@ -264,7 +298,7 @@ internal sealed class DesignerLayoutEngine
     private static DesignBounds GetLocalBounds(
         DesignControlNode node,
         DesignBounds remaining,
-        DesignBounds parentClientBounds,
+        DesignBounds parentBounds,
         DesignSize parentDesignSize)
     {
         var dock = DesignerLayoutProperties.GetDock(node);
@@ -287,8 +321,11 @@ internal sealed class DesignerLayoutEngine
         var anchor = DesignerLayoutProperties.GetAnchor(node);
         var x = node.Bounds.X;
         var y = node.Bounds.Y;
-        var widthDelta = parentClientBounds.Width - Math.Max(1, parentDesignSize.Width);
-        var heightDelta = parentClientBounds.Height - Math.Max(1, parentDesignSize.Height);
+        // Runtime anchor distances are initialized from DisplayRectangle, so a constant padding
+        // value cancels from the resize delta. Authored non-docked coordinates remain relative to
+        // the outer parent bounds; only Dock consumes the padded content rectangle above.
+        var widthDelta = parentBounds.Width - Math.Max(1, parentDesignSize.Width);
+        var heightDelta = parentBounds.Height - Math.Max(1, parentDesignSize.Height);
         var anchoredLeft = (anchor & AnchorStyles.Left) != 0;
         var anchoredRight = (anchor & AnchorStyles.Right) != 0;
         var anchoredTop = (anchor & AnchorStyles.Top) != 0;

@@ -19,6 +19,7 @@ public sealed class DesignerSession
 {
     private readonly List<string> outputLines = [];
     private readonly List<DesignerOpenDocument> openDocuments = [];
+    private readonly DesignerHitTestService hitTestService = new(new DesignerCoordinateMapper());
     private readonly IDesignerHostEnvironment? environment;
     private readonly IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls;
     private DesignControlNode? clipboardNode;
@@ -330,7 +331,7 @@ public sealed class DesignerSession
     /// <param name="y">The document Y coordinate in logical pixels.</param>
     public void SelectAt(int x, int y)
     {
-        var result = Host.HitTest(x, y);
+        var result = hitTestService.HitTestControl(this, new DesignPoint(x, y));
         var selectedNode = GetComponentBoundary(result.Node);
         Host.Selection.Select(selectedNode);
         Log(selectedNode is null ? $"Selected {Document.FormName}." : $"Selected {selectedNode.Name}.");

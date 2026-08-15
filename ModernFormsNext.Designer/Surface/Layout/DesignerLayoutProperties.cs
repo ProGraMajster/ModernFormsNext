@@ -1,5 +1,9 @@
 using ModernFormsNext;
+using ModernFormsNext.Designer.Properties;
+using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
+using ModernFormsNext.Layout;
+using System.Drawing;
 
 namespace ModernFormsNext.Designer.Surface;
 
@@ -8,6 +12,8 @@ internal static class DesignerLayoutProperties
     public const string DockPropertyName = "Dock";
 
     public const string AnchorPropertyName = "Anchor";
+
+    public const string PaddingPropertyName = "Padding";
 
     public static DockStyle GetDock(DesignControlNode node)
     {
@@ -54,6 +60,60 @@ internal static class DesignerLayoutProperties
         }
 
         return AnchorStyles.Top | AnchorStyles.Left;
+    }
+
+    public static Padding GetPadding(DesignControlNode node)
+        => GetPadding(node.Properties);
+
+    public static Padding GetPadding(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+    {
+        if (!properties.TryGetValue(PaddingPropertyName, out var value))
+            return Padding.Empty;
+
+        try
+        {
+            return DesignerPropertyValueEditor.FromDesignPropertyValue(value, typeof(Padding)) is Padding padding
+                ? padding
+                : Padding.Empty;
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+        {
+            return Padding.Empty;
+        }
+    }
+
+    public static DesignBounds GetPaddedContentBounds(DesignBounds bounds, Padding padding)
+    {
+        // Control.Padding uses this same normalization before ScrollableControl.DisplayRectangle
+        // deflates its runtime client area. Reuse both helpers so the Designer follows the runtime
+        // geometry rules; final dimensions are then limited by DesignBounds' nonnegative contract.
+        padding = LayoutUtils.ClampNegativePaddingToZero(padding);
+        var content = LayoutUtils.DeflateRect(
+            new Rectangle(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+            padding);
+
+        return new DesignBounds(
+            content.X,
+            content.Y,
+            Math.Max(0, content.Width),
+            Math.Max(0, content.Height));
+    }
+
+    public static DesignBounds GetContainerContentBounds(DesignControlNode container, DesignBounds bounds)
+        => UsesPaddedDisplayRectangle(container.TypeName)
+            ? GetPaddedContentBounds(bounds, GetPadding(container))
+            : bounds;
+
+    private static bool UsesPaddedDisplayRectangle(string typeName)
+    {
+        // Resolve only framework types from the already loaded assembly. Project UserControls are
+        // rendered from their .mfdesign data and must never be loaded or instantiated here.
+        var normalized = DesignerProjectUserControlDiscovery.NormalizeTypeName(typeName);
+        var frameworkAssembly = typeof(Control).Assembly;
+        var type = frameworkAssembly.GetType(normalized, throwOnError: false)
+            ?? frameworkAssembly.GetType($"ModernFormsNext.{normalized}", throwOnError: false);
+
+        return type is not null && typeof(ScrollableControl).IsAssignableFrom(type);
     }
 
     public static IReadOnlyList<DesignerResizeHandle> GetResizeHandles(DesignControlNode node)
