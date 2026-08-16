@@ -1211,6 +1211,15 @@ public sealed class CSharpDesignerParser
             return true;
         }
 
+        if (IsType(typeName, "Padding") && TryReadObjectArguments(expression, 4, out var padding))
+        {
+            string[] names = ["Left", "Top", "Right", "Bottom"];
+            for (var index = 0; index < names.Length; index++)
+                propertyValues[names[index]] = DesignPropertyValue.FromInt32(padding[index]);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
         if ((IsType(typeName, "Rectangle") || IsType(typeName, "Bounds"))
             && TryReadObjectArguments(expression, 4, out var rectangle))
         {

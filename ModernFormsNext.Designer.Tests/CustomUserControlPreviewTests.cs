@@ -115,6 +115,38 @@ public sealed class CustomUserControlPreviewTests
     }
 
     [Fact]
+    public void PreviewLayoutAppliesRootUserControlPaddingWithoutExecutingUserCode()
+    {
+        ConstructorTrapUserControl.ConstructorCalls = 0;
+        using var project = new TemporaryPreviewProject();
+        var document = CreateUserControlDocument(
+            typeof(ConstructorTrapUserControl).Namespace!,
+            nameof(ConstructorTrapUserControl),
+            300,
+            200);
+        document.Properties["Padding"] = DesignerPropertyValueEditor.ToDesignPropertyValue(
+            new Padding(10, 20, 30, 40),
+            typeof(Padding));
+        var fill = CreateNode("Panel", "fillPanel", 0, 0, 300, 200, string.Empty);
+        fill.Properties["Dock"] = DesignPropertyValue.FromEnum(typeof(DockStyle).FullName!, nameof(DockStyle.Fill));
+        document.Controls.Add(fill);
+        project.AddUserControl(document);
+        var cache = new DesignerEmbeddedPreviewCache(
+            project.ProjectFilePath,
+            DesignerProjectUserControlDiscovery.Discover(project.ProjectFilePath));
+
+        Assert.True(cache.TryGetPreview(
+            typeof(ConstructorTrapUserControl).FullName!,
+            new DesignSize(500, 300),
+            out var preview,
+            out var error), error);
+
+        var projectedFill = Assert.Single(preview!.Document.Controls);
+        Assert.Equal(new DesignBounds(10, 20, 460, 240), preview.Layout.GetEffectiveBounds(projectedFill));
+        Assert.Equal(0, ConstructorTrapUserControl.ConstructorCalls);
+    }
+
+    [Fact]
     public void CacheReloadsChangedDesignDocumentOnNextRequest()
     {
         using var project = new TemporaryPreviewProject();
