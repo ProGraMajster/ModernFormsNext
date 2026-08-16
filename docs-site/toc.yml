@@ -1,0 +1,20 @@
+- name: Overview
+  href: index.md
+- name: Project README
+  href: content/README.md
+- name: Getting started
+  href: content/docs/getting-started.md
+- name: Installation
+  href: content/docs/installation.md
+- name: Samples
+  href: content/docs/samples.md
+- name: Platform status
+  href: content/docs/platform-specific-features.md
+- name: Architecture
+  href: content/docs/architecture.md
+- name: Changelog
+  href: content/CHANGELOG.md
+- name: Releasing
+  href: content/RELEASING.md
+- name: API reference
+  href: api/index.md

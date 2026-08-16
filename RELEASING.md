@@ -109,6 +109,32 @@ dotnet pack .\ModernFormsNext.slnx --configuration Release --no-build --output .
 
 The template package intentionally has no `.snupkg`; published library packages should have one.
 
+Versioned documentation and sample artifacts are also mandatory release inputs. Restore the pinned
+DocFX tool, run the script tests, build the four ZIP files from the Release outputs, and validate
+them before creating a tag:
+
+```powershell
+dotnet tool restore
+$commit = (git rev-parse HEAD).Trim()
+.\scripts\tests\Test-ReleaseDocumentation.ps1
+.\scripts\Build-ReleaseDocumentation.ps1 `
+    -Version 1.9.0 `
+    -Tag local `
+    -Commit $commit `
+    -OutputDirectory .\artifacts\release-docs
+.\scripts\Validate-ReleaseDocumentation.ps1 `
+    -ArtifactDirectory .\artifacts\release-docs `
+    -ExpectedVersion 1.9.0 `
+    -ExpectedCommit $commit `
+    -ExpectedTag local
+```
+
+For a prerelease dry-run before its matching release-notes file exists, use the explicit local-only
+`-ReleaseNotesPath` override documented in
+[`docs/releasing/versioned-documentation-artifacts.md`](docs/releasing/versioned-documentation-artifacts.md).
+The tag workflow never uses that override: it requires `docs/<version>-release-notes.md`, confirms
+the tag resolves to `github.sha`, and validates every archive before publication.
+
 ## Publication workflow
 
 After the release commit is reviewed and the normal `.NET` workflow is green:
@@ -119,9 +145,11 @@ After the release commit is reviewed and the normal `.NET` workflow is green:
 3. Create the annotated or lightweight `vX.Y.Z` tag on the exact reviewed commit.
 4. Push the tag only when GitHub Release and NuGet publication are intended.
 5. Monitor the `Release` workflow until GitHub Release creation and every NuGet push succeed.
-6. Attach the matching `ModernFormsNextDesigner.vsix` to the GitHub Release. The current workflow
+6. Verify the matching docs, offline HTML, samples, and SDK ZIP files are attached to the GitHub
+   Release and contain the expected tag/commit metadata.
+7. Attach the matching `ModernFormsNextDesigner.vsix` to the GitHub Release. The current workflow
    uploads NuGet packages and symbols but does not upload the VSIX automatically.
-7. Verify the public NuGet indexes, package contents, GitHub assets, and VSIX version after
+8. Verify the public NuGet indexes, package contents, GitHub assets, and VSIX version after
    publication.
 
 Example commands are intentionally explicit:

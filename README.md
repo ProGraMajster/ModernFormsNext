@@ -194,6 +194,12 @@ declared as a publishable NuGet package.
 
 ## Documentation
 
+GitHub Releases provide versioned offline documentation, API reference, and selected sample
+bundles generated from the exact release tag. These assets continue to match that package version
+even after the documentation on `master` changes. See the
+[versioned documentation artifact workflow](docs/releasing/versioned-documentation-artifacts.md)
+for bundle contents and local validation.
+
 - [Getting started](docs/getting-started.md)
 - [Installation and Visual Studio Designer](docs/installation.md)
 - [Changelog](CHANGELOG.md)
