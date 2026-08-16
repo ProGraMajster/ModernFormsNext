@@ -33,7 +33,7 @@ namespace ModernFormsNext.WindowKit.Platform
         /// Gets the actual working-area pixel-size of the screen.
         /// </summary>
         /// <remarks>
-        /// This area may be smaller than <see href="Bounds"/> to account for notches and
+        /// This area may be smaller than <see cref="Bounds"/> to account for notches and
         /// other block-out areas such as taskbars etc.
         /// </remarks>
         public PixelRect WorkingArea { get; }

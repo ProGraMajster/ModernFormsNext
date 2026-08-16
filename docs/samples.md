@@ -124,16 +124,16 @@ See [Cross-platform sample](cross-platform-sample.md).
 ## Screenshots
 
 ### Explorer (Windows)
-![Explorer Windows](docs/explorer-windows.png)
+![Explorer Windows](explorer-windows.png)
 
 ### Explorer (Linux)
-![Explorer Linux](docs/explorer-ubuntu.png)
+![Explorer Linux](explorer-ubuntu.png)
 
 ### Explorer (macOS)
-![Explorer macOS](docs/explorer-osx.png)
+![Explorer macOS](explorer-osx.png)
 
 ### Outlaw
-![Outlaw](docs/outlaw-windows.png)
+![Outlaw](outlaw-windows.png)
 
 ### ControlGallery
-![ControlGallery](docs/controlgallery-windows.png)
+![ControlGallery](controlgallery-windows.png)
