@@ -26,7 +26,7 @@ The generated project targets:
 Install the templates from NuGet.org:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.9.0
+dotnet new install ModernFormsNext.Templates::1.10.0
 ```
 
 Check that the template is available:
@@ -124,7 +124,7 @@ Example:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ModernFormsNext" Version="1.9.0" />
+  <PackageReference Include="ModernFormsNext" Version="1.10.0" />
 </ItemGroup>
 ```
 
@@ -144,7 +144,7 @@ If the template is missing, reinstall it:
 
 ```powershell
 dotnet new uninstall ModernFormsNext.Templates
-dotnet new install ModernFormsNext.Templates::1.9.0
+dotnet new install ModernFormsNext.Templates::1.10.0
 ```
 
 ### The generated project cannot restore packages
@@ -154,7 +154,7 @@ Make sure the referenced ModernFormsNext package version exists on NuGet.org.
 Example:
 
 ```xml
-<PackageReference Include="ModernFormsNext" Version="1.9.0" />
+<PackageReference Include="ModernFormsNext" Version="1.10.0" />
 ```
 
 ### The generated project starts as a console application

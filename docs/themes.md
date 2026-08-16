@@ -5,7 +5,7 @@ resource, Brush, `ControlStyle`, static `Theme`, dispatcher, and animation sched
 does not introduce XAML or a second control/property model.
 
 > [!NOTE]
-> This guide documents the ModernFormsNext 1.9.0 API. Theme transitions remain opt-in and Android
+> This guide documents the ModernFormsNext 1.10.0 API. Theme transitions remain opt-in and Android
 > integration remains experimental.
 
 ## Apply built-in themes

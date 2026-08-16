@@ -53,7 +53,7 @@ dotnet run --project .\samples\Outlaw\Outlaw.csproj
 The repository contains a template package project in `ModernFormsNext.Templates`. After packing and installing that template package, create a new app with:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.9.0
+dotnet new install ModernFormsNext.Templates::1.10.0
 dotnet new mfn-app -n MyApp
 ```
 
@@ -84,14 +84,14 @@ For packaged usage, reference the package version produced by this repository:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="ModernFormsNext" Version="1.9.0" />
+    <PackageReference Include="ModernFormsNext" Version="1.10.0" />
 </ItemGroup>
 ```
 
 ## Visual Designer
 
-ModernFormsNext 1.9.0 includes the reusable designer stack, High DPI rendering/input fixes,
-stable child Z-order, and interaction-effect serialization. The generated template includes
+ModernFormsNext 1.10.0 includes Form and UserControl design roots, safe custom UserControl preview,
+vector geometry editors, and animation/effect serialization. The generated template includes
 three related files:
 
 ```text

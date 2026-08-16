@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
-		<ModernFormsNextPackageVersion>1.9.0</ModernFormsNextPackageVersion>
-		<ModernFormsNextVisualStudioExtensionVersion>1.9.0</ModernFormsNextVisualStudioExtensionVersion>
+		<ModernFormsNextPackageVersion>1.10.0</ModernFormsNextPackageVersion>
+		<ModernFormsNextVisualStudioExtensionVersion>1.10.0</ModernFormsNextVisualStudioExtensionVersion>
 
 		<!-- Shared assembly and publication identity. Project-specific package names,
 		     descriptions, products, and tags remain in the owning project. -->

@@ -1,10 +1,10 @@
 # Android platform status
 
 > [!WARNING]
-> Android support in ModernFormsNext 1.9.0 is **Experimental**. APIs, project structure, and
+> Android support in ModernFormsNext 1.10.0 is **Experimental**. APIs, project structure, and
 > runtime behavior may still change. It is not yet recommended for production applications.
 
-Windows remains the primary and most mature ModernFormsNext platform. Android 1.9.0 provides a
+Windows remains the primary and most mature ModernFormsNext platform. Android 1.10.0 provides a
 real shared-control vertical slice: a .NET Android host can attach one ModernFormsNext `Control`
 tree to a SkiaSharp surface and exercise framework layout, rendering, input, and text editing.
 It is not yet a general replacement for the Windows `Form` and WindowKit windowing path.

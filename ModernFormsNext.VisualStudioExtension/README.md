@@ -3,8 +3,8 @@
 This project builds the Visual Studio extension that registers the ModernFormsNext designer.
 
 The extension version is stored as `ModernFormsNextVisualStudioExtensionVersion` in
-`Directory.Build.props`. Coordinated framework releases use the same version; the 1.9.0 VSIX is
-therefore versioned 1.9.0. An independent extension-only patch remains possible when it is
+`Directory.Build.props`. Coordinated framework releases use the same version; the 1.10.0 VSIX is
+therefore versioned 1.10.0. An independent extension-only patch remains possible when it is
 deliberate and documented. The same version must be kept in
 `ModernFormsNext.VisualStudioExtension.Vsix\source.extension.vsixmanifest` and
 the two `InstalledProductRegistration` attributes.
