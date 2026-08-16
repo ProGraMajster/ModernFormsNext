@@ -17,6 +17,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The documentation build verifies that the triggering tag resolves to github.sha.
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -28,6 +31,9 @@ jobs:
 
       - name: Restore
         run: dotnet restore ModernFormsNext.slnx --force --no-cache
+
+      - name: Restore documentation tools
+        run: dotnet tool restore
 
       - name: Build
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
@@ -42,6 +48,33 @@ jobs:
         shell: pwsh
         run: .\scripts\Validate-ReleasePackages.ps1 -PackageDirectory artifacts/packages
 
+      - name: Test release documentation scripts
+        shell: pwsh
+        run: .\scripts\tests\Test-ReleaseDocumentation.ps1
+
+      - name: Build versioned documentation artifacts
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          .\scripts\Build-ReleaseDocumentation.ps1 `
+            -Version $version `
+            -Tag $tag `
+            -Commit "${{ github.sha }}" `
+            -RequireTag `
+            -OutputDirectory artifacts/release-docs
+
+      - name: Validate versioned documentation artifacts
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart("v")
+          .\scripts\Validate-ReleaseDocumentation.ps1 `
+            -ArtifactDirectory artifacts/release-docs `
+            -ExpectedVersion $version `
+            -ExpectedCommit "${{ github.sha }}" `
+            -ExpectedTag $tag
+
       - name: Create GitHub Release
         shell: pwsh
         run: |
@@ -54,6 +87,7 @@ jobs:
           gh release create "${{ github.ref_name }}" `
             artifacts/packages/*.nupkg `
             artifacts/packages/*.snupkg `
+            artifacts/release-docs/*.zip `
             --title "ModernFormsNext $version" `
             --notes-file $releaseNotesPath `
             --latest
