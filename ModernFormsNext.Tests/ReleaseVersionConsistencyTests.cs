@@ -5,7 +5,7 @@ namespace ModernFormsNext.Tests;
 
 public sealed class ReleaseVersionConsistencyTests
 {
-    private const string ExpectedVersion = "1.9.0";
+    private const string ExpectedVersion = "1.10.0";
 
     private static readonly string[] PackableProjects =
     [

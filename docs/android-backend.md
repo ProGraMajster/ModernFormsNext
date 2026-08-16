@@ -1,7 +1,7 @@
 # Android backend
 
 > [!WARNING]
-> Android support in ModernFormsNext 1.9.0 is **Experimental** and is not recommended for
+> Android support in ModernFormsNext 1.10.0 is **Experimental** and is not recommended for
 > production applications. See the [Android platform status](platforms/android.md) for the
 > supported vertical slice and current limitations.
 

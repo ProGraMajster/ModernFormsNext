@@ -4,6 +4,56 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.10.0] - Unreleased
+
+ModernFormsNext 1.10.0 adds reusable vector geometry and Shape controls, animated layout and
+layout-aware visual-state metrics, first-class UserControl design, an Android Choreographer-backed
+animation runtime, and versioned offline release documentation. Windows remains the primary
+supported runtime; Android remains experimental. See the
+[full release notes](docs/1.10.0-release-notes.md) and
+[migration guide](docs/migrations/1.9.0-to-1.10.0.md).
+
+### Added
+
+- Added `Shape`, `Ellipse`, `Circle`, `Line`, `Polygon`, `Polyline`, and `Path` controls plus
+  reusable line, rectangle, ellipse, and path geometry with observable figures, segments, and point
+  collections.
+- Added scheduler-backed animated layout, layout-aware visual-state metric interpolation, and
+  compatible Brush interpolation with deterministic fallback for incompatible values.
+- Added Designer editors for layout transitions, visual-state transitions, ordered
+  `InteractionEffects`, safe project-defined animation metadata, and structured vector geometry.
+- Added first-class UserControl design roots, Visual Studio item templates, source-based custom
+  UserControl discovery, and safe data-only nested preview.
+- Added an experimental Android `Choreographer` frame source with lifecycle-aware timing, live
+  animator-scale observation, and stable multi-touch pointer ownership.
+- Added versioned release bundles for documentation sources, offline DocFX HTML, selected samples,
+  and an aggregate SDK/reference archive tied to the exact release tag and commit.
+
+### Changed
+
+- Coordinated package, template, and Visual Studio extension versions are updated to `1.10.0`
+  without changing package IDs, target frameworks, VSIX identity, publisher, or installation
+  targets.
+- Form and UserControl roots now share one Designer document/session pipeline. Project assemblies
+  and arbitrary user code are not loaded for custom UserControl preview.
+- Release publication now builds and validates NuGet and documentation artifacts before creating a
+  GitHub Release or publishing packages.
+
+### Fixed
+
+- Fixed Designer container `Padding` so preview layout, selection, hit testing, guides, generation,
+  and reload use the same padded content geometry as runtime layout.
+
+### Compatibility
+
+- The public API comparison with 1.9.0 found 40 added public types, 548 added concrete public or
+  protected members, and no removed public identifiers or changed member signatures.
+- Most applications only update references and rebuild. Code importing both `ModernFormsNext` and
+  `System.IO` may need to qualify or alias `Path` after the vector `ModernFormsNext.Path` type is
+  introduced.
+- Existing immediate layout and `.mfdesign` documents remain compatible; new transitions are
+  opt-in.
+
 ## [1.9.0] - 2026-08-02
 
 ModernFormsNext 1.9.0 adds the shared paint, animation, and theme foundations used by the framework,
@@ -449,6 +499,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
+[1.10.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.9.0...HEAD
 [1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
