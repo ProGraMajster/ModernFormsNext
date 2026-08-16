@@ -4,7 +4,7 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
-## [1.10.0] - Unreleased
+## [1.10.0] - 2026-08-16
 
 ModernFormsNext 1.10.0 adds reusable vector geometry and Shape controls, animated layout and
 layout-aware visual-state metrics, first-class UserControl design, an Android Choreographer-backed
@@ -499,7 +499,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
-[1.10.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.9.0...HEAD
+[1.10.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
