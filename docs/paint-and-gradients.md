@@ -195,11 +195,10 @@ change. Common source operations remain available, including indexing, enumerati
 initializers, `Add`, `AddRange`, `Remove`, and `Clear`. Code that explicitly requires `List<T>` must
 accept `IList<GradientStop>` or `GradientStopCollection` instead.
 
-## Planned JSON representation
+## Theme JSON representation
 
-There is no runtime brush JSON converter in this stage. Implementing half of ThemeManager's loading
-and validation pipeline would create a second, premature contract. The planned schema direction is
-renderer-neutral, camel-cased, and discriminated by `type`:
+`ThemeJsonSerializer` reads and writes the strict ThemeManager schema. Brush values are renderer-
+neutral, camel-cased, and discriminated by `type`:
 
 ```json
 {
@@ -216,23 +215,27 @@ renderer-neutral, camel-cased, and discriminated by `type`:
 }
 ```
 
-The intended discriminators are `solid`, `linearGradient`, `radialGradient`, `sweepGradient`, and
-`none`. Eight-digit colors use `#AARRGGBB`; six-digit colors are opaque. A radial value adds
+The supported discriminators include `solid`, `linearGradient`, `radialGradient`, `sweepGradient`,
+`glass`, and `none`. Eight-digit colors use `#AARRGGBB`; six-digit colors are opaque. A radial value adds
 `center`, `origin`, and `radius`; a sweep value adds `center`, `startAngle`, and `endAngle`. The
-future ThemeManager work must version this schema, validate unknown/missing fields, produce path-
-specific errors, and test round trips before it becomes a supported file format.
+loader validates unknown or missing fields, enforces bounded collections and inheritance, reports
+path-specific errors, and never activates CLR types through reflection. See the complete
+[theme JSON schema](theme-json-schema.md) for the current allow-list and limits.
 
 ## Current limitations
 
 - Relative mapping is the only supported coordinate mode; absolute mapping is deferred.
 - Radial gradients are circular and use one radius, not independent X/Y radii.
 - Existing public Skia-compatible members remain for source compatibility; use the neutral members
-  in new application, theme, and future shape code.
-- Advanced color-space interpolation and brush animation helpers are not implemented.
+  in new application, theme, and shape code.
+- Advanced color-space interpolation is not implemented. Planner-based state/theme transitions
+  support compatible built-in brushes, while the identity-preserving `Brush.AnimateTo` helper has
+  the narrower exact-type/equal-stop-count contract.
 - Shader objects are intentionally short-lived and disposed per rendering scope; there is no global
   bounds-dependent native shader cache.
 - Android uses the same model and shader factory, but Android support as a whole remains
   experimental and still requires physical-device GPU validation.
 
 See the **Paint & Gradients** page in `samples/ControlGallery` for manual resize, spread, transform,
-runtime mutation, and dynamic-resource checks.
+runtime mutation, and dynamic-resource checks. Remaining boundaries are indexed in
+[Known limitations](known-limitations.md).

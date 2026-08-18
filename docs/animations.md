@@ -550,7 +550,7 @@ focus ring
 ```
 
 Ripple is not implemented by individual renderers. `IInteractionEffectClip` can provide a custom
-Skia clip for future shape/geometry controls. The built-in
+Skia clip for advanced geometry-aware effects. The built-in
 `ControlBoundsInteractionEffectClip.Instance` clips to scaled bounds and the resolved border
 radius. Each effect reuses its `InteractionEffectRenderContext` between frames; it borrows the
 target-local canvas for the current render call, so effects must never retain either object.
@@ -596,8 +596,10 @@ final-value path. Positive duration scale is captured when each animation starts
 Windows reads `SPI_GETCLIENTAREAANIMATION` during framework startup and refreshes it from the
 existing WindowKit message-only window on `WM_SETTINGCHANGE`. This adds no polling loop, timer, or
 native handle. The experimental Android backend reads `Settings.Global.ANIMATOR_DURATION_SCALE`
-and `TRANSITION_ANIMATION_SCALE` when a usable Activity context exists and refreshes on foreground
-entry. Android intentionally has no live settings observer in this stage.
+when a usable Activity context exists. While animation policy has subscribers and the Activity is
+usable, a `ContentObserver` refreshes the value through the main-Looper dispatcher. The
+subscription is removed while the host is backgrounded or unused, and foreground entry refreshes
+the snapshot.
 
 ## Diagnostics and faults
 
@@ -641,8 +643,8 @@ conservative generated shape and never executes project code or reflects arbitra
 
 The current Designer has dirty/save support but no transaction-based undo/redo stack. Therefore a
 successful collection commit participates in normal save/reload and code regeneration, but it does
-not claim undo/redo integration. Custom interaction-effect types and custom easing delegates remain
-code-first.
+not claim undo/redo integration. Explicitly attributed project effects can use the safe source-
+described metadata path; unsupported custom effects and custom easing delegates remain code-first.
 
 ## Windows and experimental Android
 
@@ -678,8 +680,6 @@ stops when no runnable work remains.
 - The Designer supports built-in effects, explicitly source-described project effects, layout
   transitions, visual-state transitions, and built-in easing identifiers. Custom easing delegates,
   general `AnimationDefinition` activation, and Designer undo/redo remain code-first/unavailable.
-- Android platform preference refresh occurs on startup/foreground or explicit refresh; there is no
-  live `ContentObserver` in this experimental stage.
 - Android is experimental; physical-device frame pacing, multi-touch rendering,
   platform settings changes, background/foreground, and orientation changes still require manual
   validation.
@@ -690,5 +690,6 @@ See [the scheduler architecture](architecture/ui-animation-scheduler.md), the
 [composable-animation architecture decision](architecture/decisions/ADR-Composable-Animations-And-Interaction-Effects.md),
 the [animation platform polish decision](architecture/decisions/ADR-Animation-Platform-Polish.md),
 the [Designer animation/effect contract](designer-animation-effects.md),
+the [central known-limitations index](known-limitations.md),
 and **Animations and Interaction Effects** in `samples/ControlGallery` for implementation rationale
 and interactive checks.

@@ -3,11 +3,12 @@
 ## Status and scope
 
 This document records the state found after the 1.8.0 release and the target architecture for the
-paint/brush hardening stage. The stage deliberately stops before ThemeManager, shapes, charts, a
-new animation scheduler, or a theme JSON loader. Its output is a reusable visual-value contract for
-those later features.
+paint/brush hardening stage. That stage is implemented. ThemeManager, strict theme JSON, the shared
+animation scheduler, and the Shape/Geometry foundation now consume the resulting visual-value
+contract; charts remain future work. Sections describing the old baseline are retained as design
+history rather than current limitation claims.
 
-## 1. Current color, brush, and gradient system
+## 1. Pre-stage color, brush, and gradient system
 
 ModernFormsNext already has a public `ModernFormsNext.Drawing.Brush` hierarchy. It contains
 `SolidColorBrush`, `GradientBrush`, `LinearGradientBrush`, `RadialGradientBrush`,
@@ -35,7 +36,7 @@ matching C# object initializers.
 - Designer structured values and `CSharpLiteralWriter` are the existing serialization/code
   generation contract.
 
-## 3. Problems in the current architecture
+## 3. Problems identified in the pre-stage architecture
 
 1. Brushes and stops are mutable but publish no change notification. Mutating a shared brush does
    not invalidate controls that use it.
@@ -101,24 +102,23 @@ Resource dictionaries continue to notify only when the resource entry changes. I
 changes flow through the brush's own notification contract; no global resource broadcast is added.
 Mutations have the same UI-thread affinity as current resource updates and control setters.
 
-## 8. Future ThemeManager impact
+## 8. Delivered ThemeManager impact
 
-ThemeManager can publish shared brushes under stable dynamic-resource keys. Runtime changes can
-update a brush in place for targeted invalidation, while atomic theme replacement can replace the
-resource value. Opacity, spread mode, stable stop ordering, and neutral values form a future JSON
-schema without embedding Skia names. This stage documents that schema direction but does not add a
-partial theme serializer.
+ThemeManager publishes cloned brushes under stable dynamic-resource keys. Runtime changes can update
+a brush in place for targeted invalidation, while atomic theme replacement replaces the resource
+value. Opacity, spread mode, stable stop ordering, and neutral values are represented by the strict,
+renderer-neutral [theme JSON schema](../theme-json-schema.md).
 
 Advanced color interpolation is intentionally not exposed until ThemeManager can define and
 validate color spaces consistently. The initial renderer preserves Skia's current sRGB-compatible
 color behavior.
 
-## 9. Future Shape impact
+## 9. Delivered Shape impact
 
-Shapes will be able to reuse `Brush` for fills and, later, stroke paint without depending on a
-control. Relative gradient coordinates are resolved against the geometry's paint bounds by the
-same adapter. The model does not reference `Control`, Windows, Android, or the Designer. Stroke
-caps, joins, dashes, and geometry are outside this stage.
+Shapes reuse `Brush` for fills and strokes. Relative gradient coordinates are resolved against the
+geometry's paint bounds by the same adapter. Geometry stays platform-neutral; the shared Skia
+renderer supports stroke caps, joins, dashes, transforms, and retained paths without a second paint
+hierarchy.
 
 ## 10. Target architecture
 
@@ -175,7 +175,7 @@ creation itself dominates and cannot be eliminated safely for bounds-dependent g
 bounded cache policy.
 
 Text brushes require a temporary alpha layer as before. Animated brush properties rebuild shaders
-and should be driven by the future UI-thread animation scheduler, not worker-thread callbacks.
+and are driven by the shared UI-thread `AnimationScheduler`, not worker-thread callbacks.
 
 ## 14. Native memory and shader cache risks
 
@@ -207,5 +207,5 @@ This stage is complete when:
   resource without changing the default template application;
 - shared, Windows, Android, Designer, VSIX, samples, tests, and local packages pass release
   validation; and
-- the roadmap marks only paint/gradient hardening complete and recommends UI animation scheduler
-  hardening next.
+- the roadmap and current documentation distinguish the completed foundation from remaining mapping,
+  color-space, batching, and device-validation work.

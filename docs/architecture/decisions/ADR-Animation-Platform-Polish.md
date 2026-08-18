@@ -1,6 +1,12 @@
 # ADR: Animation platform policy, ripple overflow, and Designer effects
 
-Status: Accepted for the animation platform polish draft
+Status: Accepted; implemented in 1.9.0 and extended in 1.10.0
+
+Implementation note (2026-08-18): the Android provider now observes
+`Settings.Global.ANIMATOR_DURATION_SCALE` while the lifecycle is foreground and animation policy
+has subscribers. Issue #28 expanded the detached Designer model to attributed project effects and
+added layout/visual-state transition editors. The sections below describe the accepted design with
+those delivered amendments.
 
 ## Context
 
@@ -53,16 +59,15 @@ ModernFormsNext behavior.
 
 ### Experimental Android source
 
-The Android provider reads `Settings.Global.ANIMATOR_DURATION_SCALE` and
-`TRANSITION_ANIMATION_SCALE`. A finite zero value in either setting requests reduced motion; both
-values must be positive to permit animations. The application context is sufficient, so no
-foreground `Activity` is required.
+The Android provider reads `Settings.Global.ANIMATOR_DURATION_SCALE`. A finite zero value requests
+reduced motion; a positive value permits animations and scales newly started durations. The
+provider uses the current Activity when one is usable.
 
-Android live observation is intentionally limited in this experimental backend. The scheduler
-refreshes the provider when the shared lifecycle reports `Foreground`. This avoids a permanent
-`ContentObserver` and its `Handler` ownership while still reflecting changes after resume. Missing
-context, inaccessible settings, malformed values, and platform exceptions use the same safe
-fallback as Windows. Device/emulator runtime behavior must not be claimed from compile-time or
+Live observation is lifecycle- and subscription-aware. A main-Looper `ContentObserver` exists only
+while the shared lifecycle is foreground and the provider has subscribers; it is removed when the
+host backgrounds or the final subscriber leaves. Foreground entry also refreshes the snapshot.
+Missing context, inaccessible settings, malformed values, and platform exceptions use the same
+safe fallback as Windows. Device/emulator runtime behavior must not be claimed from compile-time or
 abstraction tests alone.
 
 ### Threading and lifetime
@@ -91,9 +96,9 @@ shared scheduler; disposal and cancellation clear their handles and visual state
 
 The runtime `InteractionEffectCollection` remains the owner-attached collection. Designer-only
 editing lives in `ModernFormsNext.Designer` and supports the built-in `RippleEffect` and
-`PressScaleEffect`. Issue #28 extends the same detached contract to explicitly attributed project
-effects discovered from source. Missing or changed project types are retained as unavailable
-definitions and never instantiated by Designer.
+`PressScaleEffect`. The completed issue #28 extends the same detached contract to explicitly
+attributed project effects discovered from source. Missing or changed project types are retained as
+unavailable definitions and never instantiated by Designer.
 
 The `.mfdesign` value is a deterministic structured object containing `Count` and ordered `ItemN`
 entries. Each entry stores a type discriminator and supported serializable properties. Generated
@@ -136,15 +141,15 @@ touch pointer may move keyboard focus but does not cancel the earlier touch sequ
 
 ## Known limitations
 
-- Android refreshes on foreground instead of observing the global setting continuously.
-- Android runtime behavior requires a device or emulator for confirmation.
-- The Designer initially supports only `RippleEffect` and `PressScaleEffect` and their safe,
-  deterministic properties; arbitrary easing delegates and custom clip implementations are not
-  serialized.
+- Android runtime behavior still requires broad emulator and physical-device confirmation.
+- The Designer supports built-in and explicitly attributed source-discovered effects, but arbitrary
+  easing delegates, custom clip implementations, and live effect preview are not serialized or
+  executed.
 - Designer undo/redo remains unavailable because the existing Designer session has no command
   transaction stack.
-- This work does not add animated layout, gradient-stop morphing, Shapes/Geometry, new large
-  effects, or broader Android runtime stabilization.
+- Cell/row/action-cell targeting, new large effects, and broader Android runtime stabilization
+  remain separate work. Animated layout, normalized gradient-stop interpolation, and
+  Shapes/Geometry were delivered later in 1.10.0.
 
 ## Consequences
 

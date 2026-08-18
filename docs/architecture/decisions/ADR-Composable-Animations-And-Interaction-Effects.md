@@ -4,6 +4,11 @@
 - Date: 2026-07-23
 - Scope: `ModernFormsNext`, `ModernFormsNext.WindowKit`, platform hosts, Designer, and ControlGallery
 
+Implementation note (2026-08-18): ModernFormsNext 1.10.0 added animated bounds, padding and border-
+width visual-state interpolation, a broader brush compatibility planner, detached Designer editors,
+and the Android Choreographer/settings-provider integration. Those later additions amend the
+original first-release limitations without changing this ADR's single-scheduler decision.
+
 ## Context
 
 ModernFormsNext already has a process-wide `AnimationScheduler`, typed interpolators, monotonic
@@ -153,7 +158,7 @@ ripple is not added to individual control renderers.
 
 Effects use `IInteractionEffectClip`. The built-in bounds clip respects the current
 `ControlStyle.Border` corner radius. The abstraction intentionally accepts a control and a Skia
-canvas so future Shapes/Geometry implementations can provide a path without changing effect APIs.
+canvas so advanced geometry-aware effects can provide a path without changing effect APIs.
 The canvas is borrowed and is never retained.
 
 ### Repaint batching and performance
@@ -202,10 +207,14 @@ No runtime-success claim is made without a device or emulator.
 
 ## Known limitations
 
-- Layout-property interpolation is intentionally not provided by visual-state transitions.
-- Incompatible brush structures switch discretely.
+- Visual-state layout interpolation is intentionally limited to padding and border widths; other
+  layout metrics switch discretely.
+- Cross-kind gradient geometry, Glass/NoBrush/null, empty-to-populated gradients, and custom brush
+  structures switch discretely.
 - Legacy renderers that draw specialized item focus indicators continue to own those indicators;
   the final focus-overlay hook is available for new effects and control-specific migration.
-- Android frame pacing, multi-touch visuals, background/foreground behavior, and orientation
-  changes require device or emulator validation.
-- Designer collection editors are intentionally minimal; complex effect editing is code-first.
+- Android frame pacing, multi-touch visuals, background/foreground behavior, setting changes, and
+  orientation changes require broad device or emulator validation.
+- Designer editors support the safe detached metadata subset and known easing identifiers. Custom
+  delegate easing, general `AnimationDefinition` activation, live effect preview, and Designer-wide
+  undo/redo remain unavailable.

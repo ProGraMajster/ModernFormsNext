@@ -129,9 +129,10 @@ brush per frame. Scheduler batching retains the existing one-invalidation-batch-
   discrete fallback.
 - Color channels use the existing sRGB interpolation; linear-light or color-space selection is not
   introduced here.
-- No new Designer editor or serialized transition format is added; that belongs to issue #28.
-- The planner is platform-neutral. Experimental Android compiles against it, but full device frame
-  pacing and runtime validation remain part of issue #29.
+- The Designer serializes known visual-state transition/easing metadata, but it does not live-
+  preview transitions and custom delegate easing remains code-first.
+- The planner is platform-neutral and the Android scheduler integration is implemented. Full
+  physical-device frame-pacing and rendering validation remains outstanding.
 
 See also [Paint and gradient architecture](paint-and-gradients.md),
 [UI animation scheduler architecture](ui-animation-scheduler.md), and

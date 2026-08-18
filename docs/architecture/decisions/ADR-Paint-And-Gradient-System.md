@@ -1,8 +1,12 @@
 # ADR: Evolve Brush as the canonical paint value
 
-- Status: Accepted for implementation
+- Status: Accepted; implemented
 - Date: 2026-07-19
 - Scope: `ModernFormsNext.Drawing`, control brush properties, dynamic resources, and Skia rendering
+
+Implementation note (2026-08-18): ThemeManager, strict theme JSON, brush interpolation, and the
+1.10.0 Shape/Geometry system now consume this completed paint foundation. Historical references to
+future downstream consumers describe the stage boundary, not their current repository status.
 
 ## Context
 

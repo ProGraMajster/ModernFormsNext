@@ -108,7 +108,8 @@ included in the VSIX; no application assembly is added to the extension process.
   drag, resize, and custom-code isolation.
 - Designer-wide undo/redo does not exist yet. Editors use atomic OK/Cancel semantics so a future
   transaction service can wrap one committed definition change.
-- Android runtime animation integration and device validation remain part of issue #29.
+- Android runtime animation integration is implemented. Broad emulator and physical-device frame,
+  lifecycle, setting-change, and rendering validation remains outstanding.
 
 ## Manual Visual Studio smoke test
 
@@ -121,4 +122,5 @@ effect can be checked with the explicit attributes shown above; its throwing con
 run while the designer or editor is open.
 
 See [Designer architecture](designer-architecture.md), [Animations](animations.md), and
-[Composable animations](composable-animations.md).
+[Composable animations](composable-animations.md). The
+[central known-limitations index](known-limitations.md) tracks the remaining boundaries.

@@ -145,6 +145,24 @@ docs/migrations/1.9.0-to-1.10.0.md
 All tracked migration guides are included automatically. A release without a migration guide does
 not fail; do not create a synthetic guide when there are no known migration steps.
 
+## Current validation boundaries
+
+The canonical DocFX inputs are `docs-site/`, tracked repository documentation, and API metadata from
+matching Release assemblies/XML. Ignored local `docs/docfx.json`, `docs/index.md`, `docs/toc.yml`,
+`docs/api/`, and `docs/_site/` remnants are not release inputs and must not be treated as a second
+documentation source.
+
+The scripts deterministically validate metadata, archives, public links represented by repository
+content, and internal offline links. Browser rendering, interactive Visual Studio Designer/VSIX
+behavior, Marketplace publication, and Android emulator or physical-device behavior remain manual
+gates and must be reported separately.
+
+Repository-wide project/version enumeration can see nested Git worktrees placed below `artifacts/`.
+For an exact-SHA release check, use a clean external worktree and run builds/tests sequentially with
+`-m:1 /p:UseSharedCompilation=false`; do not weaken consistency tests to accommodate a contaminated
+checkout. The [central known-limitations index](../known-limitations.md) records this tooling
+boundary.
+
 ## Security and exclusions
 
 Bundle inputs are allowlisted and selected from Git-tracked paths. Validation rejects `.git`,

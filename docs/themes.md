@@ -203,9 +203,11 @@ Only the shared `AnimationScheduler` is used. Compatible changed values are:
 - compatible linear, radial, and sweep gradients, including geometry, opacity, transform, stop
   colors, and stop offsets.
 
-An incompatible Brush type or gradient stop count switches immediately. Glass and no-fill brushes
-also switch immediately. Spacing, padding, sizing, corners, borders, typography, and other layout
-values switch at commit to avoid a layout pass on every frame.
+An incompatible Brush type switches immediately. Compatible gradients may have different non-empty
+stop counts; the shared planner normalizes them for the transition. Cross-kind gradient geometry,
+empty-to-populated gradients, Glass, and no-fill brushes switch immediately. Spacing, padding,
+sizing, corners, borders, typography, and other layout values switch at commit to avoid a layout
+pass on every frame.
 
 Platform reduced-motion can suppress transition creation. The scheduler's `AnimationsEnabled`,
 `ReducedMotion`, and duration policy is authoritative, including for active work. Background/no-host
@@ -306,3 +308,5 @@ kept for rendering, window-lifecycle, emulator/device, and interactive Designer 
 - line height and letter spacing are not globally honored;
 - Android has no system-theme provider and remains experimental;
 - physical-device Android and interactive Designer checks cannot be replaced by headless tests.
+
+See the [central known-limitations index](known-limitations.md) for issue mapping and priorities.

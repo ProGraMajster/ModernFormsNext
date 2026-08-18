@@ -3,6 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-07-19
 
+Implementation note (2026-08-18): the tick-source seam now selects Android Choreographer when the
+surface is eligible, and later releases added composition, native animation settings, ThemeManager,
+Shape, Designer metadata, and animated layout without adding another scheduler.
+
 ## Context
 
 ModernFormsNext has public control animation helpers and an animated `Switch`, but their internal
@@ -63,8 +67,8 @@ Adopt the shared scheduler option.
 - Central policy implements enabled/reduced-motion behavior and duration scaling.
 - Android activity lifecycle implements a platform-neutral lifecycle contract consumed by the
   scheduler.
-- Native frame callbacks and advanced animation composition remain future enhancements behind the
-  tick-source seam.
+- Native frame callbacks and advanced animation composition remain behind the tick-source seam;
+  Android Choreographer and composable definitions are the current implementations.
 
 ## Consequences
 
@@ -75,8 +79,9 @@ and timer lifetimes.
 
 The timer is a pacing request rather than a guarantee of a particular FPS. It can be replaced by a
 stable render-loop signal later. The scheduler owns active callbacks strongly until they terminate,
-so custom owners must cancel when their lifecycle ends. Android physical-device pacing and native
-reduced-motion discovery remain manual/future work.
+so custom owners must cancel when their lifecycle ends. Android physical-device pacing remains
+manual work. Native animation-scale discovery and live foreground observation are implemented
+through the platform settings provider.
 
 ## Rejected alternatives
 

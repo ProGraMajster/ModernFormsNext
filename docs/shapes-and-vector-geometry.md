@@ -144,3 +144,16 @@ and generated C# use invariant decimal syntax independently of the current UI cu
 
 Open **Shapes** in ControlGallery for solid and gradient fills, gradient and solid strokes, caps,
 joins, a reusable Bezier path, a vector transform, and stroke-safe control-bound smoke tests.
+
+## Current limitations
+
+- The geometry model has line, rectangle, ellipse, line segment, quadratic Bezier, and cubic Bezier
+  primitives. It does not yet include arc segments, geometry groups/boolean operations, SVG import
+  or a core SVG-style path string, a general `Stretch` contract, or generic Control geometry clips.
+- The Designer provides structured and compact text editors, not a graphical Bezier canvas.
+- Windows and Android share the Skia renderer, but the Android Shape path has no recorded physical-
+  device visual, touch-hit, GPU, or cache-profile matrix. An Android build is not that evidence.
+
+See [Known limitations](known-limitations.md) and the
+[1.10.0 audit proposals](audits/1.10.0-documentation-and-limitations-audit.md#p3-extend-vector-geometry-and-path-designer-tooling)
+for issue-ready scope without claiming those features are implemented.

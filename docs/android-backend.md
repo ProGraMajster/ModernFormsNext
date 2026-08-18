@@ -167,6 +167,9 @@ validation role.
   disposal behavior run as `net10.0` tests. Deployment remains an explicit device/emulator step
   through repository scripts.
 
+See the [central known-limitations index](known-limitations.md) for issue mapping and validation
+priorities. Automated host tests and successful Android builds are not physical-device evidence.
+
 ## Troubleshooting
 
 - `NotDeclared`: add the exact `<uses-permission>` reported by the diagnostic to the application
