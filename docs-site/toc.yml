@@ -10,6 +10,8 @@
   href: content/docs/samples.md
 - name: Platform status
   href: content/docs/platform-specific-features.md
+- name: Known limitations
+  href: content/docs/known-limitations.md
 - name: Architecture
   href: content/docs/architecture.md
 - name: Changelog

@@ -17,7 +17,7 @@ ModernFormsNext (UI Framework)
         ↓
 WindowKit (Platform Abstraction)
         ↓
-Platform Backend (Windows, Linux, etc.)
+Platform Backend (supported Windows, experimental Android)
         ↓
 Rendering (SkiaSharp)
 ```
@@ -63,13 +63,14 @@ This layer allows the framework to keep a consistent API while delegating platfo
 
 ## Platform Backends
 
-Each supported platform can provide its own backend.
+Each platform can provide its own backend. Windows is the supported full runtime backend; Android
+is an experimental shared-control host. The repository does not currently provide supported Linux
+or macOS application backends.
 
-Examples:
+Current implementations:
 
-- Windows backend
-- Linux backend
-- macOS backend
+- supported Windows backend;
+- experimental Android backend foundation and Skia control surface.
 
 Responsibilities:
 
@@ -140,6 +141,8 @@ Planned and possible future areas include:
 
 - improved platform support
 - more advanced rendering features
-- animation systems
 - additional modern controls
 - deeper customization of platform services
+
+See [Known limitations](known-limitations.md) for the current platform, rendering, and tooling
+boundaries rather than treating possible future backends as supported implementations.

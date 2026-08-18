@@ -9,6 +9,10 @@ diagnostics. It deliberately excludes ThemeManager, Shape controls, navigation t
 designer-authored transition system. The animated-layout foundation now consumes this scheduler as
 described in [Animated layout architecture](animated-layout.md); it does not add another ticker.
 
+Implementation update (2026-08-18): ThemeManager, Shape controls, composable definitions,
+Designer-authored safe transition metadata, Android Choreographer pacing, and Android live
+animation-scale observation now consume this seam. Navigation transitions remain future work.
+
 ## Pre-change state
 
 Before this stage, ModernFormsNext had a small animation surface under
@@ -189,7 +193,7 @@ The scheduler does not invalidate globally. Existing property setters retain res
 Cancellation performs no property write, so it creates no extra repaint. Layout and render
 invalidation remain separate concerns.
 
-## Paint/Brush, resources, and future themes
+## Paint/Brush, resources, and themes
 
 The owner of an explicit in-place brush animation is the brush itself. Its synchronous `Changed`
 event continues through the weak, reference-counted subscriptions introduced with dynamic
@@ -205,12 +209,13 @@ data. Theme transitions construct compatible local animation plans after resourc
 publish the current presentation brush during a rapid replacement, and restore the exact target
 reference at completion.
 
-## Future Shape and navigation work
+## Shape and future navigation work
 
-Shape properties can use the same typed interpolators and owner keys. Navigation surfaces can use
-multiple keys for opacity and transform without owning timers. Neither feature is implemented in
-this stage. Animated layout uses a focused presentation-geometry helper: layout computes the target
-once, while scheduler frames request composition invalidation without rerunning layout.
+Shape controls use the shared paint/geometry/rendering architecture and can consume the same typed
+interpolators and owner keys. Navigation surfaces can later use multiple keys for opacity and
+transform without owning timers. Animated layout uses a focused presentation-geometry helper:
+layout computes the target once, while scheduler frames request composition invalidation without
+rerunning layout.
 
 ## Reduced motion
 

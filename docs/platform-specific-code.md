@@ -20,10 +20,13 @@ an Application Context or lifecycle.
 
 Full desktop WindowKit services continue to use the established `AvaloniaGlobals` registry. The
 lightweight backend layer now also exposes `PlatformServiceRegistry`, allowing Android foundation
-services to be used without loading desktop rendering/windowing dependencies. The first Android
-iteration registers:
+services to be used without loading desktop rendering/windowing dependencies. The current Android
+foundation registers:
 
 - `IPlatformDispatcher`;
+- `IPlatformApplicationLifecycle`;
+- `IPlatformAnimationSettings`;
+- `IPlatformAnimationFrameSource`;
 - `IPermissionService`.
 
 It does not register `IWindowingPlatform`, `IClipboard`, or empty placeholders. Consumers therefore
@@ -49,3 +52,6 @@ Clipboard, OpenUri, sharing, file pickers, notifications, WebView, media, camera
 drag-and-drop should each remain Android backend services. Only capability-shaped DTOs and contracts
 belong in shared code. Android `Intent`, `Activity`, `Context`, `Uri`, and permission strings remain
 implementation details of the Android assembly.
+
+The implemented and missing platform boundaries are summarized in
+[Known limitations](known-limitations.md).

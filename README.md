@@ -220,6 +220,13 @@ for bundle contents and local validation.
 - [Framework roadmap](docs/roadmap/ModernFormsNext-Framework-Roadmap.md)
 - [Release process](RELEASING.md)
 
+## Known limitations
+
+ModernFormsNext 1.10.0 is stable on its primary Windows path, while several Designer, Android,
+cross-platform, compatibility, and manual-validation boundaries remain. The central
+[known-limitations index](docs/known-limitations.md) classifies them by type and severity and links
+to current issues and detailed subsystem documentation.
+
 ## Samples
 
 | Sample | Role |

@@ -7,10 +7,10 @@ It lets a control move and resize smoothly after application code or a layout en
 rectangle. It does not introduce another visual tree, layout engine, timer, or platform-specific
 control implementation.
 
-The first version interpolates the complete `RectangleF` (`X`, `Y`, `Width`, and `Height`) as one
-value. Navigation transitions, designer editing, and Android-specific runtime integration remain
-separate work. Selected visual-state content metrics build on this foundation through the linked
-layout-aware contract below.
+The implementation interpolates the complete `RectangleF` (`X`, `Y`, `Width`, and `Height`) as one
+value. Navigation transitions remain separate work. The Designer serializes a safe known-easing
+subset, Android uses the shared Choreographer-backed scheduler, and selected visual-state content
+metrics build on this foundation through the linked layout-aware contract below.
 
 ## Logical and presentation geometry
 
@@ -131,20 +131,21 @@ card.Bounds = new Rectangle(100, 50, 400, 200);
 ```
 
 `LayoutTransition` is expandable in a property grid. `Enabled` and `Duration` are ordinary editable
-properties. Easing remains a code-first delegate and is hidden from designer serialization until a
-future known-easing editor can represent it without serializing arbitrary delegates.
+properties. The ModernFormsNext Designer stores built-in easing identifiers without serializing
+arbitrary delegates; custom easing delegates remain code-first.
 
 ## Current limitations
 
 - transitions are configured per control; there is no inherited container policy;
 - controls without positive source and target area snap instead of animating through zero size;
 - parent overflow and clipping behavior is unchanged;
-- the Visual Studio Designer has no transition editor or preview integration yet;
-- Android uses the shared scheduler contract, but broader Android animation-runtime work remains
-  deferred to issue #29;
+- the Designer edits and round-trips transition configuration but does not run a live transition
+  preview;
+- Android uses the shared scheduler and Choreographer frame source, but broad emulator and
+  physical-device validation remains outstanding;
 - layout-aware visual-state composition is defined in
-  [Layout-aware visual-state metrics](layout-aware-visual-state-metrics.md); Designer editing of
-  custom transition definitions remains deferred to issue #28.
+  [Layout-aware visual-state metrics](layout-aware-visual-state-metrics.md); metrics outside padding
+  and border widths remain discrete.
 
 The ControlGallery **Animated layout** page provides manual checks for movement, resizing, rapid
 retargeting, hit testing, nested content, and disabling a transition mid-flight.

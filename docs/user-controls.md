@@ -115,10 +115,17 @@ self-reference check so manually edited invalid documents cannot generate design
   renderer. Runtime-only custom property behavior, referenced-binary-only controls, and user code
   side effects are intentionally absent. The safe placeholder remains the fallback when a source
   document cannot be identified unambiguously.
-- The designer has copy/paste and duplicate operations for child controls, but no general
-  transaction-based undo/redo stack or multi-select support yet.
+- The designer has in-session, single-control copy/paste and duplicate operations for child
+  controls. Cut, a system clipboard contract, complete cross-document behavior, transaction-based
+  undo/redo, and multi-select support are not implemented.
 - The Visual Studio designer and interactive preview are currently Windows-first. `UserControl`
   itself remains in the shared, platform-neutral framework project.
+
+Source `.mfdesign` changes are re-read on the next render through the preview cache key. Changes to
+the set or identity of source-discovered types require reopening the Designer; binary-only discovery
+and a complete custom property/event metadata surface are not implemented. See
+[Known limitations](known-limitations.md) and the
+[1.10.0 audit proposal](audits/1.10.0-documentation-and-limitations-audit.md#p2-complete-safe-custom-control-discovery-and-metadata).
 
 ## Manual Visual Studio smoke test
 

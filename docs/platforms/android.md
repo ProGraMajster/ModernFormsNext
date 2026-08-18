@@ -42,6 +42,9 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 - Activity foreground/background transitions, pause/resume, configuration changes, and activity
   replacement are tracked. The cross-platform sample keeps its process-owned control tree and
   state when the host activity is recreated.
+- Animation frames use one demand-driven Choreographer callback. The platform animation provider
+  reads `Settings.Global.ANIMATOR_DURATION_SCALE` and observes it only while the lifecycle is
+  foreground and animation policy has subscribers.
 - The shared ThemeManager model, strict JSON stream loader, dynamic theme resources, built-in
   Light/Dark themes, and scheduler-based transitions compile for Android. Background/no-host time
   is excluded by the existing lifecycle integration.
@@ -57,10 +60,11 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 - Android does not implement the general `Application.Run(Form)` startup path, `IWindowingPlatform`,
   or `IWindowImpl`. Applications must currently provide an Android activity and attach a control
   root explicitly.
-- Android does not yet register a system light/dark or reduced-motion ThemeManager provider.
-  `ThemeVariant.System` therefore uses the explicit Light/Dark apply fallback. This limitation does
-  not imply runtime parity: startup, switching, storage streams, and visual transitions still need
-  emulator/device validation for a release.
+- Android does not yet register a system light/dark ThemeManager provider. `ThemeVariant.System`
+  therefore uses the explicit Light/Dark apply fallback. Reduced motion is separate: the Android
+  animation-settings provider reads and observes the global animator-duration scale. Neither
+  implementation implies runtime parity; startup, switching, storage streams, setting changes, and
+  visual transitions still need broad emulator/device validation for a release.
 - Only one framework control surface is exercised. Multiple framework windows, popups, owned
   windows, and desktop-style window management are not available.
 - Clipboard, native dialogs, file/folder pickers, drag and drop, notification delivery, camera and
@@ -84,6 +88,9 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 - Automated tests validate most backend rules without an emulator. A physical-device matrix,
   production performance targets, long-running stability tests, and broad device/IME/accessibility
   coverage are not yet part of the release gate.
+
+The [central known-limitations index](../known-limitations.md) maps these boundaries to existing
+issues and audit proposals.
 
 ## Requirements
 

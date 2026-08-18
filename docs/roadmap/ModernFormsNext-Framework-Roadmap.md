@@ -1,6 +1,6 @@
 # ModernFormsNext framework roadmap
 
-- Baseline audited: 2026-08-01
+- Baseline audited: 2026-08-18 against ModernFormsNext 1.10.0
 - Paint/gradient foundation implemented: 2026-07-19
 - ThemeManager, composable animations, and platform animation polish implemented for 1.9.0
 - SDK baseline: .NET 10 (`10.0.201`)
@@ -26,7 +26,7 @@ The architecture should therefore be extended, not replaced. The implementation 
 4. ThemeManager (implemented foundation), then localization;
 5. page lifecycle, navigation, routing, tabs, flyout, and shell;
 6. virtualized data controls and SearchBar;
-7. shapes and path geometry;
+7. shapes and path geometry (implemented 1.10.0 foundation);
 8. modular document providers and viewers;
 9. charts, then diagrams.
 
@@ -46,38 +46,44 @@ already exist.
 | Properties | CLR properties plus compact internal `PropertyStore` | Dynamic resources and future generated descriptors invoke existing setters. No dependency-property clone. |
 | Layout | `LayoutEngine`, `DefaultLayout`, `FlowLayoutPanel`, `TableLayoutPanel`, `Dock`, `Anchor`, margin/padding/min/max/AutoSize | Page hosts, collection presenters, shell panes, and shapes must use these transactions and constraints. |
 | Styles | `ControlStyle`, parent-style fallback, normal/hover state, compatibility `BackColor`/`ForeColor` | Extend state/style representation incrementally; preserve renderer-facing style objects. |
-| Paints | Observable `Drawing.Brush`; solid, glass, no-fill, linear/radial/sweep gradients; typed stops; opacity/transform/spread; shared Skia adapter | Reuse for ThemeManager and future shapes/charts. Version and implement the documented JSON direction only with ThemeManager validation. |
+| Paints | Observable `Drawing.Brush`; solid, glass, no-fill, linear/radial/sweep gradients; typed stops; opacity/transform/spread; shared Skia adapter; strict ThemeManager JSON | Reuse for ThemeManager, shapes, and future charts. Keep JSON validation in the one ThemeManager schema. |
 | Rendering | Per-control `SKBitmap` back buffers, renderer classes, `PaintEventArgs`, Skia canvas helpers | Shapes/charts/documents render through Skia and existing clipping/invalidation. Avoid native control substitution. |
 | Invalidation | Property setters call `Invalidate`, layout setters use layout transactions; windows invalidate platform surfaces | Dynamic values call normal setters and do not globally repaint. Add dirty-region precision later. |
-| Animation | Shared monotonic `AnimationScheduler`, composable definitions/runs, handles, owner/key replacement, typed interpolators, Brush transitions, native reduced-motion policy, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; keep layout invalidation explicit and design animated layout as a separate future subsystem. |
+| Animation | Shared monotonic `AnimationScheduler`, composable definitions/runs, handles, owner/key replacement, typed interpolators, Brush transitions, native reduced-motion policy, animated bounds, layout-aware state metrics, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; preserve the single scheduler and existing layout-transition contract. |
 | Input | Framework mouse/keyboard/text/IME pipeline, capture, hit testing, touch scrolling in `SkiaControlSurface` | Collection, SearchBar, pages, charts, and shapes share the same input path. |
 | Data binding | `IBindableComponent`, `Binding`, `BindingContext`, `BindingSource`, list managers and converters | Reuse for items sources and selected values; add collection-change/virtualization contracts instead of a parallel binding engine. |
 | Serialization | `System.Text.Json` in designer and binding conversion; stable design document serializer | Reuse conventions and converters, but keep theme/localization runtime schemas separate from designer files. |
 | Documents | `Documents.Document`, block/inline/table/image/list/code model, Markdown parser, layout/text map/selection/cache, `DocumentViewer` | Evolve and extract compatibly. Do not recreate the requested model under duplicate public names. |
 | Windows | Full `IWindowingPlatform`, Win32 input/window/services and Skia framebuffer path | Primary runtime for page hosting, printing, clipboard, system theme, pointer/keyboard validation. |
-| Android | Lifecycle/permissions/main-thread dispatcher, `AndroidSkiaHostView`, `SkiaControlSurface`, native IME and multi-touch | Shared controls can be validated now; window/shell/back/accessibility/service parity remains a separate prerequisite. |
+| Android | Lifecycle/permissions/main-thread dispatcher, Choreographer/settings integration, `AndroidSkiaHostView`, `SkiaControlSurface`, native IME and multi-touch | Shared controls can be validated now; window/shell/back/accessibility/service parity and broad device evidence remain separate prerequisites. |
 | Packaging | Packable core and WindowKit projects, conditional Windows backend, templates, tests and samples | Add optional feature packages without reversing dependency direction. |
 
 ### Architectural gaps
 
 - No page lifecycle, page host, navigation stack, route registry, deep-link contract, or back-request
   abstraction.
-- Existing `Theme` is a static heterogeneous bag centered on colors; it has no serializable schema,
-  validation, inheritance, scoped overrides, state styles, system-theme adapter, or atomic update.
-- `ControlStyle` has only a small normal/hover model. It lacks pressed/selected/disabled/focused state
-  resolution, brushes for every surface, typography records, shadow, radius, and transitions.
-- Brush mutation, opacity, transforms, stable stop ordering, spread modes, and targeted invalidation
-  are implemented. A batch update scope, advanced interpolation, and a versioned JSON loader remain.
+- `ThemeManager` now provides strict JSON, validation, inheritance, atomic apply, dynamic-resource
+  defaults, state styles, and transitions. Automatic OS-theme reapply, file hot reload, a shared
+  shadow rendering contract, and an Android system-theme provider remain gaps.
+- `ControlStyle` resolves Normal/Hover/Pressed/Focused/Disabled states with brush, typography,
+  border, corner, transform, and transition data. Layout-aware interpolation is deliberately
+  limited to padding and border widths; selected-state and broader metric contracts remain future.
+- Brush mutation, opacity, transforms, stable stop ordering, spread modes, planner interpolation,
+  strict Theme JSON, and targeted invalidation are implemented. A batch update scope, absolute
+  mapping, and selectable color-space interpolation remain.
 - The shared scheduler marshals callbacks to the UI dispatcher, uses elapsed monotonic time, stops
   while idle, pauses over Android background lifecycle, and integrates Windows/experimental Android
-  reduced-motion preferences. A live Android settings observer, physical-device frame-pacing
-  validation, and a general animated-layout subsystem remain future work.
+  reduced-motion preferences. Android now has a lifecycle/subscription-aware settings observer and
+  Choreographer source; physical-device frame-pacing/profile validation remains future work.
 - No localization catalog/provider, plural rules, missing-key diagnostics, dynamic culture change,
   or verified end-to-end RTL layout behavior.
 - Lists and grids are retained collections; there is no shared item-container generator,
   virtualization/recycling, incremental loading, or observable items-source abstraction suitable
   for `CollectionView` and charts.
-- No retained vector geometry/path parser/hit-testing model.
+- The retained Shape/Geometry model, path figures, line/quadratic/cubic segments, transforms, Skia
+  rendering, hit testing, Designer round trips, and ControlGallery coverage are implemented.
+  Arcs, geometry groups/boolean operations, SVG import, a general Stretch contract, and graphical
+  Bezier editing remain future work.
 - No general document provider registry, MIME sniffing contract, paged render source, password
   request, or platform print adapter. Existing document code is in the main package.
 - Android does not yet host `Form`, multiple windows, general popups/dialogs, platform accessibility,
@@ -95,8 +101,9 @@ already exist.
   semantics merely for code reuse.
 - `Theme` and `BuiltInTheme` are public. ThemeManager must retain a compatibility facade and cannot
   silently redefine existing values or event order.
-- `Path` collides conceptually with `System.IO.Path`; keep it in a clear namespace such as
-  `ModernFormsNext.Shapes` and provide unambiguous documentation.
+- `ModernFormsNext.Path` collides conceptually with `System.IO.Path`; qualify either type where both
+  are used. Moving the shipped public type to a proposed `ModernFormsNext.Shapes` namespace would
+  be a breaking change and is not roadmap cleanup.
 - `Application` is static and `Application.Run(Form)` is Windows-oriented. AppShell must not make
   `Application` state instance-based as an accidental breaking change.
 
@@ -116,8 +123,8 @@ Items source + container recycling -> CollectionView
   -> CarouselView / SearchBar suggestions / chart legends
   -> RefreshView composes any scroll host
 
-Geometry + Paint -> Shapes
-  -> chart render primitives -> diagrams
+Geometry + Paint -> Shapes (implemented foundation)
+  -> future chart render primitives -> diagrams
 
 Document provider + viewport contracts
   -> PDF provider/viewer -> general DocumentViewer
@@ -216,13 +223,13 @@ manual while the backend is experimental.
 Done/tests: solid/linear/radial/focal/sweep/no-fill rendering, opacity, transform, tile modes,
 bounds, strict offsets, stable duplicate offsets, mutation, resource precedence/fallback, weak
 subscriptions, Designer round-trip, and scoped shader disposal are covered. ControlGallery provides
-manual visual checks. A versioned JSON converter, batch notifications, absolute mapping, and advanced
-color interpolation are explicitly deferred.
+manual visual checks. ThemeManager provides the strict versioned JSON schema. Batch notifications,
+absolute mapping, and advanced color interpolation are explicitly deferred.
 
 #### UI animation scheduler — implemented foundation
 
-Purpose: provide one platform-neutral, monotonic UI scheduler for control, value, Brush, future
-theme, shape, and navigation transitions without a timer per animation.
+Purpose: provide one platform-neutral, monotonic UI scheduler for control, value, Brush, theme,
+shape, and future navigation transitions without a timer per animation.
 
 Implemented API: `AnimationScheduler`, `AnimationHandle`, `AnimationState`, `AnimationOptions`,
 owner/key replacement, `AnimationPolicy`, `AnimationSchedulerDiagnostics`, built-in easing, typed
@@ -238,8 +245,9 @@ Done/tests: deterministic manual clock/tick tests cover progress, delay, dropped
 replacement, cancellation, faults, policy modes, dispatcher affinity, high animation counts,
 interpolation, Brush/dynamic-resource invalidation, composition, keyframes, repeat, auto-reverse,
 visual-state transitions, interaction effects, and owner lifetime without `Thread.Sleep`.
-ControlGallery provides opt-in manual checks and cancels all work on unload. A general animated-
-layout layer and physical-device Android frame-pacing validation are explicitly deferred.
+ControlGallery provides opt-in manual checks and cancels all work on unload. Animated bounds and
+selected visual-state layout metrics are implemented in 1.10.0; physical-device Android frame-
+pacing validation remains deferred.
 
 #### 3. ThemeManager — implemented foundation
 
@@ -484,27 +492,23 @@ Done/tests: cultures/12–24h/seconds, bounds and wrapping policy, nullable stat
 format parsing, DST explicitly irrelevant to `TimeOnly`, accessibility and shared regression tests for
 DateTimePicker.
 
-### Stage 4 — shapes and vector geometry
+### Stage 4 — shapes and vector geometry (implemented 1.10.0 foundation)
 
-#### 17. Shape and geometry system — difficulty: Very high
+#### 17. Shape and geometry system — delivered foundation; advanced scope remains
 
-Purpose: `Shape`, `Ellipse`, `Line`, `Path`, `Polygon`, and `Polyline` with fill/stroke, opacity,
-caps/joins/dashes, geometry scaling, hit testing, and animatable properties.
+Implemented: `Shape`, `Ellipse`, `Circle`, `Line`, `Path`, `Polygon`, and `Polyline`; fill/stroke,
+opacity, caps/joins/dashes, transforms, fill rules, layout, invalidation, hit testing, Skia resource
+caching, and Designer round trips. `ModernFormsNext.Drawing` contains line, rectangle, ellipse,
+path/figure, line-segment, quadratic-Bezier, and cubic-Bezier geometry. The Designer provides
+structured point/path editors and culture-invariant compact parsing. ControlGallery and focused
+tests cover runtime/Designer behavior without introducing another renderer or layout engine.
 
-Proposed API: `ModernFormsNext.Shapes.Shape : Control`; `Fill`, `Stroke`, `StrokeThickness`,
-`StrokeLineCap`, `StrokeLineJoin`, `StrokeDashArray`, `Stretch`; geometry types `PathGeometry`,
-`PathFigure`, `LineSegment`, `BezierSegment`, `QuadraticBezierSegment`, `ArcSegment`; a culture-
-invariant SVG/XAML-like path parser with documented supported grammar.
-
-Dependencies: hardened paints, UI-thread animation/interpolator service, layout/invalidation.
-
-Risks/platform: arc conversion, numerical stability, bounds including stroke, dash scaling, path
-parser security/complexity, mutable point collections, hit-test performance and name collision.
-All geometry stays shared Skia code.
-
-Done/tests: parser valid/invalid corpus, line/Bezier/quadratic/arc geometry, stretch modes, fill rules,
-caps/joins/dashes/transparency/gradients, bounds and hit tests, mutation invalidation, animation
-cancellation, no per-frame path leaks, golden rendering on Windows and Android density checks.
+Remaining advanced scope: arc segments, geometry groups/boolean operations, SVG import or a core
+SVG-style path grammar, a general `Stretch` contract, generic Control geometry clips, and a
+graphical Bezier editor. These are proposals, not 1.10.0 capabilities. Android compiles the shared
+renderer, but physical-device visual/touch/GPU/cache profiling is still a validation gap. See
+[Shapes and vector geometry](../shapes-and-vector-geometry.md) and
+[Known limitations](../known-limitations.md).
 
 ### Stage 5 — modular documents
 
@@ -624,7 +628,8 @@ dependency-based bands:
 - Navigation preview: Page/ContentPage/NavigationPage/routing; Windows host plus Android surface host.
 - Shell preview: TabbedPage/FlyoutPage/AppShell after lifecycle/back tests are stable.
 - Data controls preview: virtualization foundation, CollectionView, then carousel/refresh/search/time.
-- Vector preview: shapes/path parser and animation integration.
+- Vector foundation: shapes, retained geometry, Skia rendering, hit testing, Designer round trips,
+  and compact path parsing are implemented; advanced geometry/authoring remains future.
 - Documents preview: provider contracts and compatibility plan, then optional PDF, viewer unification,
   editor slices.
 - Visualization preview: core charts first; advanced charts and diagrams in later increments.
@@ -639,8 +644,8 @@ dependency-based bands:
   and explicit reset APIs before broad parallel execution.
 - Reflection-based CLR property references need a trimming/source-generation strategy before AOT is
   advertised.
-- Android physical-device pacing and live settings observation remain open even though shared
-  animation callbacks use the platform UI dispatcher and foreground refreshes motion preferences.
+- Android physical-device pacing and profiling remain open even though shared animation callbacks
+  use Choreographer and the lifecycle/subscription-aware provider observes motion preferences.
 - Virtualization, document rendering, and charts compete for cache/memory budgets. Introduce shared
   diagnostics and bounded caches rather than independent unbounded stores.
 
@@ -648,5 +653,6 @@ dependency-based bands:
 
 **Localization on the completed resource/theme foundation.** Build JSON-first localization
 providers, culture fallback, formatting/plurals, live resource updates, safe diagnostics, and RTL
-metadata without duplicating the property or resource systems. Shape remains a separate later
-stage; theme shadows should wait for a shared rendering contract.
+metadata without duplicating the property or resource systems. Shape foundation is already shipped;
+advanced geometry and theme shadows should wait for explicit contracts. In parallel, prioritize the
+Designer transaction/parity backlog and Android device evidence before broadening platform claims.

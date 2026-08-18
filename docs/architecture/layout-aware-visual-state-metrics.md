@@ -18,7 +18,7 @@ target styles. State styles inherit unset values through their `ControlStyle.Par
 The transition runtime creates one temporary presentation style; it never writes interpolated
 values back to a target style.
 
-Issue #26 supports these metrics:
+The implemented 1.10.0 scope supports these metrics:
 
 - `ControlStyle.Padding`, interpolated independently on all four sides;
 - aggregate and per-side `BorderStyle.Width` values.
@@ -84,6 +84,6 @@ The frame path performs no reflection or full style reconstruction. Snapshots ar
 interpolation is component-wise, and one existing temporary `ControlStyle` is reused throughout
 the transition. Layout runs only when an integer layout metric actually changes.
 
-Designer transition editing remains outside this issue. `ControlStyle.Padding` is an ordinary
-code-first style property suitable for future serialization, while delegate-valued transitions
-remain hidden from current Designer serialization as before.
+The Designer stores padding and border-width style values plus transition duration and known easing
+identifiers. It does not live-preview the transition and never serializes arbitrary easing
+delegates; those remain code-first.

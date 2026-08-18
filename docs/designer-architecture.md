@@ -63,7 +63,7 @@ document outline, layout engine, hit testing, file service, or code-generation s
 
 ### ModernFormsNext.VisualStudioExtension
 
-`ModernFormsNext.VisualStudioExtension` is the future Visual Studio integration layer. The
+`ModernFormsNext.VisualStudioExtension` is the current Visual Studio integration layer. The
 user-facing entry point is the primary form/control code file, such as `MainForm.cs`, not the
 metadata file. The extension detects designable ModernFormsNext C# files, exposes a safe
 `View ModernFormsNext Designer` command, opens the companion `.mfdesign` document through a
@@ -73,8 +73,9 @@ The VSIX must not globally replace the C# editor for every `.cs` file. Only file
 recognized as ModernFormsNext form/control files, have explicit ModernFormsNext project design
 metadata, or have a valid companion `.mfdesign` file should expose the designer command.
 
-The VSIX also contributes **ModernFormsNext Form** and **ModernFormsNext UserControl** C# item templates. Each item template creates
-the user-authored `.cs` file, the generated `.Designer.cs` file, and the `.mfdesign` companion
+The VSIX also contributes **ModernFormsNext Form** and **ModernFormsNext UserControl** C# item
+templates. Each item template creates the user-authored `.cs` file, the generated `.Designer.cs`
+file, and the `.mfdesign` companion
 document in one operation. It avoids `SubType=Form` for the same reason as the project template:
 that value belongs to the classic Windows Forms designer.
 
@@ -277,7 +278,33 @@ user-facing project item. A host should use reverse sync only when a generated `
 file appears newer or manually edited, and it should report parser diagnostics before
 overwriting the `.mfdesign` document.
 
-## Visual Studio TODO
+## Current Designer limitations
+
+- There is no Designer-wide undo/redo transaction history ([#33](https://github.com/ProGraMajster/ModernFormsNext/issues/33)),
+  multi-selection/group editing ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)),
+  or complete smart-guide/equal-spacing/baseline workflow ([#36](https://github.com/ProGraMajster/ModernFormsNext/issues/36)).
+- Copy, paste, and duplicate exist for an in-session single-control workflow. Cut, a system
+  clipboard contract, complete cross-document behavior, and transaction integration remain in
+  [#34](https://github.com/ProGraMajster/ModernFormsNext/issues/34).
+- The Events view persists bindings and can generate a handler method. Default-event double-click,
+  compatible-method selection, robust navigation, and rename diagnostics remain in
+  [#37](https://github.com/ProGraMajster/ModernFormsNext/issues/37).
+- Project resources and inherited-control design remain incomplete
+  ([#38](https://github.com/ProGraMajster/ModernFormsNext/issues/38),
+  [#39](https://github.com/ProGraMajster/ModernFormsNext/issues/39)).
+- Arbitrary project code is not executed for preview. Source-described UserControls use the safe
+  data-only model above; broader isolation is tracked by
+  [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40).
+- Auto-save exists, but crash recovery and external-change conflict handling remain in
+  [#41](https://github.com/ProGraMajster/ModernFormsNext/issues/41). Focused parity tests exist for
+  delivered subsystems, but a comprehensive runtime/Designer parity suite remains in
+  [#42](https://github.com/ProGraMajster/ModernFormsNext/issues/42).
+- Reverse parsing is deliberately conservative: unsupported arbitrary expressions produce
+  diagnostics and are never evaluated or merged automatically.
+
+See [Known limitations](known-limitations.md) for the central classification and priorities.
+
+## Current Visual Studio integration boundaries
 
 The Visual Studio extension hosts the shared shell through a small HWND adapter. The adapter
 creates a lightweight ModernFormsNext form, places `ModernFormsDesignerShell` inside it, and
@@ -285,7 +312,7 @@ parents that HWND into the Visual Studio editor pane. This keeps the designer UI
 `ModernFormsNext.Designer` instead of copying property grid, surface, toolbox, or outline code
 into the VSIX.
 
-The Visual Studio extension still needs:
+The remaining integration boundaries are:
 
 - hardening of the HWND adapter into a supported public hosting API in the framework or a
   dedicated embeddable WindowKit surface, so the VSIX no longer needs reflection to obtain the
