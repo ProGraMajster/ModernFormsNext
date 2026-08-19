@@ -157,11 +157,14 @@ content, and internal offline links. Browser rendering, interactive Visual Studi
 behavior, Marketplace publication, and Android emulator or physical-device behavior remain manual
 gates and must be reported separately.
 
-Repository-wide project/version enumeration can see nested Git worktrees placed below `artifacts/`.
-For an exact-SHA release check, use a clean external worktree and run builds/tests sequentially with
-`-m:1 /p:UseSharedCompilation=false`; do not weaken consistency tests to accommodate a contaminated
-checkout. The [central known-limitations index](../known-limitations.md) records this tooling
-boundary.
+Repository-wide project/version validation selects Git-tracked inputs when available and uses a
+bounded, generated-directory-aware filesystem fallback for source archives. Nested worktrees below
+`artifacts/` therefore cannot become duplicate release inputs. The full rules and maintainer
+guidance are documented in [Repository validation inputs](../repository-validation.md).
+
+For an exact-SHA release check, still prefer a clean external worktree for provenance. Run builds
+sequentially with `-m:1 /p:UseSharedCompilation=false` where MicroCom projects share intermediate
+outputs; this prevents genuine concurrent writers and is independent of repository enumeration.
 
 ## Security and exclusions
 

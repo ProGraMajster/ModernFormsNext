@@ -31,16 +31,18 @@ public sealed class ReleaseVersionConsistencyTests
     [Fact]
     public void EveryPackableProjectUsesTheCentralPackageVersion()
     {
-        string root = FindRepositoryRoot();
-        string[] actualProjects = Directory
-            .EnumerateFiles(root, "*.csproj", SearchOption.AllDirectories)
-            .Where(path => !ContainsGeneratedDirectory(path))
-            .Where(path => string.Equals(ElementValue(XDocument.Load(path), "IsPackable"), "true", StringComparison.OrdinalIgnoreCase))
-            .Select(path => IOPath.GetRelativePath(root, path).Replace('\\', '/'))
-            .Order(StringComparer.Ordinal)
+        string root = RepositoryFileEnumerator.FindRepositoryRoot();
+        RepositoryFileEnumeration enumeration = RepositoryFileEnumerator.EnumerateFiles(
+            root,
+            path => path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+        string[] actualProjects = enumeration.Files
+            .Where(path => string.Equals(ElementValue(LoadXml(root, path), "IsPackable"), "true", StringComparison.OrdinalIgnoreCase))
             .ToArray();
+        string[] expectedProjects = PackableProjects.Order(StringComparer.Ordinal).ToArray();
 
-        Assert.Equal(PackableProjects.Order(StringComparer.Ordinal), actualProjects);
+        Assert.True(
+            expectedProjects.SequenceEqual(actualProjects, StringComparer.Ordinal),
+            enumeration.FormatDiagnostics(expectedProjects));
 
         foreach (string projectPath in PackableProjects)
         {
@@ -113,34 +115,19 @@ public sealed class ReleaseVersionConsistencyTests
 
     private static void AssertRegistrationVersion(string relativePath)
     {
-        string text = File.ReadAllText(IOPath.Combine(FindRepositoryRoot(), relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
+        string text = File.ReadAllText(IOPath.Combine(RepositoryFileEnumerator.FindRepositoryRoot(), relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
         Assert.Contains($"InstalledProductRegistration", text, StringComparison.Ordinal);
         Assert.Contains($"\"{ExpectedVersion}\"", text, StringComparison.Ordinal);
         Assert.DoesNotContain("\"1.8.0\"", text, StringComparison.Ordinal);
     }
 
     private static XDocument LoadXml(string relativePath)
-        => XDocument.Load(IOPath.Combine(FindRepositoryRoot(), relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
+        => LoadXml(RepositoryFileEnumerator.FindRepositoryRoot(), relativePath);
+
+    private static XDocument LoadXml(string root, string relativePath)
+        => XDocument.Load(IOPath.Combine(root, relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
 
     private static string? ElementValue(XDocument document, string name)
         => document.Descendants().FirstOrDefault(element => element.Name.LocalName == name)?.Value.Trim();
 
-    private static bool ContainsGeneratedDirectory(string path)
-    {
-        string normalized = path.Replace('\\', '/');
-        return normalized.Contains("/bin/", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("/obj/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(IOPath.Combine(directory.FullName, "Directory.Build.props"))
-                && File.Exists(IOPath.Combine(directory.FullName, "ModernFormsNext.slnx")))
-                return directory.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the ModernFormsNext repository root from the test output directory.");
-    }
 }
