@@ -15,6 +15,14 @@ internal static class DesignerLayoutProperties
 
     public const string PaddingPropertyName = "Padding";
 
+    public const string MarginPropertyName = "Margin";
+
+    public const string MinimumSizePropertyName = "MinimumSize";
+
+    public const string MaximumSizePropertyName = "MaximumSize";
+
+    public const string VisiblePropertyName = "Visible";
+
     public static DockStyle GetDock(DesignControlNode node)
     {
         if (!node.Properties.TryGetValue(DockPropertyName, out var value))
@@ -65,20 +73,78 @@ internal static class DesignerLayoutProperties
     public static Padding GetPadding(DesignControlNode node)
         => GetPadding(node.Properties);
 
+    public static Padding GetMargin(DesignControlNode node)
+        => GetPadding(node.Properties, MarginPropertyName, new Padding(3));
+
     public static Padding GetPadding(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+        => GetPadding(properties, PaddingPropertyName, Padding.Empty);
+
+    public static bool IsVisible(DesignControlNode node)
     {
-        if (!properties.TryGetValue(PaddingPropertyName, out var value))
-            return Padding.Empty;
+        if (!node.Properties.TryGetValue(VisiblePropertyName, out var value))
+            return true;
+
+        return value.Kind switch
+        {
+            DesignPropertyValueKind.Boolean when value.Value is bool visible => visible,
+            DesignPropertyValueKind.String when bool.TryParse(value.ToString(), out var visible) => visible,
+            _ => true
+        };
+    }
+
+    public static Size GetMinimumSize(DesignControlNode node)
+        => GetSize(node, MinimumSizePropertyName);
+
+    public static Size GetMaximumSize(DesignControlNode node)
+        => GetSize(node, MaximumSizePropertyName);
+
+    public static DesignBounds ApplySizeConstraints(DesignControlNode node, DesignBounds bounds)
+    {
+        var minimum = GetMinimumSize(node);
+        var maximum = GetMaximumSize(node);
+        var width = maximum.Width > 0 ? Math.Min(bounds.Width, maximum.Width) : bounds.Width;
+        var height = maximum.Height > 0 ? Math.Min(bounds.Height, maximum.Height) : bounds.Height;
+
+        width = Math.Max(width, minimum.Width);
+        height = Math.Max(height, minimum.Height);
+
+        return new DesignBounds(bounds.X, bounds.Y, Math.Max(0, width), Math.Max(0, height));
+    }
+
+    private static Padding GetPadding(
+        IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        string propertyName,
+        Padding defaultValue)
+    {
+        if (!properties.TryGetValue(propertyName, out var value))
+            return defaultValue;
 
         try
         {
             return DesignerPropertyValueEditor.FromDesignPropertyValue(value, typeof(Padding)) is Padding padding
                 ? padding
-                : Padding.Empty;
+                : defaultValue;
         }
         catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
         {
-            return Padding.Empty;
+            return defaultValue;
+        }
+    }
+
+    private static Size GetSize(DesignControlNode node, string propertyName)
+    {
+        if (!node.Properties.TryGetValue(propertyName, out var value))
+            return Size.Empty;
+
+        try
+        {
+            return DesignerPropertyValueEditor.FromDesignPropertyValue(value, typeof(Size)) is Size size
+                ? size
+                : Size.Empty;
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+        {
+            return Size.Empty;
         }
     }
 

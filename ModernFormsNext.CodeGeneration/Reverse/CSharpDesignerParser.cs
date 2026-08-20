@@ -652,9 +652,8 @@ public sealed class CSharpDesignerParser
 
                 break;
 
-            // Size is the canonical generated contract. Keep accepting ClientSize from earlier
-            // designer builds so existing .Designer.cs files can still be imported and rewritten
-            // in the current canonical form.
+            // Form documents canonically use ClientSize while UserControl documents use Size.
+            // Accept both spellings so older generated files remain importable.
             case "Size":
             case "ClientSize":
                 if (TryReadSize(valueExpression, out var width, out var height))
@@ -1052,6 +1051,17 @@ public sealed class CSharpDesignerParser
 
     private static bool TryReadEnum(ExpressionSyntax expression, out string enumTypeName, out string memberName)
     {
+        if (expression is BinaryExpressionSyntax binary
+            && binary.IsKind(SyntaxKind.BitwiseOrExpression)
+            && TryReadEnum(binary.Left, out var leftTypeName, out var leftMemberName)
+            && TryReadEnum(binary.Right, out var rightTypeName, out var rightMemberName)
+            && string.Equals(leftTypeName, rightTypeName, StringComparison.Ordinal))
+        {
+            enumTypeName = leftTypeName;
+            memberName = $"{leftMemberName}, {rightMemberName}";
+            return true;
+        }
+
         if (expression is MemberAccessExpressionSyntax memberAccess)
         {
             enumTypeName = memberAccess.Expression.ToString();
