@@ -88,6 +88,13 @@ dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbo
 dotnet test .\ModernFormsNext.slnx --configuration Debug --no-restore
 ```
 
+Repository-level structure and version tests use Git-tracked files when available and a bounded
+filesystem fallback for source archives. Generated directories and nested worktrees are not release
+inputs; see [Repository validation inputs](docs/repository-validation.md) before adding a new
+repository-wide traversal. A clean external exact-SHA worktree remains recommended for provenance,
+while `-m:1 /p:UseSharedCompilation=false` remains necessary to avoid genuine concurrent writes to
+shared MicroCom intermediate outputs.
+
 For 1.10.0, additionally validate:
 
 - `net10.0-windows` framework and samples;
