@@ -151,7 +151,8 @@ public sealed class CSharpDesignerGenerator
         if (document.RootKind == DesignRootKind.Form)
             writer.WriteLine($"        this.Text = {CSharpLiteralWriter.WriteStringLiteral(rootName)};");
 
-        writer.WriteLine($"        this.Size = new System.Drawing.Size({document.Size.Width}, {document.Size.Height});");
+        var rootSizeProperty = document.RootKind == DesignRootKind.Form ? "ClientSize" : "Size";
+        writer.WriteLine($"        this.{rootSizeProperty} = new System.Drawing.Size({document.Size.Width}, {document.Size.Height});");
 
         foreach (var property in document.Properties)
         {

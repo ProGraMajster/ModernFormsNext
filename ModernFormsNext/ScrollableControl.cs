@@ -21,6 +21,7 @@ namespace ModernFormsNext
         private bool auto_scroll = false;
         private readonly bool force_hscroll_visible = false;
         private readonly bool force_vscroll_visible = false;
+        private bool preserve_anchor_layout_during_scrollbar_adjustment;
 
         /// <summary>
         /// Initializes a new instance of the ScrollableControl class.
@@ -52,7 +53,8 @@ namespace ModernFormsNext
         /// <summary>
         /// Adjusts the scrollbars based on the currently contained controls.
         /// </summary>
-        protected virtual void AdjustFormScrollbars (bool displayScrollbars) => Recalculate (false);
+        protected virtual void AdjustFormScrollbars (bool displayScrollbars)
+            => Recalculate (preserve_anchor_layout_during_scrollbar_adjustment);
 
         /// <summary>
         /// Gets or sets a value indicating the user can scroll to controls beyond the ScrollableControl's bounds.
@@ -194,7 +196,23 @@ namespace ModernFormsNext
         protected override void OnLayout (LayoutEventArgs e)
         {
             CalculateCanvasSize ();
-            AdjustFormScrollbars (AutoScroll);
+
+            // A Bounds layout runs after the client size has already changed. Keep the existing
+            // anchor distances until DefaultLayout consumes them below; ResumeLayout(false)
+            // would otherwise reinitialize every explicit child against the new client size.
+            // Other layouts retain the established behavior, including presentation-padding
+            // transitions where anchored explicit bounds intentionally stay unchanged.
+            var previousPreserveAnchorLayout = preserve_anchor_layout_during_scrollbar_adjustment;
+            preserve_anchor_layout_during_scrollbar_adjustment = string.Equals (
+                e.AffectedProperty,
+                PropertyNames.Bounds,
+                StringComparison.Ordinal);
+
+            try {
+                AdjustFormScrollbars (AutoScroll);
+            } finally {
+                preserve_anchor_layout_during_scrollbar_adjustment = previousPreserveAnchorLayout;
+            }
 
             base.OnLayout (e);
         }

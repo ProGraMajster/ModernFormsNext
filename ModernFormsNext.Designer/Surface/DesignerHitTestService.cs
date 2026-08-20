@@ -50,6 +50,9 @@ internal sealed class DesignerHitTestService
     {
         var selectedNode = state.SelectedNode;
 
+        if (selectedNode is not null && !DesignerLayoutProperties.IsVisible(selectedNode))
+            return DesignerResizeHandle.None;
+
         if (selectedNode is null)
         {
             if (state.Document.RootKind != DesignRootKind.UserControl)
@@ -165,6 +168,9 @@ internal sealed class DesignerHitTestService
         foreach (var index in GetFrontToBackIndices(orderedControls.Count, parentNode))
         {
             var control = orderedControls[index];
+            if (!DesignerLayoutProperties.IsVisible(control))
+                continue;
+
             var absoluteBounds = layout.GetEffectiveBounds(control);
             var visibleBounds = Intersect(absoluteBounds, parentClip);
 
@@ -212,6 +218,9 @@ internal sealed class DesignerHitTestService
         foreach (var index in GetFrontToBackIndices(orderedControls.Count, parentNode))
         {
             var control = orderedControls[index];
+            if (!DesignerLayoutProperties.IsVisible(control))
+                continue;
+
             var absoluteBounds = layout.GetEffectiveBounds(control);
             var visibleBounds = Intersect(absoluteBounds, parentClip);
 
@@ -249,6 +258,9 @@ internal sealed class DesignerHitTestService
         foreach (var index in GetFrontToBackIndices(orderedControls.Count, parentNode))
         {
             var control = orderedControls[index];
+            if (!DesignerLayoutProperties.IsVisible(control))
+                continue;
+
             var absoluteBounds = layout.GetEffectiveBounds(control);
             var visibleBounds = Intersect(absoluteBounds, parentClip);
 

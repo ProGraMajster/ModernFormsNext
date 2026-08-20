@@ -1,4 +1,5 @@
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using System.ComponentModel;
 using System.Reflection;
@@ -1221,9 +1222,10 @@ internal sealed class DesignerPropertyGridState
                     return (false, "The design root size must be greater than zero.");
 
                 var size = playgroundState.Document.Size;
-                playgroundState.Document.Size = name == "Width"
+                var nextSize = name == "Width"
                     ? createSize(sizeValue, size.Height)
                     : createSize(size.Width, sizeValue);
+                new DesignerLayoutEngine().ResizeRoot(playgroundState.Document, nextSize);
                 return (true, null);
             }
         };

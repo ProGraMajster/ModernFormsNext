@@ -907,7 +907,9 @@ public sealed class DesignerSession
         if (SelectedNode is null)
         {
             Document.FormName = string.IsNullOrWhiteSpace(name) ? Document.FormName : name.Trim();
-            Document.Size = new DesignSize(Math.Max(1, width), Math.Max(1, height));
+            new DesignerLayoutEngine().ResizeRoot(
+                Document,
+                new DesignSize(Math.Max(1, width), Math.Max(1, height)));
             NotifyDocumentChanged();
             Log($"Updated form {Document.FormName}.");
             return;

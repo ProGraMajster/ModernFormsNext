@@ -146,7 +146,7 @@ internal sealed class DesignerSurfaceRenderer
         int offsetY,
         HashSet<string> previewStack)
     {
-        if (!IsDesignNodeVisible(node))
+        if (!DesignerLayoutProperties.IsVisible(node))
             return;
 
         var localAbsolute = layout.GetEffectiveBounds(node);
@@ -763,7 +763,7 @@ internal sealed class DesignerSurfaceRenderer
             control.Text,
             background,
             foreground,
-            IsDesignNodeVisible(node),
+            DesignerLayoutProperties.IsVisible(node),
             control.Enabled);
 
         if (runtimeRenderDiagnostics.TryGetValue(node, out var previous) && previous == signature)
@@ -775,19 +775,6 @@ internal sealed class DesignerSurfaceRenderer
             $"{diagnostics.Width}x{diagnostics.Height}, visible samples {diagnostics.VisibleSampleCount}/{diagnostics.SampleCount}, " +
             $"opaque {diagnostics.OpaqueSampleCount}, properties applied {appliedPropertyCount}, skipped {skippedPropertyCount}, " +
             $"Text='{control.Text}', BackColor={background}, ForeColor={foreground}.");
-    }
-
-    private static bool IsDesignNodeVisible(DesignControlNode node)
-    {
-        if (!node.Properties.TryGetValue("Visible", out var value))
-            return true;
-
-        return value.Kind switch
-        {
-            DesignPropertyValueKind.Boolean when value.Value is bool visible => visible,
-            DesignPropertyValueKind.String when bool.TryParse(value.ToString(), out var visible) => visible,
-            _ => true
-        };
     }
 
     private static string NormalizeRuntimePropertyPath(string path)

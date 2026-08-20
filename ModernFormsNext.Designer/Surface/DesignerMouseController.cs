@@ -304,7 +304,7 @@ internal sealed class DesignerMouseController
         if (state.Document.Size == nextSize)
             return;
 
-        state.Document.Size = nextSize;
+        layoutEngine.ResizeRoot(state.Document, nextSize);
         changedBounds = true;
         state.NotifyDocumentChanged();
     }
