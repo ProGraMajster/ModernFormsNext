@@ -15,6 +15,7 @@
   <Folder Name="/tests/">
     <Project Path="ModernFormsNext.CrossPlatform.Sample.Tests/ModernFormsNext.CrossPlatform.Sample.Tests.csproj" />
     <Project Path="ModernFormsNext.Designer.Tests/ModernFormsNext.Designer.Tests.csproj" />
+    <Project Path="ModernFormsNext.Testing.Tests/ModernFormsNext.Testing.Tests.csproj" />
     <Project Path="ModernFormsNext.WindowKit.Backend.Android.Tests/ModernFormsNext.WindowKit.Backend.Android.Tests.csproj" />
     <Project Path="ModernFormsNext.WindowKit.Backend.Windows.Tests/ModernFormsNext.WindowKit.Backend.Windows.Tests.csproj" />
     <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
@@ -23,6 +24,7 @@
     <Project Path="ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj" />
     <Project Path="ModernFormsNext.Designer/ModernFormsNext.Designer.csproj" />
     <Project Path="ModernFormsNext.Designing/ModernFormsNext.Designing.csproj" />
+    <Project Path="ModernFormsNext.Testing/ModernFormsNext.Testing.csproj" />
     <Project Path="ModernFormsNext.VisualStudioDesignerHost/ModernFormsNext.VisualStudioDesignerHost.csproj" />
     <Project Path="ModernFormsNext.VisualStudioExtension/ModernFormsNext.VisualStudioExtension.csproj" />
     <Project Path="ModernFormsNext.VisualStudioExtension.Vsix/ModernFormsNext.VisualStudioExtension.Vsix.csproj" />

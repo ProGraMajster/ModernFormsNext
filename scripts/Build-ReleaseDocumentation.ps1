@@ -320,6 +320,7 @@ try {
         [pscustomobject]@{ Id = 'ModernFormsNext.CodeGeneration'; Tfm = 'net10.0' },
         [pscustomobject]@{ Id = 'ModernFormsNext.Designer'; Tfm = 'net10.0-windows' },
         [pscustomobject]@{ Id = 'ModernFormsNext.Designing'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Testing'; Tfm = 'net10.0' },
         [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit'; Tfm = 'net10.0' },
         [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend'; Tfm = 'net10.0' },
         [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend.Windows'; Tfm = 'net10.0' }

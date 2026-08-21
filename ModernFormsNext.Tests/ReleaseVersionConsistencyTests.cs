@@ -13,6 +13,7 @@ public sealed class ReleaseVersionConsistencyTests
         "ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj",
         "ModernFormsNext.Designer/ModernFormsNext.Designer.csproj",
         "ModernFormsNext.Designing/ModernFormsNext.Designing.csproj",
+        "ModernFormsNext.Testing/ModernFormsNext.Testing.csproj",
         "ModernFormsNext.Templates/ModernFormsNext.Templates.csproj",
         "ModernFormsNext.WindowKit/ModernFormsNext.WindowKit.csproj",
         "ModernFormsNext.WindowKit.Backend/ModernFormsNext.WindowKit.Backend.csproj",

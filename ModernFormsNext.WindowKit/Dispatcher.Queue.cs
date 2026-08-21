@@ -46,6 +46,31 @@ public partial class Dispatcher
     {
         RunJobs(priority, CancellationToken.None);
     }
+
+    internal int PendingJobCountForTesting
+    {
+        get
+        {
+            lock (InstanceLock)
+                return _queue.Count;
+        }
+    }
+
+    internal bool RunOneJobForTesting()
+    {
+        VerifyAccess();
+        if (DisabledProcessingCount > 0)
+            throw new InvalidOperationException("Cannot perform this operation while dispatcher processing is suspended.");
+
+        DispatcherOperation? job;
+        lock (InstanceLock)
+            job = _queue.Peek();
+        if (job is null || job.Priority < DispatcherPriority.MinimumActiveValue)
+            return false;
+
+        ExecuteJob(job);
+        return true;
+    }
     
     internal void RunJobs(DispatcherPriority? priority, CancellationToken cancellationToken)
     {

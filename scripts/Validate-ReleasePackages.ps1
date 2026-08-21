@@ -25,6 +25,7 @@ $packageSpecs = @(
     [pscustomobject]@{ Id = "ModernFormsNext.CodeGeneration"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Designer"; Frameworks = @("net10.0-windows"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Designing"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
+    [pscustomobject]@{ Id = "ModernFormsNext.Testing"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Templates"; Frameworks = @(); Symbols = $false; Template = $true },
     [pscustomobject]@{ Id = "ModernFormsNext.WindowKit"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.WindowKit.Backend"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },

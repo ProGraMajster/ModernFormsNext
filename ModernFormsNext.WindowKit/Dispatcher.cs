@@ -20,6 +20,8 @@ public partial class Dispatcher : IDispatcher
     internal object InstanceLock { get; } = new();
     private IControlledDispatcherImpl? _controlledImpl;
     private static Dispatcher? s_uiThread;
+    private static readonly object s_testingScopeLock = new();
+    private static bool s_testingScopeActive;
     private IDispatcherImplWithPendingInput? _pendingInputImpl;
     private readonly IDispatcherImplWithExplicitBackgroundProcessing? _backgroundProcessingImpl;
 
@@ -60,6 +62,43 @@ public partial class Dispatcher : IDispatcher
                 impl = new NullDispatcherImpl();
         }
         return new Dispatcher(impl);
+    }
+
+    internal static IDisposable PushUIThreadForTesting(IDispatcherImpl implementation)
+    {
+        ArgumentNullException.ThrowIfNull(implementation);
+
+        lock (s_testingScopeLock)
+        {
+            if (s_testingScopeActive)
+                throw new InvalidOperationException("A deterministic ModernFormsNext UI dispatcher is already active in this process.");
+
+            Dispatcher? previous = s_uiThread;
+            Dispatcher installed = new(implementation);
+            s_uiThread = installed;
+            s_testingScopeActive = true;
+            return new TestingDispatcherScope(previous, installed);
+        }
+    }
+
+    private sealed class TestingDispatcherScope(Dispatcher? previous, Dispatcher installed) : IDisposable
+    {
+        private bool disposed;
+
+        public void Dispose()
+        {
+            lock (s_testingScopeLock)
+            {
+                if (disposed)
+                    return;
+                if (!ReferenceEquals(s_uiThread, installed))
+                    throw new InvalidOperationException("The deterministic ModernFormsNext UI dispatcher scope was replaced before disposal.");
+
+                s_uiThread = previous;
+                s_testingScopeActive = false;
+                disposed = true;
+            }
+        }
     }
 
     /// <summary>

@@ -462,6 +462,9 @@ public sealed partial class AnimationScheduler : IDisposable
             DefaultInstance.Value.Shutdown();
     }
 
+    internal static AnimationSchedulerDiagnostics? GetDefaultDiagnosticsIfInitialized()
+        => DefaultInstance.IsValueCreated ? DefaultInstance.Value.GetDiagnostics() : null;
+
     internal void Cancel(AnimationEntry entry)
     {
         bool canceled;
