@@ -21,7 +21,7 @@ public partial class Dispatcher : IDispatcher
     private IControlledDispatcherImpl? _controlledImpl;
     private static Dispatcher? s_uiThread;
     private static readonly object s_testingScopeLock = new();
-    private static bool s_testingScopeActive;
+    private static TestingDispatcherScope? s_testingScope;
     private IDispatcherImplWithPendingInput? _pendingInputImpl;
     private readonly IDispatcherImplWithExplicitBackgroundProcessing? _backgroundProcessingImpl;
 
@@ -70,14 +70,15 @@ public partial class Dispatcher : IDispatcher
 
         lock (s_testingScopeLock)
         {
-            if (s_testingScopeActive)
+            if (s_testingScope is not null)
                 throw new InvalidOperationException("A deterministic ModernFormsNext UI dispatcher is already active in this process.");
 
             Dispatcher? previous = s_uiThread;
             Dispatcher installed = new(implementation);
+            var scope = new TestingDispatcherScope(previous, installed);
             s_uiThread = installed;
-            s_testingScopeActive = true;
-            return new TestingDispatcherScope(previous, installed);
+            s_testingScope = scope;
+            return scope;
         }
     }
 
@@ -91,11 +92,13 @@ public partial class Dispatcher : IDispatcher
             {
                 if (disposed)
                     return;
+                if (!ReferenceEquals(s_testingScope, this))
+                    throw new InvalidOperationException("The deterministic ModernFormsNext UI dispatcher scopes were disposed out of order.");
                 if (!ReferenceEquals(s_uiThread, installed))
                     throw new InvalidOperationException("The deterministic ModernFormsNext UI dispatcher scope was replaced before disposal.");
 
                 s_uiThread = previous;
-                s_testingScopeActive = false;
+                s_testingScope = null;
                 disposed = true;
             }
         }

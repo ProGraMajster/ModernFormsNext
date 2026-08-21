@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.ExceptionServices;
 
 namespace ModernFormsNext.Testing;
 
@@ -94,6 +95,7 @@ public sealed class TestWindowHost : IDisposable
     /// <summary>Resizes the logical viewport and applies the real runtime resize/layout path.</summary>
     /// <param name="width">The new logical width.</param>
     /// <param name="height">The new logical height.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Width or height is not positive.</exception>
     public void Resize(int width, int height)
     {
         ThrowIfClosed();
@@ -110,6 +112,7 @@ public sealed class TestWindowHost : IDisposable
 
     /// <summary>Changes the deterministic logical-to-device render scale without reading a monitor.</summary>
     /// <param name="renderScale">The scale where 1, 1.25, 1.5, and 2 represent 100–200 percent.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Render scale is not finite and greater than zero.</exception>
     public void SetRenderScale(double renderScale)
     {
         ThrowIfClosed();
@@ -161,6 +164,7 @@ public sealed class TestWindowHost : IDisposable
     /// Test-host ownership is authoritative: cleanup completes even if a Form Closing handler would
     /// cancel a normal user close. Modal/focus/cancellation semantics are outside Phase 1.
     /// </remarks>
+    /// <exception cref="Exception">An application close handler failed after deterministic cleanup completed.</exception>
     public void Close()
     {
         if (closed)
@@ -220,23 +224,27 @@ public sealed class TestWindowHost : IDisposable
         if (closed)
             return;
 
-        try
+        var failures = new List<Exception>();
+        TryCleanup(hostedForm.Close, failures);
+
+        // Normal Close may be canceled or a Closing handler may fail. Test-host ownership remains
+        // authoritative, so every independent cleanup step still runs and releases its references.
+        TryCleanup(() => Application.OpenForms.Remove(hostedForm), failures);
+        TryCleanup(hostedForm.adapter.CancelOwnedControlAnimationsForSubtree, failures);
+        TryCleanup(() =>
         {
-            hostedForm.Close();
-        }
-        finally
-        {
-            // Normal Close may be canceled. A test host must still release its owned tree and all
-            // control-owned scheduler entries so the next test starts from an isolated baseline.
-            Application.OpenForms.Remove(hostedForm);
-            hostedForm.adapter.CancelOwnedControlAnimationsForSubtree();
             if (!backend.IsDisposed)
                 backend.Dispose();
-            hostedForm.adapter.Dispose();
-            hostedForm.Dispose();
-            closed = true;
-            owner.NotifyWindowClosed(this);
-        }
+        }, failures);
+        TryCleanup(hostedForm.adapter.Dispose, failures);
+        TryCleanup(hostedForm.Dispose, failures);
+        closed = true;
+        TryCleanup(() => owner.NotifyWindowClosed(this), failures);
+
+        if (failures.Count == 1)
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures.Count > 1)
+            throw new AggregateException("The deterministic ModernFormsNext test window reported cleanup failures.", failures);
     }
 
     private static void PerformLayoutRecursively(Control control)
@@ -250,6 +258,18 @@ public sealed class TestWindowHost : IDisposable
     {
         owner.ThrowIfDisposed();
         ObjectDisposedException.ThrowIf(closed, this);
+    }
+
+    private static void TryCleanup(Action action, ICollection<Exception> failures)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
     }
 }
 

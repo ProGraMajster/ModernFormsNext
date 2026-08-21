@@ -95,7 +95,7 @@ landing page and navigation live under `docs-site/`. The build script creates an
 DocFX source tree instead of writing generated `api/` or `_site/` content into the repository.
 
 API metadata is generated from the already-built Release DLLs and their XML documentation for the
-seven published library packages. Templates, tests, samples, designer hosts, backend tools, and
+eight published library packages. Templates, tests, samples, designer hosts, backend tools, and
 the unpublished experimental Android backend are excluded. DocFX's default public/protected API
 filter remains enabled.
 

@@ -31,6 +31,17 @@ public sealed class ModernFormsTestHostTests
     }
 
     [Fact]
+    public void DefaultViewportValueIsRejectedWithoutClaimingTheProcessHost()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => ModernFormsTestHost.Create(default(TestViewport)));
+
+        using var host = ModernFormsTestHost.Create();
+        using var form = new Form();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => host.Show(form, default(TestViewport)));
+    }
+
+    [Fact]
     public void ShowFormUsesRealFormLifecycle()
     {
         using var host = ModernFormsTestHost.Create();
@@ -213,6 +224,27 @@ public sealed class ModernFormsTestHostTests
     }
 
     [Fact]
+    public void ResizeScaleLayoutAndSnapshotRemainDeterministic()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var root = new Panel { Name = "Root", Padding = new Padding(10) };
+        var fill = new Button { Name = "Fill", Dock = DockStyle.Fill, Margin = Padding.Empty };
+        root.Controls.Add(fill);
+        TestWindowHost window = host.Show(root, 200, 100);
+
+        window.Resize(320, 180);
+        window.SetRenderScale(1.25d);
+        window.LayoutUntilStable();
+        ControlTreeSnapshot first = window.CaptureTree();
+        window.LayoutUntilStable();
+        ControlTreeSnapshot second = window.CaptureTree();
+
+        Assert.Equal(new Rectangle(0, 0, 400, 225), first.DeviceBounds);
+        Assert.Equal(new Rectangle(10, 10, 300, 160), Assert.Single(first.Children).Bounds);
+        Assert.Equal(first.Dump(), second.Dump());
+    }
+
+    [Fact]
     public void TreeSnapshotContainsRequestedStructuralState()
     {
         using var host = ModernFormsTestHost.Create();
@@ -223,7 +255,7 @@ public sealed class ModernFormsTestHostTests
         ControlTreeSnapshot tree = host.Show(root, 200, 100).CaptureTree();
         ControlTreeSnapshot childNode = Assert.Single(tree.Children);
 
-        Assert.Equal("Root.Save", childNode.Path);
+        Assert.Equal("Root.Save[0]", childNode.Path);
         Assert.Equal("Save", childNode.Name);
         Assert.Equal(nameof(Button), childNode.TypeName);
         Assert.Equal(child.Bounds, childNode.Bounds);
@@ -249,6 +281,30 @@ public sealed class ModernFormsTestHostTests
         ControlTreeSnapshot capturedChild = Assert.Single(snapshot.Children);
         Assert.Equal("Before", capturedChild.Name);
         Assert.Equal(new Rectangle(1, 2, 30, 40), capturedChild.Bounds);
+    }
+
+    [Fact]
+    public void SnapshotChildrenAreReadOnlyAndNestedPathsAreUnambiguous()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var root = new Panel { Name = "Root" };
+        var firstGroup = new Panel { Name = "Group" };
+        var secondGroup = new Panel { Name = "Group" };
+        firstGroup.Controls.Add(new Button { Name = "Item" });
+        secondGroup.Controls.Add(new Button { Name = "Item" });
+        root.Controls.Add(firstGroup);
+        root.Controls.Add(secondGroup);
+
+        ControlTreeSnapshot snapshot = host.Show(root).CaptureTree();
+        ControlTreeSnapshot first = snapshot.Children[0].Children[0];
+        ControlTreeSnapshot second = snapshot.Children[1].Children[0];
+        var children = Assert.IsAssignableFrom<ICollection<ControlTreeSnapshot>>(snapshot.Children);
+
+        Assert.Equal("Root.Group[0].Item[0]", first.Path);
+        Assert.Equal("Root.Group[1].Item[0]", second.Path);
+        Assert.NotEqual(first.Path, second.Path);
+        Assert.True(children.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => children.Add(snapshot.Children[0]));
     }
 
     [Fact]
@@ -339,6 +395,25 @@ public sealed class ModernFormsTestHostTests
     }
 
     [Fact]
+    public void DispatcherPreservesPriorityFifoAndNestedInvokeSemantics()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var calls = new List<string>();
+        Dispatcher.UIThread.Post(() => calls.Add("background-1"), DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => calls.Add("background-2"), DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() =>
+        {
+            calls.Add("send-start");
+            Dispatcher.UIThread.Invoke(() => calls.Add("nested"));
+            calls.Add("send-end");
+        }, DispatcherPriority.Send);
+
+        host.Dispatcher.Drain();
+
+        Assert.Equal(["send-start", "nested", "send-end", "background-1", "background-2"], calls);
+    }
+
+    [Fact]
     public async Task InvokeAsyncAndWaitForIdleUseExplicitDrain()
     {
         using var host = ModernFormsTestHost.Create();
@@ -355,14 +430,22 @@ public sealed class ModernFormsTestHostTests
     [Fact]
     public void DispatcherCapturesUnhandledPostedExceptions()
     {
-        using var host = ModernFormsTestHost.Create();
-        host.Dispatcher.Post(() => throw new TestDispatcherException("expected"));
+        Dispatcher previous = Dispatcher.UIThread;
+        using (ModernFormsTestHost host = ModernFormsTestHost.Create())
+        {
+            host.Dispatcher.Post(() => throw new TestDispatcherException("expected"));
 
-        host.Dispatcher.Drain();
+            host.Dispatcher.Drain();
 
-        TestDispatcherException exception = Assert.IsType<TestDispatcherException>(Assert.Single(host.Dispatcher.UnhandledExceptions));
-        Assert.Equal("expected", exception.Message);
-        Assert.Throws<AggregateException>(host.Dispatcher.ThrowUnhandledExceptions);
+            TestDispatcherException exception = Assert.IsType<TestDispatcherException>(Assert.Single(host.Dispatcher.UnhandledExceptions));
+            Assert.Equal("expected", exception.Message);
+            Assert.Throws<AggregateException>(host.Dispatcher.ThrowUnhandledExceptions);
+        }
+
+        Assert.Same(previous, Dispatcher.UIThread);
+        using var next = ModernFormsTestHost.Create();
+        Assert.Empty(next.Dispatcher.UnhandledExceptions);
+        Assert.Equal(0, next.Dispatcher.PendingWorkCount);
     }
 
     [Fact]
@@ -383,6 +466,21 @@ public sealed class ModernFormsTestHostTests
         host.Dispatcher.Drain();
 
         Assert.Contains("exceeded 5 operations", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DisposeRestoresDispatcherScopeAfterAReplenishingQueueFailure()
+    {
+        ModernFormsTestHost host = ModernFormsTestHost.Create();
+        Action? callback = null;
+        callback = () => host.Dispatcher.Post(callback!);
+        host.Dispatcher.Post(callback);
+
+        AggregateException exception = Assert.Throws<AggregateException>(host.Dispose);
+
+        Assert.Contains("exceeded 4096 operations", exception.ToString(), StringComparison.Ordinal);
+        using var next = ModernFormsTestHost.Create();
+        Assert.Equal(0, next.Dispatcher.PendingWorkCount);
     }
 
     [Fact]
@@ -415,21 +513,90 @@ public sealed class ModernFormsTestHostTests
     {
         string key = $"TestHost.Isolation.{Guid.NewGuid():N}";
         string baselineThemeId = ThemeManager.Current.ActiveTheme!.Id;
+        ThemeDefinition changedTheme = baselineThemeId == BuiltInThemes.DarkThemeId
+            ? BuiltInThemes.Light
+            : BuiltInThemes.Dark;
+        Form firstForm;
+        AnimationHandle animation;
         using (ModernFormsTestHost first = ModernFormsTestHost.Create(new TestViewport(123, 45, 2d)))
         {
             Application.Resources[key] = "temporary";
-            Assert.True(ThemeManager.Current.Apply(BuiltInThemes.Dark, ImmediateTheme()).Success);
-            first.Show(new Panel());
+            Assert.True(ThemeManager.Current.Apply(changedTheme, ImmediateTheme()).Success);
+            firstForm = new Form { Name = "FormA", UseSystemDecorations = true };
+            var animated = new Control();
+            firstForm.Controls.Add(animated);
+            first.Show(firstForm);
+            animation = AnimationScheduler.Default.Start(
+                animated,
+                "HostA",
+                _ => { },
+                new AnimationOptions { Duration = TimeSpan.FromHours(1) });
             first.Dispatcher.Post(() => { });
         }
 
         using var second = ModernFormsTestHost.Create();
 
         Assert.Equal(new TestViewport(800, 600), second.DefaultViewport);
+        Assert.Equal(1d, second.DefaultViewport.RenderScale);
         Assert.False(Application.Resources.ContainsKey(key));
         Assert.Equal(baselineThemeId, ThemeManager.Current.ActiveTheme!.Id);
         Assert.Equal(0, second.Dispatcher.PendingWorkCount);
+        Assert.Equal(0, second.GetDiagnostics().ActiveAnimationCount);
+        Assert.Equal(AnimationState.Canceled, animation.State);
+        Assert.DoesNotContain(firstForm, Application.OpenForms);
         Assert.Empty(second.Windows);
+    }
+
+    [Fact]
+    public void LayoutFailureDoesNotPreventGlobalStateRestoration()
+    {
+        string key = $"TestHost.LayoutFailure.{Guid.NewGuid():N}";
+        string baselineThemeId = ThemeManager.Current.ActiveTheme!.Id;
+        ModernFormsTestHost host = ModernFormsTestHost.Create();
+        try
+        {
+            Application.Resources[key] = "temporary";
+            ThemeDefinition changedTheme = baselineThemeId == BuiltInThemes.DarkThemeId
+                ? BuiltInThemes.Light
+                : BuiltInThemes.Dark;
+            Assert.True(ThemeManager.Current.Apply(changedTheme, ImmediateTheme()).Success);
+            var root = new ThrowingLayoutPanel();
+            TestWindowHost window = host.Show(root);
+            root.ThrowOnLayout = true;
+
+            Assert.Throws<TestLayoutException>(window.PerformLayout);
+        }
+        finally
+        {
+            host.Dispose();
+        }
+
+        using var next = ModernFormsTestHost.Create();
+        Assert.False(Application.Resources.ContainsKey(key));
+        Assert.Equal(baselineThemeId, ThemeManager.Current.ActiveTheme!.Id);
+        Assert.Empty(next.Windows);
+        Assert.Equal(0, next.Dispatcher.PendingWorkCount);
+    }
+
+    [Fact]
+    public void ThrowingClosingHandlerDoesNotBlockOtherWindowsOrTheNextHost()
+    {
+        ModernFormsTestHost host = ModernFormsTestHost.Create();
+        var throwingForm = new Form { Name = "Throwing", UseSystemDecorations = true };
+        throwingForm.Closing += (_, _) => throw new TestClosingException("expected");
+        TestWindowHost throwingWindow = host.Show(throwingForm);
+        var secondForm = new Form { Name = "Second", UseSystemDecorations = true };
+        TestWindowHost secondWindow = host.Show(secondForm);
+
+        AggregateException exception = Assert.Throws<AggregateException>(host.Dispose);
+
+        Assert.Contains(exception.Flatten().InnerExceptions, item => item is TestClosingException);
+        Assert.True(throwingWindow.IsClosed);
+        Assert.True(secondWindow.IsClosed);
+        Assert.DoesNotContain(throwingForm, Application.OpenForms);
+        Assert.DoesNotContain(secondForm, Application.OpenForms);
+        using var next = ModernFormsTestHost.Create();
+        Assert.Empty(next.Windows);
     }
 
     [Fact]
@@ -496,6 +663,19 @@ public sealed class ModernFormsTestHostTests
         Assert.True(diagnostics.PendingInvalidationCount > 0);
         Assert.Single(diagnostics.ControlTrees);
         Assert.Contains("DiagnosticRoot", dump, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DiagnosticsAreDetachedAndHostDiagnosticsThrowAfterDisposal()
+    {
+        ModernFormsTestHost host = ModernFormsTestHost.Create();
+        host.Show(new Panel { Name = "Detached" });
+        TestHostDiagnostics diagnostics = host.GetDiagnostics();
+
+        host.Dispose();
+
+        Assert.Contains("Detached", diagnostics.Dump(), StringComparison.Ordinal);
+        Assert.Throws<ObjectDisposedException>(host.GetDiagnostics);
     }
 
     [Fact]
@@ -588,6 +768,18 @@ public sealed class ModernFormsTestHostTests
         }
     }
 
+    private sealed class ThrowingLayoutPanel : Panel
+    {
+        public bool ThrowOnLayout { get; set; }
+
+        protected override void OnLayout(LayoutEventArgs e)
+        {
+            if (ThrowOnLayout)
+                throw new TestLayoutException("expected");
+            base.OnLayout(e);
+        }
+    }
+
     private sealed class BindingModel : INotifyPropertyChanged
     {
         private string value = string.Empty;
@@ -608,4 +800,8 @@ public sealed class ModernFormsTestHostTests
     }
 
     private sealed class TestDispatcherException(string message) : Exception(message);
+
+    private sealed class TestLayoutException(string message) : Exception(message);
+
+    private sealed class TestClosingException(string message) : Exception(message);
 }

@@ -28,7 +28,11 @@ public sealed class UiTestDispatcher
     }
 
     /// <summary>Gets whether the calling thread is the deterministic UI thread.</summary>
-    public bool CheckAccess() => Environment.CurrentManagedThreadId == ownerThreadId;
+    public bool CheckAccess()
+    {
+        ThrowIfDisposed();
+        return Environment.CurrentManagedThreadId == ownerThreadId;
+    }
 
     /// <summary>Gets the number of dispatcher operations waiting for an explicit drain.</summary>
     public int PendingWorkCount
@@ -41,7 +45,14 @@ public sealed class UiTestDispatcher
     }
 
     /// <summary>Gets a detached snapshot of exceptions raised by fire-and-forget posted work.</summary>
-    public IReadOnlyList<Exception> UnhandledExceptions => unhandledExceptions.ToArray();
+    public IReadOnlyList<Exception> UnhandledExceptions
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return unhandledExceptions.ToArray();
+        }
+    }
 
     /// <summary>Runs an action immediately on the owning UI thread.</summary>
     /// <param name="action">The UI work to execute.</param>
@@ -170,6 +181,7 @@ public sealed class UiTestDispatcher
     /// <exception cref="InvalidOperationException">The caller is not the owning thread.</exception>
     public void VerifyAccess()
     {
+        ThrowIfDisposed();
         if (!CheckAccess())
             throw new InvalidOperationException("Headless ModernFormsNext UI work must run on the thread that created the test host.");
     }
@@ -180,13 +192,29 @@ public sealed class UiTestDispatcher
             return;
 
         VerifyAccess();
-        Drain();
-        dispatcherScope.Dispose();
-        implementation.Dispose();
+        var failures = new List<Exception>();
+        TryCleanup(() => Drain(), failures);
+        TryCleanup(() => dispatcherScope.Dispose(), failures);
+        TryCleanup(() => implementation.Dispose(), failures);
         disposed = true;
+
+        if (failures.Count > 0)
+            throw new AggregateException("The deterministic UI dispatcher reported cleanup failures.", failures);
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
+
+    private static void TryCleanup(Action action, ICollection<Exception> failures)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+    }
 
     private sealed class DeterministicDispatcherImpl(int ownerThreadId) : IDispatcherImpl, IDisposable
     {

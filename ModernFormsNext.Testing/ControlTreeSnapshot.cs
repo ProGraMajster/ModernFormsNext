@@ -158,7 +158,10 @@ internal static class ControlTreeSnapshotCapture
             Control control = controls[index];
             string fallback = $"{control.GetType().Name}[{index}]";
             string name = string.IsNullOrWhiteSpace(control.Name) ? fallback : control.Name;
-            snapshots.Add(CaptureControl(control, $"{parentPath}.{name}", name, renderScale, rootBounds: false));
+            string pathSegment = string.IsNullOrWhiteSpace(control.Name)
+                ? fallback
+                : $"{control.Name}[{index}]";
+            snapshots.Add(CaptureControl(control, $"{parentPath}.{pathSegment}", name, renderScale, rootBounds: false));
         }
 
         return snapshots;

@@ -151,7 +151,7 @@ animations, captured dispatcher exceptions, and every current tree.
 Disposing the host deterministically:
 
 1. closes every hosted form/tree, even when an application `Closing` handler cancels a normal
-   user close;
+   user close or throws; cleanup continues and disposal reports the failure;
 2. cancels default-scheduler entries owned by controls in those trees;
 3. disposes headless adapters and unregisters every testing window backend;
 4. drains the deterministic dispatcher;

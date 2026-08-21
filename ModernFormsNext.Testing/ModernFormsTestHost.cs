@@ -42,7 +42,6 @@ public sealed class ModernFormsTestHost : IDisposable
         catch
         {
             Dispatcher.Dispose();
-            Interlocked.Exchange(ref activeHost, 0);
             throw;
         }
     }
@@ -63,16 +62,26 @@ public sealed class ModernFormsTestHost : IDisposable
     /// <summary>Creates a host with a caller-controlled default viewport and render scale.</summary>
     /// <param name="defaultViewport">The viewport used by Show overloads without dimensions.</param>
     /// <returns>The new deterministic headless host.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="defaultViewport"/> is the invalid default struct value.</exception>
     /// <exception cref="InvalidOperationException">Another host is already active in this process.</exception>
     public static ModernFormsTestHost Create(TestViewport defaultViewport)
     {
+        defaultViewport.Validate(nameof(defaultViewport));
         if (Interlocked.CompareExchange(ref activeHost, 1, 0) != 0)
         {
             throw new InvalidOperationException(
                 "Only one ModernFormsTestHost may be active in a process. Serialize tests that use the headless host.");
         }
 
-        return new ModernFormsTestHost(defaultViewport);
+        try
+        {
+            return new ModernFormsTestHost(defaultViewport);
+        }
+        catch
+        {
+            Interlocked.Exchange(ref activeHost, 0);
+            throw;
+        }
     }
 
     /// <summary>Hosts a Form using the default viewport.</summary>
@@ -91,10 +100,12 @@ public sealed class ModernFormsTestHost : IDisposable
     /// <param name="form">A Form constructed after this host was created.</param>
     /// <param name="viewport">The logical size and render scale.</param>
     /// <returns>The hosted window handle.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="viewport"/> is the invalid default struct value.</exception>
     public TestWindowHost Show(Form form, TestViewport viewport)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(form);
+        viewport.Validate(nameof(viewport));
         return Dispatcher.Run(() => ShowCore(form, controlRoot: null, viewport));
     }
 
@@ -114,10 +125,12 @@ public sealed class ModernFormsTestHost : IDisposable
     /// <param name="root">The unparented UserControl, Panel, or other framework control.</param>
     /// <param name="viewport">The logical size and render scale.</param>
     /// <returns>The hosted window handle.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="viewport"/> is the invalid default struct value.</exception>
     public TestWindowHost Show(Control root, TestViewport viewport)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(root);
+        viewport.Validate(nameof(viewport));
         if (root.Parent is not null)
             throw new ArgumentException("A headless control root must not already have a parent.", nameof(root));
 
@@ -185,17 +198,24 @@ public sealed class ModernFormsTestHost : IDisposable
     }
 
     /// <summary>Closes every hosted window while keeping the host available for another test tree.</summary>
+    /// <exception cref="AggregateException">One or more application close handlers or cleanup steps failed.</exception>
     public void Close()
     {
         ThrowIfDisposed();
+        var failures = new List<Exception>();
         foreach (TestWindowHost window in windows.ToArray())
-            window.Close();
-        Dispatcher.Drain();
+            TryCleanup(window.Close, failures);
+        TryCleanup(() => Dispatcher.Drain(), failures);
+
+        if (failures.Count > 0)
+            throw new AggregateException("One or more deterministic ModernFormsNext test windows failed to close cleanly.", failures);
     }
 
     /// <summary>
     /// Closes all trees, drains pending work, restores process state, and removes all testing scopes.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The host is disposed from a thread other than its owner thread.</exception>
+    /// <exception cref="AggregateException">One or more cleanup steps failed; independent restoration steps still ran.</exception>
     public void Dispose()
     {
         if (disposed)
