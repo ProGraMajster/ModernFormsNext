@@ -25,8 +25,16 @@ internal class DispatcherPriorityQueue
         _head = _tail = null;
     }
 
-    // NOTE: not used
-    // public int Count {get{return _count;}}
+    public int Count
+    {
+        get
+        {
+            var count = 0;
+            foreach (PriorityChain chain in _priorityChains.Values)
+                count += chain.Count;
+            return count;
+        }
+    }
 
     public DispatcherPriority MaxPriority // NOTE: should be Priority
     {

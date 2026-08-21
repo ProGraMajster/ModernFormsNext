@@ -8,6 +8,8 @@
   href: content/docs/installation.md
 - name: Samples
   href: content/docs/samples.md
+- name: Headless testing
+  href: content/docs/testing/testhost.md
 - name: Platform status
   href: content/docs/platform-specific-features.md
 - name: Known limitations

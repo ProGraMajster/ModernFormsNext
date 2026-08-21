@@ -57,6 +57,9 @@ namespace ModernFormsNext
 
         private static IWindowBaseImpl CreateWindowImpl()
         {
+            if (TestWindowFactoryScope.TryCreateWindow() is { } testWindow)
+                return testWindow;
+
             FrameworkBootstrap.EnsureInitialized();
             return AvaloniaGlobals.GetRequiredService<IWindowingPlatform>().CreateWindow();
         }
