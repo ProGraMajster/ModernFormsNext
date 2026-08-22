@@ -139,5 +139,6 @@ selection alone.
 
 Inherited design remains tracked separately. The typed transaction boundary is ready for a future
 change validator to reject writes to base-owned/read-only nodes before `Apply`; this issue does not
-implement inherited controls. Multi-selection, system clipboard/cut, smart guides, and a general
-command framework also remain separate features.
+implement inherited controls. Detached Designer Copy/Cut/Paste/Duplicate reuses this boundary as
+documented in [Designer copy and paste](designer-copy-paste.md). Multi-selection, an operating-system
+clipboard contract, smart guides, and a general command framework remain separate features.

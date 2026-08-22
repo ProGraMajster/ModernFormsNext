@@ -185,6 +185,33 @@ public sealed class DesignerRuntimeLayoutParityTests
         DesignerRuntimeLayoutParityHarness.AssertParity("order-added", document, document);
     }
 
+    [Fact]
+    public void ClipboardPasteAndDuplicateUseProductionLayoutSemantics()
+    {
+        var document = BasicDocument();
+        var source = Node("source", "Panel", 12, 18, 110, 80);
+        source.Properties["Padding"] = PaddingValue(new Padding(3, 5, 7, 9));
+        source.Children.Add(Node("header", "Panel", 0, 0, 30, 24, DockStyle.Top));
+        source.Children.Add(Node("content", "Panel", 0, 0, 30, 30, DockStyle.Fill));
+        var target = Node("target", "Panel", 140, 10, 140, 170);
+        target.Properties["Padding"] = PaddingValue(new Padding(6));
+        document.Controls.Add(source);
+        document.Controls.Add(target);
+        using var session = new DesignerSession();
+        session.LoadDocument(document);
+
+        session.SelectNode(source);
+        Assert.True(session.CopySelectedNode());
+        session.SelectNode(target);
+        Assert.True(session.PasteCopiedNode());
+        Assert.True(session.DuplicateSelectedNode());
+
+        Assert.Equal(2, target.Children.Count);
+        Assert.Equal("source1", target.Children[0].Name);
+        Assert.Equal("source2", target.Children[1].Name);
+        DesignerRuntimeLayoutParityHarness.AssertParity("clipboard-paste-duplicate", document, document);
+    }
+
     public static IEnumerable<object[]> CoreParityScenarios()
     {
         yield return Scenario("ordinary-child", () => WithChildren(Node("child", "Panel", 17, 23, 91, 47)));

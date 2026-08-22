@@ -287,9 +287,12 @@ overwriting the `.mfdesign` document.
   ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)) and the complete
   smart-guide/equal-spacing/baseline workflow
   ([#36](https://github.com/ProGraMajster/ModernFormsNext/issues/36)) remain separate work.
-- Copy, paste, and duplicate exist for an in-session single-control workflow and participate in
-  Designer history. Cut, a system clipboard contract, and complete cross-document behavior remain in
-  [#34](https://github.com/ProGraMajster/ModernFormsNext/issues/34).
+- Detached, versioned Copy/Cut/Paste/Duplicate supports a safe in-session single-control workflow,
+  including documents open in the same Designer session, and participates atomically in Designer
+  history. See [Designer copy and paste](designer-copy-paste.md). Multi-selection
+  ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)) and an operating-system
+  clipboard contract ([#57](https://github.com/ProGraMajster/ModernFormsNext/issues/57)) remain
+  separate work.
 - The Events view persists bindings and can generate a handler method. Default-event double-click,
   compatible-method selection, robust navigation, and rename diagnostics remain in
   [#37](https://github.com/ProGraMajster/ModernFormsNext/issues/37).

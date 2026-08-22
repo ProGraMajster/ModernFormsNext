@@ -154,6 +154,7 @@ public sealed class ModernFormsDesignerShell : Panel
                 (Keys.Y, false) => Session.Transactions.CanRedo && Session.Transactions.Redo(),
                 (Keys.Z, true) => Session.Transactions.CanRedo && Session.Transactions.Redo(),
                 (Keys.C, false) => Session.CopySelectedNode(),
+                (Keys.X, false) => Session.CutSelectedNode(),
                 (Keys.V, false) => Session.PasteCopiedNode(),
                 (Keys.D, false) => Session.DuplicateSelectedNode(),
                 _ => false

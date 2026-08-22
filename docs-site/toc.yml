@@ -8,6 +8,8 @@
   href: content/docs/installation.md
 - name: Designer transactions and undo
   href: content/docs/designer-transactions-and-undo.md
+- name: Designer copy and paste
+  href: content/docs/designer-copy-paste.md
 - name: Samples
   href: content/docs/samples.md
 - name: Headless testing

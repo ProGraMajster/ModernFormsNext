@@ -14,6 +14,10 @@ internal sealed class DesignerToolbar : Panel
     private readonly List<(Button Button, string Key)> localizedButtons = [];
     private Button? undoButton;
     private Button? redoButton;
+    private Button? cutButton;
+    private Button? copyButton;
+    private Button? pasteButton;
+    private Button? duplicateButton;
 
     public DesignerToolbar(DesignerCommandService commands, DesignerSession session, ModernFormsDesignerOptions options)
     {
@@ -23,9 +27,12 @@ internal sealed class DesignerToolbar : Panel
         Height = 42;
         Style.BackgroundColor = new SKColor(34, 39, 45);
         CreateButtons();
-        session.Transactions.HistoryChanged += (_, _) => RefreshHistoryButtons();
-        session.DocumentTabsChanged += (_, _) => RefreshHistoryButtons();
-        RefreshHistoryButtons();
+        session.Transactions.HistoryChanged += (_, _) => RefreshCommandButtons();
+        session.DocumentTabsChanged += (_, _) => RefreshCommandButtons();
+        session.DocumentChanged += (_, _) => RefreshCommandButtons();
+        session.SelectionChanged += (_, _) => RefreshCommandButtons();
+        session.ClipboardChanged += (_, _) => RefreshCommandButtons();
+        RefreshCommandButtons();
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -53,6 +60,14 @@ internal sealed class DesignerToolbar : Panel
         x += 84;
         redoButton = AddButton("Redo", x, () => commands.Redo(), 76);
         x += 84;
+        cutButton = AddButton("Cut", x, () => commands.Cut(), 62);
+        x += 70;
+        copyButton = AddButton("Copy", x, () => commands.Copy(), 68);
+        x += 76;
+        pasteButton = AddButton("Paste", x, () => commands.Paste(), 70);
+        x += 78;
+        duplicateButton = AddButton("Duplicate", x, () => commands.Duplicate(), 92);
+        x += 100;
         AddButton("AddPanel", x, commands.AddPanel, 100);
         x += 108;
         AddButton("AddButton", x, commands.AddButton, 105);
@@ -73,7 +88,7 @@ internal sealed class DesignerToolbar : Panel
         foreach (var (button, key) in localizedButtons)
             button.Text = T(key);
 
-        RefreshHistoryButtons();
+        RefreshCommandButtons();
         Invalidate();
     }
 
@@ -97,12 +112,20 @@ internal sealed class DesignerToolbar : Panel
         return button;
     }
 
-    private void RefreshHistoryButtons()
+    private void RefreshCommandButtons()
     {
         if (undoButton is not null)
             undoButton.Enabled = session.Transactions.CanUndo;
         if (redoButton is not null)
             redoButton.Enabled = session.Transactions.CanRedo;
+        if (cutButton is not null)
+            cutButton.Enabled = commands.CanCut;
+        if (copyButton is not null)
+            copyButton.Enabled = commands.CanCopy;
+        if (pasteButton is not null)
+            pasteButton.Enabled = commands.CanPaste;
+        if (duplicateButton is not null)
+            duplicateButton.Enabled = commands.CanDuplicate;
 
         Invalidate();
     }
