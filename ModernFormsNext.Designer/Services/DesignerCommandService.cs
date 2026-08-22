@@ -68,6 +68,22 @@ internal sealed class DesignerCommandService : IDisposable
 
     public bool Redo() => state.Transactions.Redo();
 
+    public bool Cut() => state.CutSelectedNode();
+
+    public bool Copy() => state.CopySelectedNode();
+
+    public bool Paste() => state.PasteCopiedNode();
+
+    public bool Duplicate() => state.DuplicateSelectedNode();
+
+    public bool CanCut => state.CanCutSelectedNode;
+
+    public bool CanCopy => state.CanCopySelectedNode;
+
+    public bool CanPaste => state.CanPasteCopiedNode;
+
+    public bool CanDuplicate => state.CanDuplicateSelectedNode;
+
     public void AddControlType(string typeName)
     {
         try

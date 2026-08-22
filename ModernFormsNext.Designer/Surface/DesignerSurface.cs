@@ -60,6 +60,13 @@ internal sealed class DesignerSurface : Panel
             return;
         }
 
+        if (e.KeyCode == Keys.X)
+        {
+            e.Handled = state.CutSelectedNode();
+            Invalidate();
+            return;
+        }
+
         if (e.KeyCode == Keys.V)
         {
             e.Handled = state.PasteCopiedNode();

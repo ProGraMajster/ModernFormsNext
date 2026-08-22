@@ -1,4 +1,5 @@
 using ModernFormsNext;
+using ModernFormsNext.Designer.Clipboard;
 using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Surface;
@@ -25,7 +26,7 @@ public sealed class DesignerSession : IDisposable
     private readonly IDesignerHostEnvironment? environment;
     private readonly IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls;
     private readonly DesignerHistory detachedHistory;
-    private DesignControlNode? clipboardNode;
+    private readonly IDesignerClipboard clipboard;
     private DesignerOpenDocument? activeDocument;
     private int historyLimit;
     private bool disposed;
@@ -53,11 +54,21 @@ public sealed class DesignerSession : IDisposable
         IDesignerHostEnvironment? environment,
         DesignerControlRenderMode initialRenderMode,
         int historyLimit)
+        : this(environment, initialRenderMode, historyLimit, new DesignerClipboard())
+    {
+    }
+
+    internal DesignerSession(
+        IDesignerHostEnvironment? environment,
+        DesignerControlRenderMode initialRenderMode,
+        int historyLimit,
+        IDesignerClipboard clipboard)
     {
         if (historyLimit < 1)
             throw new ArgumentOutOfRangeException(nameof(historyLimit), "Designer history limit must be at least one entry.");
 
         this.environment = environment;
+        this.clipboard = clipboard ?? throw new ArgumentNullException(nameof(clipboard));
         this.historyLimit = historyLimit;
         detachedHistory = new DesignerHistory(historyLimit, initiallyDirty: false);
         projectUserControls = DesignerProjectUserControlDiscovery.Discover(environment?.CurrentProjectPath);
@@ -65,6 +76,7 @@ public sealed class DesignerSession : IDisposable
         Host = new DesignerHost(CreateDefaultDocument());
         Transactions = new DesignerTransactionManager(this);
         Host.Selection.SelectionChanged += HostSelection_SelectionChanged;
+        clipboard.Changed += Clipboard_Changed;
         Log("Designer session ready.");
         Log($"Designer diagnostics log: {DesignerDiagnosticLog.Path}");
         Log($"Initial designer surface render mode: {ControlRenderMode}.");
@@ -79,6 +91,8 @@ public sealed class DesignerSession : IDisposable
     /// Occurs when the active designer selection changes.
     /// </summary>
     public event EventHandler? SelectionChanged;
+
+    internal event EventHandler? ClipboardChanged;
 
     /// <summary>
     /// Occurs when the output log changes.
@@ -162,6 +176,8 @@ public sealed class DesignerSession : IDisposable
     internal DesignerHistory CurrentHistory => activeDocument?.History ?? detachedHistory;
 
     internal int HistoryLimit => historyLimit;
+
+    internal IDesignerClipboard Clipboard => clipboard;
 
     /// <summary>
     /// Replaces the active document and resets the dirty state.
@@ -835,18 +851,68 @@ public sealed class DesignerSession : IDisposable
     /// <summary>
     /// Copies the currently selected control node into the designer clipboard.
     /// </summary>
+    /// <remarks>
+    /// Copy stores a detached, versioned data payload. It does not mutate the document, change the
+    /// dirty state, create history, or retain the selected live control tree.
+    /// </remarks>
     /// <returns><see langword="true"/> when a control was copied; otherwise, <see langword="false"/>.</returns>
     public bool CopySelectedNode()
     {
         ThrowIfDisposed();
-        if (SelectedNode is null)
+        if (!TryGetClipboardSource(out var source, out var error))
         {
-            Log("No control is selected to copy.");
+            Log(error!);
             return false;
         }
 
-        clipboardNode = CloneNode(SelectedNode, preserveName: true, usedNames: new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        Log($"Copied {SelectedNode.Name}.");
+        if (!DesignerClipboardSerializer.TrySerialize(source, out var content, out error))
+        {
+            Log(error!);
+            return false;
+        }
+
+        clipboard.SetContent(content!);
+        Log($"Copied {source.Name}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Cuts the currently selected control subtree into the Designer clipboard.
+    /// </summary>
+    /// <remarks>
+    /// The detached payload is prepared before the model changes. Removing the subtree and updating
+    /// selection are then committed as exactly one undo unit through the shared transaction manager.
+    /// </remarks>
+    /// <returns><see langword="true"/> when a control was cut; otherwise, <see langword="false"/>.</returns>
+    public bool CutSelectedNode()
+    {
+        ThrowIfDisposed();
+        if (!TryGetClipboardSource(out var source, out var error))
+        {
+            Log(error!);
+            return false;
+        }
+
+        if (!TryFindNodeWithParent(source, Document.Controls, parent: null, out var parent, out var collection, out var index))
+        {
+            Log($"Cannot cut {source.Name}: the node is not in the active document.");
+            return false;
+        }
+
+        if (!DesignerClipboardSerializer.TrySerialize(source, out var content, out error))
+        {
+            Log(error!);
+            return false;
+        }
+
+        // Store the data-only copy first. If a clipboard observer fails, no document mutation has
+        // begun; the operation safely degrades to Copy instead of losing the selected subtree.
+        clipboard.SetContent(content!);
+        using var transaction = Transactions.Begin($"Cut {source.Name}");
+        Transactions.ExecuteChange(new DesignerTreeRemoveChange(collection, source, index));
+        Host.Selection.Select(parent);
+        transaction.Commit();
+        Log($"Cut {source.Name}.");
         return true;
     }
 
@@ -857,22 +923,31 @@ public sealed class DesignerSession : IDisposable
     public bool DuplicateSelectedNode()
     {
         ThrowIfDisposed();
-        if (SelectedNode is null)
+        if (!TryGetClipboardSource(out var source, out var error))
         {
-            Log("No control is selected to duplicate.");
+            Log(error!);
             return false;
         }
 
-        if (!TryFindNodeWithParent(SelectedNode, Document.Controls, parent: null, out _, out var collection, out var index))
+        if (!TryFindNodeWithParent(source, Document.Controls, parent: null, out var parent, out var collection, out var index))
+        {
+            Log($"Cannot duplicate {source.Name}: the node is not in the active document.");
             return false;
+        }
 
-        var sourceName = SelectedNode.Name;
-        var clone = CloneForPaste(SelectedNode, offsetRoot: true);
-        using var transaction = Transactions.Begin($"Duplicate {sourceName}");
-        Transactions.ExecuteChange(new DesignerTreeInsertChange(collection, clone, index + 1));
-        Host.Selection.Select(clone);
+        if (!TryCreateDetachedClone(source, out var clone, out error)
+            || !TryPrepareInsertion(clone!, new DesignerPasteTarget(collection, parent, parent?.Name ?? Document.FormName, index + 1), out error))
+        {
+            Log(error!);
+            return false;
+        }
+
+        var duplicate = clone!;
+        using var transaction = Transactions.Begin($"Duplicate {source.Name}");
+        Transactions.ExecuteChange(new DesignerTreeInsertChange(collection, duplicate, index + 1));
+        Host.Selection.Select(duplicate);
         transaction.Commit();
-        Log($"Duplicated {sourceName} as {clone.Name}.");
+        Log($"Duplicated {source.Name} as {duplicate.Name}.");
         return true;
     }
 
@@ -883,27 +958,62 @@ public sealed class DesignerSession : IDisposable
     public bool PasteCopiedNode()
     {
         ThrowIfDisposed();
-        if (clipboardNode is null)
+        if (!DesignerClipboardSerializer.TryDeserialize(clipboard.Content, out var clone, out var error))
         {
-            Log("No copied control is available to paste.");
+            Log(error!);
             return false;
         }
 
-        var clone = CloneForPaste(clipboardNode, offsetRoot: true);
-
-        if (!DesignerControlReferenceGuard.CanReferenceTree(Document, clone, CurrentProjectPath, out var error))
+        if (!TryResolvePasteTarget(clone!, out var target, out error)
+            || !TryPrepareInsertion(clone!, target, out error))
         {
-            Log(error ?? "The copied control would create an invalid design reference.");
+            Log(error!);
             return false;
         }
 
-        var destination = GetPasteDestination(out var targetName);
-        using var transaction = Transactions.Begin($"Paste {clone.Name}");
-        Transactions.ExecuteChange(new DesignerTreeInsertChange(destination, clone, destination.Count));
-        Host.Selection.Select(clone);
+        var pasted = clone!;
+        using var transaction = Transactions.Begin($"Paste {pasted.Name}");
+        Transactions.ExecuteChange(new DesignerTreeInsertChange(target.Collection, pasted, target.Index));
+        Host.Selection.Select(pasted);
         transaction.Commit();
-        Log($"Pasted {clone.Name} into {targetName}.");
+        Log($"Pasted {pasted.Name} into {target.DisplayName}.");
         return true;
+    }
+
+    internal bool CanCopySelectedNode => CanUseSelectedNodeAsClipboardSource();
+
+    internal bool CanCutSelectedNode => CanUseSelectedNodeAsClipboardSource();
+
+    internal bool CanDuplicateSelectedNode
+    {
+        get
+        {
+            if (!CanUseSelectedNodeAsClipboardSource()
+                || SelectedNode is not { } source
+                || !TryFindNodeWithParent(source, Document.Controls, parent: null, out var parent, out var collection, out var index)
+                || !TryCreateDetachedClone(source, out var clone, out _))
+            {
+                return false;
+            }
+
+            return CanInsertNode(clone!, new DesignerPasteTarget(collection, parent, parent?.Name ?? Document.FormName, index + 1), out _);
+        }
+    }
+
+    internal bool CanPasteCopiedNode
+    {
+        get
+        {
+            if (disposed
+                || !DesignerClipboardSerializer.TryDeserialize(clipboard.Content, out var node, out _)
+                || !TryResolvePasteTarget(node!, out var target, out _))
+            {
+                return false;
+            }
+
+            return CanInsertNode(node!, target, out _)
+                && DesignerControlReferenceGuard.CanReferenceTree(Document, node!, CurrentProjectPath, out _);
+        }
     }
 
     private bool MoveSelectedNodeWithinCurrentContainer(int delta)
@@ -1592,22 +1702,63 @@ public sealed class DesignerSession : IDisposable
         return false;
     }
 
-    private DesignControlCollection GetPasteDestination(out string targetName)
+    private bool TryResolvePasteTarget(
+        DesignControlNode clipboardRoot,
+        out DesignerPasteTarget target,
+        out string? error)
     {
         if (IsContainerNode(SelectedNode))
         {
-            return GetChildCollectionForNewControl(SelectedNode, out targetName) ?? SelectedNode!.Children;
+            var selectedContainer = SelectedNode!;
+            DesignControlCollection? collection;
+
+            if (DesignerSpecialContainers.IsTabControl(selectedContainer))
+            {
+                collection = DesignerSpecialContainers.IsTabPage(clipboardRoot)
+                    ? selectedContainer.Children
+                    : DesignerSpecialContainers.GetSelectedTabPage(selectedContainer)?.Children;
+            }
+            else if (DesignerSpecialContainers.IsSplitContainer(selectedContainer))
+                collection = DesignerSpecialContainers.GetPanel1(selectedContainer)?.Children;
+            else
+                collection = selectedContainer.Children;
+
+            if (collection is null || !TryFindParentForCollection(collection, out var actualParent))
+            {
+                target = default;
+                error = $"Cannot paste into {selectedContainer.Name}: its structural child container is unavailable.";
+                return false;
+            }
+
+            target = new DesignerPasteTarget(
+                collection,
+                actualParent,
+                actualParent is null ? Document.FormName : DesignerSpecialContainers.GetOutlineName(actualParent),
+                collection.Count);
+            return CanInsertNode(clipboardRoot, target, out error);
         }
 
-        if (SelectedNode is not null
-            && TryFindNodeWithParent(SelectedNode, Document.Controls, parent: null, out var parent, out var collection, out _))
+        if (SelectedNode is not null)
         {
-            targetName = parent?.Name ?? Document.FormName;
-            return collection;
+            if (!TryFindNodeWithParent(
+                SelectedNode,
+                Document.Controls,
+                parent: null,
+                out var parent,
+                out var collection,
+                out _))
+            {
+                target = default;
+                error = "The selected paste target is not attached to the active document.";
+                return false;
+            }
+
+            target = new DesignerPasteTarget(collection, parent, parent?.Name ?? Document.FormName, collection.Count);
+            return CanInsertNode(clipboardRoot, target, out error);
         }
 
-        targetName = Document.FormName;
-        return Document.Controls;
+        target = new DesignerPasteTarget(Document.Controls, Parent: null, Document.FormName, Document.Controls.Count);
+        return CanInsertNode(clipboardRoot, target, out error);
     }
 
     private DesignControlCollection? GetChildCollectionForNewControl(DesignControlNode? parent, out string targetName)
@@ -1695,49 +1846,155 @@ public sealed class DesignerSession : IDisposable
         DesignerSpecialContainers.SetInt(node, DesignerSpecialContainers.TableRowSpanPropertyName, 1);
     }
 
-    private DesignControlNode CloneForPaste(DesignControlNode source, bool offsetRoot)
-    {
-        var usedNames = GetUsedControlNames();
-        var clone = CloneNode(source, preserveName: false, usedNames);
+    private bool CanUseSelectedNodeAsClipboardSource()
+        => !disposed
+        && SelectedNode is { } selected
+        && !DesignerSpecialContainers.IsSpecialGeneratedPart(selected)
+        && TryFindNode(selected, out _, out _);
 
-        if (offsetRoot)
+    private bool TryGetClipboardSource(out DesignControlNode source, out string? error)
+    {
+        if (SelectedNode is null)
         {
-            clone.Bounds = new DesignBounds(
-                clone.Bounds.X + 16,
-                clone.Bounds.Y + 16,
-                clone.Bounds.Width,
-                clone.Bounds.Height);
+            source = null!;
+            error = "The Form or UserControl design root cannot be copied as a child control.";
+            return false;
         }
 
-        return clone;
+        source = SelectedNode;
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(source))
+        {
+            error = $"{DesignerSpecialContainers.GetOutlineName(source)} is structural SplitContainer data and cannot be copied independently.";
+            return false;
+        }
+
+        if (!TryFindNode(source, out _, out _))
+        {
+            error = $"Cannot copy {source.Name}: the node is not in the active document.";
+            return false;
+        }
+
+        error = null;
+        return true;
     }
 
-    private DesignControlNode CloneNode(
+    private bool TryCreateDetachedClone(
         DesignControlNode source,
-        bool preserveName,
+        out DesignControlNode? clone,
+        out string? error)
+    {
+        if (!DesignerClipboardSerializer.TrySerialize(source, out var content, out error))
+        {
+            clone = null;
+            return false;
+        }
+
+        return DesignerClipboardSerializer.TryDeserialize(content, out clone, out error);
+    }
+
+    private bool TryPrepareInsertion(
+        DesignControlNode node,
+        DesignerPasteTarget target,
+        out string? error)
+    {
+        if (!CanInsertNode(node, target, out error))
+            return false;
+
+        if (!DesignerControlReferenceGuard.CanReferenceTree(Document, node, CurrentProjectPath, out error))
+            return false;
+
+        var usedNames = GetUsedControlNames();
+        RemapClipboardNames(node, parent: null, usedNames);
+        ApplyClipboardPositioning(node, target.Parent);
+        return true;
+    }
+
+    private bool CanInsertNode(
+        DesignControlNode node,
+        DesignerPasteTarget target,
+        out string? error)
+    {
+        if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
+        {
+            error = "SplitContainer panel nodes are structural Designer data and cannot be pasted independently.";
+            return false;
+        }
+
+        if (target.Parent is not null && !IsContainerNode(target.Parent))
+        {
+            error = $"Cannot paste into {target.DisplayName}: the target does not accept child controls.";
+            return false;
+        }
+
+        if (DesignerSpecialContainers.IsTabPage(node)
+            && (target.Parent is null || !DesignerSpecialContainers.IsTabControl(target.Parent)))
+        {
+            error = "A TabPage can only be duplicated inside its owning TabControl.";
+            return false;
+        }
+
+        if (target.Parent is not null
+            && DesignerSpecialContainers.IsTabControl(target.Parent)
+            && !DesignerSpecialContainers.IsTabPage(node))
+        {
+            error = "Only TabPage nodes can be direct children of a TabControl.";
+            return false;
+        }
+
+        if (target.Parent is not null && DesignerSpecialContainers.IsSplitContainer(target.Parent))
+        {
+            error = "Controls must be pasted into a SplitContainer panel rather than directly into the SplitContainer.";
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    private void ApplyClipboardPositioning(DesignControlNode node, DesignControlNode? parent)
+    {
+        if (parent is not null && DesignerSpecialContainers.IsTableLayoutPanel(parent))
+        {
+            AssignDefaultTableLayoutPosition(node, parent);
+            return;
+        }
+
+        // Flow, table, and tab containers own child placement. Docked controls likewise derive
+        // their final position from layout, so applying a visual nudge would only persist noise.
+        if (parent is not null && PreservesSequentialChildOrder(parent))
+            return;
+        if (DesignerSpecialContainers.GetEnum(node, "Dock", DockStyle.None) != DockStyle.None)
+            return;
+
+        node.Bounds = new DesignBounds(
+            node.Bounds.X + 16,
+            node.Bounds.Y + 16,
+            node.Bounds.Width,
+            node.Bounds.Height);
+    }
+
+    private void RemapClipboardNames(
+        DesignControlNode node,
+        DesignControlNode? parent,
         HashSet<string> usedNames)
     {
-        var clone = new DesignControlNode
+        if (parent is not null
+            && DesignerSpecialContainers.IsSplitContainer(parent)
+            && DesignerSpecialContainers.IsSpecialGeneratedPart(node))
         {
-            TypeName = source.TypeName,
-            Name = preserveName ? source.Name : CreateUniqueControlName(source.Name, source.TypeName, usedNames),
-            Bounds = source.Bounds,
-            MemberVisibility = source.MemberVisibility,
-            Properties = new SortedDictionary<string, DesignPropertyValue>(
-                source.Properties.ToDictionary(property => property.Key, property => ClonePropertyValue(property.Value), StringComparer.Ordinal),
-                StringComparer.Ordinal),
-            Events = new SortedDictionary<string, string?>(
-                source.Events.ToDictionary(eventBinding => eventBinding.Key, eventBinding => eventBinding.Value, StringComparer.Ordinal),
-                StringComparer.Ordinal)
-        };
+            var panelNumber = DesignerSpecialContainers.IsSplitPanel1(node) ? 1 : 2;
+            node.Name = ReservePreferredName($"{parent.Name}Panel{panelNumber}", node.TypeName, usedNames);
+            node.Properties[DesignNodeRoleNames.DisplayNamePropertyName] =
+                DesignPropertyValue.FromString($"{parent.Name}.Panel{panelNumber}");
+        }
+        else
+        {
+            node.Name = CreateUniqueControlName(node.Name, node.TypeName, usedNames);
+            usedNames.Add(node.Name);
+        }
 
-        if (!preserveName)
-            usedNames.Add(clone.Name);
-
-        foreach (var child in source.Children)
-            clone.Children.Add(CloneNode(child, preserveName, usedNames));
-
-        return clone;
+        foreach (var child in node.Children)
+            RemapClipboardNames(child, node, usedNames);
     }
 
     private HashSet<string> GetUsedControlNames()
@@ -1746,23 +2003,23 @@ public sealed class DesignerSession : IDisposable
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    private static DesignPropertyValue ClonePropertyValue(DesignPropertyValue value)
-        => value.Kind == DesignPropertyValueKind.Object && value.ObjectProperties is not null
-            ? DesignPropertyValue.FromStructuredObject(
-                value.ObjectTypeName ?? "System.Object",
-                value.ObjectProperties.ToDictionary(
-                    property => property.Key,
-                    property => ClonePropertyValue(property.Value),
-                    StringComparer.Ordinal))
-            : new DesignPropertyValue(value.Kind, value.Value, value.EnumTypeName, value.ObjectTypeName, value.ObjectProperties);
-
     private static string CreateUniqueControlName(string currentName, string typeName, HashSet<string> usedNames)
     {
-        var baseName = SanitizeIdentifierBase(string.IsNullOrWhiteSpace(currentName)
-            ? char.ToLowerInvariant(typeName[0]) + typeName[1..]
+        var fallbackTypeName = GetShortTypeName(typeName);
+        var sanitized = SanitizeIdentifierBase(string.IsNullOrWhiteSpace(currentName)
+            ? char.ToLowerInvariant(fallbackTypeName[0]) + fallbackTypeName[1..]
             : currentName);
+        var digitStart = sanitized.Length;
+        while (digitStart > 0 && char.IsDigit(sanitized[digitStart - 1]))
+            digitStart--;
 
-        for (var suffix = 1; suffix < int.MaxValue; suffix++)
+        var baseName = digitStart == 0 ? "control" : sanitized[..digitStart];
+        var firstSuffix = digitStart < sanitized.Length
+            && int.TryParse(sanitized[digitStart..], out var existingSuffix)
+                ? Math.Max(1, existingSuffix + 1)
+                : 1;
+
+        for (var suffix = firstSuffix; suffix < int.MaxValue; suffix++)
         {
             var candidate = $"{baseName}{suffix}";
 
@@ -1771,6 +2028,20 @@ public sealed class DesignerSession : IDisposable
         }
 
         throw new InvalidOperationException($"Cannot create a unique designer name for '{currentName}'.");
+    }
+
+    private static string ReservePreferredName(string preferredName, string typeName, HashSet<string> usedNames)
+    {
+        var sanitized = SanitizeIdentifierBase(preferredName);
+        if (!usedNames.Contains(sanitized))
+        {
+            usedNames.Add(sanitized);
+            return sanitized;
+        }
+
+        var unique = CreateUniqueControlName(sanitized, typeName, usedNames);
+        usedNames.Add(unique);
+        return unique;
     }
 
     private static string SanitizeIdentifierBase(string value)
@@ -1902,15 +2173,17 @@ public sealed class DesignerSession : IDisposable
 
         Transactions.ReleaseObservers();
         Host.Selection.SelectionChanged -= HostSelection_SelectionChanged;
+        clipboard.Changed -= Clipboard_Changed;
         detachedHistory.Clear(preserveDirtyState: false);
         foreach (var document in openDocuments)
             document.History.Clear(preserveDirtyState: false);
 
         openDocuments.Clear();
-        clipboardNode = null;
+        clipboard.Clear();
         activeDocument = null;
         DocumentChanged = null;
         SelectionChanged = null;
+        ClipboardChanged = null;
         OutputChanged = null;
         PointerPositionChanged = null;
         SettingsChanged = null;
@@ -1932,6 +2205,15 @@ public sealed class DesignerSession : IDisposable
 
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private void Clipboard_Changed(object? sender, EventArgs e)
+        => ClipboardChanged?.Invoke(this, EventArgs.Empty);
+
+    private readonly record struct DesignerPasteTarget(
+        DesignControlCollection Collection,
+        DesignControlNode? Parent,
+        string DisplayName,
+        int Index);
 
     private void ThrowIfDisposed()
         => ObjectDisposedException.ThrowIf(disposed, this);
