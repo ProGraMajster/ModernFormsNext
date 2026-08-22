@@ -55,7 +55,7 @@ public sealed class ModernFormsDesignerShell : Panel
         IDesignerHostEnvironment? environment = null)
     {
         this.options = options ?? new ModernFormsDesignerOptions();
-        Session = new DesignerSession(environment, this.options.InitialControlRenderMode);
+        Session = new DesignerSession(environment, this.options.InitialControlRenderMode, this.options.HistoryLimit);
 
         var files = new DesignerFileService(
             environment,
@@ -65,7 +65,7 @@ public sealed class ModernFormsDesignerShell : Panel
 
         Style.BackgroundColor = DesignerColors.AppBackground;
 
-        toolbar = Controls.Add(new DesignerToolbar(commands, this.options));
+        toolbar = Controls.Add(new DesignerToolbar(commands, Session, this.options));
         toolbox = Controls.Add(new ToolboxPanel(Session, commands, this.options, T("Toolbox"), T("SearchToolbox")));
         outline = Controls.Add(new DocumentOutlinePanel(Session, this.options, T("DocumentOutline"), T("Delete"), T("SearchDocumentOutline")));
         documentTab = Controls.Add(new DesignerDocumentTab(Session));
@@ -131,7 +131,7 @@ public sealed class ModernFormsDesignerShell : Panel
     /// <remarks>
     /// Hosts should call this method before dispatching the key event to focused child controls.
     /// The method intentionally ignores shortcuts while a property value editor is active so text
-    /// editing keeps normal <c>Delete</c>, <c>Ctrl+C</c>, and <c>Ctrl+V</c> behavior.
+    /// editing keeps normal <c>Delete</c>, clipboard, and undo/redo behavior.
     /// </remarks>
     public bool ProcessDesignerShortcut(KeyEventArgs e)
     {
@@ -146,13 +146,16 @@ public sealed class ModernFormsDesignerShell : Panel
         {
             handled = Session.DeleteSelectedNode();
         }
-        else if (e.Control && !e.Alt && !e.Shift)
+        else if (e.Control && !e.Alt)
         {
-            handled = e.KeyCode switch
+            handled = (e.KeyCode, e.Shift) switch
             {
-                Keys.C => Session.CopySelectedNode(),
-                Keys.V => Session.PasteCopiedNode(),
-                Keys.D => Session.DuplicateSelectedNode(),
+                (Keys.Z, false) => Session.Transactions.CanUndo && Session.Transactions.Undo(),
+                (Keys.Y, false) => Session.Transactions.CanRedo && Session.Transactions.Redo(),
+                (Keys.Z, true) => Session.Transactions.CanRedo && Session.Transactions.Redo(),
+                (Keys.C, false) => Session.CopySelectedNode(),
+                (Keys.V, false) => Session.PasteCopiedNode(),
+                (Keys.D, false) => Session.DuplicateSelectedNode(),
                 _ => false
             };
         }
@@ -163,6 +166,18 @@ public sealed class ModernFormsDesignerShell : Panel
         e.SuppressKeyPress = true;
         InvalidateDesignerViews();
         return true;
+    }
+
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            commands.Dispose();
+            Session.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 
     private void LayoutChildren()

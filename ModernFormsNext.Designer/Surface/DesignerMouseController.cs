@@ -1,4 +1,5 @@
 using ModernFormsNext;
+using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
 
@@ -23,6 +24,8 @@ internal sealed class DesignerMouseController
     private DesignSize startRootSize;
     private (float X, float Y) startRootSurfacePoint;
     private float startRootScale = 1f;
+    private DesignerTransaction? activeTransaction;
+    private DesignerModelMutationSnapshot? operationSnapshot;
 
     public DesignerMouseController(DesignerSession state)
     {
@@ -62,9 +65,18 @@ internal sealed class DesignerMouseController
 
         if (hitTestService.HitTestTabHeader(state, point, out var tabIndex) is { } tabControl)
         {
-            DesignerSpecialContainers.SetInt(tabControl, DesignerSpecialContainers.SelectedIndexPropertyName, tabIndex);
+            using var transaction = state.Transactions.Begin($"Change selected tab on {tabControl.Name}");
+            var snapshot = DesignerModelMutationSnapshot.CaptureNode(tabControl);
+            try
+            {
+                DesignerSpecialContainers.SetInt(tabControl, DesignerSpecialContainers.SelectedIndexPropertyName, tabIndex);
+            }
+            finally
+            {
+                snapshot.RecordChanges(state.Transactions);
+            }
             state.SelectNode(tabControl);
-            state.NotifyDocumentChanged();
+            transaction.Commit();
             state.Log($"Selected tab {tabIndex + 1} on {tabControl.Name}.");
             ClearOperation(surface);
             return;
@@ -115,24 +127,35 @@ internal sealed class DesignerMouseController
             || activeNode is null && !resizingRoot)
             return;
 
-        if (resizingRoot)
+        try
         {
-            var rootDeltaX = (int)Math.Round((surfacePoint.X - startRootSurfacePoint.X) / startRootScale);
-            var rootDeltaY = (int)Math.Round((surfacePoint.Y - startRootSurfacePoint.Y) / startRootScale);
-            UpdateRootResize(rootDeltaX, rootDeltaY);
-            return;
+            if (resizingRoot)
+            {
+                var rootDeltaX = (int)Math.Round((surfacePoint.X - startRootSurfacePoint.X) / startRootScale);
+                var rootDeltaY = (int)Math.Round((surfacePoint.Y - startRootSurfacePoint.Y) / startRootScale);
+                UpdateRootResize(rootDeltaX, rootDeltaY);
+                return;
+            }
+
+            var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
+            var deltaX = currentPoint.X - startDocumentPoint.X;
+            var deltaY = currentPoint.Y - startDocumentPoint.Y;
+
+            if (operation == DesignerMouseOperation.Dragging)
+                UpdateDrag(deltaX, deltaY);
+            else if (operation == DesignerMouseOperation.Resizing)
+                UpdateResize(deltaX, deltaY);
+            else
+                UpdateSplitterDistance(deltaX, deltaY);
         }
-
-        var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
-        var deltaX = currentPoint.X - startDocumentPoint.X;
-        var deltaY = currentPoint.Y - startDocumentPoint.Y;
-
-        if (operation == DesignerMouseOperation.Dragging)
-            UpdateDrag(deltaX, deltaY);
-        else if (operation == DesignerMouseOperation.Resizing)
-            UpdateResize(deltaX, deltaY);
-        else
-            UpdateSplitterDistance(deltaX, deltaY);
+        catch
+        {
+            if (activeTransaction is not null && state.Transactions.HasActiveTransaction)
+                CancelOperation(surface);
+            else
+                ClearOperation(surface);
+            throw;
+        }
     }
 
     public void HandleMouseUp(Control surface, MouseEventArgs e)
@@ -140,35 +163,57 @@ internal sealed class DesignerMouseController
         if (e.Button != MouseButtons.Left)
             return;
 
-        if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter
-            && (activeNode is not null || resizingRoot)
-            && changedBounds)
+        try
         {
-            if (resizingRoot)
+            if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter
+                && (activeNode is not null || resizingRoot)
+                && changedBounds)
             {
-                state.Log($"Resized {state.Document.FormName} to {state.Document.Size.Width} x {state.Document.Size.Height}.");
+                if (resizingRoot)
+                {
+                    RecordOperationChanges();
+                    CommitOperationTransaction();
+                    state.Log($"Resized {state.Document.FormName} to {state.Document.Size.Width} x {state.Document.Size.Height}.");
+                    ClearOperation(surface);
+                    return;
+                }
+
+                var node = activeNode!;
+
+                var surfacePoint = ToSurfacePoint(surface, e);
+                var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
+
+                if (operation == DesignerMouseOperation.Dragging)
+                {
+                    // Record live bounds first. Reparenting is a nested transaction whose own node
+                    // snapshot starts from those final drag bounds.
+                    RecordOperationChanges();
+                    state.ReparentNodeAtDocumentPoint(node, currentPoint);
+                }
+                else
+                {
+                    RecordOperationChanges();
+                }
+
+                if (operation == DesignerMouseOperation.MovingSplitter)
+                {
+                    var distance = DesignerSpecialContainers.GetInt(node, DesignerSpecialContainers.SplitterDistancePropertyName, startSplitterDistance);
+                    state.Log($"Moved {node.Name} splitter to {distance}.");
+                }
+                else
+                {
+                    var action = operation == DesignerMouseOperation.Dragging ? "Moved" : "Resized";
+                    state.Log($"{action} {node.Name} to {node.Bounds.X}, {node.Bounds.Y}, {node.Bounds.Width} x {node.Bounds.Height}.");
+                }
+
+                CommitOperationTransaction();
+            }
+        }
+        catch
+        {
+            if (!CancelOperation(surface))
                 ClearOperation(surface);
-                return;
-            }
-
-            var node = activeNode!;
-
-            var surfacePoint = ToSurfacePoint(surface, e);
-            var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
-
-            if (operation == DesignerMouseOperation.Dragging)
-                state.ReparentNodeAtDocumentPoint(node, currentPoint);
-
-            if (operation == DesignerMouseOperation.MovingSplitter)
-            {
-                var distance = DesignerSpecialContainers.GetInt(node, DesignerSpecialContainers.SplitterDistancePropertyName, startSplitterDistance);
-                state.Log($"Moved {node.Name} splitter to {distance}.");
-            }
-            else
-            {
-                var action = operation == DesignerMouseOperation.Dragging ? "Moved" : "Resized";
-                state.Log($"{action} {node.Name} to {node.Bounds.X}, {node.Bounds.Y}, {node.Bounds.Width} x {node.Bounds.Height}.");
-            }
+            throw;
         }
 
         ClearOperation(surface);
@@ -181,6 +226,7 @@ internal sealed class DesignerMouseController
         DesignerResizeHandle handle,
         DesignPoint documentPoint)
     {
+        ClearOperation(surface);
         operation = nextOperation;
         resizeHandle = handle;
         activeNode = node;
@@ -189,6 +235,14 @@ internal sealed class DesignerMouseController
         startSplitterDistance = 0;
         changedBounds = false;
         resizingRoot = false;
+        operationSnapshot = DesignerModelMutationSnapshot.CaptureNode(node);
+        activeTransaction = state.Transactions.Begin(nextOperation switch
+        {
+            DesignerMouseOperation.Dragging => $"Move {node.Name}",
+            DesignerMouseOperation.Resizing => $"Resize {node.Name}",
+            DesignerMouseOperation.MovingSplitter => $"Move {node.Name} splitter",
+            _ => $"Change {node.Name}"
+        });
         surface.Capture = true;
     }
 
@@ -197,6 +251,7 @@ internal sealed class DesignerMouseController
         DesignerResizeHandle handle,
         (float X, float Y) surfacePoint)
     {
+        ClearOperation(surface);
         operation = DesignerMouseOperation.Resizing;
         resizeHandle = handle;
         activeNode = null;
@@ -207,20 +262,82 @@ internal sealed class DesignerMouseController
         startSplitterDistance = 0;
         changedBounds = false;
         resizingRoot = true;
+        operationSnapshot = DesignerModelMutationSnapshot.CaptureDocumentLayout(state.Document);
+        activeTransaction = state.Transactions.Begin($"Resize {state.Document.FormName}");
         surface.Capture = true;
     }
 
     private void ClearOperation(Control surface)
     {
-        operation = DesignerMouseOperation.None;
-        resizeHandle = DesignerResizeHandle.None;
-        activeNode = null;
-        changedBounds = false;
-        resizingRoot = false;
-        startRootSurfacePoint = default;
-        startRootScale = 1f;
-        startSplitterDistance = 0;
-        surface.Capture = false;
+        try
+        {
+            activeTransaction?.Dispose();
+        }
+        finally
+        {
+            // A post-rollback observer may throw after the manager has already completed the
+            // transaction. Clear capture and gesture state in that case; retain them only when an
+            // actual model revert failed and the transaction remains available for retry.
+            if (activeTransaction is null || !state.Transactions.HasActiveTransaction)
+            {
+                activeTransaction = null;
+                operationSnapshot = null;
+                operation = DesignerMouseOperation.None;
+                resizeHandle = DesignerResizeHandle.None;
+                activeNode = null;
+                changedBounds = false;
+                resizingRoot = false;
+                startRootSurfacePoint = default;
+                startRootScale = 1f;
+                startSplitterDistance = 0;
+                surface.Capture = false;
+            }
+        }
+    }
+
+    public bool CancelOperation(Control surface)
+    {
+        if (activeTransaction is null)
+            return false;
+
+        try
+        {
+            RecordOperationChanges();
+            activeTransaction.Rollback();
+            state.Log("Cancelled the active Designer gesture.");
+            return true;
+        }
+        finally
+        {
+            if (!state.Transactions.HasActiveTransaction)
+            {
+                activeTransaction = null;
+                operationSnapshot = null;
+                ClearOperation(surface);
+            }
+        }
+    }
+
+    private void RecordOperationChanges()
+    {
+        operationSnapshot?.RecordChanges(state.Transactions);
+        operationSnapshot = null;
+    }
+
+    private void CommitOperationTransaction()
+    {
+        try
+        {
+            activeTransaction?.Commit();
+        }
+        finally
+        {
+            if (!state.Transactions.HasActiveTransaction)
+            {
+                activeTransaction = null;
+                operationSnapshot = null;
+            }
+        }
     }
 
     private void UpdateDrag(int deltaX, int deltaY)
@@ -306,7 +423,6 @@ internal sealed class DesignerMouseController
 
         layoutEngine.ResizeRoot(state.Document, nextSize);
         changedBounds = true;
-        state.NotifyDocumentChanged();
     }
 
     private void UpdateDockedResize(int deltaX, int deltaY)
@@ -351,7 +467,6 @@ internal sealed class DesignerMouseController
 
         activeNode.Bounds = bounds;
         changedBounds = true;
-        state.NotifyDocumentChanged();
     }
 
     private void UpdateSplitterDistance(int deltaX, int deltaY)
@@ -378,7 +493,6 @@ internal sealed class DesignerMouseController
 
         DesignerSpecialContainers.SetInt(activeNode, DesignerSpecialContainers.SplitterDistancePropertyName, nextDistance);
         changedBounds = true;
-        state.NotifyDocumentChanged();
     }
 
     private int GetDefaultSplitterDistance(DesignControlNode splitContainer)

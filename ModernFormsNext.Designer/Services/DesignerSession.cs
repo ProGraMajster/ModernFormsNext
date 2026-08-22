@@ -1,9 +1,11 @@
 using ModernFormsNext;
+using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using ModernFormsNext.Drawing;
 using SkiaSharp;
+using System.Runtime.ExceptionServices;
 
 namespace ModernFormsNext.Designer.Services;
 
@@ -15,15 +17,18 @@ namespace ModernFormsNext.Designer.Services;
 /// adapters all observe the same session instance instead of maintaining their own copies of
 /// document state.
 /// </remarks>
-public sealed class DesignerSession
+public sealed class DesignerSession : IDisposable
 {
     private readonly List<string> outputLines = [];
     private readonly List<DesignerOpenDocument> openDocuments = [];
     private readonly DesignerHitTestService hitTestService = new(new DesignerCoordinateMapper());
     private readonly IDesignerHostEnvironment? environment;
     private readonly IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls;
+    private readonly DesignerHistory detachedHistory;
     private DesignControlNode? clipboardNode;
     private DesignerOpenDocument? activeDocument;
+    private int historyLimit;
+    private bool disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DesignerSession"/> class.
@@ -33,12 +38,33 @@ public sealed class DesignerSession
     public DesignerSession(
         IDesignerHostEnvironment? environment = null,
         DesignerControlRenderMode initialRenderMode = DesignerControlRenderMode.Runtime)
+        : this(environment, initialRenderMode, historyLimit: 500)
     {
+    }
+
+    /// <summary>
+    /// Initializes a new Designer session with an explicit per-document history limit.
+    /// </summary>
+    /// <param name="environment">Optional host environment used for status and output routing.</param>
+    /// <param name="initialRenderMode">The initial designer surface render mode.</param>
+    /// <param name="historyLimit">The maximum number of undo units retained per document.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="historyLimit"/> is less than one.</exception>
+    public DesignerSession(
+        IDesignerHostEnvironment? environment,
+        DesignerControlRenderMode initialRenderMode,
+        int historyLimit)
+    {
+        if (historyLimit < 1)
+            throw new ArgumentOutOfRangeException(nameof(historyLimit), "Designer history limit must be at least one entry.");
+
         this.environment = environment;
+        this.historyLimit = historyLimit;
+        detachedHistory = new DesignerHistory(historyLimit, initiallyDirty: false);
         projectUserControls = DesignerProjectUserControlDiscovery.Discover(environment?.CurrentProjectPath);
         ControlRenderMode = initialRenderMode;
         Host = new DesignerHost(CreateDefaultDocument());
-        Host.Selection.SelectionChanged += (_, _) => SelectionChanged?.Invoke(this, EventArgs.Empty);
+        Transactions = new DesignerTransactionManager(this);
+        Host.Selection.SelectionChanged += HostSelection_SelectionChanged;
         Log("Designer session ready.");
         Log($"Designer diagnostics log: {DesignerDiagnosticLog.Path}");
         Log($"Initial designer surface render mode: {ControlRenderMode}.");
@@ -78,6 +104,11 @@ public sealed class DesignerSession
     /// Gets the neutral designer host that owns the document and selection service.
     /// </summary>
     public DesignerHost Host { get; }
+
+    /// <summary>
+    /// Gets the transaction and undo/redo manager for the active Designer document.
+    /// </summary>
+    public DesignerTransactionManager Transactions { get; }
 
     /// <summary>
     /// Gets the active design document.
@@ -128,6 +159,10 @@ public sealed class DesignerSession
 
     internal int ActiveDocumentIndex => activeDocument is null ? -1 : openDocuments.IndexOf(activeDocument);
 
+    internal DesignerHistory CurrentHistory => activeDocument?.History ?? detachedHistory;
+
+    internal int HistoryLimit => historyLimit;
+
     /// <summary>
     /// Replaces the active document and resets the dirty state.
     /// </summary>
@@ -146,6 +181,10 @@ public sealed class DesignerSession
     internal void OpenDocument(DesignDocument document, string? path, bool markDirty)
     {
         ArgumentNullException.ThrowIfNull(document);
+        ThrowIfDisposed();
+        if (Transactions.HasActiveTransaction)
+            throw new InvalidOperationException("A Designer document cannot be opened during an active transaction.");
+
         DesignerSpecialContainers.NormalizeDocument(document);
 
         var normalizedPath = DesignerDocumentPath.NormalizeDesignPath(path);
@@ -156,30 +195,29 @@ public sealed class DesignerSession
 
         if (existing is null)
         {
-            existing = new DesignerOpenDocument(document, normalizedPath)
-            {
-                IsDirty = markDirty
-            };
+            existing = new DesignerOpenDocument(document, normalizedPath, historyLimit, markDirty);
             openDocuments.Add(existing);
         }
         else
         {
             activeDocument = existing;
             Host.LoadDocument(existing.Document);
-            IsDirty = existing.IsDirty;
+            RefreshDirtyState();
             DocumentChanged?.Invoke(this, EventArgs.Empty);
             SelectionChanged?.Invoke(this, EventArgs.Empty);
             DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+            Transactions.NotifyActiveHistoryChanged();
             Log($"Activated {existing.DisplayName}.");
             return;
         }
 
         activeDocument = existing;
         Host.LoadDocument(document);
-        IsDirty = existing.IsDirty;
+        RefreshDirtyState();
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        Transactions.NotifyActiveHistoryChanged();
         Log($"Loaded {document.ClassName}.mfdesign.");
     }
 
@@ -228,6 +266,10 @@ public sealed class DesignerSession
 
     internal void SwitchDocument(int index)
     {
+        ThrowIfDisposed();
+        if (Transactions.HasActiveTransaction)
+            throw new InvalidOperationException("The active Designer document cannot change during a transaction.");
+
         if (index < 0 || index >= openDocuments.Count)
             return;
 
@@ -236,15 +278,20 @@ public sealed class DesignerSession
 
         activeDocument = openDocuments[index];
         Host.LoadDocument(activeDocument.Document);
-        IsDirty = activeDocument.IsDirty;
+        RefreshDirtyState();
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        Transactions.NotifyActiveHistoryChanged();
         Log($"Activated {activeDocument.DisplayName}.");
     }
 
     internal void CloseDocument(int index)
     {
+        ThrowIfDisposed();
+        if (Transactions.HasActiveTransaction)
+            throw new InvalidOperationException("A Designer document cannot close during an active transaction.");
+
         if (index < 0 || index >= openDocuments.Count)
             return;
 
@@ -257,17 +304,19 @@ public sealed class DesignerSession
         var closedDocument = openDocuments[index];
         var wasActive = ReferenceEquals(activeDocument, closedDocument);
         openDocuments.RemoveAt(index);
+        closedDocument.History.Clear(preserveDirtyState: false);
 
         if (wasActive)
         {
             activeDocument = openDocuments[Math.Clamp(index, 0, openDocuments.Count - 1)];
             Host.LoadDocument(activeDocument.Document);
-            IsDirty = activeDocument.IsDirty;
+            RefreshDirtyState();
             DocumentChanged?.Invoke(this, EventArgs.Empty);
             SelectionChanged?.Invoke(this, EventArgs.Empty);
         }
 
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        Transactions.NotifyActiveHistoryChanged();
         Log($"Closed {closedDocument.DisplayName}.");
     }
 
@@ -277,9 +326,8 @@ public sealed class DesignerSession
     /// <param name="statusMessage">The status message reported to the host environment.</param>
     public void MarkSaved(string statusMessage = "Document saved.")
     {
-        IsDirty = false;
-        if (activeDocument is not null)
-            activeDocument.IsDirty = false;
+        ThrowIfDisposed();
+        Transactions.MarkSavedState();
 
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
@@ -295,7 +343,6 @@ public sealed class DesignerSession
         document.ClassName = openDocuments.Count == 0 ? "MainForm" : $"MainForm{openDocuments.Count + 1}";
         document.FormName = openDocuments.Count == 0 ? "Form1" : $"Form{openDocuments.Count + 1}";
         OpenDocument(document, path: null, markDirty: true);
-        NotifyDocumentChanged();
         Log($"Created new document {document.ClassName}.mfdesign.");
     }
 
@@ -385,6 +432,7 @@ public sealed class DesignerSession
     public DesignControlNode AddControl(string typeName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
+        ThrowIfDisposed();
 
         if (!DesignerControlReferenceGuard.CanReference(Document, typeName, CurrentProjectPath, out var error))
             throw new InvalidOperationException(error);
@@ -414,14 +462,12 @@ public sealed class DesignerSession
 
         var destination = GetChildCollectionForNewControl(parent, out var targetName);
         AssignDefaultTableLayoutPosition(node, parent);
+        var targetCollection = destination ?? Document.Controls;
 
-        if (destination is null)
-            Document.Controls.Add(node);
-        else
-            destination.Add(node);
-
+        using var transaction = Transactions.Begin($"Add {shortTypeName}");
+        Transactions.ExecuteChange(new DesignerTreeInsertChange(targetCollection, node, targetCollection.Count));
         Host.Selection.Select(node);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Added {typeName} {node.Name} to {targetName}.");
         return node;
     }
@@ -440,6 +486,7 @@ public sealed class DesignerSession
     public bool MoveNodeToOutlineTarget(DesignControlNode node, DesignControlNode? target)
     {
         ArgumentNullException.ThrowIfNull(node);
+        ThrowIfDisposed();
 
         if (ReferenceEquals(node, target))
             return false;
@@ -500,16 +547,31 @@ public sealed class DesignerSession
                 ? layout.GetEffectiveBounds(destinationParent)
                 : new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height);
 
-        sourceCollection.RemoveAt(sourceIndex);
-        node.Bounds = new DesignBounds(
-            absoluteBounds.X - parentBounds.X,
-            absoluteBounds.Y - parentBounds.Y,
-            absoluteBounds.Width,
-            absoluteBounds.Height);
-        destinationCollection.Insert(Math.Clamp(destinationIndex, 0, destinationCollection.Count), node);
-        AssignDefaultTableLayoutPosition(node, target);
+        using var transaction = Transactions.Begin($"Move {node.Name}");
+        var snapshot = DesignerModelMutationSnapshot.CaptureNode(node);
+        try
+        {
+            Transactions.ExecuteChange(new DesignerTreeMoveChange(
+                node,
+                sourceCollection,
+                sourceIndex,
+                destinationCollection,
+                destinationIndex));
+            node.Bounds = new DesignBounds(
+                absoluteBounds.X - parentBounds.X,
+                absoluteBounds.Y - parentBounds.Y,
+                absoluteBounds.Width,
+                absoluteBounds.Height);
+            AssignDefaultTableLayoutPosition(node, target);
+        }
+        finally
+        {
+            // Capture direct layout metadata even when a later mutation in this compound move
+            // throws. Disposal can then restore the exact pre-transaction node state.
+            snapshot.RecordChanges(Transactions);
+        }
         Host.Selection.Select(node);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Moved {node.Name} to {targetName}.");
         return true;
     }
@@ -544,6 +606,7 @@ public sealed class DesignerSession
     /// <returns><see langword="true"/> when the selected control was reparented; otherwise, <see langword="false"/>.</returns>
     public bool MoveSelectedNodeOutOfContainer()
     {
+        ThrowIfDisposed();
         if (SelectedNode is null)
         {
             Log("No control is selected to move.");
@@ -585,19 +648,32 @@ public sealed class DesignerSession
         if (!TryFindNode(exitNode, out var exitCollection, out var exitIndex))
             exitIndex = destinationCollection.Count - 1;
 
-        sourceCollection.RemoveAt(sourceIndex);
-        node.Bounds = new DesignBounds(
-            absoluteBounds.X - destinationParentBounds.X,
-            absoluteBounds.Y - destinationParentBounds.Y,
-            absoluteBounds.Width,
-            absoluteBounds.Height);
-
         var destinationIndex = ReferenceEquals(destinationCollection, exitCollection)
             ? Math.Clamp(exitIndex + 1, 0, destinationCollection.Count)
             : destinationCollection.Count;
-        destinationCollection.Insert(destinationIndex, node);
+
+        using var transaction = Transactions.Begin($"Move {node.Name}");
+        var snapshot = DesignerModelMutationSnapshot.CaptureNode(node);
+        try
+        {
+            Transactions.ExecuteChange(new DesignerTreeMoveChange(
+                node,
+                sourceCollection,
+                sourceIndex,
+                destinationCollection,
+                destinationIndex));
+            node.Bounds = new DesignBounds(
+                absoluteBounds.X - destinationParentBounds.X,
+                absoluteBounds.Y - destinationParentBounds.Y,
+                absoluteBounds.Width,
+                absoluteBounds.Height);
+        }
+        finally
+        {
+            snapshot.RecordChanges(Transactions);
+        }
         Host.Selection.Select(node);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Moved {node.Name} out of {DesignerSpecialContainers.GetOutlineName(parentNode)}.");
         return true;
     }
@@ -662,6 +738,7 @@ public sealed class DesignerSession
     public bool ReparentNodeAtDocumentPoint(DesignControlNode node, DesignPoint documentPoint)
     {
         ArgumentNullException.ThrowIfNull(node);
+        ThrowIfDisposed();
 
         if (!TryFindNodeWithParent(node, Document.Controls, parent: null, out var currentParent, out var sourceCollection, out var sourceIndex))
             return false;
@@ -686,16 +763,29 @@ public sealed class DesignerSession
             ? Document.Controls
             : GetChildCollectionForNewControl(targetParent, out _) ?? targetParent.Children;
 
-        sourceCollection.RemoveAt(sourceIndex);
-        node.Bounds = new DesignBounds(
-            absoluteBounds.X - targetBounds.X,
-            absoluteBounds.Y - targetBounds.Y,
-            absoluteBounds.Width,
-            absoluteBounds.Height);
-        destination.Add(node);
-        AssignTableLayoutPositionFromPoint(node, targetParent, targetBounds, documentPoint);
+        using var transaction = Transactions.Begin($"Move {node.Name}");
+        var snapshot = DesignerModelMutationSnapshot.CaptureNode(node);
+        try
+        {
+            Transactions.ExecuteChange(new DesignerTreeMoveChange(
+                node,
+                sourceCollection,
+                sourceIndex,
+                destination,
+                destination.Count));
+            node.Bounds = new DesignBounds(
+                absoluteBounds.X - targetBounds.X,
+                absoluteBounds.Y - targetBounds.Y,
+                absoluteBounds.Width,
+                absoluteBounds.Height);
+            AssignTableLayoutPositionFromPoint(node, targetParent, targetBounds, documentPoint);
+        }
+        finally
+        {
+            snapshot.RecordChanges(Transactions);
+        }
         Host.Selection.Select(node);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Reparented {node.Name} to {(targetParent is null ? Document.FormName : targetParent.Name)}.");
         return true;
     }
@@ -708,6 +798,7 @@ public sealed class DesignerSession
     public bool DeleteNode(DesignControlNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
+        ThrowIfDisposed();
 
         if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
         {
@@ -721,14 +812,15 @@ public sealed class DesignerSession
             return false;
         }
 
-        collection.RemoveAt(index);
+        using var transaction = Transactions.Begin($"Delete {node.Name}");
+        Transactions.ExecuteChange(new DesignerTreeRemoveChange(collection, node, index));
 
         if (parentNode is null)
             Host.Selection.Clear();
         else
             Host.Selection.Select(parentNode);
 
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Deleted {node.Name}.");
         return true;
     }
@@ -746,6 +838,7 @@ public sealed class DesignerSession
     /// <returns><see langword="true"/> when a control was copied; otherwise, <see langword="false"/>.</returns>
     public bool CopySelectedNode()
     {
+        ThrowIfDisposed();
         if (SelectedNode is null)
         {
             Log("No control is selected to copy.");
@@ -763,6 +856,7 @@ public sealed class DesignerSession
     /// <returns><see langword="true"/> when a control was duplicated; otherwise, <see langword="false"/>.</returns>
     public bool DuplicateSelectedNode()
     {
+        ThrowIfDisposed();
         if (SelectedNode is null)
         {
             Log("No control is selected to duplicate.");
@@ -774,9 +868,10 @@ public sealed class DesignerSession
 
         var sourceName = SelectedNode.Name;
         var clone = CloneForPaste(SelectedNode, offsetRoot: true);
-        collection.Insert(index + 1, clone);
+        using var transaction = Transactions.Begin($"Duplicate {sourceName}");
+        Transactions.ExecuteChange(new DesignerTreeInsertChange(collection, clone, index + 1));
         Host.Selection.Select(clone);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Duplicated {sourceName} as {clone.Name}.");
         return true;
     }
@@ -787,6 +882,7 @@ public sealed class DesignerSession
     /// <returns><see langword="true"/> when a control was pasted; otherwise, <see langword="false"/>.</returns>
     public bool PasteCopiedNode()
     {
+        ThrowIfDisposed();
         if (clipboardNode is null)
         {
             Log("No copied control is available to paste.");
@@ -802,15 +898,17 @@ public sealed class DesignerSession
         }
 
         var destination = GetPasteDestination(out var targetName);
-        destination.Add(clone);
+        using var transaction = Transactions.Begin($"Paste {clone.Name}");
+        Transactions.ExecuteChange(new DesignerTreeInsertChange(destination, clone, destination.Count));
         Host.Selection.Select(clone);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log($"Pasted {clone.Name} into {targetName}.");
         return true;
     }
 
     private bool MoveSelectedNodeWithinCurrentContainer(int delta)
     {
+        ThrowIfDisposed();
         if (SelectedNode is null)
         {
             Log("No control is selected to move.");
@@ -841,10 +939,10 @@ public sealed class DesignerSession
             return false;
         }
 
-        collection.RemoveAt(index);
-        collection.Insert(newIndex, node);
+        using var transaction = Transactions.Begin(delta < 0 ? $"Move {node.Name} up" : $"Move {node.Name} down");
+        Transactions.ExecuteChange(new DesignerTreeMoveChange(node, collection, index, collection, newIndex));
         Host.Selection.Select(node);
-        NotifyDocumentChanged();
+        transaction.Commit();
         Log(delta < 0
             ? $"Moved {node.Name} up in its container."
             : $"Moved {node.Name} down in its container.");
@@ -886,6 +984,169 @@ public sealed class DesignerSession
     }
 
     /// <summary>
+    /// Changes one control's generated field name through the active transaction layer.
+    /// </summary>
+    /// <param name="node">The control node to rename.</param>
+    /// <param name="name">The new non-empty field name.</param>
+    public void SetNodeName(DesignControlNode node, string name)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        EnsureNodeBelongsToDocument(node);
+
+        var change = new DesignerNodeValueChange(
+            node,
+            DesignerNodeValueKind.Name,
+            node.Name,
+            name.Trim());
+        if (Transactions.IsReplaying)
+        {
+            Transactions.ExecuteChange(change);
+            return;
+        }
+
+        using var transaction = Transactions.Begin($"Rename {node.Name} to {name.Trim()}");
+        Transactions.ExecuteChange(change);
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// Changes one control's authored bounds through the active transaction layer.
+    /// </summary>
+    /// <param name="node">The control node to update.</param>
+    /// <param name="bounds">The new parent-local logical bounds.</param>
+    public void SetNodeBounds(DesignControlNode node, DesignBounds bounds)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        EnsureNodeBelongsToDocument(node);
+
+        var change = new DesignerNodeValueChange(
+            node,
+            DesignerNodeValueKind.Bounds,
+            node.Bounds,
+            bounds);
+        if (Transactions.IsReplaying)
+        {
+            Transactions.ExecuteChange(change);
+            return;
+        }
+
+        using var transaction = Transactions.Begin($"Change bounds of {node.Name}");
+        Transactions.ExecuteChange(change);
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// Sets a serialized property on the design root or a control through the active transaction.
+    /// </summary>
+    /// <param name="node">The target control, or <see langword="null"/> for the design root.</param>
+    /// <param name="propertyName">The runtime property name.</param>
+    /// <param name="value">The deterministic Designer value to store.</param>
+    public void SetPropertyValue(DesignControlNode? node, string propertyName, DesignPropertyValue value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        ArgumentNullException.ThrowIfNull(value);
+        if (node is not null)
+            EnsureNodeBelongsToDocument(node);
+
+        var properties = node?.Properties ?? Document.Properties;
+        var existed = properties.TryGetValue(propertyName, out var previous);
+        var change = new DesignerPropertyDictionaryChange(
+            properties,
+            propertyName,
+            existed,
+            previous,
+            existsAfter: true,
+            value);
+        if (Transactions.IsReplaying)
+        {
+            Transactions.ExecuteChange(change);
+            return;
+        }
+
+        using var transaction = Transactions.Begin($"Change {propertyName}");
+        Transactions.ExecuteChange(change);
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// Removes a serialized property from the design root or a control through the active transaction.
+    /// </summary>
+    /// <param name="node">The target control, or <see langword="null"/> for the design root.</param>
+    /// <param name="propertyName">The runtime property name.</param>
+    public void RemovePropertyValue(DesignControlNode? node, string propertyName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
+        if (node is not null)
+            EnsureNodeBelongsToDocument(node);
+
+        var properties = node?.Properties ?? Document.Properties;
+        var existed = properties.TryGetValue(propertyName, out var previous);
+        var change = new DesignerPropertyDictionaryChange(
+            properties,
+            propertyName,
+            existed,
+            previous,
+            existsAfter: false,
+            after: null);
+        if (Transactions.IsReplaying)
+        {
+            Transactions.ExecuteChange(change);
+            return;
+        }
+
+        using var transaction = Transactions.Begin($"Reset {propertyName}");
+        Transactions.ExecuteChange(change);
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// Replaces the ordered child collection of the design root or one container atomically.
+    /// </summary>
+    /// <param name="parent">The parent node, or <see langword="null"/> for the design root.</param>
+    /// <param name="children">The complete final ordered child sequence.</param>
+    /// <param name="description">The user-visible history description.</param>
+    public void ReplaceChildren(
+        DesignControlNode? parent,
+        IReadOnlyList<DesignControlNode> children,
+        string description = "Edit control collection")
+    {
+        ArgumentNullException.ThrowIfNull(children);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        if (parent is not null)
+            EnsureNodeBelongsToDocument(parent);
+        if (children.Count != children.Distinct(ReferenceEqualityComparer.Instance).Count())
+            throw new ArgumentException("A Designer child collection cannot contain the same node more than once.", nameof(children));
+
+        var collection = parent?.Children ?? Document.Controls;
+        using var transaction = Transactions.Begin(description);
+        Transactions.ExecuteChange(new DesignerChildrenReplaceChange(
+            collection,
+            collection.ToArray(),
+            children.ToArray()));
+        transaction.Commit();
+    }
+
+    /// <summary>
+    /// Resizes the design root and records Anchor-derived descendant bounds in the same undo unit.
+    /// </summary>
+    /// <param name="size">The new root size in logical pixels.</param>
+    public void ResizeDesignRoot(DesignSize size)
+    {
+        using var transaction = Transactions.Begin($"Resize {Document.FormName}");
+        var snapshot = DesignerModelMutationSnapshot.CaptureDocumentLayout(Document);
+        try
+        {
+            new DesignerLayoutEngine().ResizeRoot(Document, size);
+        }
+        finally
+        {
+            snapshot.RecordChanges(Transactions);
+        }
+        transaction.Commit();
+    }
+
+    /// <summary>
     /// Updates the selected node or form from primitive property-grid values.
     /// </summary>
     /// <param name="name">The new control or form name.</param>
@@ -904,25 +1165,38 @@ public sealed class DesignerSession
         int height,
         DesignerMemberVisibility memberVisibility)
     {
-        if (SelectedNode is null)
+        ThrowIfDisposed();
+        var description = SelectedNode is null ? "Change design root properties" : $"Change {SelectedNode.Name} properties";
+        using var transaction = Transactions.Begin(description);
+        var snapshot = DesignerModelMutationSnapshot.CaptureSelected(
+            this,
+            includeDescendantState: SelectedNode is null);
+
+        try
         {
-            Document.FormName = string.IsNullOrWhiteSpace(name) ? Document.FormName : name.Trim();
-            new DesignerLayoutEngine().ResizeRoot(
-                Document,
-                new DesignSize(Math.Max(1, width), Math.Max(1, height)));
-            NotifyDocumentChanged();
-            Log($"Updated form {Document.FormName}.");
-            return;
+            if (SelectedNode is null)
+            {
+                Document.FormName = string.IsNullOrWhiteSpace(name) ? Document.FormName : name.Trim();
+                new DesignerLayoutEngine().ResizeRoot(
+                    Document,
+                    new DesignSize(Math.Max(1, width), Math.Max(1, height)));
+            }
+            else
+            {
+                var node = SelectedNode;
+                node.Name = string.IsNullOrWhiteSpace(name) ? node.Name : name.Trim();
+                node.Bounds = new DesignBounds(x, y, Math.Max(1, width), Math.Max(1, height));
+                node.MemberVisibility = memberVisibility;
+                node.Properties["Text"] = DesignPropertyValue.FromString(text);
+            }
+        }
+        finally
+        {
+            snapshot.RecordChanges(Transactions);
         }
 
-        var node = SelectedNode;
-        node.Name = string.IsNullOrWhiteSpace(name) ? node.Name : name.Trim();
-        node.Bounds = new DesignBounds(x, y, Math.Max(1, width), Math.Max(1, height));
-        node.MemberVisibility = memberVisibility;
-        node.Properties["Text"] = DesignPropertyValue.FromString(text);
-
-        NotifyDocumentChanged();
-        Log($"Updated {node.Name}.");
+        transaction.Commit();
+        Log(SelectedNode is null ? $"Updated form {Document.FormName}." : $"Updated {SelectedNode.Name}.");
     }
 
     /// <summary>
@@ -989,22 +1263,74 @@ public sealed class DesignerSession
             ? parentNode
             : null;
 
-    /// <summary>
-    /// Notifies designer UI components that the document model changed.
-    /// </summary>
-    public void NotifyDocumentChanged()
+    private void EnsureNodeBelongsToDocument(DesignControlNode node)
     {
-        IsDirty = true;
-        if (activeDocument is not null)
-        {
-            activeDocument.Document = Host.Document;
-            activeDocument.IsDirty = true;
-        }
+        ThrowIfDisposed();
+        if (!TryFindNode(node, out _, out _))
+            throw new InvalidOperationException($"Designer node '{node.Name}' is not part of the active document.");
+    }
 
+    /// <summary>
+    /// Reports a model change made outside the transaction-aware Designer editing APIs.
+    /// </summary>
+    /// <remarks>
+    /// Core Designer operations use <see cref="Transactions"/> and do not call this method. An
+    /// external direct mutation cannot be reconstructed safely, so reporting one clears stale
+    /// undo/redo units and leaves the document dirty. Extensions should prefer a scoped
+    /// transaction plus the session's transaction-aware mutation helpers.
+    /// </remarks>
+    public void NotifyDocumentChanged()
+        => Transactions.InvalidateForExternalMutation();
+
+    internal void ReplaceDocument(DesignDocument document, string description)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentException.ThrowIfNullOrWhiteSpace(description);
+        ThrowIfDisposed();
+        DesignerSpecialContainers.NormalizeDocument(document);
+
+        using var transaction = Transactions.Begin(description);
+        Transactions.ExecuteChange(new DesignerDocumentReplaceChange(Host, Document, document));
+        transaction.Commit();
+    }
+
+    internal void NotifyCommittedModelState(string statusMessage)
+    {
+        SynchronizeCommittedModelState();
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
-        environment?.ReportStatus("Document changed.");
+        environment?.ReportStatus(statusMessage);
+    }
+
+    internal void NotifyRolledBackModelState(string description)
+    {
+        SynchronizeCommittedModelState();
+        DocumentChanged?.Invoke(this, EventArgs.Empty);
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+        DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        environment?.ReportStatus($"Rolled back {description}.");
+    }
+
+    internal void SynchronizeCommittedModelState()
+    {
+        if (activeDocument is not null)
+            activeDocument.Document = Host.Document;
+
+        RefreshDirtyState();
+    }
+
+    internal void RefreshDirtyState()
+        => IsDirty = CurrentHistory.IsDirty;
+
+    internal void SetHistoryLimit(int value)
+    {
+        historyLimit = value;
+        detachedHistory.SetLimit(value);
+        foreach (var document in openDocuments)
+            document.History.SetLimit(value);
+
+        RefreshDirtyState();
     }
 
     /// <summary>
@@ -1553,21 +1879,80 @@ public sealed class DesignerSession
         var separator = normalized.LastIndexOf('.');
         return separator >= 0 ? normalized[(separator + 1)..] : normalized;
     }
+
+    /// <summary>
+    /// Rolls back an active edit and releases all retained undo/redo model references.
+    /// </summary>
+    public void Dispose()
+    {
+        if (disposed)
+            return;
+
+        Exception? rollbackNotificationException = null;
+        try
+        {
+            Transactions.RollbackActiveTransactionForDisposal();
+        }
+        catch (Exception ex) when (!Transactions.HasActiveTransaction)
+        {
+            // A completed rollback observer must not prevent deterministic history and event
+            // cleanup. Preserve the observer exception and rethrow it after disposal finishes.
+            rollbackNotificationException = ex;
+        }
+
+        Transactions.ReleaseObservers();
+        Host.Selection.SelectionChanged -= HostSelection_SelectionChanged;
+        detachedHistory.Clear(preserveDirtyState: false);
+        foreach (var document in openDocuments)
+            document.History.Clear(preserveDirtyState: false);
+
+        openDocuments.Clear();
+        clipboardNode = null;
+        activeDocument = null;
+        DocumentChanged = null;
+        SelectionChanged = null;
+        OutputChanged = null;
+        PointerPositionChanged = null;
+        SettingsChanged = null;
+        DocumentTabsChanged = null;
+        disposed = true;
+        GC.SuppressFinalize(this);
+
+        if (rollbackNotificationException is not null)
+            ExceptionDispatchInfo.Capture(rollbackNotificationException).Throw();
+    }
+
+    private void HostSelection_SelectionChanged(object? sender, EventArgs e)
+    {
+        // Transaction commit, rollback, undo, and redo publish one consolidated selection update
+        // after their model/history state is atomic. Forwarding the host event in the middle of
+        // those operations would let an observer exception interrupt that atomic boundary.
+        if (Transactions.HasActiveTransaction || Transactions.IsReplaying)
+            return;
+
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ThrowIfDisposed()
+        => ObjectDisposedException.ThrowIf(disposed, this);
 }
 
 internal sealed class DesignerOpenDocument
 {
-    public DesignerOpenDocument(DesignDocument document, string? path)
+    public DesignerOpenDocument(DesignDocument document, string? path, int historyLimit, bool initiallyDirty)
     {
         Document = document;
         Path = path;
+        History = new DesignerHistory(historyLimit, initiallyDirty);
     }
 
     public DesignDocument Document { get; set; }
 
     public string? Path { get; set; }
 
-    public bool IsDirty { get; set; }
+    public DesignerHistory History { get; }
+
+    public bool IsDirty => History.IsDirty;
 
     public string DisplayName => string.IsNullOrWhiteSpace(Path)
         ? $"{Document.ClassName}.mfdesign"

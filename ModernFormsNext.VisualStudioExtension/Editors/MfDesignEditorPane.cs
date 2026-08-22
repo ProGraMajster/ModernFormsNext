@@ -193,11 +193,12 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
         fileService.SaveAndGenerate(path, Shell.Session.Document);
         documentPath = path;
-        isDirty = false;
+        Shell.Session.MarkSaved();
+        isDirty = Shell.Session.IsDirty;
     }
 
     private void HandleDocumentChanged(object? sender, EventArgs e)
-        => isDirty = true;
+        => isDirty = Shell?.Session.IsDirty ?? true;
 
     private static string? FindNearestProjectPath(string path)
     {

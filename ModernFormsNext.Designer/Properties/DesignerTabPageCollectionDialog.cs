@@ -258,20 +258,31 @@ internal sealed class DesignerTabPageCollectionDialog : Form
             return;
         }
 
-        tabControl.Children.Clear();
+        var committedPages = new List<DesignControlNode>(pages.Count);
 
         foreach (var page in pages)
         {
             var node = page.Node ?? DesignerSpecialContainers.CreateTabPage(page.Name, page.Text);
-            node.Name = page.Name;
-            node.Properties["Text"] = DesignPropertyValue.FromString(page.Text);
-            tabControl.Children.Add(node);
+            if (page.Node is null)
+            {
+                node.Name = page.Name;
+                node.Properties["Text"] = DesignPropertyValue.FromString(page.Text);
+            }
+            else
+            {
+                session.SetNodeName(node, page.Name);
+                session.SetPropertyValue(node, "Text", DesignPropertyValue.FromString(page.Text));
+            }
+
+            committedPages.Add(node);
         }
 
-        DesignerSpecialContainers.SetInt(
+        session.ReplaceChildren(tabControl, committedPages, "Edit Tab Pages");
+
+        session.SetPropertyValue(
             tabControl,
             DesignerSpecialContainers.SelectedIndexPropertyName,
-            Math.Clamp(pageList.SelectedIndex, 0, Math.Max(0, pages.Count - 1)));
+            DesignPropertyValue.FromInt32(Math.Clamp(pageList.SelectedIndex, 0, Math.Max(0, pages.Count - 1))));
 
         DialogResult = DialogResult.OK;
     }

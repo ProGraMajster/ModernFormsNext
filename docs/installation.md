@@ -135,10 +135,16 @@ the Visual Studio-hosted designer:
 | `Ctrl+C` | Copies the selected control into the designer clipboard. |
 | `Ctrl+V` | Pastes the copied control into the active container. |
 | `Ctrl+D` | Duplicates the selected control next to the original with a unique field name. |
+| `Ctrl+Z` | Undoes the most recent committed Designer transaction. |
+| `Ctrl+Y` | Redoes the most recently undone Designer transaction. |
+| `Ctrl+Shift+Z` | Redoes the most recently undone Designer transaction. |
 
 The shortcuts operate on the selected design control, not on generated C# text. When a property
 value editor is active in the Property Grid, text editing keeps normal keyboard behavior so
-`Delete`, `Ctrl+C`, and `Ctrl+V` apply to the edited value instead.
+`Delete`, `Ctrl+C`, `Ctrl+V`, and text-editor undo/redo apply to the edited value instead. Outside an
+active value editor, Undo and Redo use the active document's Designer history. See
+[Designer transactions and undo/redo](designer-transactions-and-undo.md) for transaction and save
+semantics.
 
 ## Add a New Form in Visual Studio
 

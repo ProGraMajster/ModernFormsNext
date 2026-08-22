@@ -83,6 +83,15 @@ public sealed class ModernFormsDesignerOptions
     public DesignerControlRenderMode InitialControlRenderMode { get; set; } = DesignerControlRenderMode.Runtime;
 
     /// <summary>
+    /// Gets or sets the maximum number of undo units retained for each open Designer document.
+    /// </summary>
+    /// <remarks>
+    /// Removed history units release their retained control subtrees and model values. The value
+    /// must be at least one and defaults to 500 entries.
+    /// </remarks>
+    public int HistoryLimit { get; set; } = 500;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the solution explorer panel is visible.
     /// </summary>
     public bool ShowSolutionExplorer { get; set; } = true;

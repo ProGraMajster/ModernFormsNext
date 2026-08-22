@@ -6,7 +6,7 @@ using ModernFormsNext.Designer.Layout;
 
 namespace ModernFormsNext.Designer.Services;
 
-internal sealed class DesignerCommandService
+internal sealed class DesignerCommandService : IDisposable
 {
     private readonly DesignerSession state;
     private readonly DesignerFileService files;
@@ -63,6 +63,10 @@ internal sealed class DesignerCommandService
     public void AddLabel() => state.AddControl("Label");
 
     public void AddTextBox() => state.AddControl("TextBox");
+
+    public bool Undo() => state.Transactions.Undo();
+
+    public bool Redo() => state.Transactions.Redo();
 
     public void AddControlType(string typeName)
     {
@@ -220,6 +224,12 @@ internal sealed class DesignerCommandService
         if (isSaving)
             return;
 
+        if (state.Transactions.HasActiveTransaction)
+        {
+            state.Log("Save is unavailable until the active Designer transaction completes.");
+            return;
+        }
+
         try
         {
             isSaving = true;
@@ -249,6 +259,12 @@ internal sealed class DesignerCommandService
 
     private void GenerateDesignerCode(bool isAutoSave)
     {
+        if (state.Transactions.HasActiveTransaction)
+        {
+            state.Log("Code generation is unavailable until the active Designer transaction completes.");
+            return;
+        }
+
         var result = files.GenerateDesignerCode(state.Document);
 
         if (!result.Succeeded)
@@ -342,7 +358,7 @@ internal sealed class DesignerCommandService
 
             if (result.Success && result.Document is not null)
             {
-                state.LoadDocument(result.Document);
+                state.ReplaceDocument(result.Document, "Import designer code");
                 state.Log($"Imported designer code from {path}.");
                 return;
             }
@@ -353,5 +369,11 @@ internal sealed class DesignerCommandService
         {
             state.Log($"Import failed: {ex.Message}");
         }
+    }
+
+    public void Dispose()
+    {
+        state.DocumentChanged -= HandleDocumentChanged;
+        GC.SuppressFinalize(this);
     }
 }
