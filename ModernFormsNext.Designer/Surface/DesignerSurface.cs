@@ -37,6 +37,13 @@ internal sealed class DesignerSurface : Panel
     {
         base.OnKeyDown(e);
 
+        if (e.KeyCode == Keys.Escape && mouseController.CancelOperation(this))
+        {
+            e.Handled = true;
+            Invalidate();
+            return;
+        }
+
         if (e.KeyCode == Keys.Delete)
         {
             e.Handled = state.DeleteSelectedNode();
@@ -44,7 +51,7 @@ internal sealed class DesignerSurface : Panel
             return;
         }
 
-        if (!e.Control)
+        if (!e.Control || e.Alt)
             return;
 
         if (e.KeyCode == Keys.C)
@@ -63,6 +70,22 @@ internal sealed class DesignerSurface : Panel
         if (e.KeyCode == Keys.D)
         {
             e.Handled = state.DuplicateSelectedNode();
+            Invalidate();
+            return;
+        }
+
+        if (e.KeyCode == Keys.Z)
+        {
+            e.Handled = e.Shift
+                ? state.Transactions.CanRedo && state.Transactions.Redo()
+                : state.Transactions.CanUndo && state.Transactions.Undo();
+            Invalidate();
+            return;
+        }
+
+        if (e.KeyCode == Keys.Y)
+        {
+            e.Handled = state.Transactions.CanRedo && state.Transactions.Redo();
             Invalidate();
         }
     }

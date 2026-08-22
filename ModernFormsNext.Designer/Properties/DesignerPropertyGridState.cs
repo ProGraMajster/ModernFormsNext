@@ -1,5 +1,6 @@
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designer.Surface;
+using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designing;
 using System.ComponentModel;
 using System.Reflection;
@@ -289,13 +290,31 @@ internal sealed class DesignerPropertyGridState
 
         handlerName = CreateDefaultEventHandlerName(HeaderName, eventDescriptor.Name);
 
-        if (!eventDescriptor.TryCommit(handlerName, out var error))
+        using var transaction = playgroundState.Transactions.Begin($"Change {eventDescriptor.DisplayName} event");
+        var snapshot = DesignerModelMutationSnapshot.CaptureSelected(playgroundState);
+
+        bool committed;
+        string? error;
+        try
         {
+            committed = eventDescriptor.TryCommit(handlerName, out error);
+        }
+        catch
+        {
+            snapshot.RecordChanges(playgroundState.Transactions);
+            throw;
+        }
+
+        if (!committed)
+        {
+            snapshot.RecordChanges(playgroundState.Transactions);
+            transaction.Rollback();
             playgroundState.Log($"Event '{eventDescriptor.DisplayName}' was not changed: {error}");
             return false;
         }
 
-        playgroundState.NotifyDocumentChanged();
+        snapshot.RecordChanges(playgroundState.Transactions);
+        transaction.Commit();
         playgroundState.Log($"Added event {HeaderName}.{eventDescriptor.DisplayName} -> {handlerName}.");
         return true;
     }
@@ -393,15 +412,50 @@ internal sealed class DesignerPropertyGridState
         if (SelectedProperty is null)
             return false;
 
-        if (!SelectedProperty.TryCommit(text, out var error))
+        if (detachedPropertyProvider is not null)
         {
+            if (!SelectedProperty.TryCommit(text, out var detachedError))
+            {
+                playgroundState.Log($"Property '{SelectedProperty.DisplayName}' was not changed: {detachedError}");
+                return false;
+            }
+
+            playgroundState.Log($"Updated {HeaderName}.{SelectedProperty.DisplayName}.");
+            return true;
+        }
+
+        var propertyName = SelectedProperty.DisplayName;
+        var description = string.Equals(SelectedProperty.Name, "Name", StringComparison.Ordinal)
+            && playgroundState.SelectedNode is { } renamedNode
+                ? $"Rename {renamedNode.Name} to {text.Trim()}"
+                : $"Change {propertyName}";
+        using var transaction = playgroundState.Transactions.Begin(description);
+        var snapshot = DesignerModelMutationSnapshot.CaptureSelected(
+            playgroundState,
+            includeDescendantState: playgroundState.SelectedNode is null && AffectsRootLayout(SelectedProperty));
+
+        bool committed;
+        string? error;
+        try
+        {
+            committed = SelectedProperty.TryCommit(text, out error);
+        }
+        catch
+        {
+            snapshot.RecordChanges(playgroundState.Transactions);
+            throw;
+        }
+
+        if (!committed)
+        {
+            snapshot.RecordChanges(playgroundState.Transactions);
+            transaction.Rollback();
             playgroundState.Log($"Property '{SelectedProperty.DisplayName}' was not changed: {error}");
             return false;
         }
 
-        var propertyName = SelectedProperty.DisplayName;
-        if (detachedPropertyProvider is null)
-            playgroundState.NotifyDocumentChanged();
+        snapshot.RecordChanges(playgroundState.Transactions);
+        transaction.Commit();
         playgroundState.Log($"Updated {HeaderName}.{propertyName}.");
         return true;
     }
@@ -411,16 +465,38 @@ internal sealed class DesignerPropertyGridState
         if (SelectedEvent is null)
             return false;
 
-        if (!SelectedEvent.TryCommit(text, out var error))
+        using var transaction = playgroundState.Transactions.Begin($"Change {SelectedEvent.DisplayName} event");
+        var snapshot = DesignerModelMutationSnapshot.CaptureSelected(playgroundState);
+
+        bool committed;
+        string? error;
+        try
         {
+            committed = SelectedEvent.TryCommit(text, out error);
+        }
+        catch
+        {
+            snapshot.RecordChanges(playgroundState.Transactions);
+            throw;
+        }
+
+        if (!committed)
+        {
+            snapshot.RecordChanges(playgroundState.Transactions);
+            transaction.Rollback();
             playgroundState.Log($"Event '{SelectedEvent.DisplayName}' was not changed: {error}");
             return false;
         }
 
-        playgroundState.NotifyDocumentChanged();
+        snapshot.RecordChanges(playgroundState.Transactions);
+        transaction.Commit();
         playgroundState.Log($"Updated event {HeaderName}.{SelectedEvent.DisplayName}.");
         return true;
     }
+
+    private static bool AffectsRootLayout(DesignerPropertyDescriptor property)
+        => property.Identity is "Size" or "Width" or "Height"
+            || property.Identity.StartsWith("Size.", StringComparison.Ordinal);
 
     private void RebuildRows()
     {

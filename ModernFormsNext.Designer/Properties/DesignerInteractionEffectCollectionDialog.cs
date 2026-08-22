@@ -230,8 +230,7 @@ internal sealed class DesignerInteractionEffectCollectionDialog : Form
     private void Apply()
     {
         model.Apply(properties);
-        session.NotifyDocumentChanged();
-        errorLabel.Text = "Changes applied.";
+        errorLabel.Text = "Changes applied inside the active editor transaction.";
     }
 
     private void Commit()

@@ -9,16 +9,23 @@ namespace ModernFormsNext.Designer.Layout;
 internal sealed class DesignerToolbar : Panel
 {
     private readonly DesignerCommandService commands;
+    private readonly DesignerSession session;
     private readonly ModernFormsDesignerOptions options;
     private readonly List<(Button Button, string Key)> localizedButtons = [];
+    private Button? undoButton;
+    private Button? redoButton;
 
-    public DesignerToolbar(DesignerCommandService commands, ModernFormsDesignerOptions options)
+    public DesignerToolbar(DesignerCommandService commands, DesignerSession session, ModernFormsDesignerOptions options)
     {
         this.commands = commands;
+        this.session = session;
         this.options = options;
         Height = 42;
         Style.BackgroundColor = new SKColor(34, 39, 45);
         CreateButtons();
+        session.Transactions.HistoryChanged += (_, _) => RefreshHistoryButtons();
+        session.DocumentTabsChanged += (_, _) => RefreshHistoryButtons();
+        RefreshHistoryButtons();
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -42,6 +49,10 @@ internal sealed class DesignerToolbar : Panel
         x += 78;
         AddButton("Open", x, () => commands.OpenDesignDocument(FindForm()), 80);
         x += 88;
+        undoButton = AddButton("Undo", x, () => commands.Undo(), 76);
+        x += 84;
+        redoButton = AddButton("Redo", x, () => commands.Redo(), 76);
+        x += 84;
         AddButton("AddPanel", x, commands.AddPanel, 100);
         x += 108;
         AddButton("AddButton", x, commands.AddButton, 105);
@@ -62,10 +73,11 @@ internal sealed class DesignerToolbar : Panel
         foreach (var (button, key) in localizedButtons)
             button.Text = T(key);
 
+        RefreshHistoryButtons();
         Invalidate();
     }
 
-    private void AddButton(string key, int left, Action action, int width)
+    private Button AddButton(string key, int left, Action action, int width)
     {
         var button = Controls.Add(new Button
         {
@@ -82,6 +94,17 @@ internal sealed class DesignerToolbar : Panel
         button.Style.Border.Color = new SKColor(82, 91, 102);
         button.Style.Border.Width = 1;
         button.Click += (_, _) => action();
+        return button;
+    }
+
+    private void RefreshHistoryButtons()
+    {
+        if (undoButton is not null)
+            undoButton.Enabled = session.Transactions.CanUndo;
+        if (redoButton is not null)
+            redoButton.Enabled = session.Transactions.CanRedo;
+
+        Invalidate();
     }
 
     private void AddSettingsButton(int left)

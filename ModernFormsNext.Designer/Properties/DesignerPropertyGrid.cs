@@ -2,6 +2,7 @@ using System.Drawing;
 using ModernFormsNext;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Surface;
 using SkiaSharp;
 
@@ -151,21 +152,51 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             return;
         }
 
+        if (!state.SupportsEvents)
+        {
+            try
+            {
+                if (await row.Property.DialogEditor(new DesignerPropertyDialogContext(owner, state.Session, row.Property)))
+                {
+                    state.Session.Log($"Updated {state.HeaderName}.{row.Property.DisplayName}.");
+                    state.Refresh();
+                    Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                state.Session.Log($"Dialog editor for {row.Property.DisplayName} failed: {ex.Message}");
+            }
+
+            return;
+        }
+
+        using var transaction = state.Session.Transactions.Begin($"Edit {row.Property.DisplayName}");
+        var snapshot = DesignerModelMutationSnapshot.CaptureSelected(state.Session);
+
         try
         {
             var changed = await row.Property.DialogEditor(new DesignerPropertyDialogContext(owner, state.Session, row.Property));
+            snapshot.RecordChanges(state.Session.Transactions);
 
             if (!changed)
+            {
+                transaction.Rollback();
                 return;
+            }
 
-            if (state.SupportsEvents)
-                state.Session.NotifyDocumentChanged();
+            transaction.Commit();
             state.Session.Log($"Updated {state.HeaderName}.{row.Property.DisplayName}.");
             state.Refresh();
             Invalidate();
         }
         catch (Exception ex)
         {
+            // A dialog failure before commit still needs its partial mutations recorded so scope
+            // disposal can revert them. If only a post-commit observer failed, the transaction is
+            // already complete and there is nothing left to record or roll back.
+            if (state.Session.Transactions.HasActiveTransaction)
+                snapshot.RecordChanges(state.Session.Transactions);
             state.Session.Log($"Dialog editor for {row.Property.DisplayName} failed: {ex.Message}");
         }
     }

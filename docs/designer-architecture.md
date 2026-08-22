@@ -5,6 +5,8 @@ and round-trip boundaries are documented separately in
 [Designer animation and interaction-effect definitions](designer-animation-effects.md).
 
 ModernFormsNext designer support is split into small projects with separate responsibilities.
+Atomic edit transactions, per-document undo/redo history, save revisions, and editor integration
+rules are documented in [Designer transactions and undo/redo](designer-transactions-and-undo.md).
 The goal is to keep the document model, code generation, reusable designer UI, standalone test
 host, and Visual Studio integration independent from each other.
 
@@ -280,11 +282,13 @@ overwriting the `.mfdesign` document.
 
 ## Current Designer limitations
 
-- There is no Designer-wide undo/redo transaction history ([#33](https://github.com/ProGraMajster/ModernFormsNext/issues/33)),
-  multi-selection/group editing ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)),
-  or complete smart-guide/equal-spacing/baseline workflow ([#36](https://github.com/ProGraMajster/ModernFormsNext/issues/36)).
-- Copy, paste, and duplicate exist for an in-session single-control workflow. Cut, a system
-  clipboard contract, complete cross-document behavior, and transaction integration remain in
+- Designer-wide atomic transactions and undo/redo history are implemented by
+  [#33](https://github.com/ProGraMajster/ModernFormsNext/issues/33). Multi-selection/group editing
+  ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)) and the complete
+  smart-guide/equal-spacing/baseline workflow
+  ([#36](https://github.com/ProGraMajster/ModernFormsNext/issues/36)) remain separate work.
+- Copy, paste, and duplicate exist for an in-session single-control workflow and participate in
+  Designer history. Cut, a system clipboard contract, and complete cross-document behavior remain in
   [#34](https://github.com/ProGraMajster/ModernFormsNext/issues/34).
 - The Events view persists bindings and can generate a handler method. Default-event double-click,
   compatible-method selection, robust navigation, and rename diagnostics remain in

@@ -6,6 +6,8 @@
   href: content/docs/getting-started.md
 - name: Installation
   href: content/docs/installation.md
+- name: Designer transactions and undo
+  href: content/docs/designer-transactions-and-undo.md
 - name: Samples
   href: content/docs/samples.md
 - name: Headless testing
