@@ -8,6 +8,7 @@ using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using ModernFormsNext.Drawing;
 using SkiaSharp;
@@ -146,6 +147,26 @@ public sealed class DesignerClipboardTests
     }
 
     [Fact]
+    public void NamingFillsNumericGapsAndSuffixesCustomNamesDeterministically()
+    {
+        var document = EmptyDocument();
+        var first = Node("Button", "button1", 10, 10, 80, 25);
+        document.Controls.Add(first);
+        document.Controls.Add(Node("Button", "button3", 100, 10, 80, 25));
+        var custom = Node("Example.ProjectCard", "projectCard", 10, 50, 160, 80);
+        document.Controls.Add(custom);
+        using var session = CreateSession(document);
+        session.SelectNode(first);
+        Assert.True(session.CopySelectedNode());
+        session.SelectNode(null);
+        Assert.True(session.PasteCopiedNode());
+        Assert.Equal("button2", session.SelectedNode!.Name);
+        session.SelectNode(custom);
+        Assert.True(session.DuplicateSelectedNode());
+        Assert.Equal("projectCard1", session.SelectedNode!.Name);
+    }
+
+    [Fact]
     public void DuplicateNamesInsideLegacySourceSubtreeAreRemappedUniquely()
     {
         var document = EmptyDocument();
@@ -179,8 +200,12 @@ public sealed class DesignerClipboardTests
 
         Assert.Equal(["button1", "button2", "button3"], session.Document.Controls.Select(node => node.Name));
         var serialized = DesignDocumentSerializer.Default.Serialize(session.Document);
-        session.Transactions.Undo();
-        session.Transactions.Redo();
+        Assert.True(session.Transactions.Undo());
+        Assert.True(session.Transactions.Undo());
+        Assert.Equal(["button1"], session.Document.Controls.Select(node => node.Name));
+        Assert.True(session.Transactions.Redo());
+        Assert.True(session.Transactions.Redo());
+        Assert.Equal(["button1", "button2", "button3"], session.Document.Controls.Select(node => node.Name));
         Assert.Equal(serialized, DesignDocumentSerializer.Default.Serialize(session.Document));
     }
 
@@ -217,6 +242,22 @@ public sealed class DesignerClipboardTests
         Assert.True(session.PasteCopiedNode());
         Assert.Equal(3, document.Controls.Count);
         Assert.Same(session.SelectedNode, document.Controls[2]);
+    }
+
+    [Fact]
+    public void StaleSelectedContainerIsRejectedAsPasteTarget()
+    {
+        using var session = CreateSession(CreateDocument(out var source));
+        session.SelectNode(source);
+        Assert.True(session.CopySelectedNode());
+        var staleContainer = Node("Panel", "stalePanel", 0, 0, 100, 100);
+        session.SelectNode(staleContainer);
+        var before = DesignDocumentSerializer.Default.Serialize(session.Document);
+
+        Assert.False(session.PasteCopiedNode());
+
+        Assert.Equal(before, DesignDocumentSerializer.Default.Serialize(session.Document));
+        Assert.False(session.Transactions.CanUndo);
     }
 
     [Fact]
@@ -646,6 +687,76 @@ public sealed class DesignerClipboardTests
     }
 
     [Fact]
+    public void MissingSchemaFieldsInvalidCollectionsAndUnsafeNamesAreRejected()
+    {
+        using var session = CreateSession(CreateDocument(out var button));
+        session.SelectNode(button);
+        Assert.True(session.CopySelectedNode());
+        var valid = session.Clipboard.Content!;
+        var before = DesignDocumentSerializer.Default.Serialize(session.Document);
+        var invalidPayloads = new[]
+        {
+            valid.Replace($"\"format\":\"{DesignerClipboardPayload.CurrentFormat}\",", string.Empty, StringComparison.Ordinal),
+            $"{{\"format\":\"{DesignerClipboardPayload.CurrentFormat}\",\"version\":1}}",
+            valid.Replace("\"children\":[]", "\"children\":{}", StringComparison.Ordinal),
+            valid.Replace("\"name\":\"button1\"", "\"name\":\"1button\"", StringComparison.Ordinal)
+        };
+
+        foreach (var payload in invalidPayloads)
+        {
+            session.Clipboard.SetContent(payload);
+            Assert.False(session.PasteCopiedNode());
+            Assert.False(session.CanPasteCopiedNode);
+            Assert.Equal(before, DesignDocumentSerializer.Default.Serialize(session.Document));
+            Assert.False(session.Transactions.CanUndo);
+        }
+    }
+
+    [Fact]
+    public void AssemblyQualifiedTypeNamesAreRejectedBeforeDocumentMutation()
+    {
+        using var session = CreateSession(CreateDocument(out var button));
+        session.SelectNode(button);
+        Assert.True(session.CopySelectedNode());
+        session.Clipboard.SetContent(session.Clipboard.Content!.Replace(
+            "\"typeName\":\"Button\"",
+            "\"typeName\":\"Example.ProjectCard, Example.Project\"",
+            StringComparison.Ordinal));
+
+        Assert.False(session.PasteCopiedNode());
+        Assert.Single(session.Document.Controls);
+        Assert.False(session.Transactions.CanUndo);
+    }
+
+    [Fact]
+    public void MalformedGeometryRepresentationIsRejectedBeforeDocumentMutation()
+    {
+        using var session = CreateSession(CreateDocument(out var button));
+        button.Properties["Data"] = Structured("ModernFormsNext.Drawing.PathGeometry", ("FigureCount", 1));
+        session.SelectNode(button);
+        Assert.True(session.CopySelectedNode());
+        session.Clipboard.SetContent(session.Clipboard.Content!.Replace(
+            "\"properties\":{\"FigureCount\":{\"kind\":\"int32\",\"int32Value\":1}}",
+            "\"properties\":null",
+            StringComparison.Ordinal));
+
+        Assert.False(session.PasteCopiedNode());
+        Assert.Single(session.Document.Controls);
+        Assert.False(session.Transactions.CanUndo);
+    }
+
+    [Fact]
+    public void PathologicallyDeepPayloadIsRejectedWithoutStackOverflowOrMutation()
+    {
+        using var session = CreateSession(CreateDocument(out _));
+        session.Clipboard.SetContent(CreateDeepClipboardPayload(depth: 2_000));
+
+        Assert.False(session.PasteCopiedNode());
+        Assert.Single(session.Document.Controls);
+        Assert.False(session.Transactions.CanUndo);
+    }
+
+    [Fact]
     public void MissingControlTypeIsRejectedWithoutHistory()
     {
         using var session = CreateSession(CreateDocument(out var button));
@@ -738,6 +849,8 @@ public sealed class DesignerClipboardTests
 
         session.Clipboard.SetContent("{");
         Assert.False(session.CanPasteCopiedNode);
+        session.Clipboard.Clear();
+        Assert.False(session.CanPasteCopiedNode);
     }
 
     [Fact]
@@ -816,6 +929,37 @@ public sealed class DesignerClipboardTests
 
         Assert.True(args.SuppressKeyPress);
         Assert.Equal(expectedControlCount, document.Controls.Count);
+    }
+
+    [Theory]
+    [InlineData(Keys.C)]
+    [InlineData(Keys.X)]
+    [InlineData(Keys.V)]
+    [InlineData(Keys.D)]
+    public void ShellLeavesClipboardShortcutsToActivePropertyTextEditor(Keys key)
+    {
+        using var shell = new ModernFormsDesignerShell();
+        var document = CreateDocument(out var button);
+        shell.LoadDocument(document);
+        shell.Session.SelectNode(button);
+        Assert.True(shell.Session.CopySelectedNode());
+        var grid = Assert.Single(shell.Controls.OfType<DesignerPropertyGrid>());
+        var stateField = typeof(DesignerPropertyGrid).GetField(
+            "state",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(stateField);
+        var state = Assert.IsType<DesignerPropertyGridState>(stateField.GetValue(grid));
+        var textRow = Assert.Single(state.Rows, row => row.Property?.Name == "Text");
+        grid.BeginEdit(textRow, new System.Drawing.Rectangle(0, 0, 160, 24));
+        Assert.True(grid.IsEditingValue);
+        var before = DesignDocumentSerializer.Default.Serialize(document);
+        var args = new KeyEventArgs(Keys.Control | key);
+
+        Assert.False(shell.ProcessDesignerShortcut(args));
+
+        Assert.False(args.SuppressKeyPress);
+        Assert.Equal(before, DesignDocumentSerializer.Default.Serialize(document));
+        Assert.False(shell.Session.Transactions.CanUndo);
     }
 
     [Fact]
@@ -962,6 +1106,127 @@ public sealed class DesignerClipboardTests
     }
 
     [Fact]
+    public void CopyDoesNotClearRedoOrChangeDirtyState()
+    {
+        using var session = CreateSession(CreateDocument(out var button));
+        session.MarkSaved();
+        session.SelectNode(button);
+        Assert.True(session.CopySelectedNode());
+        session.SelectNode(null);
+        Assert.True(session.PasteCopiedNode());
+        Assert.True(session.Transactions.Undo());
+        Assert.True(session.Transactions.CanRedo);
+        Assert.False(session.IsDirty);
+        session.SelectNode(button);
+
+        Assert.True(session.CopySelectedNode());
+
+        Assert.True(session.Transactions.CanRedo);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.False(session.IsDirty);
+    }
+
+    [Fact]
+    public void CutClipboardFailureBeforeMutationLeavesDocumentAndHistoryUntouched()
+    {
+        var clipboard = new ThrowAfterSetDesignerClipboard();
+        using var session = new DesignerSession(
+            environment: null,
+            initialRenderMode: DesignerControlRenderMode.Runtime,
+            historyLimit: 500,
+            clipboard: clipboard);
+        var document = CreateDocument(out var button);
+        session.OpenDocument(document, path: null);
+        session.SelectNode(button);
+
+        Assert.Throws<InvalidOperationException>(() => session.CutSelectedNode());
+
+        Assert.Same(button, Assert.Single(document.Controls));
+        Assert.Same(button, session.SelectedNode);
+        Assert.NotNull(clipboard.Content);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.False(session.Transactions.HasActiveTransaction);
+    }
+
+    [Theory]
+    [InlineData("Cut")]
+    [InlineData("Paste")]
+    [InlineData("Duplicate")]
+    public void ClipboardMutationRollsBackWhenSelectionRefreshFailsAfterTreeChange(string operation)
+    {
+        using var session = CreateSession(CreateDocument(out var button));
+        session.SelectNode(button);
+        Assert.True(session.CopySelectedNode());
+        var clipboardBefore = session.Clipboard.Content;
+        if (operation == "Paste")
+            session.SelectNode(null);
+        var selectionBefore = session.SelectedNode;
+        var treeBefore = DesignDocumentSerializer.Default.Serialize(session.Document);
+        EventHandler? throwOnce = null;
+        throwOnce = (_, _) =>
+        {
+            session.Host.Selection.SelectionChanged -= throwOnce;
+            throw new InvalidOperationException("Expected selection refresh failure.");
+        };
+        session.Host.Selection.SelectionChanged += throwOnce;
+
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            if (operation == "Cut")
+                session.CutSelectedNode();
+            else if (operation == "Paste")
+                session.PasteCopiedNode();
+            else
+                session.DuplicateSelectedNode();
+        });
+
+        Assert.Equal(treeBefore, DesignDocumentSerializer.Default.Serialize(session.Document));
+        Assert.Same(selectionBefore, session.SelectedNode);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.Equal(clipboardBefore, session.Clipboard.Content);
+    }
+
+    [Fact]
+    public void LastCopyWinsAcrossThreeDocuments()
+    {
+        var first = CreateDocument(out var firstButton);
+        firstButton.Properties["Text"] = DesignPropertyValue.FromString("First");
+        var second = CreateDocument(out var secondButton);
+        second.ClassName = "SecondForm";
+        secondButton.Properties["Text"] = DesignPropertyValue.FromString("Second");
+        var third = EmptyDocument();
+        third.ClassName = "ThirdForm";
+        using var session = CreateSession(first, "First.mfdesign");
+        session.SelectNode(firstButton);
+        Assert.True(session.CopySelectedNode());
+        session.OpenDocument(second, "Second.mfdesign");
+        session.SelectNode(secondButton);
+        Assert.True(session.CopySelectedNode());
+        session.OpenDocument(third, "Third.mfdesign");
+        session.SelectNode(null);
+
+        Assert.True(session.PasteCopiedNode());
+
+        Assert.Equal("Second", Assert.Single(third.Controls).Properties["Text"].GetString());
+    }
+
+    [Fact]
+    public void SourceDocumentCanCloseAndCollectBeforePasteAndUndoInTarget()
+    {
+        var (session, target, sourceReference) = CreateClosedSourceClipboardScenario();
+        using (session)
+        {
+            ForceFullCollection();
+            Assert.False(sourceReference.IsAlive);
+            Assert.True(session.PasteCopiedNode());
+            Assert.Single(target.Controls);
+            Assert.True(session.Transactions.Undo());
+            Assert.Empty(target.Controls);
+        }
+    }
+
+    [Fact]
     public void ClipboardPayloadDoesNotRetainDeletedOriginalSubtreeAfterHistoryClear()
     {
         var (session, reference) = CreateClipboardWeakReference();
@@ -1020,6 +1285,22 @@ public sealed class DesignerClipboardTests
         var session = new DesignerSession();
         session.OpenDocument(document, path);
         return session;
+    }
+
+    private static string CreateDeepClipboardPayload(int depth)
+    {
+        var builder = new System.Text.StringBuilder();
+        builder.Append($"{{\"format\":\"{DesignerClipboardPayload.CurrentFormat}\",\"version\":1,\"root\":");
+        for (var index = 0; index < depth; index++)
+        {
+            builder.Append($"{{\"typeName\":\"Panel\",\"name\":\"panel{index}\",\"x\":0,\"y\":0,\"width\":1,\"height\":1,\"memberVisibility\":\"private\",\"properties\":{{}},\"events\":{{}},\"children\":[");
+        }
+
+        builder.Append($"{{\"typeName\":\"Panel\",\"name\":\"panel{depth}\",\"x\":0,\"y\":0,\"width\":1,\"height\":1,\"memberVisibility\":\"private\",\"properties\":{{}},\"events\":{{}},\"children\":[]}}");
+        for (var index = 0; index < depth; index++)
+            builder.Append("]}");
+        builder.Append('}');
+        return builder.ToString();
     }
 
     private static DesignDocument CreateDocument(out DesignControlNode button)
@@ -1081,6 +1362,22 @@ public sealed class DesignerClipboardTests
         return (session, reference);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (DesignerSession Session, DesignDocument Target, WeakReference Reference) CreateClosedSourceClipboardScenario()
+    {
+        var sourceDocument = CreateDocument(out var source);
+        var reference = new WeakReference(source);
+        var target = EmptyDocument();
+        target.ClassName = "TargetForm";
+        var session = CreateSession(sourceDocument, "Source.mfdesign");
+        session.SelectNode(source);
+        session.CopySelectedNode();
+        session.OpenDocument(target, "Target.mfdesign");
+        session.CloseDocument(0);
+        session.SelectNode(null);
+        return (session, target, reference);
+    }
+
     private static void ForceFullCollection()
     {
         for (var attempt = 0; attempt < 3; attempt++)
@@ -1096,5 +1393,24 @@ public sealed class DesignerClipboardTests
         public static int ConstructionCount { get; set; }
 
         public ConstructorProbe() => ConstructionCount++;
+    }
+
+    private sealed class ThrowAfterSetDesignerClipboard : IDesignerClipboard
+    {
+        public event EventHandler? Changed;
+
+        public string? Content { get; private set; }
+
+        public void SetContent(string content)
+        {
+            Content = content;
+            throw new InvalidOperationException("Expected clipboard notification failure.");
+        }
+
+        public void Clear()
+        {
+            Content = null;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
     }
 }

@@ -363,14 +363,40 @@ internal static class DesignerClipboardSerializer
             throw new JsonException($"The clipboard {description} is missing.");
 
         var normalized = value.StartsWith("global::", StringComparison.Ordinal) ? value[8..] : value;
+        var segments = normalized.Split(['.', '+']);
         if (normalized.Length > 1024
-            || normalized.Any(character => !(char.IsLetterOrDigit(character)
-                || character is '_' or '.' or '+' or '`' or '[' or ']' or ',' or ' ')))
+            || segments.Any(segment => !IsSafeTypeNameSegment(segment)))
         {
             throw new JsonException($"The clipboard {description} '{value}' is invalid.");
         }
 
         return value;
+    }
+
+    private static bool IsSafeTypeNameSegment(string segment)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+            return false;
+
+        var identifier = segment;
+        var genericAritySeparator = segment.IndexOf('`');
+        if (genericAritySeparator >= 0)
+        {
+            if (genericAritySeparator == 0
+                || segment.IndexOf('`', genericAritySeparator + 1) >= 0
+                || !int.TryParse(segment[(genericAritySeparator + 1)..], out var arity)
+                || arity < 1)
+            {
+                return false;
+            }
+
+            identifier = segment[..genericAritySeparator];
+        }
+
+        // Assembly-qualified and constructed generic names can trigger CLR assembly resolution
+        // when another Designer service later inspects the node. Clipboard v1 accepts only the
+        // namespace/nested-type form emitted by the design model and keeps custom controls data-only.
+        return DesignDocumentValidator.IsValidCSharpIdentifier(identifier);
     }
 
     private static JsonSerializerOptions CreateOptions()

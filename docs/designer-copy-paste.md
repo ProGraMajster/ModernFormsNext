@@ -19,6 +19,10 @@ Property Grid, and Designer surface through the normal transaction notifications
 available only for an attached control node. The Form or UserControl design root and generated
 `SplitContainer` panel nodes cannot be copied as independent child controls.
 
+The shell leaves `Ctrl+C`, `Ctrl+X`, `Ctrl+V`, and `Ctrl+D` unhandled while a Property Grid value
+editor is active. The focused text editor therefore keeps its normal text-selection clipboard
+semantics instead of mutating the selected Designer control.
+
 ## Private versioned payload
 
 The internal clipboard stores deterministic JSON with format identifier `ModernFormsNext.Designer`
@@ -36,11 +40,17 @@ does not resolve types, load assemblies, construct controls, or execute project 
 `System.Text.Json`; unsafe general object serialization such as `BinaryFormatter` is not used.
 
 Before any transaction starts, the reader verifies the exact format and version, required fields,
-known JSON members, C# identifiers, safe type-name text, canonical property representations,
-non-negative sizes, and resource bounds. Payloads larger than 4 MiB,
+known JSON members, C# identifiers, safe non-assembly-qualified type-name text, canonical property
+representations, non-negative sizes, and resource bounds. Payloads larger than 4 MiB,
 deeper than 96 levels, or containing more than 10,000 controls are rejected. Empty, corrupt,
 unsupported, incomplete, ambiguous, or malicious payloads leave the model, selection, history, and
 dirty state unchanged.
+
+The payload is a tree only: it has no object IDs, back-references, or parent links, so a serialized
+self-cycle cannot be expressed. Duplicate legacy control names are accepted as detached data and
+are remapped to distinct document-wide names before insertion. Arrays, assembly-qualified type
+names, constructed generic type text, and non-canonical collection/value representations are not
+part of clipboard version 1.
 
 The clipboard belongs to one `DesignerSession`. It therefore works between documents open in the
 same session and remains valid after the source document is closed, but it is not persisted into
@@ -80,6 +90,12 @@ copied with no shared mutable Designer value graph.
 Project UserControls and unavailable custom control type names cross the clipboard as data-only
 nodes. This preserves the existing safe-preview boundary: copy/paste never instantiates them or
 loads executable project code. Normal reference-cycle validation still runs before insertion.
+
+Cut writes its detached payload before opening the removal transaction. If a later tree or observer
+failure rolls the transaction back, the original subtree and selection are restored with no history
+entry while the clipboard intentionally retains that detached payload (equivalent to a completed
+Copy). Paste and Duplicate prepare their complete data-only subtree before insertion; any failure
+after insertion rolls the one transaction back, and Duplicate never changes the clipboard.
 
 ## Current boundaries
 

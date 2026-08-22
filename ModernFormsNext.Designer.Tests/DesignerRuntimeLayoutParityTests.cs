@@ -185,8 +185,12 @@ public sealed class DesignerRuntimeLayoutParityTests
         DesignerRuntimeLayoutParityHarness.AssertParity("order-added", document, document);
     }
 
-    [Fact]
-    public void ClipboardPasteAndDuplicateUseProductionLayoutSemantics()
+    [Theory]
+    [InlineData(1d)]
+    [InlineData(1.25d)]
+    [InlineData(1.5d)]
+    [InlineData(2d)]
+    public void ClipboardPasteAndDuplicateUseProductionLayoutSemanticsAtDpiScale(double dpiScale)
     {
         var document = BasicDocument();
         var source = Node("source", "Panel", 12, 18, 110, 80);
@@ -209,7 +213,11 @@ public sealed class DesignerRuntimeLayoutParityTests
         Assert.Equal(2, target.Children.Count);
         Assert.Equal("source1", target.Children[0].Name);
         Assert.Equal("source2", target.Children[1].Name);
-        DesignerRuntimeLayoutParityHarness.AssertParity("clipboard-paste-duplicate", document, document);
+        Assert.Equal(new DesignBounds(28, 34, 110, 80), target.Children[0].Bounds);
+        Assert.Equal(new DesignBounds(44, 50, 110, 80), target.Children[1].Bounds);
+        DesignerRuntimeLayoutParityHarness.AssertDpiParity(
+            new ParityScenario($"clipboard-paste-duplicate-{dpiScale:0.##}x", () => document),
+            dpiScale);
     }
 
     public static IEnumerable<object[]> CoreParityScenarios()
