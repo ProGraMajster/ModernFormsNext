@@ -211,7 +211,8 @@ internal sealed class DesignerMouseController
         }
         catch
         {
-            CancelOperation(surface);
+            if (!CancelOperation(surface))
+                ClearOperation(surface);
             throw;
         }
 
@@ -268,18 +269,30 @@ internal sealed class DesignerMouseController
 
     private void ClearOperation(Control surface)
     {
-        activeTransaction?.Dispose();
-        activeTransaction = null;
-        operationSnapshot = null;
-        operation = DesignerMouseOperation.None;
-        resizeHandle = DesignerResizeHandle.None;
-        activeNode = null;
-        changedBounds = false;
-        resizingRoot = false;
-        startRootSurfacePoint = default;
-        startRootScale = 1f;
-        startSplitterDistance = 0;
-        surface.Capture = false;
+        try
+        {
+            activeTransaction?.Dispose();
+        }
+        finally
+        {
+            // A post-rollback observer may throw after the manager has already completed the
+            // transaction. Clear capture and gesture state in that case; retain them only when an
+            // actual model revert failed and the transaction remains available for retry.
+            if (activeTransaction is null || !state.Transactions.HasActiveTransaction)
+            {
+                activeTransaction = null;
+                operationSnapshot = null;
+                operation = DesignerMouseOperation.None;
+                resizeHandle = DesignerResizeHandle.None;
+                activeNode = null;
+                changedBounds = false;
+                resizingRoot = false;
+                startRootSurfacePoint = default;
+                startRootScale = 1f;
+                startSplitterDistance = 0;
+                surface.Capture = false;
+            }
+        }
     }
 
     public bool CancelOperation(Control surface)
@@ -287,13 +300,22 @@ internal sealed class DesignerMouseController
         if (activeTransaction is null)
             return false;
 
-        RecordOperationChanges();
-        activeTransaction.Rollback();
-        activeTransaction = null;
-        operationSnapshot = null;
-        state.Log("Cancelled the active Designer gesture.");
-        ClearOperation(surface);
-        return true;
+        try
+        {
+            RecordOperationChanges();
+            activeTransaction.Rollback();
+            state.Log("Cancelled the active Designer gesture.");
+            return true;
+        }
+        finally
+        {
+            if (!state.Transactions.HasActiveTransaction)
+            {
+                activeTransaction = null;
+                operationSnapshot = null;
+                ClearOperation(surface);
+            }
+        }
     }
 
     private void RecordOperationChanges()

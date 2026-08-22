@@ -5,6 +5,7 @@ using ModernFormsNext.CodeGeneration.Reverse;
 using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using Xunit;
 
@@ -103,6 +104,51 @@ public sealed class DesignerTransactionTests
         Assert.False(button.Properties.ContainsKey("Text"));
     }
 
+    [Fact]
+    public void OuterRollbackRevertsChangesFromCommittedInnerTransaction()
+    {
+        using var session = CreateSession(out var button);
+        var outer = session.Transactions.Begin("Outer edit");
+        session.SetPropertyValue(button, "Outer", DesignPropertyValue.FromInt32(1));
+        using (var inner = session.Transactions.Begin("Inner edit"))
+        {
+            session.SetPropertyValue(button, "Inner", DesignPropertyValue.FromInt32(2));
+            inner.Commit();
+        }
+
+        outer.Rollback();
+
+        Assert.False(button.Properties.ContainsKey("Outer"));
+        Assert.False(button.Properties.ContainsKey("Inner"));
+        Assert.False(session.Transactions.CanUndo);
+    }
+
+    [Fact]
+    public void LaterChangeFailureRollsBackEarlierChangeAndCreatesNoHistory()
+    {
+        using var session = CreateSession(out _);
+        var value = 0;
+        var thirdChangeApplied = false;
+        var transaction = session.Transactions.Begin("Partially failing edit");
+        session.Transactions.ExecuteChange(new DelegatingDesignerChange(
+            apply: () => value = 1,
+            revert: () => value = 0));
+
+        Assert.Throws<ExpectedDesignerException>(() =>
+        {
+            session.Transactions.ExecuteChange(new DelegatingDesignerChange(
+                apply: () => throw new ExpectedDesignerException(),
+                revert: () => { }));
+            thirdChangeApplied = true;
+        });
+        transaction.Dispose();
+
+        Assert.Equal(0, value);
+        Assert.False(thirdChangeApplied);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.False(session.Transactions.HasActiveTransaction);
+    }
+
     [Theory]
     [InlineData("Text", "Changed")]
     [InlineData("Dock", "Fill")]
@@ -137,6 +183,27 @@ public sealed class DesignerTransactionTests
         session.SetNodeBounds(button, button.Bounds);
 
         Assert.False(session.Transactions.CanUndo);
+        Assert.False(session.IsDirty);
+    }
+
+    [Fact]
+    public void NoOpRenameMoveResizeAndEditorCommitCreateNoHistoryEntries()
+    {
+        using var session = CreateSession(out var button);
+        session.SelectNode(button);
+        session.MarkSaved();
+
+        session.SetNodeName(button, button.Name);
+        session.SetNodeBounds(button, button.Bounds);
+        Assert.False(session.MoveSelectedNodeUp());
+        using (var editor = session.Transactions.Begin("Editor OK without changes"))
+        {
+            DesignerModelMutationSnapshot.CaptureNode(button).RecordChanges(session.Transactions);
+            editor.Commit();
+        }
+
+        Assert.False(session.Transactions.CanUndo);
+        Assert.False(session.Transactions.CanRedo);
         Assert.False(session.IsDirty);
     }
 
@@ -369,6 +436,57 @@ public sealed class DesignerTransactionTests
         Assert.True(session.IsDirty);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(500)]
+    public void HistoryLimitRetainsExactlyTheConfiguredNumberOfLatestEntries(int limit)
+    {
+        using var session = CreateSession(out var button, historyLimit: limit);
+
+        for (var index = 1; index <= limit + 1; index++)
+            session.SetPropertyValue(button, "LimitedValue", DesignPropertyValue.FromInt32(index));
+
+        var undoCount = 0;
+        while (session.Transactions.Undo())
+            undoCount++;
+
+        Assert.Equal(limit, undoCount);
+        Assert.True(session.IsDirty);
+    }
+
+    [Fact]
+    public void RuntimeHistoryLimitReductionEvictsOldEntriesAndAnUnreachableSaveMarkerStaysDirty()
+    {
+        using var session = CreateSession(out var button, historyLimit: 4);
+        session.SetPropertyValue(button, "Value", DesignPropertyValue.FromInt32(1));
+        session.MarkSaved();
+        session.SetPropertyValue(button, "Value", DesignPropertyValue.FromInt32(2));
+        session.SetPropertyValue(button, "Value", DesignPropertyValue.FromInt32(3));
+        session.SetPropertyValue(button, "Value", DesignPropertyValue.FromInt32(4));
+
+        session.Transactions.HistoryLimit = 1;
+
+        Assert.True(session.Transactions.Undo());
+        Assert.False(session.Transactions.Undo());
+        Assert.True(session.IsDirty);
+    }
+
+    [Fact]
+    public void SaveUndoThenNewEditClearsRedoAndRemainsDirty()
+    {
+        using var session = CreateSession(out var button);
+        session.SetPropertyValue(button, "Value", DesignPropertyValue.FromInt32(1));
+        session.MarkSaved();
+
+        Assert.True(session.Transactions.Undo());
+        session.SetPropertyValue(button, "Value", DesignPropertyValue.FromInt32(2));
+
+        Assert.False(session.Transactions.CanRedo);
+        Assert.True(session.IsDirty);
+        Assert.Equal(2, button.Properties["Value"].Value);
+    }
+
     [Fact]
     public void ReplayObserverMutationAppliesWithoutCreatingHistory()
     {
@@ -435,6 +553,67 @@ public sealed class DesignerTransactionTests
         Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
         Assert.False(session.Transactions.CanUndo);
         transaction.Dispose();
+    }
+
+    [Fact]
+    public void SelectionObserverExceptionDuringUndoLeavesModelAndStacksConsistent()
+    {
+        using var session = CreateSession(out var button);
+        session.SelectNode(button);
+        session.DeleteNode(button);
+        session.SelectionChanged += ThrowExpectedDesignerException;
+
+        Assert.Throws<ExpectedDesignerException>(() => session.Transactions.Undo());
+
+        Assert.Same(button, Assert.Single(session.Document.Controls));
+        Assert.Same(button, session.SelectedNode);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.True(session.Transactions.CanRedo);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+
+        session.SelectionChanged -= ThrowExpectedDesignerException;
+        Assert.True(session.Transactions.Redo());
+        Assert.Empty(session.Document.Controls);
+    }
+
+    [Fact]
+    public void HistoryObserverExceptionDuringUndoLeavesCompletedStacksUsable()
+    {
+        using var session = CreateSession(out var button);
+        session.SetPropertyValue(button, "Text", DesignPropertyValue.FromString("Changed"));
+        session.Transactions.UndoPerformed += ThrowExpectedDesignerException;
+
+        Assert.Throws<ExpectedDesignerException>(() => session.Transactions.Undo());
+
+        Assert.False(button.Properties.ContainsKey("Text"));
+        Assert.False(session.Transactions.CanUndo);
+        Assert.True(session.Transactions.CanRedo);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+
+        session.Transactions.UndoPerformed -= ThrowExpectedDesignerException;
+        Assert.True(session.Transactions.Redo());
+        Assert.Equal("Changed", button.Properties["Text"].GetString());
+    }
+
+    [Fact]
+    public void SelectionObserverExceptionDuringRollbackCompletesFrameAndAllowsNextEdit()
+    {
+        using var session = CreateSession(out var button);
+        var transaction = session.Transactions.Begin("Add then cancel");
+        var added = session.AddControl("Label");
+        session.SelectionChanged += ThrowExpectedDesignerException;
+
+        Assert.Throws<ExpectedDesignerException>(transaction.Rollback);
+
+        Assert.DoesNotContain(added, session.Document.Controls);
+        Assert.Null(session.SelectedNode);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+        transaction.Dispose();
+
+        session.SelectionChanged -= ThrowExpectedDesignerException;
+        session.SetPropertyValue(button, "Text", DesignPropertyValue.FromString("Next edit"));
+        Assert.True(session.Transactions.CanUndo);
     }
 
     [Fact]
@@ -555,6 +734,54 @@ public sealed class DesignerTransactionTests
     }
 
     [Fact]
+    public void ReverseReplacementSelectionObserverFailureRestoresDocumentAtomically()
+    {
+        var original = CreateDocument();
+        var imported = CreateDocument();
+        imported.FormName = "ImportedForm";
+        using var session = CreateSession(original);
+        var originalSelection = original.Controls[0];
+        session.SelectNode(originalSelection);
+        session.Host.Selection.SelectionChanged += ThrowExpectedDesignerException;
+
+        Assert.Throws<ExpectedDesignerException>(() =>
+            session.ReplaceDocument(imported, "Import designer code"));
+
+        Assert.Same(original, session.Document);
+        Assert.Same(originalSelection, session.SelectedNode);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+
+        session.Host.Selection.SelectionChanged -= ThrowExpectedDesignerException;
+    }
+
+    [Fact]
+    public void DirectSelectionObserverFailureDuringReplacementUndoKeepsActiveDocumentSynchronized()
+    {
+        var original = CreateDocument();
+        var imported = CreateDocument();
+        imported.FormName = "ImportedForm";
+        using var session = CreateSession(original);
+        session.SelectNode(original.Controls[0]);
+        session.ReplaceDocument(imported, "Import designer code");
+        session.Host.Selection.SelectionChanged += ThrowExpectedDesignerException;
+
+        Assert.Throws<ExpectedDesignerException>(() => session.Transactions.Undo());
+
+        Assert.Same(original, session.Document);
+        Assert.False(session.Transactions.CanUndo);
+        Assert.True(session.Transactions.CanRedo);
+        session.Host.Selection.SelectionChanged -= ThrowExpectedDesignerException;
+
+        var second = CreateDocument();
+        second.ClassName = "SecondForm";
+        session.OpenDocument(second, "SecondForm.mfdesign");
+        session.SwitchDocument(0);
+        Assert.Same(original, session.Document);
+    }
+
+    [Fact]
     public void ActiveTransactionRejectsUndoRedoAndDocumentSwitch()
     {
         using var session = CreateSession(out var button);
@@ -646,6 +873,42 @@ public sealed class DesignerTransactionTests
     }
 
     [Fact]
+    public void ClearHistoryReleasesSelectedDeletedSubtree()
+    {
+        var (session, retainedSubtree) = CreateClearedHistoryWeakReference();
+
+        ForceFullCollection();
+
+        Assert.False(retainedSubtree.IsAlive);
+        GC.KeepAlive(session);
+        session.Dispose();
+    }
+
+    [Fact]
+    public void HistoryLimitEvictionReleasesSelectedDeletedSubtree()
+    {
+        var (session, retainedSubtree) = CreateEvictedHistoryWeakReference();
+
+        ForceFullCollection();
+
+        Assert.False(retainedSubtree.IsAlive);
+        GC.KeepAlive(session);
+        session.Dispose();
+    }
+
+    [Fact]
+    public void DocumentCloseReleasesSelectedDeletedSubtree()
+    {
+        var (session, retainedSubtree) = CreateClosedDocumentHistoryWeakReference();
+
+        ForceFullCollection();
+
+        Assert.False(retainedSubtree.IsAlive);
+        GC.KeepAlive(session);
+        session.Dispose();
+    }
+
+    [Fact]
     public void SessionDisposeRollsBackActiveTransactionAndClearsHistory()
     {
         var session = CreateSession(out var button);
@@ -658,6 +921,51 @@ public sealed class DesignerTransactionTests
         Assert.False(session.Transactions.HasActiveTransaction);
         Assert.False(session.Transactions.CanUndo);
         transaction.Dispose();
+    }
+
+    [Fact]
+    public void SessionDisposeCompletesCleanupWhenRollbackObserverThrows()
+    {
+        var session = CreateSession(out var button);
+        var transaction = session.Transactions.Begin("Interrupted edit");
+        session.SetPropertyValue(button, "Text", DesignPropertyValue.FromString("Temporary"));
+        session.Transactions.TransactionRolledBack += ThrowExpectedDesignerException;
+
+        Assert.Throws<ExpectedDesignerException>(session.Dispose);
+
+        Assert.False(button.Properties.ContainsKey("Text"));
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.False(session.Transactions.CanUndo);
+        transaction.Dispose();
+        session.Dispose();
+    }
+
+    [Fact]
+    public void GestureCommitObserverFailureClearsCaptureAndPreventsUntrackedContinuation()
+    {
+        var document = CreateDocument();
+        document.RootKind = DesignRootKind.UserControl;
+        using var session = CreateSession(document);
+        session.SelectForm();
+        var surface = new Panel { Width = 1000, Height = 800 };
+        var mapper = new DesignerCoordinateMapper();
+        var view = mapper.GetView(session, surface.Width, surface.Height);
+        var controller = new DesignerMouseController(session);
+        session.Transactions.TransactionCommitted += ThrowExpectedDesignerException;
+
+        controller.HandleMouseDown(surface, MouseAt(view.FormX + view.FormWidth, view.FormY + view.FormHeight));
+        controller.HandleMouseMove(surface, MouseAt(view.FormX + view.FormWidth + 20, view.FormY + view.FormHeight + 10));
+        Assert.Throws<ExpectedDesignerException>(() =>
+            controller.HandleMouseUp(surface, MouseAt(view.FormX + view.FormWidth + 20, view.FormY + view.FormHeight + 10)));
+
+        session.Transactions.TransactionCommitted -= ThrowExpectedDesignerException;
+        var committedSize = session.Document.Size;
+        controller.HandleMouseMove(surface, MouseAt(view.FormX + view.FormWidth + 80, view.FormY + view.FormHeight + 60));
+
+        Assert.Equal(committedSize, session.Document.Size);
+        Assert.False(surface.Capture);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.True(session.Transactions.CanUndo);
     }
 
     [Fact]
@@ -838,9 +1146,58 @@ public sealed class DesignerTransactionTests
         panel.Children.AddNode("Button", "nested", new DesignBounds(1, 1, 50, 20));
         var reference = new WeakReference(panel);
         var session = CreateSession(document);
+        session.SelectNode(panel);
         session.DeleteNode(panel);
         session.Dispose();
         return reference;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (DesignerSession Session, WeakReference Reference) CreateClearedHistoryWeakReference()
+    {
+        var document = CreateDocument();
+        var panel = document.Controls[0];
+        panel.TypeName = "Panel";
+        panel.Children.AddNode("Button", "nested", new DesignBounds(1, 1, 50, 20));
+        var reference = new WeakReference(panel);
+        var session = CreateSession(document);
+        session.SelectNode(panel);
+        session.DeleteNode(panel);
+        session.Transactions.ClearHistory();
+        return (session, reference);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (DesignerSession Session, WeakReference Reference) CreateEvictedHistoryWeakReference()
+    {
+        var document = CreateDocument();
+        var panel = document.Controls[0];
+        panel.TypeName = "Panel";
+        panel.Children.AddNode("Button", "nested", new DesignBounds(1, 1, 50, 20));
+        var reference = new WeakReference(panel);
+        var session = CreateSession(document, historyLimit: 1);
+        session.SelectNode(panel);
+        session.DeleteNode(panel);
+        session.AddControl("Label");
+        return (session, reference);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (DesignerSession Session, WeakReference Reference) CreateClosedDocumentHistoryWeakReference()
+    {
+        var document = CreateDocument();
+        var panel = document.Controls[0];
+        panel.TypeName = "Panel";
+        panel.Children.AddNode("Button", "nested", new DesignBounds(1, 1, 50, 20));
+        var reference = new WeakReference(panel);
+        var session = CreateSession(document);
+        session.SelectNode(panel);
+        session.DeleteNode(panel);
+        var second = CreateDocument();
+        second.ClassName = "SecondForm";
+        session.OpenDocument(second, "SecondForm.mfdesign");
+        session.CloseDocument(0);
+        return (session, reference);
     }
 
     private static void ForceFullCollection()
@@ -855,6 +1212,23 @@ public sealed class DesignerTransactionTests
 
     private static void ThrowExpectedDesignerException(object? sender, DesignerHistoryEventArgs e)
         => throw new ExpectedDesignerException();
+
+    private static void ThrowExpectedDesignerException(object? sender, EventArgs e)
+        => throw new ExpectedDesignerException();
+
+    private static MouseEventArgs MouseAt(int x, int y)
+        => new(MouseButtons.Left, clicks: 1, x, y, System.Drawing.Point.Empty);
+
+    private sealed class DelegatingDesignerChange(Action apply, Action revert) : IDesignerChange
+    {
+        public bool IsEmpty => false;
+
+        public void Apply() => apply();
+
+        public void Revert() => revert();
+
+        public bool TryMerge(IDesignerChange subsequentChange) => false;
+    }
 
     private sealed class ExpectedDesignerException : Exception;
 }

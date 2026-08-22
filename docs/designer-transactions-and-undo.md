@@ -113,8 +113,9 @@ Grid, selection handles, and dirty UI.
 
 The low-frequency events are `TransactionCommitted`, `TransactionRolledBack`, `UndoPerformed`,
 `RedoPerformed`, and `HistoryChanged`. They are intended for UI refresh and command enablement, not
-for maintaining a second history. An observer exception after a completed commit or rollback does
-not reactivate the transaction or leave replay suppression enabled.
+for maintaining a second history. An observer exception after a completed commit, rollback, undo,
+or redo does not reactivate the transaction, corrupt the history stacks, or leave replay
+suppression enabled.
 
 Transactions have affinity to the thread that created `DesignerSession`, normally the Designer UI
 dispatcher. Cross-thread begin/mutation and document switching during a transaction fail with a

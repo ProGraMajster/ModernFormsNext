@@ -33,6 +33,10 @@ public sealed class DesignerTransaction : IDisposable
     /// A nested commit does not create a separate history entry. The outermost commit creates one
     /// undo unit when at least one effective model change was recorded.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the transaction already completed, is not the innermost active scope, or is
+    /// completed from a thread other than the owning session UI thread.
+    /// </exception>
     public void Commit()
     {
         var owner = manager ?? throw new InvalidOperationException("The Designer transaction has already completed.");
@@ -61,6 +65,10 @@ public sealed class DesignerTransaction : IDisposable
     /// <summary>
     /// Rolls this transaction back immediately.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the transaction already completed, is not the innermost active scope, or is
+    /// completed from a thread other than the owning session UI thread.
+    /// </exception>
     public void Rollback()
     {
         var owner = manager ?? throw new InvalidOperationException("The Designer transaction has already completed.");

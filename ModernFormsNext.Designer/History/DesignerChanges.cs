@@ -441,11 +441,40 @@ internal sealed class DesignerDocumentReplaceChange : IDesignerChange
 
     public bool IsEmpty => ReferenceEquals(before, after);
 
-    public void Apply() => host.LoadDocument(after);
+    public void Apply() => Replace(after);
 
-    public void Revert() => host.LoadDocument(before);
+    public void Revert() => Replace(before);
 
     public bool TryMerge(IDesignerChange subsequentChange) => false;
+
+    private void Replace(DesignDocument document)
+    {
+        var previousDocument = host.Document;
+        var previousSelection = host.Selection.SelectedNode;
+
+        try
+        {
+            host.LoadDocument(document);
+        }
+        catch
+        {
+            // LoadDocument updates the document and selection before notifying selection
+            // observers. Restore both fields when such an observer fails so this individual
+            // change remains atomic and the transaction scope has nothing partial to unwind.
+            host.Document = previousDocument;
+            try
+            {
+                host.Selection.Select(previousSelection);
+            }
+            catch
+            {
+                // Select updates its state before raising the event. A second observer failure
+                // must not replace the original exception or prevent the model restoration.
+            }
+
+            throw;
+        }
+    }
 }
 
 internal static class DesignerPropertyValueComparer

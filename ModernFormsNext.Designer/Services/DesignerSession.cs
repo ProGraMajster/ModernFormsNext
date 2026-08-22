@@ -5,6 +5,7 @@ using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using ModernFormsNext.Drawing;
 using SkiaSharp;
+using System.Runtime.ExceptionServices;
 
 namespace ModernFormsNext.Designer.Services;
 
@@ -1295,10 +1296,7 @@ public sealed class DesignerSession : IDisposable
 
     internal void NotifyCommittedModelState(string statusMessage)
     {
-        if (activeDocument is not null)
-            activeDocument.Document = Host.Document;
-
-        RefreshDirtyState();
+        SynchronizeCommittedModelState();
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
@@ -1307,14 +1305,19 @@ public sealed class DesignerSession : IDisposable
 
     internal void NotifyRolledBackModelState(string description)
     {
-        if (activeDocument is not null)
-            activeDocument.Document = Host.Document;
-
-        RefreshDirtyState();
+        SynchronizeCommittedModelState();
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
         environment?.ReportStatus($"Rolled back {description}.");
+    }
+
+    internal void SynchronizeCommittedModelState()
+    {
+        if (activeDocument is not null)
+            activeDocument.Document = Host.Document;
+
+        RefreshDirtyState();
     }
 
     internal void RefreshDirtyState()
@@ -1885,7 +1888,18 @@ public sealed class DesignerSession : IDisposable
         if (disposed)
             return;
 
-        Transactions.RollbackActiveTransactionForDisposal();
+        Exception? rollbackNotificationException = null;
+        try
+        {
+            Transactions.RollbackActiveTransactionForDisposal();
+        }
+        catch (Exception ex) when (!Transactions.HasActiveTransaction)
+        {
+            // A completed rollback observer must not prevent deterministic history and event
+            // cleanup. Preserve the observer exception and rethrow it after disposal finishes.
+            rollbackNotificationException = ex;
+        }
+
         Transactions.ReleaseObservers();
         Host.Selection.SelectionChanged -= HostSelection_SelectionChanged;
         detachedHistory.Clear(preserveDirtyState: false);
@@ -1903,10 +1917,21 @@ public sealed class DesignerSession : IDisposable
         DocumentTabsChanged = null;
         disposed = true;
         GC.SuppressFinalize(this);
+
+        if (rollbackNotificationException is not null)
+            ExceptionDispatchInfo.Capture(rollbackNotificationException).Throw();
     }
 
     private void HostSelection_SelectionChanged(object? sender, EventArgs e)
-        => SelectionChanged?.Invoke(this, EventArgs.Empty);
+    {
+        // Transaction commit, rollback, undo, and redo publish one consolidated selection update
+        // after their model/history state is atomic. Forwarding the host event in the middle of
+        // those operations would let an observer exception interrupt that atomic boundary.
+        if (Transactions.HasActiveTransaction || Transactions.IsReplaying)
+            return;
+
+        SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     private void ThrowIfDisposed()
         => ObjectDisposedException.ThrowIf(disposed, this);

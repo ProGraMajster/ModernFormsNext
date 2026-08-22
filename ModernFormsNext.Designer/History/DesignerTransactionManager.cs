@@ -1,5 +1,6 @@
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
+using System.Runtime.ExceptionServices;
 
 namespace ModernFormsNext.Designer.History;
 
@@ -91,6 +92,9 @@ public sealed class DesignerTransactionManager
     /// Gets or sets the maximum number of retained history entries per open Designer document.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when the value is less than one.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when set from a thread other than the session UI thread or during an active transaction.
+    /// </exception>
     public int HistoryLimit
     {
         get => session.HistoryLimit;
@@ -112,6 +116,10 @@ public sealed class DesignerTransactionManager
     /// </summary>
     /// <param name="description">A concise user-visible operation description.</param>
     /// <returns>A transaction that must be committed or rolled back.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="description"/> is empty or whitespace.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called from a thread other than the session UI thread or during history replay.
+    /// </exception>
     public DesignerTransaction Begin(string description)
     {
         EnsureAccess();
@@ -153,6 +161,10 @@ public sealed class DesignerTransactionManager
     /// Undoes the latest committed transaction for the active document.
     /// </summary>
     /// <returns><see langword="true"/> when an undo unit was replayed.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called from a thread other than the session UI thread, during another replay,
+    /// or while a transaction is active.
+    /// </exception>
     public bool Undo()
     {
         EnsureReplayCanStart();
@@ -165,8 +177,9 @@ public sealed class DesignerTransactionManager
         try
         {
             unit.Revert();
-            session.Host.Selection.Select(unit.SelectionBefore);
             history.CompleteUndo(unit);
+            session.SynchronizeCommittedModelState();
+            session.Host.Selection.Select(unit.SelectionBefore);
 
             // Keep replay suppression active while observers refresh derived Designer state.
             session.NotifyCommittedModelState($"Undo {unit.Description}");
@@ -184,6 +197,10 @@ public sealed class DesignerTransactionManager
     /// Redoes the latest undone transaction for the active document.
     /// </summary>
     /// <returns><see langword="true"/> when a redo unit was replayed.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called from a thread other than the session UI thread, during another replay,
+    /// or while a transaction is active.
+    /// </exception>
     public bool Redo()
     {
         EnsureReplayCanStart();
@@ -196,8 +213,9 @@ public sealed class DesignerTransactionManager
         try
         {
             unit.Apply();
-            session.Host.Selection.Select(unit.SelectionAfter);
             history.CompleteRedo(unit);
+            session.SynchronizeCommittedModelState();
+            session.Host.Selection.Select(unit.SelectionAfter);
 
             session.NotifyCommittedModelState($"Redo {unit.Description}");
             RedoPerformed?.Invoke(this, new DesignerHistoryEventArgs(unit.Description, DesignerHistoryReplayMode.Redoing));
@@ -213,6 +231,9 @@ public sealed class DesignerTransactionManager
     /// <summary>
     /// Marks the active document's current history revision as saved.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called from a thread other than the session UI thread or while a transaction is active.
+    /// </exception>
     public void MarkSavedState()
     {
         EnsureAccess();
@@ -227,6 +248,9 @@ public sealed class DesignerTransactionManager
     /// <summary>
     /// Clears undo and redo units for the active document while preserving whether it is dirty.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called from a thread other than the session UI thread or while a transaction is active.
+    /// </exception>
     public void ClearHistory()
     {
         EnsureAccess();
@@ -331,8 +355,6 @@ public sealed class DesignerTransactionManager
 
             if (pendingChanges.Count > frame.StartChangeIndex)
                 pendingChanges.RemoveRange(frame.StartChangeIndex, pendingChanges.Count - frame.StartChangeIndex);
-
-            session.Host.Selection.Select(frame.SelectionBefore);
         }
         catch
         {
@@ -351,6 +373,11 @@ public sealed class DesignerTransactionManager
         var historyChangedRaised = false;
         try
         {
+            // The transaction is already fully reverted and removed before selection observers
+            // run. An observer exception can therefore propagate without leaving a stale frame or
+            // making a subsequent rollback apply the same changes twice.
+            session.Host.Selection.Select(frame.SelectionBefore);
+
             if (hadChanges || selectionChanged)
             {
                 session.NotifyRolledBackModelState(frame.Description);
@@ -393,11 +420,25 @@ public sealed class DesignerTransactionManager
 
     internal void RollbackActiveTransactionForDisposal()
     {
+        Exception? notificationException = null;
+
         while (frames.Count > 0)
         {
             var id = frames[^1].Id;
-            Rollback(id);
+            try
+            {
+                Rollback(id);
+            }
+            catch (Exception ex) when (!IsTransactionActive(id))
+            {
+                // The frame was successfully reverted and only a post-rollback observer failed.
+                // Continue unwinding outer scopes so disposal never commits an unfinished edit.
+                notificationException ??= ex;
+            }
         }
+
+        if (notificationException is not null)
+            ExceptionDispatchInfo.Capture(notificationException).Throw();
     }
 
     internal bool IsTransactionActive(long transactionId)

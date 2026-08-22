@@ -300,9 +300,9 @@ overwriting the `.mfdesign` document.
   data-only model above; broader isolation is tracked by
   [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40).
 - Auto-save exists, but crash recovery and external-change conflict handling remain in
-  [#41](https://github.com/ProGraMajster/ModernFormsNext/issues/41). Focused parity tests exist for
-  delivered subsystems, but a comprehensive runtime/Designer parity suite remains in
-  [#42](https://github.com/ProGraMajster/ModernFormsNext/issues/42).
+  [#41](https://github.com/ProGraMajster/ModernFormsNext/issues/41). Deterministic runtime/Designer
+  layout parity coverage delivered by [#42](https://github.com/ProGraMajster/ModernFormsNext/issues/42)
+  remains a regression gate for transaction-integrated layout edits.
 - Reverse parsing is deliberately conservative: unsupported arbitrary expressions produce
   diagnostics and are never evaluated or merged automatically.
 
