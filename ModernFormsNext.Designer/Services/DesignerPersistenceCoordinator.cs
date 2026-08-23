@@ -28,6 +28,7 @@ internal enum DesignerPersistenceNoticeKind
     ExternalDesignConflict,
     ExternalGeneratedCodeConflict,
     ExternalGeneratedCodeInvalid,
+    ExternalObservationFailed,
     FileMissing,
     AutosaveFailed
 }
@@ -63,6 +64,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
     private static readonly TimeSpan ExternalChangeRetry = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan AutosaveFailureRetry = TimeSpan.FromSeconds(30);
     private const int ImmediateArtifactDeleteAttemptLimit = 2;
+    private const int ExternalReadAttemptLimit = 3;
 
     private readonly DesignerSession session;
     private readonly DesignerFileService files;
@@ -72,6 +74,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
     private readonly IDesignerUiDispatcher dispatcher;
     private readonly IDesignerFileChangeSourceFactory fileChangeSourceFactory;
     private readonly IDesignerBackgroundWorkQueue backgroundWorkQueue;
+    private readonly IDesignerStableFileReader stableFileReader;
     private readonly DesignerRecoverySessionIdentity recoverySession;
     private readonly Dictionary<DesignerOpenDocument, DocumentState> documentStates = [];
     private readonly List<RecoveryEntry> recoveryEntries = [];
@@ -90,7 +93,8 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         IDesignerUiDispatcher? dispatcher = null,
         IDesignerFileChangeSourceFactory? fileChangeSourceFactory = null,
         DesignerRecoverySessionIdentity? recoverySession = null,
-        IDesignerBackgroundWorkQueue? backgroundWorkQueue = null)
+        IDesignerBackgroundWorkQueue? backgroundWorkQueue = null,
+        IDesignerStableFileReader? stableFileReader = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.files = files ?? throw new ArgumentNullException(nameof(files));
@@ -101,6 +105,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         this.fileChangeSourceFactory = fileChangeSourceFactory ?? FileSystemDesignerFileChangeSourceFactory.Instance;
         this.recoverySession = recoverySession ?? DesignerRecoverySessionIdentity.Create();
         this.backgroundWorkQueue = backgroundWorkQueue ?? DesignerBackgroundWorkQueue.Instance;
+        this.stableFileReader = stableFileReader ?? DesignerStableFileReader.Instance;
 
         ValidateOptions();
         Subscribe();
@@ -325,6 +330,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 identitiesToClean.Add(originalIdentity);
                 if (!string.IsNullOrWhiteSpace(state.OriginRecoveryIdentity))
                     identitiesToClean.Add(state.OriginRecoveryIdentity);
+                identitiesToClean.UnionWith(state.SupersededPathRecoveryIdentities);
             }
 
             foreach (var identity in identitiesToClean)
@@ -338,6 +344,8 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 {
                     state.OriginRecoveryIdentity = null;
                 }
+                if (cleanupErrors.Count == 0)
+                    state.SupersededPathRecoveryIdentities.Remove(identity);
             }
             session.Log($"Saved {document.DisplayName} to {normalizedPath}.");
             RaiseStateChanged();
@@ -607,6 +615,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
 
         state.PendingDesignChange = true;
         state.PendingGeneratedChange = true;
+        state.ExternalReadAttemptCount = 0;
         ScheduleExternalObservation(document, state, TimeSpan.Zero);
     }
 
@@ -623,6 +632,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         };
         if (!string.IsNullOrWhiteSpace(state.OriginRecoveryIdentity))
             identities.Add(state.OriginRecoveryIdentity);
+        identities.UnionWith(state.SupersededPathRecoveryIdentities);
         CancelAutosaveSchedules(state);
         state.WriteGate.Wait();
         try
@@ -661,6 +671,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             foreach (var identity in identities)
                 RemoveRecoveryEntriesForIdentity(identity);
             state.OriginRecoveryIdentity = null;
+            state.SupersededPathRecoveryIdentities.Clear();
             SetDiscardArtifacts(state, discard: true);
             return true;
         }
@@ -803,10 +814,41 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         if (!documentStates.TryGetValue(e.Document, out var state))
             return;
 
-        state.KnownDesignHash = TryComputeFileHash(e.NewPath) ?? state.KnownDesignHash;
-        state.SourceLastWriteUtc = TryGetLastWriteUtc(e.NewPath) ?? state.SourceLastWriteUtc;
-        state.KnownGeneratedHash = TryComputeGeneratedHash(e.Document) ?? state.KnownGeneratedHash;
+        if (!string.IsNullOrWhiteSpace(e.OldPath))
+        {
+            try
+            {
+                var previousIdentity = DesignerRecoveryDocumentIdentity.ForSavedDocument(
+                    e.OldPath,
+                    e.Document.ProjectPath).Value;
+                var currentIdentity = DesignerRecoveryDocumentIdentity.ForSavedDocument(
+                    e.NewPath,
+                    e.Document.ProjectPath).Value;
+                if (!string.Equals(previousIdentity, currentIdentity, StringComparison.Ordinal))
+                    state.SupersededPathRecoveryIdentities.Add(previousIdentity);
+            }
+            catch (Exception exception) when (IsPersistenceException(exception))
+            {
+                session.LogDiagnostic($"Could not remap recovery identity after rename: {exception.Message}");
+            }
+        }
+
+        // A pending observation belongs to the old exact paths. Preserve only an unrelated
+        // autosave-failure warning while clearing stale conflict payloads and self-write tokens.
+        var autosaveFailureNotice = state.Notice?.Kind == DesignerPersistenceNoticeKind.AutosaveFailed
+            ? state.Notice
+            : null;
+        ClearPendingExternalState(state);
+        state.Notice = autosaveFailureNotice;
+        state.ExpectedDesignHash = null;
+        state.ExpectedGeneratedHash = null;
+        state.KnownDesignHash = TryComputeFileHash(e.NewPath);
+        state.SourceLastWriteUtc = TryGetLastWriteUtc(e.NewPath);
+        state.KnownGeneratedHash = TryComputeGeneratedHash(e.Document);
+        state.FileMissing = !File.Exists(e.NewPath);
         RecreateWatcher(e.Document, state);
+        if (e.Document.IsDirty)
+            ScheduleAutosave(e.Document, state);
         RaiseStateChanged();
     }
 
@@ -1149,6 +1191,30 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         session.LogDiagnostic(
             $"Recovery snapshot saved for {state.Document.DisplayName} at generation " +
             $"{snapshot.Metadata.RevisionGeneration}, revision {snapshot.Metadata.DirtyRevision}: {artifactPath}");
+
+        // A trusted project-system rename changes the stable recovery identity. Keep the old-path
+        // artifact until the first new-path snapshot succeeds, then remove it without introducing
+        // a protection gap during the rename.
+        foreach (var supersededIdentity in state.SupersededPathRecoveryIdentities
+            .Where(identity => !string.Equals(identity, snapshot.Metadata.DocumentIdentity, StringComparison.Ordinal))
+            .ToArray())
+        {
+            var cleanupErrors = DeleteRecoveryArtifactsForIdentity(supersededIdentity);
+            if (cleanupErrors.Count == 0)
+            {
+                RemoveRecoveryEntriesForIdentity(supersededIdentity);
+                state.SupersededPathRecoveryIdentities.Remove(supersededIdentity);
+            }
+            else
+            {
+                foreach (var cleanupError in cleanupErrors)
+                {
+                    session.LogDiagnostic(
+                        "Renamed document is protected, but an old-path recovery artifact could not be removed: " +
+                        cleanupError);
+                }
+            }
+        }
     }
 
     private void RecordAutosaveFailure(DocumentState state, string error)
@@ -1238,6 +1304,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         if (state is null || state.Closed || state.ChangeSource is null)
             return;
 
+        state.ExternalReadAttemptCount = 0;
         if (PathsEqual(e.Path, state.ChangeSource.DesignDocumentPath)
             || (!string.IsNullOrWhiteSpace(e.OldPath) && PathsEqual(e.OldPath, state.ChangeSource.DesignDocumentPath)))
         {
@@ -1347,15 +1414,42 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(observation.Error))
+        var retryableFailure = !string.IsNullOrWhiteSpace(observation.Error)
+            || observation.Design?.Retryable == true
+            || observation.Generated?.Retryable == true;
+        if (retryableFailure)
         {
-            session.LogDiagnostic($"External-change verification deferred for {document.DisplayName}: {observation.Error}");
-            // A sharing violation can happen before either requested file is opened. Rechecking
-            // both exact targets prevents a transient replace sequence from losing its only event.
-            state.PendingDesignChange = true;
-            state.PendingGeneratedChange = true;
-            ScheduleExternalObservation(document, state, ExternalChangeRetry);
-            return;
+            state.ExternalReadAttemptCount++;
+            if (state.ExternalReadAttemptCount < ExternalReadAttemptLimit)
+            {
+                state.PendingDesignChange |= inspectDesign;
+                state.PendingGeneratedChange |= inspectGenerated;
+                session.LogDiagnostic(
+                    $"External-change verification attempt {state.ExternalReadAttemptCount} of " +
+                    $"{ExternalReadAttemptLimit} was not stable for {document.DisplayName}; retrying.");
+                ScheduleExternalObservation(document, state, ExternalChangeRetry);
+                return;
+            }
+
+            state.ExternalReadAttemptCount = 0;
+            if (!string.IsNullOrWhiteSpace(observation.Error))
+            {
+                state.Notice = new DesignerPersistenceNotification(
+                    Guid.NewGuid(),
+                    DesignerPersistenceNoticeKind.ExternalObservationFailed,
+                    "External files could not be verified",
+                    $"The Designer could not obtain stable file content after {ExternalReadAttemptLimit} attempts. " +
+                    "The current model was preserved. " + observation.Error,
+                    document.DisplayName,
+                    DesignerPersistenceActions.Dismiss);
+                session.Log($"External-change verification failed for {document.DisplayName}: {observation.Error}");
+                RaiseStateChanged();
+                return;
+            }
+        }
+        else
+        {
+            state.ExternalReadAttemptCount = 0;
         }
 
         var designDisposition = observation.Design is { } design
@@ -2210,6 +2304,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         state.ExternalHandle = null;
         state.PendingDesignChange = false;
         state.PendingGeneratedChange = false;
+        state.ExternalReadAttemptCount = 0;
         state.ExternalObservationGeneration++;
     }
 
@@ -2223,6 +2318,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         state.DeferredGeneratedObservation = null;
         state.PendingDesignMissing = false;
         state.PendingGeneratedMissing = false;
+        state.ExternalReadAttemptCount = 0;
         state.Notice = null;
     }
 
@@ -2236,17 +2332,9 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         try
         {
             if (designPath is not null)
-            {
                 design = ObserveFile(designPath, parseDesign: true, rootKind);
-                if (design.Error == UnstableFileMarker)
-                    return new ExternalObservation(design, null, "The .mfdesign file is still changing.");
-            }
             if (generatedPath is not null)
-            {
                 generated = ObserveFile(generatedPath, parseDesign: false, rootKind);
-                if (generated.Error == UnstableFileMarker)
-                    return new ExternalObservation(design, generated, "The generated-code file is still changing.");
-            }
             return new ExternalObservation(design, generated, Error: null);
         }
         catch (Exception exception) when (IsPersistenceException(exception))
@@ -2255,43 +2343,50 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         }
     }
 
-    private const string UnstableFileMarker = "__MFN_UNSTABLE_FILE__";
-
     private ObservedFile ObserveFile(string path, bool parseDesign, DesignRootKind rootKind)
     {
-        if (!File.Exists(path))
-            return new ObservedFile(path, Exists: false, Hash: null, LastWriteUtc: null, null, null, Error: null);
-
-        var beforeHash = DesignerFileHash.ComputeFileSha256(path);
-        var text = File.ReadAllText(path);
-        var afterHash = DesignerFileHash.ComputeFileSha256(path);
-        if (!string.Equals(beforeHash, afterHash, StringComparison.OrdinalIgnoreCase))
-            return new ObservedFile(path, true, afterHash, TryGetLastWriteUtc(path), null, null, UnstableFileMarker);
-
+        var read = stableFileReader.Read(path);
+        if (!read.Exists && string.IsNullOrWhiteSpace(read.Error))
+            return new ObservedFile(path, Exists: false, Hash: null, LastWriteUtc: null, null, null, Retryable: false, Error: null);
+        if (!string.IsNullOrWhiteSpace(read.Error) || read.Text is null)
+        {
+            return new ObservedFile(
+                path,
+                read.Exists,
+                read.Hash,
+                read.LastWriteUtc,
+                null,
+                null,
+                read.Retryable,
+                read.Error ?? "The file did not provide readable UTF-8 text.");
+        }
         if (parseDesign)
         {
             try
             {
-                var document = DesignDocumentSerializer.Default.Deserialize(text);
-                return new ObservedFile(path, true, afterHash, TryGetLastWriteUtc(path), document, null, Error: null);
+                var document = DesignDocumentSerializer.Default.Deserialize(read.Text);
+                return new ObservedFile(path, true, read.Hash, read.LastWriteUtc, document, null, Retryable: false, Error: null);
             }
             catch (Exception exception) when (IsPersistenceException(exception))
             {
-                return new ObservedFile(path, true, afterHash, TryGetLastWriteUtc(path), null, null, exception.Message);
+                // A replace sequence can briefly expose syntactically complete but semantically
+                // incomplete text. Give the writer bounded time to publish its final payload.
+                return new ObservedFile(path, true, read.Hash, read.LastWriteUtc, null, null, Retryable: true, exception.Message);
             }
         }
 
-        var parse = files.ImportDesignerCodeText(text, new CSharpDesignerParseOptions { RootKind = rootKind });
+        var parse = files.ImportDesignerCodeText(read.Text, new CSharpDesignerParseOptions { RootKind = rootKind });
         var parseError = parse.Success && parse.Document is not null
             ? null
             : string.Join("; ", parse.Diagnostics.Select(diagnostic => diagnostic.Message));
         return new ObservedFile(
             path,
             true,
-            afterHash,
-            TryGetLastWriteUtc(path),
+            read.Hash,
+            read.LastWriteUtc,
             null,
             parse.Success ? parse.Document : null,
+            Retryable: !parse.Success || parse.Document is null,
             parseError);
     }
 
@@ -2459,6 +2554,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         public bool DiscardArtifactsOnCompletion { get; set; }
         public bool LastKnownDirty { get; set; }
         public long ExternalObservationGeneration { get; set; }
+        public int ExternalReadAttemptCount { get; set; }
         public long LastAutosavedGeneration { get; set; } = -1;
         public long LastAutosavedRevision { get; set; } = -1;
         public long SuccessfullySavedGeneration { get; set; } = -1;
@@ -2470,6 +2566,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         public string? LastAutosaveError { get; set; }
         public string? CurrentArtifactPath { get; set; }
         public string? OriginRecoveryIdentity { get; set; }
+        public HashSet<string> SupersededPathRecoveryIdentities { get; } = new(StringComparer.Ordinal);
         public string? KnownDesignHash { get; set; }
         public string? ExpectedDesignHash { get; set; }
         public string? KnownGeneratedHash { get; set; }
@@ -2514,6 +2611,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         DateTimeOffset? LastWriteUtc,
         DesignDocument? DesignDocument,
         DesignDocument? ParsedGeneratedDocument,
+        bool Retryable,
         string? Error);
 }
 

@@ -162,7 +162,21 @@ public sealed class DesignDocumentSerializer
                     exception);
             }
 
-            FormatVersionInspection migratedInspection = InspectFormatVersion(migrationResult.Json);
+            FormatVersionInspection migratedInspection;
+            try
+            {
+                migratedInspection = InspectFormatVersion(migrationResult.Json);
+            }
+            catch (JsonException exception)
+            {
+                throw new JsonException(
+                    $"Designer document migration from format version {migration.SourceFormatVersion} " +
+                    $"to {migration.TargetFormatVersion} produced malformed JSON: {exception.Message}",
+                    FormatVersionJsonPath,
+                    lineNumber: null,
+                    bytePositionInLine: null,
+                    exception);
+            }
             if (migratedInspection.DeclaredVersion != migration.TargetFormatVersion)
             {
                 string actualVersion = migratedInspection.DeclaredVersion?.ToString() ?? "missing";

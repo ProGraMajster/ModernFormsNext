@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using ModernFormsNext.Designing;
 
 namespace ModernFormsNext.Designer.Recovery;
@@ -259,17 +260,85 @@ internal sealed class DesignerRecoveryEnvelope
 
     public string PayloadSha256 { get; set; } = string.Empty;
 
+    public string IntegritySha256 { get; set; } = string.Empty;
+
     public string SerializedDesignDocument { get; set; } = string.Empty;
 
     public static DesignerRecoveryEnvelope FromSnapshot(DesignerRecoverySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new DesignerRecoveryEnvelope
+        var envelope = new DesignerRecoveryEnvelope
         {
             Metadata = snapshot.Metadata,
             PayloadSha256 = DesignerFileHash.ComputeUtf8Sha256(snapshot.SerializedDesignDocument),
             SerializedDesignDocument = snapshot.SerializedDesignDocument
         };
+        envelope.IntegritySha256 = ComputeIntegritySha256(
+            envelope.FormatVersion,
+            envelope.Metadata,
+            envelope.PayloadSha256);
+        return envelope;
+    }
+
+    /// <summary>
+    /// Computes a deterministic checksum over the envelope version, recovery metadata, and the
+    /// independently calculated payload checksum.
+    /// </summary>
+    /// <remarks>
+    /// This detects accidental or local metadata tampering. It is not an authentication signature
+    /// and does not claim protection against a party that can rewrite the entire artifact.
+    /// </remarks>
+    internal static string ComputeIntegritySha256(
+        int formatVersion,
+        DesignerRecoverySnapshotMetadata metadata,
+        string payloadSha256)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentException.ThrowIfNullOrWhiteSpace(payloadSha256);
+
+        var builder = new StringBuilder();
+        Append(builder, nameof(formatVersion), formatVersion.ToString(CultureInfo.InvariantCulture));
+        Append(builder, nameof(metadata.FrameworkVersion), metadata.FrameworkVersion);
+        Append(builder, nameof(metadata.DocumentIdentity), metadata.DocumentIdentity);
+        Append(builder, nameof(metadata.IsUnsaved), metadata.IsUnsaved ? "1" : "0");
+        Append(builder, nameof(metadata.TemporaryDocumentId), metadata.TemporaryDocumentId?.ToString("N"));
+        Append(builder, nameof(metadata.DocumentPath), metadata.DocumentPath);
+        Append(builder, nameof(metadata.ProjectPath), metadata.ProjectPath);
+        Append(builder, nameof(metadata.SuggestedName), metadata.SuggestedName);
+        Append(builder, nameof(metadata.TimestampUtc), metadata.TimestampUtc.ToString("O", CultureInfo.InvariantCulture));
+        Append(
+            builder,
+            nameof(metadata.SourceFileLastWriteUtc),
+            metadata.SourceFileLastWriteUtc?.ToString("O", CultureInfo.InvariantCulture));
+        Append(builder, nameof(metadata.SourceFileHashSha256), metadata.SourceFileHashSha256);
+        Append(builder, nameof(metadata.GeneratedCodeHashSha256), metadata.GeneratedCodeHashSha256);
+        Append(builder, nameof(metadata.DirtyRevision), metadata.DirtyRevision.ToString(CultureInfo.InvariantCulture));
+        Append(
+            builder,
+            nameof(metadata.RevisionGeneration),
+            metadata.RevisionGeneration.ToString(CultureInfo.InvariantCulture));
+        Append(builder, nameof(metadata.SessionId), metadata.SessionId.ToString("N"));
+        Append(builder, nameof(metadata.ProcessId), metadata.ProcessId.ToString(CultureInfo.InvariantCulture));
+        Append(builder, nameof(payloadSha256), payloadSha256);
+        return DesignerFileHash.ComputeUtf8Sha256(builder.ToString());
+    }
+
+    private static void Append(StringBuilder builder, string name, string? value)
+    {
+        builder.Append(name.Length.ToString(CultureInfo.InvariantCulture));
+        builder.Append(':');
+        builder.Append(name);
+        builder.Append('=');
+        if (value is null)
+        {
+            builder.Append("-1:;");
+            return;
+        }
+
+        builder.Append(value.Length.ToString(CultureInfo.InvariantCulture));
+        builder.Append(':');
+        builder.Append(value);
+        builder.Append(';');
     }
 }
 

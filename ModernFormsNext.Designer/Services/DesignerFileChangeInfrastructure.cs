@@ -1,3 +1,8 @@
+using System.Buffers;
+using System.Security;
+using System.Security.Cryptography;
+using System.Text;
+
 namespace ModernFormsNext.Designer.Services;
 
 /// <summary>
@@ -250,4 +255,260 @@ internal sealed class FileSystemDesignerFileChangeSource : IDesignerFileChangeSo
             return path;
         }
     }
+}
+
+/// <summary>
+/// Reads one Designer-owned text file through a bounded, stable-content verification pass.
+/// </summary>
+internal interface IDesignerStableFileReader
+{
+    DesignerStableFileReadResult Read(string path);
+}
+
+/// <summary>
+/// Describes one bounded read of an exact Designer-owned file.
+/// </summary>
+internal sealed record DesignerStableFileReadResult(
+    string Path,
+    bool Exists,
+    string? Text,
+    string? Hash,
+    DateTimeOffset? LastWriteUtc,
+    bool Retryable,
+    string? Error);
+
+/// <summary>
+/// Confirms a bounded file fingerprint twice before exposing its decoded text to the Designer.
+/// </summary>
+/// <remarks>
+/// The two passes prevent a truncate/write or atomic-replace sequence from being parsed halfway.
+/// Retry policy remains in the persistence coordinator so the production reader never sleeps or
+/// blocks the UI thread between attempts.
+/// </remarks>
+internal sealed class DesignerStableFileReader : IDesignerStableFileReader
+{
+    internal const int DefaultMaximumFileBytes = 32 * 1024 * 1024;
+    private const int BufferSize = 81920;
+    private static readonly UTF8Encoding Utf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+
+    public static DesignerStableFileReader Instance { get; } = new();
+
+    private readonly int maximumFileBytes;
+
+    internal DesignerStableFileReader(int maximumFileBytes = DefaultMaximumFileBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumFileBytes, 1);
+        this.maximumFileBytes = maximumFileBytes;
+    }
+
+    public DesignerStableFileReadResult Read(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var fullPath = IOPath.GetFullPath(path);
+
+        try
+        {
+            if (!File.Exists(fullPath))
+                return Missing(fullPath);
+
+            var first = ReadPass(fullPath, captureText: false);
+            if (first.Error is not null)
+                return File.Exists(fullPath)
+                    ? FromPass(fullPath, first)
+                    : ChangingMissing(fullPath, first.Error);
+
+            var second = ReadPass(fullPath, captureText: true);
+            if (second.Error is not null)
+                return File.Exists(fullPath)
+                    ? FromPass(fullPath, second)
+                    : ChangingMissing(fullPath, second.Error);
+
+            if (!string.Equals(first.Hash, second.Hash, StringComparison.OrdinalIgnoreCase))
+            {
+                return new DesignerStableFileReadResult(
+                    fullPath,
+                    Exists: true,
+                    Text: null,
+                    second.Hash,
+                    second.LastWriteUtc,
+                    Retryable: true,
+                    "The file changed while its stable content was being verified.");
+            }
+
+            return new DesignerStableFileReadResult(
+                fullPath,
+                Exists: true,
+                second.Text,
+                second.Hash,
+                second.LastWriteUtc,
+                Retryable: false,
+                Error: null);
+        }
+        catch (FileNotFoundException)
+        {
+            return ChangingMissing(fullPath, "The file disappeared while its stable content was being verified.");
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return ChangingMissing(fullPath, "The file directory disappeared while stable content was being verified.");
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or SecurityException
+            or DecoderFallbackException)
+        {
+            return new DesignerStableFileReadResult(
+                fullPath,
+                File.Exists(fullPath),
+                Text: null,
+                Hash: null,
+                LastWriteUtc: TryGetLastWriteUtc(fullPath),
+                Retryable: true,
+                exception.Message);
+        }
+    }
+
+    private ReadPassResult ReadPass(string path, bool captureText)
+    {
+        var file = new FileInfo(path);
+        file.Refresh();
+        if (!file.Exists)
+            return new ReadPassResult(null, null, null, Retryable: false, "The file no longer exists.");
+        if (file.Length > maximumFileBytes)
+            return TooLarge(file);
+
+        var initialLength = file.Length;
+        var initialLastWriteUtc = file.LastWriteTimeUtc;
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            BufferSize,
+            FileOptions.SequentialScan);
+        var openedLength = stream.Length;
+        if (openedLength > maximumFileBytes)
+            return TooLarge(file);
+        if (openedLength != initialLength)
+            return Changing(file);
+
+        byte[]? captured = captureText
+            ? GC.AllocateUninitializedArray<byte>(checked((int)openedLength))
+            : null;
+        byte[]? rented = captureText ? null : ArrayPool<byte>.Shared.Rent(BufferSize);
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        long bytesRead = 0;
+        try
+        {
+            while (bytesRead < openedLength)
+            {
+                var requested = checked((int)Math.Min(BufferSize, openedLength - bytesRead));
+                int read;
+                if (captured is not null)
+                {
+                    read = stream.Read(captured, checked((int)bytesRead), requested);
+                    if (read > 0)
+                        hasher.AppendData(captured, checked((int)bytesRead), read);
+                }
+                else
+                {
+                    read = stream.Read(rented!, 0, requested);
+                    if (read > 0)
+                        hasher.AppendData(rented!, 0, read);
+                }
+
+                if (read == 0)
+                    return Changing(file);
+                bytesRead += read;
+            }
+
+            if (stream.ReadByte() >= 0)
+            {
+                return openedLength == maximumFileBytes
+                    ? TooLarge(file)
+                    : Changing(file);
+            }
+
+            file.Refresh();
+            if (!file.Exists
+                || stream.Length != openedLength
+                || file.Length != initialLength
+                || file.LastWriteTimeUtc != initialLastWriteUtc)
+            {
+                return Changing(file);
+            }
+
+            var hash = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+            string? text = null;
+            if (captured is not null)
+            {
+                ReadOnlySpan<byte> utf8 = captured;
+                if (utf8.Length >= 3 && utf8[0] == 0xEF && utf8[1] == 0xBB && utf8[2] == 0xBF)
+                    utf8 = utf8[3..];
+                text = Utf8.GetString(utf8);
+            }
+
+            return new ReadPassResult(
+                text,
+                hash,
+                new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero),
+                Retryable: false,
+                Error: null);
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    private ReadPassResult TooLarge(FileInfo file)
+        => new(
+            Text: null,
+            Hash: null,
+            TryGetLastWriteUtc(file.FullName),
+            Retryable: false,
+            $"The file exceeds the {maximumFileBytes} byte external-change limit.");
+
+    private static ReadPassResult Changing(FileInfo file)
+        => new(
+            Text: null,
+            Hash: null,
+            TryGetLastWriteUtc(file.FullName),
+            Retryable: true,
+            "The file is still changing.");
+
+    private static DesignerStableFileReadResult Missing(string path)
+        => new(path, Exists: false, Text: null, Hash: null, LastWriteUtc: null, Retryable: false, Error: null);
+
+    private static DesignerStableFileReadResult ChangingMissing(string path, string error)
+        => new(path, Exists: false, Text: null, Hash: null, LastWriteUtc: null, Retryable: true, error);
+
+    private static DesignerStableFileReadResult FromPass(string path, ReadPassResult pass)
+        => new(path, Exists: true, pass.Text, pass.Hash, pass.LastWriteUtc, pass.Retryable, pass.Error);
+
+    private static DateTimeOffset? TryGetLastWriteUtc(string path)
+    {
+        try
+        {
+            return File.Exists(path)
+                ? new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero)
+                : null;
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or SecurityException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record ReadPassResult(
+        string? Text,
+        string? Hash,
+        DateTimeOffset? LastWriteUtc,
+        bool Retryable,
+        string? Error);
 }

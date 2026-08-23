@@ -127,6 +127,50 @@ public sealed class DesignDocumentPersistenceTests
     }
 
     [Fact]
+    public void ThrowingMigrationIsWrappedWithVersionContextAndOriginalCause()
+    {
+        const string json = """
+            {
+              "metadata": { "formatVersion": 0 },
+              "namespace": "Example",
+              "className": "ThrowingMigration",
+              "formName": "ThrowingMigration",
+              "controls": []
+            }
+            """;
+        var serializer = new DesignDocumentSerializer([new ThrowingMigration()]);
+
+        JsonException exception = Assert.Throws<JsonException>(() => serializer.Deserialize(json));
+
+        Assert.Equal("$.metadata.formatVersion", exception.Path);
+        Assert.Contains("from format version 0 to 1 failed", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("migration exploded", exception.Message, StringComparison.Ordinal);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+    }
+
+    [Fact]
+    public void MalformedMigrationOutputIsWrappedWithVersionContext()
+    {
+        const string json = """
+            {
+              "metadata": { "formatVersion": 0 },
+              "namespace": "Example",
+              "className": "MalformedMigration",
+              "formName": "MalformedMigration",
+              "controls": []
+            }
+            """;
+        var serializer = new DesignDocumentSerializer([new MalformedOutputMigration()]);
+
+        JsonException exception = Assert.Throws<JsonException>(() => serializer.Deserialize(json));
+
+        Assert.Equal("$.metadata.formatVersion", exception.Path);
+        Assert.Contains("from format version 0 to 1", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("produced malformed JSON", exception.Message, StringComparison.Ordinal);
+        Assert.IsAssignableFrom<JsonException>(exception.InnerException);
+    }
+
+    [Fact]
     public void AtomicSaveReplacesExistingUtf8FileWithoutChangingAnOpenOldSnapshot()
     {
         string directory = CreateTemporaryDirectory();
@@ -239,5 +283,25 @@ public sealed class DesignDocumentPersistenceTests
         public int TargetFormatVersion => DesignDocumentSerializer.CurrentFormatVersion;
 
         public DesignDocumentMigrationResult Migrate(string sourceJson) => new(sourceJson);
+    }
+
+    private sealed class ThrowingMigration : IDesignDocumentMigration
+    {
+        public int SourceFormatVersion => 0;
+
+        public int TargetFormatVersion => DesignDocumentSerializer.CurrentFormatVersion;
+
+        public DesignDocumentMigrationResult Migrate(string sourceJson)
+            => throw new InvalidOperationException("migration exploded");
+    }
+
+    private sealed class MalformedOutputMigration : IDesignDocumentMigration
+    {
+        public int SourceFormatVersion => 0;
+
+        public int TargetFormatVersion => DesignDocumentSerializer.CurrentFormatVersion;
+
+        public DesignDocumentMigrationResult Migrate(string sourceJson)
+            => new("{ malformed migration output");
     }
 }

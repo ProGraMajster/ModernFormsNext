@@ -81,13 +81,15 @@ version is independent from the version of the embedded design document.
 | Dirty revision and revision generation | Prevents stale background completion from claiming a newer edit. |
 | Session and process IDs | Keeps simultaneous Designer sessions separate. |
 | Serialized design document and SHA-256 checksum | Carries data-only model state and detects partial or corrupt payloads. |
+| Envelope integrity SHA-256 checksum | Covers the format version, all recovery metadata, and the payload checksum so metadata corruption is detected before restore. |
 
 The envelope does not persist `DesignerSession`, live controls, native handles, delegates,
 clipboard contents, undo/redo units, selections, dispatcher objects, or Skia resources. Recovery
-deserialization validates bounded input, document depth and node count, model invariants, and the
-payload checksum. It does not resolve project assemblies, invoke custom control constructors, or
-execute project code. Project UserControls retain the same data-only preview boundary as an
-ordinary `.mfdesign` load.
+deserialization validates bounded input, document depth and node count, model invariants, the
+payload checksum, and the envelope integrity checksum. The checksums detect accidental corruption
+or local tampering but are not authentication signatures. Deserialization does not resolve project
+assemblies, invoke custom control constructors, or execute project code. Project UserControls
+retain the same data-only preview boundary as an ordinary `.mfdesign` load.
 
 Recovery and canonical writes use this sequence:
 
@@ -115,10 +117,11 @@ at `$.metadata.formatVersion` instead of being partially loaded.
 `DesignDocumentSerializer` also accepts an explicit set of trusted `IDesignDocumentMigration`
 steps. Each step transforms JSON from one declared older version toward the current version and can
 return user-facing diagnostics. The serializer validates a strictly advancing chain and the
-declared output version at every step before materializing a `DesignDocument`. There is currently
-no built-in catalog for arbitrary historical or third-party versions: a declared older version
-without a registered migration is rejected clearly. Migration is data-only and must not load a
-project assembly or execute user code.
+declared output version at every step before materializing a `DesignDocument`. Exceptions and
+malformed migration output are wrapped with source/target version context and the format-version
+JSON path. There is currently no built-in catalog for arbitrary historical or third-party
+versions: a declared older version without a registered migration is rejected clearly. Migration
+is data-only and must not load a project assembly or execute user code.
 
 ## Discovery and recovery choices
 
@@ -173,8 +176,12 @@ the in-memory baseline.
 Each saved document watches only its containing directory and filters notifications to the exact
 `.mfdesign` path and exact generated-code sibling. Native filesystem events are hints: duplicate
 Changed notifications, create/replace sequences, and rapid writes are coalesced, then final content
-is verified by SHA-256. A native watcher-buffer error requests a fresh check of both exact targets.
-Timestamps are diagnostic/prefilter data, not the final equality test.
+is verified by SHA-256. Each requested file is read through two bounded fingerprint passes with a
+32 MiB per-file ceiling. A changing, temporarily unreadable, or temporarily unparseable file is
+retried at most three times, 750 ms apart; after the bounded attempts the current model remains
+unchanged and the Designer reports the failure or conflict. A native watcher-buffer error requests
+a fresh check of both exact targets. Timestamps are diagnostic/prefilter data, not the final
+equality test.
 
 Expected post-write hashes suppress notifications caused by the Designer's own Save. Suppression
 is content-based, not a time window, so a second Visual Studio instance that writes different
@@ -194,7 +201,9 @@ Behavior depends on dirty state:
 - **Deleted or renamed away:** the in-memory document remains available and its dirty state is
   retained. The Designer reports the missing file and allows Save or Save As. Without an explicit
   host/project-system rename event, the watcher treats a rename as deletion plus an unrelated new
-  file; it does not guess identity from the filename.
+  file; it does not guess identity from the filename. A trusted `NotifyDocumentRenamed` event moves
+  watching to the new exact path. For a dirty document, the old-path recovery artifact remains
+  protected until the first new-path snapshot succeeds, then the obsolete identity is removed.
 - **Invalid or partially written file:** parsing failure leaves the current document, history, and
   selection unchanged and reports a diagnostic.
 

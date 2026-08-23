@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ModernFormsNext.Designer.Recovery;
 using ModernFormsNext.Designer.Services;
 using Xunit;
 
@@ -155,6 +156,31 @@ public sealed class DesignerPersistenceInfrastructureTests
                 Assert.Equal(DesignerFileChangeKind.Changed, change.Kind);
                 Assert.True(IsPath(change.Path, IOPath.Combine(temporary.Path, "MainForm.Designer.cs")));
             });
+    }
+
+    [Fact]
+    public void StableFileReaderAcceptsExactByteLimitAndRejectsLimitPlusOneWithoutReadingUnboundedText()
+    {
+        using var temporary = new TemporaryDirectory();
+        var exactPath = IOPath.Combine(temporary.Path, "exact.txt");
+        var oversizedPath = IOPath.Combine(temporary.Path, "oversized.txt");
+        File.WriteAllText(exactPath, "12345678");
+        File.WriteAllText(oversizedPath, "123456789");
+        var reader = new DesignerStableFileReader(maximumFileBytes: 8);
+
+        var exact = reader.Read(exactPath);
+        var oversized = reader.Read(oversizedPath);
+
+        Assert.True(exact.Exists);
+        Assert.Equal("12345678", exact.Text);
+        Assert.NotNull(exact.Hash);
+        Assert.True(DesignerFileHash.EqualsSha256(exact.Text!, exact.Hash));
+        Assert.False(exact.Retryable);
+        Assert.Null(exact.Error);
+        Assert.True(oversized.Exists);
+        Assert.Null(oversized.Text);
+        Assert.False(oversized.Retryable);
+        Assert.Contains("8 byte", oversized.Error, StringComparison.Ordinal);
     }
 
     private static async Task<DesignerFileChangeEventArgs> ActAndWaitAsync(

@@ -26,11 +26,15 @@ public sealed class DesignerRecoveryStoreTests
         var otherProject = DesignerRecoveryDocumentIdentity.ForSavedDocument(
             documentPath,
             IOPath.Combine(directory.Path, "Other", "App.csproj"));
+        var sameFileNameInOtherDirectory = DesignerRecoveryDocumentIdentity.ForSavedDocument(
+            IOPath.Combine(directory.Path, "Other", "Form1.mfdesign"),
+            projectPath);
         var temporaryId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
         var unsaved = DesignerRecoveryDocumentIdentity.ForUnsavedDocument(temporaryId);
 
         Assert.Equal(first, same);
         Assert.NotEqual(first, otherProject);
+        Assert.NotEqual(first, sameFileNameInOtherDirectory);
         Assert.Equal(DesignerFileHash.Sha256HexLength, first.FileNameToken.Length);
         Assert.Equal($"unsaved:{temporaryId:N}", unsaved.Value);
         Assert.Equal(temporaryId, unsaved.TemporaryDocumentId);
@@ -88,6 +92,12 @@ public sealed class DesignerRecoveryStoreTests
         Assert.True(DesignerFileHash.EqualsSha256(
             candidate.Envelope!.SerializedDesignDocument,
             candidate.Envelope.PayloadSha256));
+        Assert.Equal(
+            DesignerRecoveryEnvelope.ComputeIntegritySha256(
+                candidate.Envelope.FormatVersion,
+                candidate.Envelope.Metadata!,
+                candidate.Envelope.PayloadSha256),
+            candidate.Envelope.IntegritySha256);
         Assert.Contains($".{FixedSession.SessionId:N}.{FixedSession.ProcessId}", IOPath.GetFileName(write.ArtifactPath));
     }
 
@@ -167,6 +177,25 @@ public sealed class DesignerRecoveryStoreTests
         Assert.Equal(DesignerRecoveryCandidateStatus.Corrupt, candidate.Status);
         Assert.Null(candidate.Document);
         Assert.Contains("identity", candidate.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CriticalMetadataTamperingIsCorruptEvenWhenPayloadChecksumRemainsValid()
+    {
+        using var directory = new TemporaryDirectory();
+        var store = new DesignerRecoveryStore(IOPath.Combine(directory.Path, "Recovery"));
+        var write = store.Write(CaptureSaved(directory.Path, "Original", revision: 5));
+        Assert.True(write.Succeeded, write.Error);
+        var envelope = JsonNode.Parse(File.ReadAllText(write.ArtifactPath))!.AsObject();
+        envelope["metadata"]!["dirtyRevision"] = 6;
+        AssertEnvelopePayloadChecksumIsValid(envelope);
+        File.WriteAllText(write.ArtifactPath, envelope.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var candidate = store.Read(write.ArtifactPath);
+
+        Assert.Equal(DesignerRecoveryCandidateStatus.Corrupt, candidate.Status);
+        Assert.Null(candidate.Document);
+        Assert.Contains("integrity checksum", candidate.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

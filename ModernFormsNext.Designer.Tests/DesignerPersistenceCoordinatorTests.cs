@@ -338,6 +338,33 @@ public sealed class DesignerPersistenceCoordinatorTests
     }
 
     [Fact]
+    public void NewerNormalSaveSupersedesQueuedOlderAutosaveBeforeItEntersWriteGate()
+    {
+        var backgroundWork = new ManualDesignerBackgroundWorkQueue();
+        using var test = CoordinatorTestContext.CreateSaved(backgroundWorkQueue: backgroundWork);
+        test.Edit("queued dirty revision");
+        test.Scheduler.AdvanceBy(test.Options.AutoSaveDebounceDelay);
+        Assert.Equal(1, backgroundWork.PendingCount);
+
+        test.Edit("newer canonical save");
+        var savedRevision = test.Session.ActiveOpenDocument!.History.CurrentRevision;
+        var save = test.Coordinator.SaveActiveDocument(test.DocumentPath!);
+
+        Assert.True(save.Succeeded, save.Error);
+        Assert.False(test.Session.IsDirty);
+        Assert.Equal(savedRevision, test.Session.ActiveOpenDocument.History.SavedRevision);
+        backgroundWork.RunNext();
+        test.Dispatcher.DrainAll();
+        test.WaitForBackgroundOnly();
+
+        Assert.Equal(0, backgroundWork.PendingCount);
+        Assert.Equal(0, test.Store.WriteCallCount);
+        Assert.Empty(test.Store.SuccessfulArtifactPaths);
+        Assert.Null(test.Coordinator.GetActiveDiagnostics().RecoveryArtifactPath);
+        Assert.Contains("newer canonical save", File.ReadAllText(test.DocumentPath!), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UndoToSavedRevisionWhileRecoveryWriteIsBlockedDeletesLateArtifact()
     {
         using var test = CoordinatorTestContext.CreateSaved();
@@ -1138,7 +1165,7 @@ public sealed class DesignerPersistenceCoordinatorTests
         File.WriteAllText(initialGeneration.Path, "this is not valid Designer code");
 
         test.RaiseGeneratedChange();
-        await test.FireExternalDebounceAsync();
+        await test.FireExternalObservationThroughRetryLimitAsync();
 
         var notice = Assert.IsType<DesignerPersistenceNotification>(test.Coordinator.CurrentNotification);
         Assert.Equal(DesignerPersistenceNoticeKind.ExternalGeneratedCodeInvalid, notice.Kind);
@@ -1153,13 +1180,140 @@ public sealed class DesignerPersistenceCoordinatorTests
         File.WriteAllText(test.DocumentPath!, "{ definitely not a design document }");
 
         test.RaiseDesignChange();
-        await test.FireExternalDebounceAsync();
+        await test.FireExternalObservationThroughRetryLimitAsync();
 
         var notice = Assert.IsType<DesignerPersistenceNotification>(test.Coordinator.CurrentNotification);
         Assert.Equal(DesignerPersistenceNoticeKind.ExternalDesignConflict, notice.Kind);
         Assert.False(test.Session.IsDirty);
         Assert.Equal("MainForm", test.Session.Document.ClassName);
         Assert.False(test.Session.Document.Controls[0].Properties.ContainsKey("Text"));
+    }
+
+    [Fact]
+    public async Task StablePartialExternalDesignIsRetriedBeforeFinalPayloadReloadsCleanModel()
+    {
+        var external = CreateDocument();
+        external.Controls[0].Properties["Text"] = DesignPropertyValue.FromString("complete external payload");
+        var finalText = DesignDocumentSerializer.Default.Serialize(external);
+        var reader = new TestStableFileReader((attempt, path) => attempt == 1
+            ? new DesignerStableFileReadResult(
+                path,
+                Exists: true,
+                Text: "{",
+                DesignerFileHash.ComputeUtf8Sha256("{"),
+                TestStartUtc,
+                Retryable: false,
+                Error: null)
+            : new DesignerStableFileReadResult(
+                path,
+                Exists: true,
+                finalText,
+                DesignerFileHash.ComputeUtf8Sha256(finalText),
+                TestStartUtc.AddSeconds(1),
+                Retryable: false,
+                Error: null));
+        using var test = CoordinatorTestContext.CreateSaved(stableFileReader: reader);
+
+        test.RaiseDesignChange();
+        await test.FireExternalDebounceAsync();
+
+        Assert.Equal(1, reader.ReadCallCount);
+        Assert.Null(test.Coordinator.CurrentNotification);
+        Assert.False(test.Session.Document.Controls[0].Properties.ContainsKey("Text"));
+
+        test.Scheduler.AdvanceBy(TimeSpan.FromMilliseconds(750));
+        await test.DrainAsync();
+
+        Assert.Equal(2, reader.ReadCallCount);
+        Assert.Equal("complete external payload", test.Session.Document.Controls[0].Properties["Text"].GetString());
+        Assert.False(test.Session.IsDirty);
+        Assert.Null(test.Coordinator.CurrentNotification);
+    }
+
+    [Fact]
+    public async Task StableExternalReadFailureStopsAfterBoundedAttemptsAndPreservesModel()
+    {
+        var reader = new TestStableFileReader((_, _) => throw new IOException("sharing violation"));
+        using var test = CoordinatorTestContext.CreateSaved(stableFileReader: reader);
+
+        test.RaiseDesignChange();
+        await test.FireExternalObservationThroughRetryLimitAsync();
+
+        Assert.Equal(3, reader.ReadCallCount);
+        Assert.Equal(
+            DesignerPersistenceNoticeKind.ExternalObservationFailed,
+            test.Coordinator.CurrentNotification?.Kind);
+        Assert.False(test.Session.IsDirty);
+        Assert.False(test.Session.Document.Controls[0].Properties.ContainsKey("Text"));
+        Assert.False(test.Coordinator.GetActiveDiagnostics().ExternalChangePending);
+    }
+
+    [Fact]
+    public async Task TrustedRenameMovesRecoveryIdentityOnlyAfterNewPathSnapshotSucceeds()
+    {
+        using var test = CoordinatorTestContext.CreateSaved();
+        var oldPath = test.DocumentPath!;
+        var oldWatcher = test.Watchers.Latest(oldPath);
+        test.Edit("protected across trusted rename");
+        await test.FireDebounceAsync();
+        var oldSnapshot = Assert.Single(test.Store.Writes);
+        var oldArtifact = Assert.Single(test.Store.SuccessfulArtifactPaths);
+        var newPath = IOPath.Combine(test.Directory.Path, "RenamedForm.mfdesign");
+
+        File.Move(oldPath, newPath);
+        test.Session.UpdateDocumentPath(test.Session.ActiveOpenDocument!, newPath);
+
+        Assert.True(oldWatcher.IsDisposed);
+        Assert.DoesNotContain(oldArtifact, test.Store.DeletedPaths);
+        var newWatcher = test.Watchers.Latest(newPath);
+        Assert.False(newWatcher.IsDisposed);
+        await test.FireDebounceAsync();
+
+        Assert.Equal(2, test.Store.WriteCallCount);
+        var newSnapshot = test.Store.Writes.Last();
+        var newArtifact = test.Store.SuccessfulArtifactPaths.Last();
+        Assert.NotEqual(oldSnapshot.Metadata.DocumentIdentity, newSnapshot.Metadata.DocumentIdentity);
+        Assert.Equal(IOPath.GetFullPath(newPath), newSnapshot.Metadata.DocumentPath);
+        Assert.Contains(oldArtifact, test.Store.DeletedPaths);
+        Assert.DoesNotContain(newArtifact, test.Store.DeletedPaths);
+        Assert.Equal(newArtifact, test.Coordinator.GetActiveDiagnostics().RecoveryArtifactPath);
+        Assert.Null(test.Coordinator.CurrentNotification);
+    }
+
+    [Fact]
+    public async Task RepeatedTrustedRenameRetainsFailedOldCleanupButRemovesEveryNewlySupersededIdentity()
+    {
+        using var test = CoordinatorTestContext.CreateSaved();
+        var firstPath = test.DocumentPath!;
+        test.Edit("protected across repeated rename");
+        await test.FireDebounceAsync();
+        var firstArtifact = Assert.Single(test.Store.SuccessfulArtifactPaths);
+        test.Store.OnDelete = path => string.Equals(path, firstArtifact, StringComparison.OrdinalIgnoreCase)
+            ? new DesignerRecoveryFileOperationResult(false, null, "locked old artifact")
+            : new DesignerRecoveryFileOperationResult(true, path, Error: null);
+
+        var secondPath = IOPath.Combine(test.Directory.Path, "SecondName.mfdesign");
+        File.Move(firstPath, secondPath);
+        test.Session.UpdateDocumentPath(test.Session.ActiveOpenDocument!, secondPath);
+        await test.FireDebounceAsync();
+        var secondArtifact = test.Store.SuccessfulArtifactPaths.Last();
+
+        Assert.Contains(firstArtifact, test.Store.DeleteAttempts);
+        Assert.DoesNotContain(firstArtifact, test.Store.DeletedPaths);
+        Assert.DoesNotContain(secondArtifact, test.Store.DeletedPaths);
+
+        var thirdPath = IOPath.Combine(test.Directory.Path, "ThirdName.mfdesign");
+        File.Move(secondPath, thirdPath);
+        test.Session.UpdateDocumentPath(test.Session.ActiveOpenDocument!, thirdPath);
+        await test.FireDebounceAsync();
+        var thirdArtifact = test.Store.SuccessfulArtifactPaths.Last();
+
+        Assert.True(test.Store.DeleteAttempts.Count(path =>
+            string.Equals(path, firstArtifact, StringComparison.OrdinalIgnoreCase)) >= 2);
+        Assert.Contains(secondArtifact, test.Store.DeletedPaths);
+        Assert.DoesNotContain(firstArtifact, test.Store.DeletedPaths);
+        Assert.DoesNotContain(thirdArtifact, test.Store.DeletedPaths);
+        Assert.Equal(thirdArtifact, test.Coordinator.GetActiveDiagnostics().RecoveryArtifactPath);
     }
 
     [Fact]
@@ -2315,7 +2469,8 @@ public sealed class DesignerPersistenceCoordinatorTests
             bool markDirty,
             Action<ModernFormsDesignerOptions>? configureOptions,
             Action<FakeRecoveryStore, string?, DesignDocument>? configureStore,
-            IDesignerBackgroundWorkQueue? backgroundWorkQueue)
+            IDesignerBackgroundWorkQueue? backgroundWorkQueue,
+            IDesignerStableFileReader? stableFileReader)
         {
             Directory = new TemporaryDirectory();
             DocumentPath = path is null ? null : IOPath.Combine(Directory.Path, path);
@@ -2341,7 +2496,8 @@ public sealed class DesignerPersistenceCoordinatorTests
                 Dispatcher,
                 Watchers,
                 new DesignerRecoverySessionIdentity(Guid.Parse("cc7780e4-c1aa-4e41-a153-b29141111901"), 4100),
-                backgroundWorkQueue);
+                backgroundWorkQueue,
+                stableFileReader);
         }
 
         public TemporaryDirectory Directory { get; }
@@ -2369,16 +2525,32 @@ public sealed class DesignerPersistenceCoordinatorTests
             Action<ModernFormsDesignerOptions>? configureOptions = null,
             Action<FakeRecoveryStore, string?, DesignDocument>? configureStore = null,
             DesignDocument? document = null,
-            IDesignerBackgroundWorkQueue? backgroundWorkQueue = null)
-            => new(document ?? CreateDocument(), null, markDirty, configureOptions, configureStore, backgroundWorkQueue);
+            IDesignerBackgroundWorkQueue? backgroundWorkQueue = null,
+            IDesignerStableFileReader? stableFileReader = null)
+            => new(
+                document ?? CreateDocument(),
+                null,
+                markDirty,
+                configureOptions,
+                configureStore,
+                backgroundWorkQueue,
+                stableFileReader);
 
         public static CoordinatorTestContext CreateSaved(
             Action<ModernFormsDesignerOptions>? configureOptions = null,
             Action<FakeRecoveryStore, string?, DesignDocument>? configureStore = null,
             DesignDocument? document = null,
             string fileName = "MainForm.mfdesign",
-            IDesignerBackgroundWorkQueue? backgroundWorkQueue = null)
-            => new(document ?? CreateDocument(), fileName, markDirty: false, configureOptions, configureStore, backgroundWorkQueue);
+            IDesignerBackgroundWorkQueue? backgroundWorkQueue = null,
+            IDesignerStableFileReader? stableFileReader = null)
+            => new(
+                document ?? CreateDocument(),
+                fileName,
+                markDirty: false,
+                configureOptions,
+                configureStore,
+                backgroundWorkQueue,
+                stableFileReader);
 
         public void Edit(string value)
             => Session.SetPropertyValue(
@@ -2396,6 +2568,16 @@ public sealed class DesignerPersistenceCoordinatorTests
         {
             Scheduler.AdvanceBy(TimeSpan.FromMilliseconds(400));
             return DrainAsync();
+        }
+
+        public async Task FireExternalObservationThroughRetryLimitAsync()
+        {
+            await FireExternalDebounceAsync();
+            for (var retry = 1; retry < 3; retry++)
+            {
+                Scheduler.AdvanceBy(TimeSpan.FromMilliseconds(750));
+                await DrainAsync();
+            }
         }
 
         public Task DrainAsync()
@@ -2499,6 +2681,17 @@ public sealed class DesignerPersistenceCoordinatorTests
                 }
             }
         }
+    }
+
+    private sealed class TestStableFileReader(
+        Func<int, string, DesignerStableFileReadResult> read) : IDesignerStableFileReader
+    {
+        private int readCallCount;
+
+        public int ReadCallCount => Volatile.Read(ref readCallCount);
+
+        public DesignerStableFileReadResult Read(string path)
+            => read(Interlocked.Increment(ref readCallCount), path);
     }
 
     private sealed class TestDesignerHostEnvironment(

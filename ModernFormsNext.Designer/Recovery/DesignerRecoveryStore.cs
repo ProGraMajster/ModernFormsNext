@@ -234,6 +234,17 @@ internal sealed class DesignerRecoveryStore : IDesignerRecoveryStore
                     bytesRead,
                     BudgetExceeded: false);
             }
+            var expectedIntegrity = DesignerRecoveryEnvelope.ComputeIntegritySha256(
+                envelope.FormatVersion,
+                envelope.Metadata!,
+                envelope.PayloadSha256);
+            if (!string.Equals(expectedIntegrity, envelope.IntegritySha256, StringComparison.OrdinalIgnoreCase))
+            {
+                return new RecoveryReadOutcome(
+                    Corrupt(fullPath, lastWriteTimeUtc, "The recovery envelope integrity checksum is invalid.", envelope),
+                    bytesRead,
+                    BudgetExceeded: false);
+            }
 
             var document = DesignDocumentSerializer.Default.Deserialize(envelope.SerializedDesignDocument);
             ValidateDocumentShape(document);
@@ -581,6 +592,8 @@ internal sealed class DesignerRecoveryStore : IDesignerRecoveryStore
             throw new InvalidDataException("The recovery payload is empty.");
         if (!DesignerFileHash.IsSha256(envelope.PayloadSha256))
             throw new InvalidDataException("The recovery payload checksum is malformed.");
+        if (!DesignerFileHash.IsSha256(envelope.IntegritySha256))
+            throw new InvalidDataException("The recovery envelope integrity checksum is malformed.");
 
         ValidateMetadata(envelope.Metadata, expectedIdentity: null);
     }
