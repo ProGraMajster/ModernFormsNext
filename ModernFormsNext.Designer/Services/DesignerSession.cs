@@ -114,6 +114,14 @@ public sealed class DesignerSession : IDisposable
     /// </summary>
     public event EventHandler? DocumentTabsChanged;
 
+    internal event EventHandler<DesignerOpenDocumentEventArgs>? DocumentOpened;
+
+    internal event EventHandler<DesignerOpenDocumentEventArgs>? DocumentClosed;
+
+    internal event EventHandler<DesignerDocumentPathChangedEventArgs>? DocumentPathChanged;
+
+    internal event EventHandler<DesignerOpenDocumentEventArgs>? DocumentBaselineChanged;
+
     /// <summary>
     /// Gets the neutral designer host that owns the document and selection service.
     /// </summary>
@@ -155,14 +163,21 @@ public sealed class DesignerSession : IDisposable
     public DesignerControlRenderMode ControlRenderMode { get; private set; }
 
     /// <summary>
-    /// Gets the active document path supplied by the host environment, if one is known.
+    /// Gets the active document's canonical path, or <see langword="null"/> when the active
+    /// document has not been saved yet.
     /// </summary>
-    public string? CurrentDocumentPath => activeDocument?.Path ?? environment?.CurrentDocumentPath;
+    /// <remarks>
+    /// An unsaved document deliberately does not fall back to a previous host path. This prevents
+    /// Save or recovery logic from overwriting the file that was active before a new tab opened.
+    /// </remarks>
+    public string? CurrentDocumentPath => activeDocument is null
+        ? environment?.CurrentDocumentPath
+        : activeDocument.Path;
 
     /// <summary>
     /// Gets the active project path supplied by the host environment, if one is known.
     /// </summary>
-    public string? CurrentProjectPath => environment?.CurrentProjectPath;
+    public string? CurrentProjectPath => activeDocument?.ProjectPath ?? environment?.CurrentProjectPath;
 
     internal IReadOnlyList<DesignerProjectUserControlInfo> ProjectUserControls => projectUserControls;
 
@@ -170,6 +185,8 @@ public sealed class DesignerSession : IDisposable
         => DesignerProjectAnimationDefinitionDiscovery.Discover(CurrentProjectPath);
 
     internal IReadOnlyList<DesignerOpenDocument> OpenDocuments => openDocuments;
+
+    internal DesignerOpenDocument? ActiveOpenDocument => activeDocument;
 
     internal int ActiveDocumentIndex => activeDocument is null ? -1 : openDocuments.IndexOf(activeDocument);
 
@@ -211,7 +228,12 @@ public sealed class DesignerSession : IDisposable
 
         if (existing is null)
         {
-            existing = new DesignerOpenDocument(document, normalizedPath, historyLimit, markDirty);
+            existing = new DesignerOpenDocument(
+                document,
+                normalizedPath,
+                environment?.CurrentProjectPath,
+                historyLimit,
+                markDirty);
             openDocuments.Add(existing);
         }
         else
@@ -230,6 +252,7 @@ public sealed class DesignerSession : IDisposable
         activeDocument = existing;
         Host.LoadDocument(document);
         RefreshDirtyState();
+        DocumentOpened?.Invoke(this, new DesignerOpenDocumentEventArgs(existing));
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
@@ -321,6 +344,7 @@ public sealed class DesignerSession : IDisposable
         var wasActive = ReferenceEquals(activeDocument, closedDocument);
         openDocuments.RemoveAt(index);
         closedDocument.History.Clear(preserveDirtyState: false);
+        closedDocument.RevisionGeneration++;
 
         if (wasActive)
         {
@@ -333,6 +357,7 @@ public sealed class DesignerSession : IDisposable
 
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
         Transactions.NotifyActiveHistoryChanged();
+        DocumentClosed?.Invoke(this, new DesignerOpenDocumentEventArgs(closedDocument));
         Log($"Closed {closedDocument.DisplayName}.");
     }
 
@@ -345,6 +370,127 @@ public sealed class DesignerSession : IDisposable
         ThrowIfDisposed();
         Transactions.MarkSavedState();
 
+        DocumentChanged?.Invoke(this, EventArgs.Empty);
+        DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        environment?.ReportStatus(statusMessage);
+    }
+
+    internal bool MarkSaved(
+        DesignerOpenDocument document,
+        long revisionGeneration,
+        long revision,
+        string statusMessage = "Document saved.")
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ThrowIfDisposed();
+        if (Transactions.HasActiveTransaction)
+            throw new InvalidOperationException("A Designer document cannot be marked saved during an active transaction.");
+        if (!openDocuments.Contains(document) || document.RevisionGeneration != revisionGeneration)
+            return false;
+
+        document.History.MarkSaved(revision);
+        if (ReferenceEquals(activeDocument, document))
+            RefreshDirtyState();
+
+        DocumentChanged?.Invoke(this, EventArgs.Empty);
+        DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        environment?.ReportStatus(statusMessage);
+        return true;
+    }
+
+    internal void UpdateDocumentPath(DesignerOpenDocument document, string path)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ThrowIfDisposed();
+        if (Transactions.HasActiveTransaction)
+            throw new InvalidOperationException("A Designer document path cannot change during an active transaction.");
+        if (!openDocuments.Contains(document))
+            throw new InvalidOperationException("The Designer document is no longer open.");
+
+        var normalizedPath = DesignerDocumentPath.NormalizeDesignPath(path)
+            ?? throw new ArgumentException("The Designer document path could not be normalized.", nameof(path));
+        var duplicate = openDocuments.FirstOrDefault(candidate =>
+            !ReferenceEquals(candidate, document)
+            && string.Equals(candidate.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+        if (duplicate is not null)
+            throw new InvalidOperationException($"The Designer document '{normalizedPath}' is already open.");
+
+        var oldPath = document.Path;
+        if (string.Equals(oldPath, normalizedPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        document.Path = normalizedPath;
+        document.ProjectPath ??= environment?.CurrentProjectPath;
+        DocumentPathChanged?.Invoke(this, new DesignerDocumentPathChangedEventArgs(document, oldPath, normalizedPath));
+        DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
+        DocumentChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal void ReloadDocumentBaseline(
+        DesignerOpenDocument document,
+        DesignDocument replacement,
+        bool markDirty,
+        string statusMessage)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(replacement);
+        ArgumentException.ThrowIfNullOrWhiteSpace(statusMessage);
+        ThrowIfDisposed();
+        if (Transactions.HasActiveTransaction)
+            throw new InvalidOperationException("A Designer document cannot reload during an active transaction.");
+        if (!openDocuments.Contains(document))
+            throw new InvalidOperationException("The Designer document is no longer open.");
+
+        DesignerSpecialContainers.NormalizeDocument(replacement);
+        var isActiveDocument = ReferenceEquals(activeDocument, document);
+        var previousHostDocument = Host.Document;
+        var previousSelection = Host.Selection.SelectedNode;
+        var selectedName = isActiveDocument ? previousSelection?.Name : null;
+
+        if (isActiveDocument)
+        {
+            try
+            {
+                // Stage the replacement in the host before releasing history or changing the open
+                // document. Selection observers can throw from LoadDocument/Select; until both
+                // complete, the prior model and undo history remain the authoritative baseline.
+                Host.LoadDocument(replacement);
+                if (!string.IsNullOrWhiteSpace(selectedName))
+                    Host.Selection.Select(FindNodeByName(replacement.Controls, selectedName));
+            }
+            catch
+            {
+                Host.Document = previousHostDocument;
+                try
+                {
+                    Host.Selection.Select(previousSelection);
+                }
+                catch
+                {
+                    // Selection state changes before its event is raised. Preserve the original
+                    // reload exception after restoring the model even if an observer also rejects
+                    // the compensating selection notification.
+                }
+
+                throw;
+            }
+        }
+
+        document.Document = replacement;
+        document.History.Clear(preserveDirtyState: false);
+        if (markDirty)
+            document.History.MarkUnsaved();
+        document.RevisionGeneration++;
+
+        if (isActiveDocument)
+        {
+            RefreshDirtyState();
+            SelectionChanged?.Invoke(this, EventArgs.Empty);
+            Transactions.NotifyActiveHistoryChanged();
+        }
+
+        DocumentBaselineChanged?.Invoke(this, new DesignerOpenDocumentEventArgs(document));
         DocumentChanged?.Invoke(this, EventArgs.Empty);
         DocumentTabsChanged?.Invoke(this, EventArgs.Empty);
         environment?.ReportStatus(statusMessage);
@@ -1433,6 +1579,12 @@ public sealed class DesignerSession : IDisposable
     internal void RefreshDirtyState()
         => IsDirty = CurrentHistory.IsDirty;
 
+    internal void IncrementActiveRevisionGeneration()
+    {
+        if (activeDocument is not null)
+            activeDocument.RevisionGeneration++;
+    }
+
     internal void SetHistoryLimit(int value)
     {
         historyLimit = value;
@@ -2188,6 +2340,10 @@ public sealed class DesignerSession : IDisposable
         PointerPositionChanged = null;
         SettingsChanged = null;
         DocumentTabsChanged = null;
+        DocumentOpened = null;
+        DocumentClosed = null;
+        DocumentPathChanged = null;
+        DocumentBaselineChanged = null;
         disposed = true;
         GC.SuppressFinalize(this);
 
@@ -2217,26 +2373,71 @@ public sealed class DesignerSession : IDisposable
 
     private void ThrowIfDisposed()
         => ObjectDisposedException.ThrowIf(disposed, this);
+
+    private static DesignControlNode? FindNodeByName(IEnumerable<DesignControlNode> nodes, string name)
+    {
+        foreach (var node in nodes)
+        {
+            if (string.Equals(node.Name, name, StringComparison.Ordinal))
+                return node;
+
+            var descendant = FindNodeByName(node.Children, name);
+            if (descendant is not null)
+                return descendant;
+        }
+
+        return null;
+    }
 }
 
 internal sealed class DesignerOpenDocument
 {
-    public DesignerOpenDocument(DesignDocument document, string? path, int historyLimit, bool initiallyDirty)
+    public DesignerOpenDocument(
+        DesignDocument document,
+        string? path,
+        string? projectPath,
+        int historyLimit,
+        bool initiallyDirty)
     {
+        Id = Guid.NewGuid();
         Document = document;
         Path = path;
+        ProjectPath = projectPath;
         History = new DesignerHistory(historyLimit, initiallyDirty);
     }
+
+    public Guid Id { get; }
 
     public DesignDocument Document { get; set; }
 
     public string? Path { get; set; }
 
+    public string? ProjectPath { get; set; }
+
     public DesignerHistory History { get; }
+
+    public long RevisionGeneration { get; set; }
 
     public bool IsDirty => History.IsDirty;
 
     public string DisplayName => string.IsNullOrWhiteSpace(Path)
         ? $"{Document.ClassName}.mfdesign"
         : System.IO.Path.GetFileName(Path);
+}
+
+internal sealed class DesignerOpenDocumentEventArgs(DesignerOpenDocument document) : EventArgs
+{
+    public DesignerOpenDocument Document { get; } = document;
+}
+
+internal sealed class DesignerDocumentPathChangedEventArgs(
+    DesignerOpenDocument document,
+    string? oldPath,
+    string newPath) : EventArgs
+{
+    public DesignerOpenDocument Document { get; } = document;
+
+    public string? OldPath { get; } = oldPath;
+
+    public string NewPath { get; } = newPath;
 }

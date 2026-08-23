@@ -109,7 +109,10 @@ internal sealed class VisualStudioModernFormsHostControl : WinForms.UserControl
     {
         if (hostForm is not null)
         {
+            if (Shell is not null)
+                hostForm.Controls.Remove(Shell);
             hostForm.Close();
+            hostForm.Dispose();
             hostForm = null;
         }
 

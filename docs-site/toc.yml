@@ -10,6 +10,8 @@
   href: content/docs/designer-transactions-and-undo.md
 - name: Designer copy and paste
   href: content/docs/designer-copy-paste.md
+- name: Designer autosave and recovery
+  href: content/docs/designer-autosave-and-recovery.md
 - name: Samples
   href: content/docs/samples.md
 - name: Headless testing

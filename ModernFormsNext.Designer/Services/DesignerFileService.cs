@@ -1,5 +1,6 @@
 using ModernFormsNext.CodeGeneration.CSharp;
 using ModernFormsNext.CodeGeneration.Reverse;
+using ModernFormsNext.Designer.Recovery;
 using ModernFormsNext.Designing;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,7 +12,6 @@ internal sealed class DesignerFileService
     private readonly IDesignerHostEnvironment? environment;
     private readonly Func<string?>? currentDocumentPathProvider;
     private readonly Func<IReadOnlyList<DesignAnimationDefinitionDescriptor>>? animationDefinitionsProvider;
-    private readonly CSharpDesignerRoundTripService roundTrip = new();
 
     public DesignerFileService(
         IDesignerHostEnvironment? environment = null,
@@ -29,16 +29,23 @@ internal sealed class DesignerFileService
         return DesignDocumentSerializer.Default.Load(path);
     }
 
-    public string SaveDesignDocument(DesignDocument document)
+    public string SaveDesignDocument(DesignDocument document, string? explicitPath = null)
     {
-        var path = GetDesignDocumentPath(document);
+        var path = GetDesignDocumentPath(document, explicitPath);
         DesignDocumentSerializer.Default.Save(path, document);
         return path;
     }
 
-    public DesignerGenerationFileResult GenerateDesignerCode(DesignDocument document)
+    public DesignerGenerationFileResult PrepareDesignerCode(
+        DesignDocument document,
+        string? explicitDesignDocumentPath = null)
     {
-        var designDocumentPath = GetDesignDocumentPath(document);
+        ArgumentNullException.ThrowIfNull(document);
+
+        var designDocumentPath = GetDesignDocumentPath(document, explicitDesignDocumentPath);
+        // The reverse service owns parser state. Keep each generation/import operation isolated so
+        // a background external-change parse cannot race a foreground normal save.
+        var roundTrip = new CSharpDesignerRoundTripService();
         var result = roundTrip.Generate(
             document,
             new CSharpDesignerGenerationOptions
@@ -51,9 +58,19 @@ internal sealed class DesignerFileService
         if (!result.Succeeded)
             return new DesignerGenerationFileResult(false, string.Empty, string.Empty, result.Validation.Errors);
 
-        var path = GetGeneratedCodePath(document);
-        File.WriteAllText(path, result.Code);
+        var path = GetGeneratedCodePath(document, designDocumentPath);
         return new DesignerGenerationFileResult(true, path, result.Code, Array.Empty<string>());
+    }
+
+    public DesignerGenerationFileResult GenerateDesignerCode(
+        DesignDocument document,
+        string? explicitDesignDocumentPath = null)
+    {
+        var result = PrepareDesignerCode(document, explicitDesignDocumentPath);
+        if (result.Succeeded)
+            DesignerAtomicFileWriter.WriteUtf8(result.Path, result.Code);
+
+        return result;
     }
 
     public CSharpDesignerParseResult ImportDesignerCode(
@@ -62,8 +79,15 @@ internal sealed class DesignerFileService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var sourceText = File.ReadAllText(path);
-        return roundTrip.ParseDesignerCode(sourceText, options);
+        return ImportDesignerCodeText(File.ReadAllText(path), options);
+    }
+
+    public CSharpDesignerParseResult ImportDesignerCodeText(
+        string sourceText,
+        CSharpDesignerParseOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceText);
+        return new CSharpDesignerRoundTripService().ParseDesignerCode(sourceText, options);
     }
 
     public DesignerEventHandlerFileResult EnsureEventHandlerMethod(
@@ -106,27 +130,37 @@ internal sealed class DesignerFileService
             $"    }}{lineEnding}";
         var insertionIndex = classDeclaration.CloseBraceToken.SpanStart;
         var updatedText = sourceText.Insert(insertionIndex, methodText);
-        File.WriteAllText(codePath, updatedText);
+        DesignerAtomicFileWriter.WriteUtf8(codePath, updatedText);
 
         return new DesignerEventHandlerFileResult(true, codePath, $"Added event handler {handlerName} to {IOPath.GetFileName(codePath)}.");
     }
 
-    private string GetDesignDocumentPath(DesignDocument document)
+    public string GetDesignDocumentPath(DesignDocument document, string? explicitPath = null)
     {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+            return DesignerDocumentPath.NormalizeDesignPath(explicitPath)!;
+
         var activeDocumentPath = currentDocumentPathProvider?.Invoke();
 
         if (!string.IsNullOrWhiteSpace(activeDocumentPath))
             return DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!;
 
-        if (!string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
+        if (currentDocumentPathProvider is null
+            && !string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
             return DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!;
 
         return IOPath.Combine(AppContext.BaseDirectory, $"{document.ClassName}.mfdesign");
     }
 
-    private string GetGeneratedCodePath(DesignDocument document)
+    public string GetGeneratedCodePath(DesignDocument document, string? explicitDesignDocumentPath = null)
     {
-        var activeDocumentPath = currentDocumentPathProvider?.Invoke();
+        ArgumentNullException.ThrowIfNull(document);
+
+        var activeDocumentPath = !string.IsNullOrWhiteSpace(explicitDesignDocumentPath)
+            ? explicitDesignDocumentPath
+            : currentDocumentPathProvider?.Invoke();
 
         if (!string.IsNullOrWhiteSpace(activeDocumentPath))
         {
@@ -138,7 +172,8 @@ internal sealed class DesignerFileService
                 return IOPath.Combine(directory, $"{fileName}.Designer.cs");
         }
 
-        if (!string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
+        if (currentDocumentPathProvider is null
+            && !string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
         {
             var designPath = DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!;
             var directory = IOPath.GetDirectoryName(designPath);
@@ -160,7 +195,8 @@ internal sealed class DesignerFileService
                 IOPath.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!) ?? string.Empty,
                 $"{IOPath.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(activeDocumentPath)!)}.cs");
 
-        if (!string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
+        if (currentDocumentPathProvider is null
+            && !string.IsNullOrWhiteSpace(environment?.CurrentDocumentPath))
             return IOPath.Combine(
                 IOPath.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!) ?? string.Empty,
                 $"{IOPath.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!)}.cs");

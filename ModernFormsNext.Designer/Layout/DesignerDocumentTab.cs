@@ -8,13 +8,15 @@ namespace ModernFormsNext.Designer.Layout;
 internal sealed class DesignerDocumentTab : Panel
 {
     private readonly DesignerSession state;
+    private readonly DesignerCommandService commands;
     private const int TabWidth = 220;
     private const int CloseButtonSize = 16;
     private const int CloseButtonRightPadding = 8;
 
-    public DesignerDocumentTab(DesignerSession state)
+    public DesignerDocumentTab(DesignerSession state, DesignerCommandService commands)
     {
         this.state = state;
+        this.commands = commands;
         Height = 32;
         Style.BackgroundColor = DesignerColors.Workspace;
         state.DocumentChanged += (_, _) => Invalidate();
@@ -32,7 +34,7 @@ internal sealed class DesignerDocumentTab : Panel
         var index = Math.Max(0, logicalPoint.X / TabWidth);
 
         if (IsCloseButtonHit(index, logicalPoint.X, logicalPoint.Y))
-            state.CloseDocument(index);
+            commands.RequestCloseDocument(index, FindForm());
         else
             state.SwitchDocument(index);
 
@@ -73,10 +75,13 @@ internal sealed class DesignerDocumentTab : Panel
                     maxLines: 1,
                     ellipsis: true);
 
-                var closeBounds = GetCloseButtonBounds(index);
-                var closeColor = active ? DesignerColors.Text : DesignerColors.MutedText;
-                logicalPaintArgs.Canvas.DrawLine(closeBounds.Left + 4, closeBounds.Top + 4, closeBounds.Right - 4, closeBounds.Bottom - 4, closeColor);
-                logicalPaintArgs.Canvas.DrawLine(closeBounds.Right - 4, closeBounds.Top + 4, closeBounds.Left + 4, closeBounds.Bottom - 4, closeColor);
+                if (state.OpenDocuments.Count > 1)
+                {
+                    var closeBounds = GetCloseButtonBounds(index);
+                    var closeColor = active ? DesignerColors.Text : DesignerColors.MutedText;
+                    logicalPaintArgs.Canvas.DrawLine(closeBounds.Left + 4, closeBounds.Top + 4, closeBounds.Right - 4, closeBounds.Bottom - 4, closeColor);
+                    logicalPaintArgs.Canvas.DrawLine(closeBounds.Right - 4, closeBounds.Top + 4, closeBounds.Left + 4, closeBounds.Bottom - 4, closeColor);
+                }
             }
         }
 
@@ -84,7 +89,8 @@ internal sealed class DesignerDocumentTab : Panel
     }
 
     private bool IsCloseButtonHit(int index, int x, int y)
-        => index >= 0
+        => state.OpenDocuments.Count > 1
+        && index >= 0
         && index < state.OpenDocuments.Count
         && GetCloseButtonBounds(index).Contains(x, y);
 

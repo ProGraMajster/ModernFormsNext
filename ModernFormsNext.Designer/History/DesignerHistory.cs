@@ -117,6 +117,8 @@ internal sealed class DesignerHistory
 
     public long CurrentRevision => currentRevision;
 
+    public long? SavedRevision => savedRevision;
+
     public DesignerUndoUnit PeekUndo()
         => CanUndo ? undoUnits[^1] : throw new InvalidOperationException("Designer undo history is empty.");
 
@@ -166,6 +168,14 @@ internal sealed class DesignerHistory
 
     public void MarkSaved()
         => savedRevision = currentRevision;
+
+    public void MarkSaved(long revision)
+    {
+        if (revision < 0 || revision >= nextRevision)
+            throw new ArgumentOutOfRangeException(nameof(revision), "The saved Designer revision is not part of this history generation.");
+
+        savedRevision = revision;
+    }
 
     public void MarkUnsaved()
         => savedRevision = null;

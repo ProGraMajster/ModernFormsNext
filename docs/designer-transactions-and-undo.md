@@ -101,7 +101,10 @@ the current dirty status.
 Auto-save, explicit save, serialization, and C# generation run only after an outer commit or replay
 notification and refuse to run inside an active transaction. History stores model values and node
 references, never generated C#, delegates, native handles, runtime Skia resources, or platform
-objects. Generated `.Designer.cs` output is always derived from the current committed model.
+objects. Auto-save means a separate recovery snapshot and does not advance the saved revision;
+generated `.Designer.cs` output is always derived from the current committed model. See
+[Designer autosave, recovery, and external changes](designer-autosave-and-recovery.md) for the
+persistence and conflict lifecycle.
 
 ## Replay and notifications
 

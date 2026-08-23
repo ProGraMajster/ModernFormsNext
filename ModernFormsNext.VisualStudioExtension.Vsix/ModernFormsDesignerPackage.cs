@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio;
@@ -305,7 +306,54 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
             "  \"controls\": []",
             "}");
 
-        File.WriteAllText(fileInfo.DesignFilePath, json);
+        WriteNewFileAtomically(fileInfo.DesignFilePath, json);
+    }
+
+    private static void WriteNewFileAtomically(string destinationPath, string content)
+    {
+        var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath))
+            ?? throw new InvalidOperationException("The Designer document path has no parent directory.");
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(
+            directory,
+            $".mfn-designer-{Path.GetFileName(destinationPath)}-{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            var bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(content);
+            using (var stream = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                bufferSize: 81920,
+                options: FileOptions.SequentialScan | FileOptions.WriteThrough))
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush(flushToDisk: true);
+            }
+
+            // This method only publishes a missing sidecar. Move makes the complete temporary
+            // file visible in one operation and refuses to overwrite a concurrently created file.
+            File.Move(temporaryPath, destinationPath);
+            temporaryPath = string.Empty;
+        }
+        finally
+        {
+            if (!string.IsNullOrEmpty(temporaryPath))
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
     }
 
     private void LaunchDesignerHost(string designFilePath)

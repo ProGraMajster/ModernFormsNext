@@ -21,7 +21,6 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     private const uint CurrentFileFormat = 0;
 
     private readonly VisualStudioDesignerDocumentAdapter documentAdapter = new();
-    private readonly VisualStudioDesignerFileService fileService = new();
     private readonly VisualStudioModernFormsHostControl hostControl;
     private string documentPath;
     private bool isDirty;
@@ -76,10 +75,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
     /// <inheritdoc/>
     public int Save(string pszFilename, int fRemember, uint nFormatIndex)
-    {
-        SaveDocument(string.IsNullOrWhiteSpace(pszFilename) ? documentPath : pszFilename);
-        return VSConstants.S_OK;
-    }
+        => SaveDocument(string.IsNullOrWhiteSpace(pszFilename) ? documentPath : pszFilename);
 
     /// <inheritdoc/>
     public int SaveCompleted(string pszFilename)
@@ -102,7 +98,51 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
     /// <inheritdoc/>
     public int Close()
-        => VSConstants.S_OK;
+    {
+        var currentShell = Shell;
+        Shell = null;
+
+        if (currentShell is null)
+            return VSConstants.S_OK;
+
+        currentShell.Session.DocumentChanged -= HandleDocumentChanged;
+
+        Exception? cleanupFailure = null;
+        try
+        {
+            // A clean disk model can still have unresolved pre-crash work attached to its safety
+            // banner. Visual Studio does not report a distinct Don't Save reason to Close(), so
+            // preserve that artifact until the user resolves it explicitly in the Designer.
+            if (!currentShell.HasUnresolvedRecovery)
+                currentShell.DiscardActiveDocumentRecovery();
+        }
+        catch (Exception ex)
+        {
+            cleanupFailure = ex;
+        }
+
+        try
+        {
+            hostControl.Dispose();
+        }
+        catch (Exception ex)
+        {
+            cleanupFailure ??= ex;
+        }
+
+        try
+        {
+            currentShell.Dispose();
+        }
+        catch (Exception ex)
+        {
+            cleanupFailure ??= ex;
+        }
+
+        return cleanupFailure is null
+            ? VSConstants.S_OK
+            : Marshal.GetHRForException(cleanupFailure);
+    }
 
     /// <inheritdoc/>
     public int GetGuidEditorType(out Guid pClassID)
@@ -146,8 +186,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     /// <inheritdoc/>
     public int RenameDocData(uint grfAttribs, IVsHierarchy pHierNew, uint itemidNew, string pszMkDocumentNew)
     {
-        documentPath = pszMkDocumentNew;
-        return VSConstants.S_OK;
+        return UpdateDocumentPath(pszMkDocumentNew);
     }
 
     /// <inheritdoc/>
@@ -156,45 +195,93 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         pbstrMkDocumentNew = documentPath;
         pfSaveCanceled = 0;
 
-        SaveDocument(documentPath);
-        return VSConstants.S_OK;
+        return SaveDocument(documentPath);
     }
 
     /// <inheritdoc/>
     public int SetUntitledDocPath(string pszDocDataPath)
-    {
-        documentPath = pszDocDataPath;
-        return VSConstants.S_OK;
-    }
+        => UpdateDocumentPath(pszDocDataPath);
 
     private static VisualStudioModernFormsHostControl CreateHostControl()
         => new();
 
     private void LoadDocument(string path)
     {
-        documentPath = path;
-
-        if (Shell is not null)
-            Shell.Session.DocumentChanged -= HandleDocumentChanged;
-
         var documentData = documentAdapter.Load(path);
         var host = new VisualStudioDesignerHost(path, documentData.CodeFilePath, FindNearestProjectPath(path));
-        Shell = new ModernFormsDesignerShell(new ModernFormsDesignerOptions(), host);
-        Shell.LoadDocument(documentData.Document);
-        Shell.Session.DocumentChanged += HandleDocumentChanged;
-        hostControl.AttachShell(Shell);
+        var replacementShell = new ModernFormsDesignerShell(new ModernFormsDesignerOptions(), host);
+        try
+        {
+            replacementShell.LoadDocument(documentData.Document);
+            replacementShell.Session.DocumentChanged += HandleDocumentChanged;
+        }
+        catch
+        {
+            replacementShell.Dispose();
+            throw;
+        }
+
+        var previousShell = Shell;
+        try
+        {
+            hostControl.AttachShell(replacementShell);
+            Shell = replacementShell;
+            documentPath = path;
+        }
+        catch
+        {
+            replacementShell.Session.DocumentChanged -= HandleDocumentChanged;
+            replacementShell.Dispose();
+            if (previousShell is not null)
+                hostControl.AttachShell(previousShell);
+            throw;
+        }
+
+        if (previousShell is not null)
+        {
+            previousShell.Session.DocumentChanged -= HandleDocumentChanged;
+            previousShell.Dispose();
+        }
         isDirty = false;
     }
 
-    private void SaveDocument(string path)
+    private int SaveDocument(string path)
     {
         if (Shell is null)
-            return;
+            return VSConstants.E_UNEXPECTED;
 
-        fileService.SaveAndGenerate(path, Shell.Session.Document);
-        documentPath = path;
-        Shell.Session.MarkSaved();
-        isDirty = Shell.Session.IsDirty;
+        try
+        {
+            if (!Shell.SaveDocument(path))
+                return VSConstants.E_FAIL;
+
+            documentPath = path;
+            isDirty = Shell.Session.IsDirty;
+            return VSConstants.S_OK;
+        }
+        catch (Exception ex)
+        {
+            return Marshal.GetHRForException(ex);
+        }
+    }
+
+    private int UpdateDocumentPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return VSConstants.E_INVALIDARG;
+        if (Shell is null)
+            return VSConstants.E_UNEXPECTED;
+
+        try
+        {
+            Shell.NotifyDocumentRenamed(path);
+            documentPath = path;
+            return VSConstants.S_OK;
+        }
+        catch (Exception ex)
+        {
+            return Marshal.GetHRForException(ex);
+        }
     }
 
     private void HandleDocumentChanged(object? sender, EventArgs e)

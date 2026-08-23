@@ -34,7 +34,9 @@ public sealed class ModernFormsDesignerShell : Panel
     private readonly DesignerPropertyGrid properties;
     private readonly OutputPanel output;
     private readonly DesignerStatusBar statusBar;
+    private readonly DesignerSafetyBanner safetyBanner;
     private readonly DesignerCommandService commands;
+    private readonly DesignerPersistenceCoordinator persistence;
     private readonly DesignerDockManager dockManager;
 
     /// <summary>
@@ -61,19 +63,21 @@ public sealed class ModernFormsDesignerShell : Panel
             environment,
             () => Session.CurrentDocumentPath,
             () => Session.AnimationDefinitions);
-        commands = new DesignerCommandService(Session, files, this.options);
+        persistence = new DesignerPersistenceCoordinator(Session, files, this.options);
+        commands = new DesignerCommandService(Session, files, this.options, persistence);
 
         Style.BackgroundColor = DesignerColors.AppBackground;
 
         toolbar = Controls.Add(new DesignerToolbar(commands, Session, this.options));
+        safetyBanner = Controls.Add(new DesignerSafetyBanner(persistence, Session));
         toolbox = Controls.Add(new ToolboxPanel(Session, commands, this.options, T("Toolbox"), T("SearchToolbox")));
         outline = Controls.Add(new DocumentOutlinePanel(Session, this.options, T("DocumentOutline"), T("Delete"), T("SearchDocumentOutline")));
-        documentTab = Controls.Add(new DesignerDocumentTab(Session));
+        documentTab = Controls.Add(new DesignerDocumentTab(Session, commands));
         surface = Controls.Add(new DesignerSurface(Session));
         solutionExplorer = Controls.Add(new SolutionExplorerPanel(Session, T("SolutionExplorer"), T("NoProjectPath")));
         properties = Controls.Add(new DesignerPropertyGrid(Session, files, T("Properties")));
         output = Controls.Add(new OutputPanel(Session, T("Output")));
-        statusBar = Controls.Add(new DesignerStatusBar(Session, this.options));
+        statusBar = Controls.Add(new DesignerStatusBar(Session, this.options, persistence));
         dockManager = new DesignerDockManager(this, this.options, LayoutChildren, Session.Log);
         dockManager.AddWindow(DesignerToolWindowId.Toolbox, T("Toolbox"), toolbox);
         dockManager.AddWindow(DesignerToolWindowId.DocumentOutline, T("DocumentOutline"), outline);
@@ -84,6 +88,7 @@ public sealed class ModernFormsDesignerShell : Panel
         toolbar.Visible = this.options.ShowToolbar;
 
         SizeChanged += (_, _) => LayoutChildren();
+        persistence.StateChanged += (_, _) => LayoutChildren();
         Session.SettingsChanged += (_, _) =>
         {
             toolbar.RefreshTexts();
@@ -119,6 +124,93 @@ public sealed class ModernFormsDesignerShell : Panel
     /// </remarks>
     public void ImportDesignerCode(string path)
         => commands.ImportDesignerCode(path);
+
+    /// <summary>
+    /// Atomically saves the active design document to an explicit path and, when enabled,
+    /// regenerates its <c>.Designer.cs</c> sibling.
+    /// </summary>
+    /// <param name="path">The user- or host-selected <c>.mfdesign</c> destination.</param>
+    /// <returns><see langword="true"/> only when the canonical save completed successfully.</returns>
+    /// <remarks>
+    /// This method updates the saved revision only after the write succeeds. It does not silently
+    /// overwrite an unresolved external-change conflict at the same canonical path.
+    /// </remarks>
+    public bool SaveDocument(string path)
+        => commands.SaveDesignDocument(path).Succeeded;
+
+    /// <summary>
+    /// Prompts for every dirty document before a hosting window closes.
+    /// </summary>
+    /// <param name="owner">The window that owns Save, Don't Save, and Cancel dialogs.</param>
+    /// <returns><see langword="true"/> when the host may close; otherwise <see langword="false"/>.</returns>
+    /// <remarks>
+    /// Choosing Don't Save also removes the document's recovery copy. Choosing Cancel leaves
+    /// autosave scheduling and file monitoring active.
+    /// </remarks>
+    public Task<bool> ConfirmCloseAsync(Form owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        return commands.ConfirmCloseAllDocuments(owner);
+    }
+
+    /// <summary>
+    /// Rechecks the active <c>.mfdesign</c> and generated-code files using content fingerprints.
+    /// </summary>
+    public void CheckForExternalChanges()
+        => commands.CheckForExternalChanges();
+
+    /// <summary>
+    /// Updates the active document path after a trusted host or project-system rename event.
+    /// </summary>
+    /// <param name="path">The new <c>.mfdesign</c> path reported by the host.</param>
+    /// <remarks>
+    /// A raw filesystem rename is deliberately treated as delete plus create. Hosts that know the
+    /// project item identity can call this method to preserve that identity and recreate the two
+    /// exact file watchers at the new path.
+    /// </remarks>
+    public void NotifyDocumentRenamed(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var document = Session.ActiveOpenDocument
+            ?? throw new InvalidOperationException("There is no active Designer document to rename.");
+        Session.UpdateDocumentPath(document, path);
+    }
+
+    /// <summary>
+    /// Removes recovery state after a host has already received an explicit Don't Save decision.
+    /// </summary>
+    /// <remarks>
+    /// Hosts must not call this method for an abnormal shutdown or an unresolved Cancel decision.
+    /// </remarks>
+    public void DiscardActiveDocumentRecovery()
+    {
+        if (Session.ActiveOpenDocument is { } document
+            && !persistence.PrepareDocumentForDiscard(document, out var error))
+        {
+            throw new InvalidOperationException(error ?? "Designer recovery could not be discarded.");
+        }
+    }
+
+    /// <summary>
+    /// Gets the dedicated per-user directory that stores Designer recovery artifacts.
+    /// </summary>
+    /// <remarks>
+    /// The path is intended for diagnostics and support tooling. Recovery metadata never grants
+    /// authority to write or delete files outside this owned directory.
+    /// </remarks>
+    public string RecoveryDirectoryPath => persistence.RecoveryRootPath;
+
+    /// <summary>
+    /// Gets a value indicating whether the active document has a recovery copy that still requires
+    /// an explicit Restore, Keep, Open Disk, Save As, or Discard decision.
+    /// </summary>
+    /// <remarks>
+    /// Hosts must preserve the recovery artifact when this value is <see langword="true"/>. A
+    /// clean in-memory document does not imply that the unresolved pre-crash version is obsolete.
+    /// </remarks>
+    public bool HasUnresolvedRecovery => persistence.ActiveDocumentHasUnresolvedRecovery;
+
+    internal DesignerPersistenceCoordinator Persistence => persistence;
 
     /// <summary>
     /// Processes keyboard shortcuts that operate on the currently selected designer control.
@@ -175,6 +267,7 @@ public sealed class ModernFormsDesignerShell : Panel
         if (disposing)
         {
             commands.Dispose();
+            persistence.Dispose();
             Session.Dispose();
         }
 
@@ -184,12 +277,14 @@ public sealed class ModernFormsDesignerShell : Panel
     private void LayoutChildren()
     {
         var toolbarHeight = options.ShowToolbar ? DefaultToolbarHeight : 0;
+        var bannerHeight = safetyBanner.Visible ? safetyBanner.Height : 0;
 
         toolbar.Visible = options.ShowToolbar;
         toolbar.SetBounds(0, 0, Width, toolbarHeight);
+        safetyBanner.SetBounds(0, toolbarHeight, Width, bannerHeight);
         statusBar.SetBounds(0, Math.Max(0, Height - StatusHeight), Width, StatusHeight);
 
-        var bodyTop = toolbarHeight;
+        var bodyTop = toolbarHeight + bannerHeight;
         var bodyBottom = Math.Max(bodyTop, Height - StatusHeight);
         var centerBounds = dockManager.Layout(new System.Drawing.Rectangle(0, bodyTop, Width, Math.Max(1, bodyBottom - bodyTop)));
 

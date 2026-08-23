@@ -10,18 +10,24 @@ internal sealed class DesignerStatusBar : Panel
 {
     private readonly DesignerSession state;
     private readonly ModernFormsDesignerOptions options;
+    private readonly DesignerPersistenceCoordinator persistence;
     private readonly DesignerLayoutEngine layoutEngine = new();
 
-    public DesignerStatusBar(DesignerSession state, ModernFormsDesignerOptions options)
+    public DesignerStatusBar(
+        DesignerSession state,
+        ModernFormsDesignerOptions options,
+        DesignerPersistenceCoordinator persistence)
     {
         this.state = state;
         this.options = options;
+        this.persistence = persistence;
         Height = 24;
         Style.BackgroundColor = new SKColor(0, 99, 177);
         state.SelectionChanged += (_, _) => Invalidate();
         state.DocumentChanged += (_, _) => Invalidate();
         state.PointerPositionChanged += (_, _) => Invalidate();
         state.SettingsChanged += (_, _) => Invalidate();
+        persistence.StateChanged += (_, _) => Invalidate();
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -40,7 +46,9 @@ internal sealed class DesignerStatusBar : Panel
         var document = state.CurrentDocumentPath is null
             ? state.Document.ClassName + ".mfdesign"
             : System.IO.Path.GetFileName(state.CurrentDocumentPath);
-        var text = $"{saveState} | {document} | {T("Render")}: {state.ControlRenderMode} | {T("Selection")}: {selection} | {T("Position")}: {position} | {T("Size")}: {size}{dockText} | {T("Pointer")}: {pointer}";
+        var recovery = persistence.ActiveStatusText;
+        var recoveryText = string.IsNullOrWhiteSpace(recovery) ? string.Empty : $" | {recovery}";
+        var text = $"{saveState} | {document}{recoveryText} | {T("Render")}: {state.ControlRenderMode} | {T("Selection")}: {selection} | {T("Position")}: {position} | {T("Size")}: {size}{dockText} | {T("Pointer")}: {pointer}";
 
         using (var logicalPaintScope = DesignerLogicalPaintScope.Begin(e))
         {
