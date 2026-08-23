@@ -121,8 +121,11 @@ New generated code assigns the form through `Size`. Reverse parsing still accept
 from older generated files, so opening and saving a pre-1.8.0 form does not require a manual source
 edit solely for this change.
 
-Auto-save is enabled by default in the designer settings. It can be disabled from the designer
-settings dialog if manual saves are preferred.
+Recovery autosave is enabled by default. It protects committed dirty state in a separate per-user
+artifact; it does not overwrite `MainForm.mfdesign`, regenerate C#, or make the document clean.
+Use normal Save to update the project files. See
+[Designer autosave, recovery, and external changes](designer-autosave-and-recovery.md) for recovery
+location, startup choices, external-change conflicts, and cleanup/security boundaries.
 
 ### Designer Keyboard Shortcuts
 

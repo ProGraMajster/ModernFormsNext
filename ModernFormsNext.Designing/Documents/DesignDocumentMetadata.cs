@@ -12,7 +12,7 @@ public sealed class DesignDocumentMetadata
     /// <summary>
     /// Gets or sets the designer document format version.
     /// </summary>
-    public int FormatVersion { get; set; } = 1;
+    public int FormatVersion { get; set; } = DesignDocumentSerializer.CurrentFormatVersion;
 
     /// <summary>
     /// Gets or sets the optional tool name that last wrote the document.

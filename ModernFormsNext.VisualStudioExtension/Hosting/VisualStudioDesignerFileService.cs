@@ -1,5 +1,6 @@
 using ModernFormsNext.Designing;
 using ModernFormsNext.VisualStudioExtension.Editors;
+using ModernFormsNext.Designer.Recovery;
 using ModernFormsNext.Designer.Services;
 
 namespace ModernFormsNext.VisualStudioExtension.Hosting;
@@ -34,7 +35,7 @@ public sealed class VisualStudioDesignerFileService
             throw new InvalidOperationException("Designer code generation failed: " + string.Join("; ", generation.Validation.Errors));
 
         var generatedCodePath = fileGenerator.GetGeneratedCodePath(designDocumentPath);
-        File.WriteAllText(generatedCodePath, generation.Code);
+        DesignerAtomicFileWriter.WriteUtf8(generatedCodePath, generation.Code);
         return generatedCodePath;
     }
 

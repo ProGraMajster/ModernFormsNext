@@ -22,6 +22,8 @@ public sealed class VisualStudioDesignerHostForm : Form
     private readonly VisualStudioDesignerHostEnvironment environment;
     private readonly ModernFormsDesignerShell shell;
     private readonly DesignerHostIpcServer? ipcServer;
+    private bool closeConfirmationPending;
+    private bool closeConfirmed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VisualStudioDesignerHostForm"/> class.
@@ -61,6 +63,7 @@ public sealed class VisualStudioDesignerHostForm : Form
             ipcServer.Start();
         }
 
+        Closing += HandleClosing;
         Closed += (_, _) => ipcServer?.Dispose();
     }
 
@@ -70,6 +73,45 @@ public sealed class VisualStudioDesignerHostForm : Form
             return;
 
         base.OnKeyDown(e);
+    }
+
+    private void HandleClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (closeConfirmed)
+            return;
+
+        // The windowing close callback is synchronous, while the Designer confirmation can
+        // display multiple asynchronous Save/Don't Save/Cancel dialogs. Cancel this attempt and
+        // retry only after every document has been confirmed. A second native close request while
+        // the prompt is active stays canceled and cannot start a competing confirmation flow.
+        e.Cancel = true;
+        if (closeConfirmationPending)
+            return;
+
+        closeConfirmationPending = true;
+        Application.RunOnUIThread(ConfirmCloseAndRetry);
+    }
+
+    private async void ConfirmCloseAndRetry()
+    {
+        try
+        {
+            if (!await shell.ConfirmCloseAsync(this))
+                return;
+
+            closeConfirmed = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            // An exception from an async event continuation must not terminate the host. Keeping
+            // the form open also preserves autosave and file monitoring for another close attempt.
+            shell.Session.Log($"Could not confirm Designer close: {ex.Message}");
+        }
+        finally
+        {
+            closeConfirmationPending = false;
+        }
     }
 
     private void OpenDesignDocument(string? designDocumentPath, string? projectPath)

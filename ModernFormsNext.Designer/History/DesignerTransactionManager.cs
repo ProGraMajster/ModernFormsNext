@@ -258,6 +258,7 @@ public sealed class DesignerTransactionManager
             throw new InvalidOperationException("Designer history cannot be cleared during an active transaction.");
 
         session.CurrentHistory.Clear(preserveDirtyState: true);
+        session.IncrementActiveRevisionGeneration();
         session.RefreshDirtyState();
         HistoryChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -410,6 +411,7 @@ public sealed class DesignerTransactionManager
             throw new InvalidOperationException("An untracked Designer mutation cannot be reported during an active transaction.");
 
         session.CurrentHistory.Clear(preserveDirtyState: false);
+        session.IncrementActiveRevisionGeneration();
         session.CurrentHistory.MarkUnsaved();
         session.NotifyCommittedModelState("External model change");
         HistoryChanged?.Invoke(this, EventArgs.Empty);

@@ -76,7 +76,7 @@ internal sealed class DesignerToolbar : Panel
         x += 103;
         AddButton("AddTextBox", x, commands.AddTextBox, 115);
         x += 123;
-        AddButton("SaveDesign", x, commands.SaveDesignDocument, 135);
+        AddButton("SaveDesign", x, () => commands.SaveDesignDocument(FindForm()), 135);
         x += 143;
         AddButton("GenerateDesignerCode", x, commands.GenerateDesignerCode, 175);
         x += 183;

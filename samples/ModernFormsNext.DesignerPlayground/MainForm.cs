@@ -8,6 +8,8 @@ internal sealed class MainForm : Form
 {
     private readonly PlaygroundDesignerHostEnvironment hostEnvironment = new();
     private readonly ModernFormsDesignerShell designerShell;
+    private bool closeConfirmationPending;
+    private bool closeConfirmed;
 
     public MainForm()
     {
@@ -28,6 +30,7 @@ internal sealed class MainForm : Form
         designerShell.Dock = DockStyle.Fill;
 
         Controls.Add(designerShell);
+        Closing += HandleClosing;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -36,5 +39,40 @@ internal sealed class MainForm : Form
             return;
 
         base.OnKeyDown(e);
+    }
+
+    private void HandleClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (closeConfirmed)
+            return;
+
+        e.Cancel = true;
+        if (closeConfirmationPending)
+            return;
+
+        closeConfirmationPending = true;
+        Application.RunOnUIThread(ConfirmCloseAndRetry);
+    }
+
+    private async void ConfirmCloseAndRetry()
+    {
+        try
+        {
+            if (!await designerShell.ConfirmCloseAsync(this))
+                return;
+
+            closeConfirmed = true;
+            Close();
+        }
+        catch (Exception exception)
+        {
+            // Keep the Playground alive after a failed asynchronous confirmation so its pending
+            // recovery schedule and file monitoring remain available for another close attempt.
+            designerShell.Session.Log($"Could not confirm Designer close: {exception.Message}");
+        }
+        finally
+        {
+            closeConfirmationPending = false;
+        }
     }
 }

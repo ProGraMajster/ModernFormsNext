@@ -7,6 +7,8 @@ and round-trip boundaries are documented separately in
 ModernFormsNext designer support is split into small projects with separate responsibilities.
 Atomic edit transactions, per-document undo/redo history, save revisions, and editor integration
 rules are documented in [Designer transactions and undo/redo](designer-transactions-and-undo.md).
+Recovery snapshots, atomic persistence, and external file conflicts are documented in
+[Designer autosave, recovery, and external changes](designer-autosave-and-recovery.md).
 The goal is to keep the document model, code generation, reusable designer UI, standalone test
 host, and Visual Studio integration independent from each other.
 
@@ -261,9 +263,14 @@ The 1.8.0 regression suite exercises the coordinate and rendering boundaries at 
 175%, and 200% scaling, including surface hit testing, drag/resize, grid and snapping math,
 selection adorners, resize handles, designer panel chrome, and runtime preview composition.
 
-Auto-save is enabled by default in the shared designer options. Hosts can disable it through
-`ModernFormsDesignerOptions.AutoSaveEnabled`, but when it is enabled the active `.mfdesign`
-document and generated `.Designer.cs` file stay synchronized as edits happen.
+Auto-save is enabled by default in the shared designer options, but it writes only a separate
+per-user recovery snapshot after a stable committed edit. It never overwrites the canonical
+`.mfdesign`, generates C#, advances the saved-revision marker, or makes the document clean.
+Explicit Save atomically replaces each canonical file and removes obsolete recovery only after
+success. Exact-file watchers coalesce external `.mfdesign` and generated-code events, suppress
+self-writes by expected content hash, safely reload a clean document, and surface an explicit
+conflict instead of replacing dirty Designer state. The full lifecycle and security contract is
+documented in [Designer autosave, recovery, and external changes](designer-autosave-and-recovery.md).
 
 Reverse synchronization is prepared as an explicit, conservative operation:
 
@@ -302,10 +309,13 @@ overwriting the `.mfdesign` document.
 - Arbitrary project code is not executed for preview. Source-described UserControls use the safe
   data-only model above; broader isolation is tracked by
   [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40).
-- Auto-save exists, but crash recovery and external-change conflict handling remain in
-  [#41](https://github.com/ProGraMajster/ModernFormsNext/issues/41). Deterministic runtime/Designer
-  layout parity coverage delivered by [#42](https://github.com/ProGraMajster/ModernFormsNext/issues/42)
-  remains a regression gate for transaction-integrated layout edits.
+- Revision-aware recovery autosave, startup recovery, atomic canonical writes, and external-change
+  conflict handling are implemented by
+  [#41](https://github.com/ProGraMajster/ModernFormsNext/issues/41). This deliberately does not add a
+  distributed lock, line-level diff/merge editor, or arbitrary-C# import. Deterministic
+  runtime/Designer layout parity coverage delivered by
+  [#42](https://github.com/ProGraMajster/ModernFormsNext/issues/42) remains a regression gate for
+  transaction-integrated layout edits.
 - Reverse parsing is deliberately conservative: unsupported arbitrary expressions produce
   diagnostics and are never evaluated or merged automatically.
 
