@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    Visual Studio reads DependentUpon from evaluated project items. Apply the conventional
+    ModernFormsNext three-file relationship from the package so existing SDK-style projects do
+    not need hand-written project-file edits merely to display Designer companions correctly.
+    Explicit user/project metadata remains authoritative.
+  -->
+  <ItemGroup>
+    <Compile Update="**/*.Designer.cs">
+      <DependentUpon Condition="'%(DependentUpon)' == ''">$([System.String]::Copy('%(Filename)').Replace('.Designer', '')).cs</DependentUpon>
+    </Compile>
+    <None Update="**/*.mfdesign">
+      <DependentUpon Condition="'%(DependentUpon)' == ''">%(Filename).cs</DependentUpon>
+    </None>
+  </ItemGroup>
+</Project>

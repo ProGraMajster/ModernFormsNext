@@ -6,11 +6,12 @@ namespace ModernFormsNext.VisualStudioDesignerHost;
 internal sealed class DesignerHostIpcServer : IDisposable
 {
     private readonly string pipeName;
-    private readonly Action<DesignerHostIpcCommand> handleCommand;
+    private readonly Func<DesignerHostIpcCommand, Task<string>> handleCommand;
     private readonly CancellationTokenSource cancellation = new();
     private Task? listenTask;
+    private int disposed;
 
-    public DesignerHostIpcServer(string pipeName, Action<DesignerHostIpcCommand> handleCommand)
+    public DesignerHostIpcServer(string pipeName, Func<DesignerHostIpcCommand, Task<string>> handleCommand)
     {
         this.pipeName = pipeName;
         this.handleCommand = handleCommand;
@@ -23,6 +24,9 @@ internal sealed class DesignerHostIpcServer : IDisposable
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+            return;
+
         cancellation.Cancel();
 
         try
@@ -45,18 +49,21 @@ internal sealed class DesignerHostIpcServer : IDisposable
             {
                 await using var pipe = new NamedPipeServerStream(
                     pipeName,
-                    PipeDirection.In,
+                    PipeDirection.InOut,
                     maxNumberOfServerInstances: 1,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
 
                 await pipe.WaitForConnectionAsync(cancellation.Token);
 
-                using var reader = new StreamReader(pipe, Encoding.UTF8);
+                using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
                 var line = await reader.ReadLineAsync(cancellation.Token);
 
+                using var writer = new StreamWriter(pipe, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
                 if (DesignerHostIpcCommand.TryParse(line, out var command))
-                    handleCommand(command);
+                    await writer.WriteLineAsync(await handleCommand(command));
+                else
+                    await writer.WriteLineAsync("ERROR");
             }
             catch (OperationCanceledException)
             {
@@ -85,11 +92,17 @@ internal sealed class DesignerHostIpcServer : IDisposable
 
 internal sealed class DesignerHostIpcCommand
 {
-    private DesignerHostIpcCommand(string designDocumentPath, string? projectPath)
+    private DesignerHostIpcCommand(
+        DesignerHostIpcCommandKind kind,
+        string designDocumentPath,
+        string? projectPath)
     {
+        Kind = kind;
         DesignDocumentPath = designDocumentPath;
         ProjectPath = projectPath;
     }
+
+    public DesignerHostIpcCommandKind Kind { get; }
 
     public string DesignDocumentPath { get; }
 
@@ -104,19 +117,69 @@ internal sealed class DesignerHostIpcCommand
 
         var parts = line.Split('\t');
 
-        if (parts.Length < 2 || !string.Equals(parts[0], "OPEN", StringComparison.Ordinal))
+        if (parts.Length < 2 || !TryParseKind(parts[0], out var kind))
             return false;
 
-        var designDocumentPath = Decode(parts[1]);
-        var projectPath = parts.Length > 2 ? Decode(parts[2]) : null;
+        string designDocumentPath;
+        string? projectPath;
+        try
+        {
+            designDocumentPath = Decode(parts[1]);
+            projectPath = parts.Length > 2 ? Decode(parts[2]) : null;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
 
         if (string.IsNullOrWhiteSpace(designDocumentPath))
             return false;
 
-        command = new DesignerHostIpcCommand(designDocumentPath, string.IsNullOrWhiteSpace(projectPath) ? null : projectPath);
+        command = new DesignerHostIpcCommand(
+            kind,
+            designDocumentPath,
+            string.IsNullOrWhiteSpace(projectPath) ? null : projectPath);
         return true;
+    }
+
+    private static bool TryParseKind(string value, out DesignerHostIpcCommandKind kind)
+    {
+        if (string.Equals(value, "OPEN", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Open;
+            return true;
+        }
+
+        if (string.Equals(value, "SAVE", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Save;
+            return true;
+        }
+
+        if (string.Equals(value, "DIRTY", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.QueryDirty;
+            return true;
+        }
+
+        if (string.Equals(value, "SHUTDOWN", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Shutdown;
+            return true;
+        }
+
+        kind = default;
+        return false;
     }
 
     private static string Decode(string value)
         => Encoding.UTF8.GetString(Convert.FromBase64String(value));
+}
+
+internal enum DesignerHostIpcCommandKind
+{
+    Open,
+    Save,
+    QueryDirty,
+    Shutdown
 }

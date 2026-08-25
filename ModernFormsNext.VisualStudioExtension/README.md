@@ -94,14 +94,20 @@ package registration from the current VSIX.
 
 The experimental instance should show **ModernFormsNext Designer** in **Extensions / Manage Extensions**.
 
-Verify:
+Verify the full checklist in
+[`docs/visual-studio-designer-host.md`](../docs/visual-studio-designer-host.md). At minimum:
 
-- Right-clicking `MainForm.cs` in a ModernFormsNext template project shows **View ModernFormsNext Designer**.
+- Selecting `MainForm.cs` exposes standard **View Designer**, and Shift+F7 opens the embedded
+  ModernFormsNext Designer pane.
+- Right-clicking `MainForm.cs` in a ModernFormsNext template project also shows
+  **View ModernFormsNext Designer**.
 - Right-clicking `Program.cs` does not show **View ModernFormsNext Designer**.
 - Right-clicking `MainForm.Designer.cs` does not show **View ModernFormsNext Designer**.
 - `MainForm.cs` is marked with `<ModernFormsNextDesigner>true</ModernFormsNextDesigner>` and does not use `<SubType>Form</SubType>`.
 - **Add** > **New Item** lists **ModernFormsNext Form** for C# projects and creates `.cs`,
   `.Designer.cs`, and `.mfdesign` files together.
+- `.Designer.cs` and `.mfdesign` appear nested under the primary `.cs` file without hand-editing
+  the project file.
 - **Add** > **New Item** lists **ModernFormsNext UserControl** and creates the same three-file
   structure with `rootKind: userControl`.
 - Right-clicking a partial class derived from `ModernFormsNext.UserControl` shows

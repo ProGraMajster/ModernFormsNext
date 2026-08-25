@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
@@ -6,7 +7,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace ModernFormsNext.VisualStudioExtension.Editors;
 
 /// <summary>
-/// Creates Visual Studio editor panes for ModernFormsNext <c>.mfdesign</c> files.
+/// Creates the lightweight Visual Studio pane that owns an out-of-process Designer host.
 /// </summary>
 [Guid(ModernFormsDesignerPackage.EditorFactoryGuidString)]
 public sealed class MfDesignEditorFactory : IVsEditorFactory
@@ -16,29 +17,25 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
     /// <summary>
     /// Initializes a new instance of the <see cref="MfDesignEditorFactory"/> class.
     /// </summary>
-    /// <param name="serviceProvider">The package service provider.</param>
+    /// <param name="serviceProvider">The owning Visual Studio package.</param>
     public MfDesignEditorFactory(IServiceProvider serviceProvider)
     {
-        this.serviceProvider = serviceProvider;
+        this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
     /// <inheritdoc/>
-    public int SetSite(Microsoft.VisualStudio.OLE.Interop.IServiceProvider psp)
-        => VSConstants.S_OK;
+    public int SetSite(Microsoft.VisualStudio.OLE.Interop.IServiceProvider psp) => VSConstants.S_OK;
 
     /// <inheritdoc/>
-    public object? GetService(Type serviceType)
-        => serviceProvider.GetService(serviceType);
+    public object? GetService(Type serviceType) => serviceProvider.GetService(serviceType);
 
     /// <inheritdoc/>
-    public int Close()
-        => VSConstants.S_OK;
+    public int Close() => VSConstants.S_OK;
 
     /// <inheritdoc/>
     public int MapLogicalView(ref Guid rguidLogicalView, out string? pbstrPhysicalView)
     {
         pbstrPhysicalView = null;
-
         return rguidLogicalView == VSConstants.LOGVIEWID_Primary
             || rguidLogicalView == VSConstants.LOGVIEWID_Designer
             ? VSConstants.S_OK
@@ -79,9 +76,6 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
         }
         catch (Exception ex)
         {
-            // Initialization failures must not leave partially attached HWND state behind. The
-            // host lifecycle has already rolled back native state; report the actionable reason
-            // through Visual Studio and return its HRESULT to the editor infrastructure.
             VsShellUtilities.ShowMessageBox(
                 serviceProvider,
                 $"ModernFormsNext Designer could not initialize.{Environment.NewLine}{ex.Message}",

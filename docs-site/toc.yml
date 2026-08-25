@@ -12,6 +12,8 @@
   href: content/docs/designer-copy-paste.md
 - name: Designer autosave and recovery
   href: content/docs/designer-autosave-and-recovery.md
+- name: Visual Studio Designer host
+  href: content/docs/visual-studio-designer-host.md
 - name: Samples
   href: content/docs/samples.md
 - name: Headless testing

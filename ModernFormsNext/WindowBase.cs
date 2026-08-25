@@ -446,6 +446,26 @@ namespace ModernFormsNext
         public double Scaling => window.RenderScaling;
 
         /// <summary>
+        /// Gets the non-owning platform handle for this window.
+        /// </summary>
+        /// <remarks>
+        /// The returned handle remains owned by ModernFormsNext and is valid only for the
+        /// lifetime of this window. Hosts must inspect <see cref="IPlatformHandle.HandleDescriptor"/>
+        /// before using the value with platform APIs; the Windows backend reports <c>HWND</c>.
+        /// Access this property from the UI thread after the window has been created.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var platformHandle = form.PlatformHandle;
+        /// if (platformHandle.HandleDescriptor == "HWND")
+        /// {
+        ///     EmbedWindowsHandle(platformHandle.Handle);
+        /// }
+        /// </code>
+        /// </example>
+        public IPlatformHandle PlatformHandle => window.Handle;
+
+        /// <summary>
         /// Gets the current scale factor of the desktop.
         /// </summary>
         public double DesktopScaling => window.DesktopScaling;

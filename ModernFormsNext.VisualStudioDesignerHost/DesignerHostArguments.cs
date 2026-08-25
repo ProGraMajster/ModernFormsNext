@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace ModernFormsNext.VisualStudioDesignerHost;
 
 /// <summary>
@@ -6,11 +8,16 @@ namespace ModernFormsNext.VisualStudioDesignerHost;
 /// </summary>
 public sealed class DesignerHostArguments
 {
-    private DesignerHostArguments(string? designDocumentPath, string? projectPath, string? pipeName)
+    private DesignerHostArguments(
+        string? designDocumentPath,
+        string? projectPath,
+        string? pipeName,
+        IntPtr parentWindowHandle)
     {
         DesignDocumentPath = designDocumentPath;
         ProjectPath = projectPath;
         PipeName = pipeName;
+        ParentWindowHandle = parentWindowHandle;
     }
 
     /// <summary>
@@ -26,10 +33,16 @@ public sealed class DesignerHostArguments
     public string? ProjectPath { get; }
 
     /// <summary>
-    /// Gets the optional named pipe used by Visual Studio to send open-document commands
-    /// to an already running designer host for the same project.
+    /// Gets the optional private named pipe used by one Visual Studio editor pane to send
+    /// document and lifetime commands to its owned Designer host process.
     /// </summary>
     public string? PipeName { get; }
+
+    /// <summary>
+    /// Gets the Visual Studio editor-pane HWND that owns this host, or zero when the Designer
+    /// should run as a standalone top-level window.
+    /// </summary>
+    public IntPtr ParentWindowHandle { get; }
 
     /// <summary>
     /// Parses command-line arguments supplied by the VSIX launcher.
@@ -41,6 +54,7 @@ public sealed class DesignerHostArguments
         string? designFile = null;
         string? projectPath = null;
         string? pipeName = null;
+        var parentWindowHandle = IntPtr.Zero;
 
         for (var index = 0; index < args.Count; index++)
         {
@@ -68,6 +82,21 @@ public sealed class DesignerHostArguments
             {
                 pipeName = args[index + 1];
                 index++;
+                continue;
+            }
+
+            if (string.Equals(args[index], "--parent-window", StringComparison.OrdinalIgnoreCase)
+                && index + 1 < args.Count
+                && !string.IsNullOrWhiteSpace(args[index + 1]))
+            {
+                if (!long.TryParse(args[index + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var rawHandle)
+                    || rawHandle == 0)
+                {
+                    throw new ArgumentException("The --parent-window value must be a non-zero native handle.", nameof(args));
+                }
+
+                parentWindowHandle = new IntPtr(rawHandle);
+                index++;
             }
         }
 
@@ -79,6 +108,6 @@ public sealed class DesignerHostArguments
             designFile = args[0];
         }
 
-        return new DesignerHostArguments(designFile, projectPath, pipeName);
+        return new DesignerHostArguments(designFile, projectPath, pipeName, parentWindowHandle);
     }
 }

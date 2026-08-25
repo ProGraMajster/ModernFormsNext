@@ -22,6 +22,7 @@ public sealed class VisualStudioDesignerHostForm : Form
     private readonly VisualStudioDesignerHostEnvironment environment;
     private readonly ModernFormsDesignerShell shell;
     private readonly DesignerHostIpcServer? ipcServer;
+    private readonly WindowsDesignerParentWindowHost? parentWindowHost;
     private bool closeConfirmationPending;
     private bool closeConfirmed;
 
@@ -55,16 +56,25 @@ public sealed class VisualStudioDesignerHostForm : Form
         Controls.Add(shell);
         OpenDesignDocument(arguments.DesignDocumentPath, arguments.ProjectPath);
 
+        if (arguments.ParentWindowHandle != IntPtr.Zero)
+            parentWindowHost = new WindowsDesignerParentWindowHost(arguments.ParentWindowHandle);
+
         if (!string.IsNullOrWhiteSpace(arguments.PipeName))
         {
             ipcServer = new DesignerHostIpcServer(
                 arguments.PipeName,
-                command => Application.RunOnUIThread(() => OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath)));
+                InvokeIpcCommandAsync);
             ipcServer.Start();
         }
 
         Closing += HandleClosing;
         Closed += (_, _) => ipcServer?.Dispose();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        parentWindowHost?.Attach(this);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -124,8 +134,24 @@ public sealed class VisualStudioDesignerHostForm : Form
         {
             try
             {
-                shell.Session.OpenDocument(DesignDocumentSerializer.Default.Load(designDocumentPath), designDocumentPath);
-                shell.Session.Log($"Opened {designDocumentPath}.");
+                var loadedDocument = DesignDocumentSerializer.Default.Load(designDocumentPath);
+                var activeDocument = shell.Session.ActiveOpenDocument;
+                if (activeDocument is not null
+                    && string.Equals(activeDocument.Path, IOPath.GetFullPath(designDocumentPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    shell.Session.ReloadDocumentBaseline(
+                        activeDocument,
+                        loadedDocument,
+                        markDirty: false,
+                        $"Reloaded {IOPath.GetFileName(designDocumentPath)} from Visual Studio.");
+                    shell.Session.Log($"Reloaded {designDocumentPath}.");
+                }
+                else
+                {
+                    shell.Session.OpenDocument(loadedDocument, designDocumentPath);
+                    shell.Session.Log($"Opened {designDocumentPath}.");
+                }
+
                 return;
             }
             catch (Exception ex)
@@ -135,6 +161,44 @@ public sealed class VisualStudioDesignerHostForm : Form
         }
 
         shell.LoadDocument(DesignerSession.CreateDefaultDocument());
+    }
+
+    private Task<string> InvokeIpcCommandAsync(DesignerHostIpcCommand command)
+    {
+        var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Application.RunOnUIThread(() =>
+        {
+            try
+            {
+                completion.SetResult(HandleIpcCommand(command));
+            }
+            catch (Exception ex)
+            {
+                shell.Session.Log($"Visual Studio host command failed: {ex.Message}");
+                completion.SetResult("ERROR");
+            }
+        });
+        return completion.Task;
+    }
+
+    private string HandleIpcCommand(DesignerHostIpcCommand command)
+    {
+        switch (command.Kind)
+        {
+            case DesignerHostIpcCommandKind.Open:
+                OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath);
+                return "OK";
+            case DesignerHostIpcCommandKind.Save:
+                return shell.SaveDocument(command.DesignDocumentPath) ? "OK" : "ERROR";
+            case DesignerHostIpcCommandKind.QueryDirty:
+                return shell.Session.IsDirty ? "DIRTY\t1" : "DIRTY\t0";
+            case DesignerHostIpcCommandKind.Shutdown:
+                closeConfirmed = true;
+                Application.RunOnUIThread(Close);
+                return "OK";
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unsupported Designer host command.");
+        }
     }
 
     private static string GetWindowTitle(string? designDocumentPath)

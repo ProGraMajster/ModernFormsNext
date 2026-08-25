@@ -50,6 +50,8 @@
 
   <ItemGroup>
     <Reference Include="System.Design" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>
@@ -73,6 +75,8 @@
 
   <ItemGroup>
     <Compile Remove="ItemTemplates\**\*.cs" />
+    <Compile Include="..\ModernFormsNext.VisualStudioExtension.Shared\VisualStudioDesignerCommandStatus.cs"
+             Link="Commands\VisualStudioDesignerCommandStatus.cs" />
     <None Remove="ItemTemplates\**\*" />
     <Content Include="ItemTemplates\**\*">
       <IncludeInVSIX>true</IncludeInVSIX>

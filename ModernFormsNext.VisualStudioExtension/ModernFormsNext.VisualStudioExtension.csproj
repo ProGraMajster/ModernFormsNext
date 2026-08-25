@@ -52,6 +52,8 @@
 
   <ItemGroup>
     <VSCTCompile Include="ModernFormsNext.VisualStudioExtension.vsct" />
+    <Compile Include="..\ModernFormsNext.VisualStudioExtension.Shared\VisualStudioDesignerCommandStatus.cs"
+             Link="Commands\VisualStudioDesignerCommandStatus.cs" />
   </ItemGroup>
 
   <ItemGroup>
