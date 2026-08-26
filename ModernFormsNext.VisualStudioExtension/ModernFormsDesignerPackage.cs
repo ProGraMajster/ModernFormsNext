@@ -25,6 +25,7 @@ namespace ModernFormsNext.VisualStudioExtension;
 [ProvideMenuResource("ModernFormsNext.VisualStudioExtension.CTMENU", 1)]
 [ProvideEditorFactory(typeof(MfDesignEditorFactory), 101)]
 [ProvideEditorExtension(typeof(MfDesignEditorFactory), DesignFileExtension, 50, NameResourceID = 113, DefaultName = ExtensionDisplayName)]
+[ProvideEditorLogicalView(typeof(MfDesignEditorFactory), LogicalViewID.Designer)]
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
 public sealed class ModernFormsDesignerPackage : AsyncPackage

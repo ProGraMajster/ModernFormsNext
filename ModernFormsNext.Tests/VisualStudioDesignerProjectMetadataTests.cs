@@ -79,6 +79,38 @@ public sealed class VisualStudioDesignerProjectMetadataTests
         Assert.DoesNotContain("ModernFormsNext.Designer", sharedSource, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BothVisualStudioPackagesRegisterTheirSingleDesignerLogicalView()
+    {
+        foreach (var projectDirectory in new[]
+                 {
+                     "ModernFormsNext.VisualStudioExtension",
+                     "ModernFormsNext.VisualStudioExtension.Vsix"
+                 })
+        {
+            var packageSource = File.ReadAllText(GetRepositoryPath(
+                $"{projectDirectory}/ModernFormsDesignerPackage.cs"));
+            var factorySource = File.ReadAllText(GetRepositoryPath(
+                $"{projectDirectory}/Editors/MfDesignEditorFactory.cs"));
+
+            Assert.Contains(
+                "[ProvideEditorLogicalView(typeof(MfDesignEditorFactory), LogicalViewID.Designer)]",
+                packageSource,
+                StringComparison.Ordinal);
+            Assert.Contains("VSConstants.LOGVIEWID_Designer", packageSource, StringComparison.Ordinal);
+            Assert.Contains("pbstrPhysicalView = null;", factorySource, StringComparison.Ordinal);
+            Assert.Contains(
+                "rguidLogicalView == VSConstants.LOGVIEWID_Primary",
+                factorySource,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "|| rguidLogicalView == VSConstants.LOGVIEWID_Designer",
+                factorySource,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("IVsMultiViewDocumentView", factorySource, StringComparison.Ordinal);
+        }
+    }
+
     [Theory]
     [InlineData("ModernFormsNextForm", "ModernFormsNextForm")]
     [InlineData("ModernFormsNextUserControl", "ModernFormsNextUserControl")]

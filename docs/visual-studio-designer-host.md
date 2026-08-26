@@ -108,6 +108,11 @@ claimed only when conservative detection says the selected/active file is a supp
 ModernFormsNext Form or UserControl. For every other file it reports unsupported so command routing
 continues to the normal C#, WinForms, or other project-system handler.
 
+The `.mfdesign` editor factory is single-view. It registers `LOGVIEWID_Designer` with an empty
+physical-view string and maps both `LOGVIEWID_Primary` and `LOGVIEWID_Designer` to that same view.
+This registration is required before `OpenDocumentWithSpecificEditor` can resolve the View Designer
+request; the factory does not implement `IVsMultiViewDocumentView` or create a secondary tab.
+
 The `ModernFormsNext` NuGet package ships `buildTransitive/ModernFormsNext.targets`. SDK-style
 projects therefore receive conventional nesting automatically:
 
