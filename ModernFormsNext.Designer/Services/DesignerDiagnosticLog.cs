@@ -13,10 +13,21 @@ internal static class DesignerDiagnosticLog
 
         var directory = System.IO.Path.Combine(basePath, "ModernFormsNext", "Designer");
         Directory.CreateDirectory(directory);
-        Path = System.IO.Path.Combine(directory, "designer-debug.log");
+        Path = GetPath(directory, Environment.ProcessId);
     }
 
     public static string Path { get; }
+
+    internal static string GetPath(string directory, int processId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        if (processId <= 0)
+            throw new ArgumentOutOfRangeException(nameof(processId));
+
+        // Visual Studio may host several Designer processes concurrently. A per-process file
+        // prevents those sessions (and parallel test workers) from racing one another's writes.
+        return System.IO.Path.Combine(directory, $"designer-debug-{processId}.log");
+    }
 
     public static void Write(string message)
     {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using ModernFormsNext;
@@ -23,6 +24,8 @@ public sealed class VisualStudioDesignerHostForm : Form
     private readonly ModernFormsDesignerShell shell;
     private readonly DesignerHostIpcServer? ipcServer;
     private readonly WindowsDesignerParentWindowHost? parentWindowHost;
+    private Process? ownerProcess;
+    private int ownerExitScheduled;
     private bool closeConfirmationPending;
     private bool closeConfirmed;
 
@@ -68,13 +71,17 @@ public sealed class VisualStudioDesignerHostForm : Form
         }
 
         Closing += HandleClosing;
-        Closed += (_, _) => ipcServer?.Dispose();
+        Closed += HandleClosed;
     }
 
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        parentWindowHost?.Attach(this);
+        if (parentWindowHost is not null)
+        {
+            parentWindowHost.Attach(this);
+            StartOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -100,6 +107,56 @@ public sealed class VisualStudioDesignerHostForm : Form
 
         closeConfirmationPending = true;
         Application.RunOnUIThread(ConfirmCloseAndRetry);
+    }
+
+    private void StartOwnerProcessMonitoring(int processId)
+    {
+        Process process;
+        try
+        {
+            process = Process.GetProcessById(processId);
+        }
+        catch (ArgumentException)
+        {
+            // The pane HWND was valid during attachment, but Visual Studio can exit between
+            // that check and opening its Process object. Treat that race as the normal owner-exit
+            // path so the host terminates cleanly instead of surfacing a startup crash.
+            HandleOwnerProcessExited(null, EventArgs.Empty);
+            return;
+        }
+
+        process.EnableRaisingEvents = true;
+        process.Exited += HandleOwnerProcessExited;
+        ownerProcess = process;
+        DesignerHostDiagnosticLog.Write($"Monitoring Visual Studio owner process {processId}.");
+
+        if (process.HasExited)
+            HandleOwnerProcessExited(process, EventArgs.Empty);
+    }
+
+    private void HandleOwnerProcessExited(object? sender, EventArgs e)
+    {
+        if (Interlocked.Exchange(ref ownerExitScheduled, 1) != 0)
+            return;
+
+        DesignerHostDiagnosticLog.Write("Visual Studio owner process exited; closing owned Designer host.");
+        Application.RunOnUIThread(() =>
+        {
+            closeConfirmed = true;
+            Close();
+        });
+    }
+
+    private void HandleClosed(object? sender, EventArgs e)
+    {
+        ipcServer?.Dispose();
+
+        if (ownerProcess is not null)
+        {
+            ownerProcess.Exited -= HandleOwnerProcessExited;
+            ownerProcess.Dispose();
+            ownerProcess = null;
+        }
     }
 
     private async void ConfirmCloseAndRetry()

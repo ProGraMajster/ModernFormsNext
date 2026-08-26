@@ -162,6 +162,10 @@ function Assert-ModernFormsNextVsix {
         throw "VSIX does not contain physical ItemTemplates files."
     }
 
+    if ($Manifest.Entries -notcontains "ModernFormsNext.VisualStudioExtension.Shared.dll") {
+        throw "VSIX does not contain the shared Visual Studio command-contract assembly."
+    }
+
     $requiredUserControlTemplateEntries = @(
         "ItemTemplates/CSharp/ModernFormsNext/ModernFormsNextUserControl/ModernFormsNextUserControl.vstemplate",
         "ItemTemplates/CSharp/ModernFormsNext/ModernFormsNextUserControl/ModernFormsNextUserControl.cs",

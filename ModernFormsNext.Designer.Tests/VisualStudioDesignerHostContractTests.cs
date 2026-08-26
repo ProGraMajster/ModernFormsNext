@@ -102,6 +102,41 @@ public sealed class VisualStudioDesignerHostContractTests
     }
 
     [Fact]
+    public async Task IndependentPipeEndpointsDoNotCrossTalkAndOneCanOutliveTheOther()
+    {
+        var firstPipeName = $"ModernFormsNext-HostContract-A-{Guid.NewGuid():N}";
+        var secondPipeName = $"ModernFormsNext-HostContract-B-{Guid.NewGuid():N}";
+        using var firstServer = new DesignerHostIpcServer(
+            firstPipeName,
+            _ => Task.FromResult("FIRST"));
+        using var secondServer = new DesignerHostIpcServer(
+            secondPipeName,
+            _ => Task.FromResult("SECOND"));
+        firstServer.Start();
+        secondServer.Start();
+
+        Assert.Equal("FIRST", await SendOpenCommandAsync(firstPipeName));
+        Assert.Equal("SECOND", await SendOpenCommandAsync(secondPipeName));
+
+        firstServer.Dispose();
+
+        Assert.Equal("SECOND", await SendOpenCommandAsync(secondPipeName));
+    }
+
+    [Fact]
+    public void DesignerHostDiagnosticPathsAreIsolatedPerProcess()
+    {
+        var directory = IOPath.Combine(IOPath.GetTempPath(), "ModernFormsNext-DesignerHost-Log-Contract");
+
+        var first = DesignerHostDiagnosticLog.GetPath(directory, 101);
+        var second = DesignerHostDiagnosticLog.GetPath(directory, 202);
+
+        Assert.NotEqual(first, second);
+        Assert.Equal("ModernFormsNextDesignerHost-101.log", IOPath.GetFileName(first));
+        Assert.Equal("ModernFormsNextDesignerHost-202.log", IOPath.GetFileName(second));
+    }
+
+    [Fact]
     public void IpcServerDisposeIsIdempotentBeforeAndAfterStartup()
     {
         var notStarted = new DesignerHostIpcServer(
@@ -233,6 +268,23 @@ public sealed class VisualStudioDesignerHostContractTests
         Assert.Equal(VisualStudioDesignerHostState.Disposed, lifecycle.State);
         Assert.Equal(["attach:11:22", "detach:11"], operations.Calls);
         Assert.Throws<ObjectDisposedException>(() => lifecycle.Resize(1, 1));
+    }
+
+    private static async Task<string?> SendOpenCommandAsync(string pipeName)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var client = new NamedPipeClientStream(
+            ".",
+            pipeName,
+            PipeDirection.InOut,
+            PipeOptions.Asynchronous);
+        await client.ConnectAsync(timeout.Token);
+
+        var designPath = Convert.ToBase64String(Encoding.UTF8.GetBytes("C:\\Project\\Form1.mfdesign"));
+        await using var writer = new StreamWriter(client, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
+        await writer.WriteLineAsync($"OPEN\t{designPath}\t");
+        using var reader = new StreamReader(client, Encoding.UTF8, true, 1024, leaveOpen: true);
+        return await reader.ReadLineAsync(timeout.Token);
     }
 
     private sealed class RecordingNativeWindowOperations : IVisualStudioNativeWindowOperations

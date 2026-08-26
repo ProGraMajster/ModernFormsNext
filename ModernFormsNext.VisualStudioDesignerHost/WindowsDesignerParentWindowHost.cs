@@ -38,6 +38,8 @@ internal sealed class WindowsDesignerParentWindowHost
         this.parentWindowHandle = parentWindowHandle;
     }
 
+    public int OwnerProcessId { get; private set; }
+
     public void Attach(Form form)
     {
         ArgumentNullException.ThrowIfNull(form);
@@ -46,6 +48,16 @@ internal sealed class WindowsDesignerParentWindowHost
             return;
         if (!IsWindow(parentWindowHandle))
             throw new InvalidOperationException("The Visual Studio parent HWND is no longer valid.");
+
+        if (GetWindowThreadProcessId(parentWindowHandle, out var ownerProcessId) == 0
+            || ownerProcessId == 0)
+        {
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(),
+                "Windows could not identify the process that owns the Visual Studio parent HWND.");
+        }
+
+        OwnerProcessId = checked((int)ownerProcessId);
 
         IPlatformHandle platformHandle = form.PlatformHandle;
         if (!string.Equals(platformHandle.HandleDescriptor, "HWND", StringComparison.OrdinalIgnoreCase))
@@ -166,6 +178,9 @@ internal sealed class WindowsDesignerParentWindowHost
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetParent(IntPtr hWnd);

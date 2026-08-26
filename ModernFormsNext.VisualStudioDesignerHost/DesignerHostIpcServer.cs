@@ -71,21 +71,8 @@ internal sealed class DesignerHostIpcServer : IDisposable
             }
             catch (Exception ex)
             {
-                WriteLog($"IPC server error: {ex}");
+                DesignerHostDiagnosticLog.Write($"IPC server error: {ex}");
             }
-        }
-    }
-
-    private static void WriteLog(string message)
-    {
-        try
-        {
-            var path = IOPath.Combine(IOPath.GetTempPath(), "ModernFormsNextDesignerHost.log");
-            File.AppendAllText(path, $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}");
-        }
-        catch
-        {
-            // Logging must not interrupt IPC.
         }
     }
 }

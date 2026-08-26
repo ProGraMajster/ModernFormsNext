@@ -47,6 +47,15 @@ internal sealed class VisualStudioModernFormsHostControl : WinForms.UserControl
             CreateHostedWindow();
     }
 
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        // WinForms may recreate the pane HWND during docking or DPI transitions. The hosted
+        // ModernFormsNext window must be detached from the obsolete parent and recreated when
+        // the new pane handle becomes available, while retaining the shared Designer shell.
+        DestroyHostedWindow();
+        base.OnHandleDestroyed(e);
+    }
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
@@ -144,6 +153,12 @@ internal sealed class VisualStudioModernFormsHostControl : WinForms.UserControl
 
     private void DetachShell()
     {
+        DestroyHostedWindow();
+        Shell = null;
+    }
+
+    private void DestroyHostedWindow()
+    {
         if (lifecycle.State != VisualStudioDesignerHostState.Disposed)
             lifecycle.Detach();
 
@@ -156,8 +171,6 @@ internal sealed class VisualStudioModernFormsHostControl : WinForms.UserControl
             hostForm.Dispose();
             hostForm = null;
         }
-
-        Shell = null;
     }
 
     private void TryResizeHostedWindow()

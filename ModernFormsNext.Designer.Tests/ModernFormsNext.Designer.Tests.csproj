@@ -23,6 +23,7 @@
     <ProjectReference Include="..\ModernFormsNext.Designing\ModernFormsNext.Designing.csproj" />
     <ProjectReference Include="..\ModernFormsNext.VisualStudioDesignerHost\ModernFormsNext.VisualStudioDesignerHost.csproj" />
     <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension\ModernFormsNext.VisualStudioExtension.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Shared\ModernFormsNext.VisualStudioExtension.Shared.csproj" />
   </ItemGroup>
 
 </Project>

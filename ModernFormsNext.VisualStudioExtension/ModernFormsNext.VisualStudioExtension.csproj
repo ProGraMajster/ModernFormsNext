@@ -52,11 +52,10 @@
 
   <ItemGroup>
     <VSCTCompile Include="ModernFormsNext.VisualStudioExtension.vsct" />
-    <Compile Include="..\ModernFormsNext.VisualStudioExtension.Shared\VisualStudioDesignerCommandStatus.cs"
-             Link="Commands\VisualStudioDesignerCommandStatus.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Shared\ModernFormsNext.VisualStudioExtension.Shared.csproj" />
     <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Designer\ModernFormsNext.Designer.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Designing\ModernFormsNext.Designing.csproj" />

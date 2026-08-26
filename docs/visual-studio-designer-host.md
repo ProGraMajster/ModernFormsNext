@@ -18,7 +18,15 @@ that owned process is unresponsive, only that exact process may be terminated.
 
 The process remains Windows/Visual Studio-specific. The shared Designer shell, document model,
 layout, rendering, persistence, and recovery services do not reference VSSDK or Win32 hosting
-types.
+types. The classic VSIX uses a small WinForms `UserControl` only because `WindowPane.Window`
+requires an `IWin32Window`; that control supplies the pane HWND and a status label. It does not
+paint or lay out the Designer. Designer rendering remains on the existing ModernFormsNext
+Skia/WindowKit path inside the child process.
+
+The lightweight `ModernFormsNext.VisualStudioExtension.Shared` assembly contains only the pure
+command-status contract used by the modern extension build and the classic VSIX. It targets
+`netstandard2.0`, has no VSSDK, WinForms, System.Drawing, Designer, native, package, or project
+dependencies, and is consumed through normal project references rather than linked source files.
 
 ## Typed native-window contract
 
@@ -54,7 +62,13 @@ Readiness is bounded to ten seconds and does not use a fixed startup sleep. The 
 its own child-window tree for a window owned by the exact launched PID. A missing executable,
 immediate process exit, attachment timeout, invalid parent HWND, or backend that does not report an
 HWND produces a visible pane diagnostic. The host log remains available at
-`%TEMP%\ModernFormsNextDesignerHost.log`.
+`%TEMP%\ModernFormsNextDesignerHost-<pid>.log`. Designer diagnostic logs are likewise isolated per
+process under `%LOCALAPPDATA%\ModernFormsNext\Designer` so simultaneous hosts cannot race one file.
+
+The host derives the owning Visual Studio PID from the supplied parent HWND and monitors that exact
+process. If Visual Studio exits unexpectedly, the child closes instead of remaining orphaned. If
+Visual Studio recreates the pane HWND while docking or changing display state, the adapter stops
+the process attached to the obsolete HWND and launches a clean replacement for the same document.
 
 ## Resize, DPI, and focus
 
@@ -103,10 +117,12 @@ MainForm.cs
   MainForm.mfdesign
 ```
 
-The target fills only missing `DependentUpon` metadata. Explicit project metadata remains
-authoritative. The Visual Studio item templates continue to create all three files atomically and
-use ModernFormsNext-specific subtypes rather than `SubType=Form`, which belongs to the classic
-WinForms Designer.
+The target fills only missing `DependentUpon` metadata and only when the expected primary/companion
+file exists. Explicit project metadata remains authoritative, unrelated `.Designer.cs` files are
+not claimed merely because the package is installed, and SDK default items are updated rather than
+duplicated. The Visual Studio item templates continue to create all three files atomically and use
+ModernFormsNext-specific subtypes rather than `SubType=Form`, which belongs to the classic WinForms
+Designer.
 
 ## Interactive Visual Studio validation checklist
 

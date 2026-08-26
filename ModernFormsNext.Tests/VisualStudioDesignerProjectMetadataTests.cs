@@ -28,14 +28,55 @@ public sealed class VisualStudioDesignerProjectMetadataTests
 
         Assert.Null(designerCode.Attribute("Condition"));
         var designerCodeDependency = Assert.Single(designerCode.Elements("DependentUpon"));
-        Assert.Equal("'%(DependentUpon)' == ''", designerCodeDependency.Attribute("Condition")?.Value);
+        Assert.Equal(
+            "'%(DependentUpon)' == '' and Exists('$([System.String]::Copy(\"%(FullPath)\").Replace(\".Designer.cs\", \".mfdesign\"))')",
+            designerCodeDependency.Attribute("Condition")?.Value);
         Assert.Equal(
             "$([System.String]::Copy('%(Filename)').Replace('.Designer', '')).cs",
             designerCodeDependency.Value);
         Assert.Null(designDocument.Attribute("Condition"));
         var designDocumentDependency = Assert.Single(designDocument.Elements("DependentUpon"));
-        Assert.Equal("'%(DependentUpon)' == ''", designDocumentDependency.Attribute("Condition")?.Value);
+        Assert.Equal(
+            "'%(DependentUpon)' == '' and Exists('$([System.IO.Path]::ChangeExtension(\"%(FullPath)\", \".cs\"))')",
+            designDocumentDependency.Attribute("Condition")?.Value);
         Assert.Equal("%(Filename).cs", designDocumentDependency.Value);
+    }
+
+    [Fact]
+    public void SharedVisualStudioContractUsesProjectReferencesWithoutUiOrLinkedSourceDependencies()
+    {
+        var sharedProject = LoadXml(
+            "ModernFormsNext.VisualStudioExtension.Shared/ModernFormsNext.VisualStudioExtension.Shared.csproj");
+        Assert.Equal("netstandard2.0", Assert.Single(sharedProject.Descendants("TargetFramework")).Value);
+        Assert.Empty(sharedProject.Descendants("PackageReference"));
+        Assert.Empty(sharedProject.Descendants("ProjectReference"));
+        Assert.Empty(sharedProject.Descendants("Reference"));
+        Assert.Empty(sharedProject.Descendants("UseWindowsForms"));
+
+        foreach (var projectPath in new[]
+                 {
+                     "ModernFormsNext.VisualStudioExtension/ModernFormsNext.VisualStudioExtension.csproj",
+                     "ModernFormsNext.VisualStudioExtension.Vsix/ModernFormsNext.VisualStudioExtension.Vsix.csproj"
+                 })
+        {
+            var project = LoadXml(projectPath);
+            Assert.Contains(
+                project.Descendants("ProjectReference"),
+                element => element.Attribute("Include")?.Value
+                    == "..\\ModernFormsNext.VisualStudioExtension.Shared\\ModernFormsNext.VisualStudioExtension.Shared.csproj");
+            Assert.DoesNotContain(
+                project.Descendants("Compile"),
+                element => element.Attribute("Include")?.Value?.Contains(
+                    "VisualStudioExtension.Shared",
+                    StringComparison.OrdinalIgnoreCase) == true);
+        }
+
+        var sharedSource = File.ReadAllText(GetRepositoryPath(
+            "ModernFormsNext.VisualStudioExtension.Shared/VisualStudioDesignerCommandStatus.cs"));
+        Assert.DoesNotContain("System.Windows.Forms", sharedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.Drawing", sharedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Microsoft.VisualStudio", sharedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ModernFormsNext.Designer", sharedSource, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -55,7 +96,10 @@ public sealed class VisualStudioDesignerProjectMetadataTests
     }
 
     private static XDocument LoadXml(string relativePath)
-        => XDocument.Load(IOPath.Combine(
+        => XDocument.Load(GetRepositoryPath(relativePath));
+
+    private static string GetRepositoryPath(string relativePath)
+        => IOPath.Combine(
             RepositoryFileEnumerator.FindRepositoryRoot(),
-            relativePath.Replace('/', IOPath.DirectorySeparatorChar)));
+            relativePath.Replace('/', IOPath.DirectorySeparatorChar));
 }

@@ -329,6 +329,13 @@ the typed `WindowBase.PlatformHandle` API and parents it into that pane. No exte
 over `WindowBase` internals, and the VSSDK layer does not copy property grid, surface, toolbox,
 outline, persistence, or code-generation logic.
 
+The classic pane is a WinForms/VSSDK native-window adapter because Visual Studio's `WindowPane`
+contract exposes `IWin32Window`. It supplies only HWND ownership, bounds, focus, and a startup/error
+label; ModernFormsNext still owns all Designer layout and Skia rendering. A dependency-free
+`netstandard2.0` command-status assembly is referenced normally by both extension builds, avoiding
+linked-source implementation sharing and keeping VSSDK/WinForms out of Designer and runtime
+projects.
+
 The package claims Visual Studio's standard View Designer/Shift+F7 command only for files accepted
 by conservative ModernFormsNext detection. Packaged build-transitive metadata nests
 `MainForm.Designer.cs` and `MainForm.mfdesign` beneath `MainForm.cs` without overwriting explicit

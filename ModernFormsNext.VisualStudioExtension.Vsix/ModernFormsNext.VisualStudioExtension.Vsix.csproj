@@ -33,6 +33,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Shared\ModernFormsNext.VisualStudioExtension.Shared.csproj" />
     <!--
       Reference only the Visual Studio contracts used by the in-process package.
       The Microsoft.VisualStudio.SDK metapackage also restores unrelated editor,
@@ -75,8 +76,6 @@
 
   <ItemGroup>
     <Compile Remove="ItemTemplates\**\*.cs" />
-    <Compile Include="..\ModernFormsNext.VisualStudioExtension.Shared\VisualStudioDesignerCommandStatus.cs"
-             Link="Commands\VisualStudioDesignerCommandStatus.cs" />
     <None Remove="ItemTemplates\**\*" />
     <Content Include="ItemTemplates\**\*">
       <IncludeInVSIX>true</IncludeInVSIX>

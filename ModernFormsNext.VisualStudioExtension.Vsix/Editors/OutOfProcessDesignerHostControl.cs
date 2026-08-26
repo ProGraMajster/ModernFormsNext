@@ -120,6 +120,19 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         LaunchOwnedHost();
     }
 
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        readinessTimer.Stop();
+        if (!disposing)
+        {
+            // A recreated Visual Studio pane receives a new HWND. Stop the process parented to
+            // the old HWND; OnHandleCreated launches a clean replacement for the same document.
+            StopOwnedHost();
+        }
+
+        base.OnHandleDestroyed(e);
+    }
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
@@ -241,8 +254,10 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         if (DateTime.UtcNow >= startupDeadlineUtc)
         {
             readinessTimer.Stop();
+            var logHint = GetLogHint(ownedProcess);
+            StopOwnedHost();
             ShowFailure(
-                $"Designer host did not attach to the Visual Studio pane within {StartupTimeout.TotalSeconds:0} seconds.{GetLogHint()}");
+                $"Designer host did not attach to the Visual Studio pane within {StartupTimeout.TotalSeconds:0} seconds.{logHint}");
         }
     }
 
@@ -277,7 +292,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
             return;
 
         var exitCode = TryGetExitCode(ownedProcess);
-        ShowFailure($"Designer host exited unexpectedly{exitCode}.{GetLogHint()}");
+        ShowFailure($"Designer host exited unexpectedly{exitCode}.{GetLogHint(ownedProcess)}");
     }
 
     private void StopOwnedHost()
@@ -374,9 +389,21 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         }
     }
 
-    private static string GetLogHint()
+    private static string GetLogHint(Process? process)
     {
-        var logPath = Path.Combine(Path.GetTempPath(), "ModernFormsNextDesignerHost.log");
+        int processId;
+        try
+        {
+            if (process is null)
+                return string.Empty;
+            processId = process.Id;
+        }
+        catch (InvalidOperationException)
+        {
+            return string.Empty;
+        }
+
+        var logPath = Path.Combine(Path.GetTempPath(), $"ModernFormsNextDesignerHost-{processId}.log");
         return File.Exists(logPath)
             ? $"{Environment.NewLine}{Environment.NewLine}Log: {logPath}"
             : string.Empty;
