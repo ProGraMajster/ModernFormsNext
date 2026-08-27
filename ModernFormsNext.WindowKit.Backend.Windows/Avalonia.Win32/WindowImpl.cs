@@ -643,7 +643,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public virtual void Show(bool activate, bool isDialog)
         {
-            SetParent(_parent);
+            // A native host can deliberately convert this HWND to WS_CHILD through the public
+            // platform-handle contract before its first show. In that case the native child
+            // relationship is authoritative; reapplying the framework's nullable Form owner here
+            // would detach it from the external host immediately before ShowWindow.
+            if (!GetStyle().HasFlag(WindowStyles.WS_CHILD))
+                SetParent(_parent);
             ShowWindow(_showWindowState, activate);
         }
 

@@ -12,10 +12,8 @@ namespace ModernFormsNext.VisualStudioExtension.Editors;
 
 internal sealed class OutOfProcessDesignerHostControl : UserControl
 {
-    private const uint SwpNoZOrder = 0x0004;
-    private const uint SwpNoActivate = 0x0010;
-    private const uint SwpShowWindow = 0x0040;
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan LifecycleCommandTimeout = TimeSpan.FromMilliseconds(500);
 
     private readonly Label statusLabel;
     private readonly Timer readinessTimer;
@@ -117,6 +115,10 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+
+        if (TryReattachOwnedHost())
+            return;
+
         LaunchOwnedHost();
     }
 
@@ -125,9 +127,11 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         readinessTimer.Stop();
         if (!disposing)
         {
-            // A recreated Visual Studio pane receives a new HWND. Stop the process parented to
-            // the old HWND; OnHandleCreated launches a clean replacement for the same document.
-            StopOwnedHost();
+            // Park the child before WinForms destroys this pane HWND. Otherwise Windows destroys
+            // the child along with its parent and turns an ordinary docking/DPI handle recreation
+            // into Designer process loss and recovery-state churn.
+            if (!TrySendLifecycleCommand("PARK"))
+                StopOwnedHost();
         }
 
         base.OnHandleDestroyed(e);
@@ -136,26 +140,32 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        ResizeChildWindow();
+        ResizeHostedWindow();
     }
 
     protected override void OnDpiChangedAfterParent(EventArgs e)
     {
         base.OnDpiChangedAfterParent(e);
-        ResizeChildWindow();
+        ResizeHostedWindow();
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        SynchronizeHostVisibility();
     }
 
     protected override void OnGotFocus(EventArgs e)
     {
         base.OnGotFocus(e);
-        FocusChildWindow();
+        FocusHostedWindow();
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
         Focus();
-        FocusChildWindow();
+        FocusHostedWindow();
     }
 
     protected override void Dispose(bool disposing)
@@ -247,7 +257,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         {
             readinessTimer.Stop();
             statusLabel.Visible = false;
-            ResizeChildWindow();
+            ResizeHostedWindow();
+            SynchronizeHostVisibility();
             return;
         }
 
@@ -335,25 +346,53 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         }
     }
 
-    private void ResizeChildWindow()
+    private bool TryReattachOwnedHost()
     {
-        if (childWindowHandle == IntPtr.Zero)
-            return;
+        if (ownedProcess is null
+            || HasExited(ownedProcess)
+            || childWindowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
 
-        _ = SetWindowPos(
-            childWindowHandle,
-            IntPtr.Zero,
-            0,
-            0,
-            Math.Max(1, ClientSize.Width),
-            Math.Max(1, ClientSize.Height),
-            SwpNoZOrder | SwpNoActivate | SwpShowWindow);
+        var attached = TrySendLifecycleCommand(
+            "ATTACH",
+            Handle.ToInt64().ToString(CultureInfo.InvariantCulture));
+        if (!attached)
+        {
+            StopOwnedHost();
+            return false;
+        }
+
+        statusLabel.Visible = false;
+        ResizeHostedWindow();
+        SynchronizeHostVisibility();
+        return true;
     }
 
-    private void FocusChildWindow()
+    private void ResizeHostedWindow()
+        => _ = TrySendLifecycleCommand("RESIZE");
+
+    private void SynchronizeHostVisibility()
+        => _ = TrySendLifecycleCommand(Visible ? "SHOW" : "HIDE");
+
+    private void FocusHostedWindow()
+        => _ = TrySendLifecycleCommand("FOCUS");
+
+    private bool TrySendLifecycleCommand(string command, string? payload = null)
     {
-        if (childWindowHandle != IntPtr.Zero)
-            _ = SetFocus(childWindowHandle);
+        if (ownedProcess is null
+            || HasExited(ownedProcess)
+            || childWindowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        return DesignerHostIpcClient.TrySendLifecycleCommand(
+            pipeName,
+            command,
+            payload,
+            LifecycleCommandTimeout);
     }
 
     private void ShowFailure(string message)
@@ -501,16 +540,4 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetFocus(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetWindowPos(
-        IntPtr hWnd,
-        IntPtr hWndInsertAfter,
-        int x,
-        int y,
-        int width,
-        int height,
-        uint flags);
 }

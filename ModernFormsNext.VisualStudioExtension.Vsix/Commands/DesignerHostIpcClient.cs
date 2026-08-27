@@ -47,6 +47,35 @@ internal static class DesignerHostIpcClient
             throw new ArgumentOutOfRangeException(nameof(command), command, "Unsupported Designer host IPC command.");
         }
 
+        return TrySendEncodedCommand(pipeName, command, designDocumentPath, projectPath, timeout);
+    }
+
+    public static bool TrySendLifecycleCommand(
+        string pipeName,
+        string command,
+        string? payload,
+        TimeSpan timeout)
+    {
+        if (!string.Equals(command, "ATTACH", StringComparison.Ordinal)
+            && !string.Equals(command, "PARK", StringComparison.Ordinal)
+            && !string.Equals(command, "RESIZE", StringComparison.Ordinal)
+            && !string.Equals(command, "SHOW", StringComparison.Ordinal)
+            && !string.Equals(command, "HIDE", StringComparison.Ordinal)
+            && !string.Equals(command, "FOCUS", StringComparison.Ordinal))
+        {
+            throw new ArgumentOutOfRangeException(nameof(command), command, "Unsupported Designer host lifecycle command.");
+        }
+
+        return TrySendEncodedCommand(pipeName, command, payload, null, timeout);
+    }
+
+    private static bool TrySendEncodedCommand(
+        string pipeName,
+        string command,
+        string? payload,
+        string? secondaryPayload,
+        TimeSpan timeout)
+    {
         try
         {
             using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
@@ -57,7 +86,7 @@ internal static class DesignerHostIpcClient
                 AutoFlush = true
             };
 
-            writer.WriteLine($"{command}\t{Encode(designDocumentPath)}\t{Encode(projectPath)}");
+            writer.WriteLine($"{command}\t{Encode(payload)}\t{Encode(secondaryPayload)}");
             using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
             return string.Equals(ReadResponse(reader, timeout), "OK", StringComparison.Ordinal);
         }

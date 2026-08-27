@@ -23,7 +23,7 @@ public sealed class VisualStudioDesignerHostForm : Form
     private readonly VisualStudioDesignerHostEnvironment environment;
     private readonly ModernFormsDesignerShell shell;
     private readonly DesignerHostIpcServer? ipcServer;
-    private readonly WindowsDesignerParentWindowHost? parentWindowHost;
+    private WindowsDesignerParentWindowHost? parentWindowHost;
     private Process? ownerProcess;
     private int ownerExitScheduled;
     private bool closeConfirmationPending;
@@ -35,11 +35,26 @@ public sealed class VisualStudioDesignerHostForm : Form
     /// <param name="arguments">The launch arguments supplied by the Visual Studio extension.</param>
     public VisualStudioDesignerHostForm(DesignerHostArguments arguments)
     {
+        var platformHandle = PlatformHandle;
+        DesignerHostDiagnosticLog.Write(
+            $"HANDLE_CREATED Descriptor={platformHandle.HandleDescriptor ?? "<none>"} " +
+            $"Handle=0x{platformHandle.Handle.ToInt64():X}");
+
         this.arguments = arguments;
 
         Text = GetWindowTitle(arguments.DesignDocumentPath);
         Name = "ModernFormsNextVisualStudioDesignerHost";
         Size = new System.Drawing.Size(1480, 900);
+
+        if (arguments.ParentWindowHandle != IntPtr.Zero)
+        {
+            ConfigureEmbeddedWindow();
+            parentWindowHost = new WindowsDesignerParentWindowHost(arguments.ParentWindowHandle);
+            DesignerHostDiagnosticLog.Write(
+                $"ATTACH_BEGIN Parent=0x{arguments.ParentWindowHandle.ToInt64():X}");
+            parentWindowHost.Attach(this);
+            DesignerHostDiagnosticLog.Write("ATTACH_OK");
+        }
 
         environment = new VisualStudioDesignerHostEnvironment(
             arguments.DesignDocumentPath,
@@ -59,16 +74,17 @@ public sealed class VisualStudioDesignerHostForm : Form
         Controls.Add(shell);
         OpenDesignDocument(arguments.DesignDocumentPath, arguments.ProjectPath);
 
-        if (arguments.ParentWindowHandle != IntPtr.Zero)
-            parentWindowHost = new WindowsDesignerParentWindowHost(arguments.ParentWindowHandle);
-
+        DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_BEGIN");
         if (!string.IsNullOrWhiteSpace(arguments.PipeName))
         {
             ipcServer = new DesignerHostIpcServer(
                 arguments.PipeName,
                 InvokeIpcCommandAsync);
             ipcServer.Start();
+            DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_OK");
         }
+        else
+            DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_OK Disabled=true");
 
         Closing += HandleClosing;
         Closed += HandleClosed;
@@ -76,11 +92,26 @@ public sealed class VisualStudioDesignerHostForm : Form
 
     protected override void OnShown(EventArgs e)
     {
-        base.OnShown(e);
-        if (parentWindowHost is not null)
+        // ModernFormsNext has no separate WinForms Load event. This marker identifies the
+        // equivalent first-show load boundary immediately before the Shown callback is raised.
+        DesignerHostDiagnosticLog.Write("FORM_LOAD");
+
+        try
         {
-            parentWindowHost.Attach(this);
-            StartOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
+            if (parentWindowHost is not null)
+            {
+                parentWindowHost.ResizeToParent();
+                parentWindowHost.SetVisible(true);
+                StartOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
+            }
+
+            base.OnShown(e);
+            DesignerHostDiagnosticLog.Write("FORM_SHOWN");
+        }
+        catch (Exception ex)
+        {
+            DesignerHostDiagnosticLog.WriteException("FORM_SHOWN_EXCEPTION", ex);
+            throw;
         }
     }
 
@@ -128,7 +159,7 @@ public sealed class VisualStudioDesignerHostForm : Form
         process.EnableRaisingEvents = true;
         process.Exited += HandleOwnerProcessExited;
         ownerProcess = process;
-        DesignerHostDiagnosticLog.Write($"Monitoring Visual Studio owner process {processId}.");
+        DesignerHostDiagnosticLog.Write($"OWNER_MONITOR_CREATED ProcessId={processId}");
 
         if (process.HasExited)
             HandleOwnerProcessExited(process, EventArgs.Empty);
@@ -231,6 +262,9 @@ public sealed class VisualStudioDesignerHostForm : Form
             }
             catch (Exception ex)
             {
+                DesignerHostDiagnosticLog.WriteException(
+                    $"IPC_COMMAND_EXCEPTION Kind={command.Kind}",
+                    ex);
                 shell.Session.Log($"Visual Studio host command failed: {ex.Message}");
                 completion.SetResult("ERROR");
             }
@@ -253,9 +287,73 @@ public sealed class VisualStudioDesignerHostForm : Form
                 closeConfirmed = true;
                 Application.RunOnUIThread(Close);
                 return "OK";
+            case DesignerHostIpcCommandKind.AttachParent:
+                ConfigureEmbeddedWindow();
+                parentWindowHost ??= new WindowsDesignerParentWindowHost(command.ParentWindowHandle);
+                parentWindowHost.Attach(this, command.ParentWindowHandle);
+                EnsureOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
+                return "OK";
+            case DesignerHostIpcCommandKind.Park:
+                GetRequiredParentWindowHost().Park();
+                return "OK";
+            case DesignerHostIpcCommandKind.Resize:
+                GetRequiredParentWindowHost().ResizeToParent();
+                return "OK";
+            case DesignerHostIpcCommandKind.Show:
+                GetRequiredParentWindowHost().SetVisible(true);
+                return "OK";
+            case DesignerHostIpcCommandKind.Hide:
+                GetRequiredParentWindowHost().SetVisible(false);
+                return "OK";
+            case DesignerHostIpcCommandKind.Focus:
+                GetRequiredParentWindowHost().RequestFocus();
+                return "OK";
             default:
                 throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unsupported Designer host command.");
         }
+    }
+
+    private void ConfigureEmbeddedWindow()
+    {
+        // Visual Studio supplies the only visible chrome and owns placement. Disabling every
+        // managed move/resize/minimize/maximize affordance also prevents title-bar input from
+        // invoking native top-level window operations after the HWND becomes a child.
+        StartPosition = FormStartPosition.Manual;
+        Resizeable = false;
+        AllowMinimize = false;
+        AllowMaximize = false;
+        WindowState = FormWindowState.Normal;
+        TitleBar.Visible = false;
+        Style.Border.Width = 0;
+        DesignerHostDiagnosticLog.Write(
+            $"EMBEDDED_CHROME_DISABLED TitleBarVisible={TitleBar.Visible} " +
+            $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize} " +
+            $"BorderWidth={Style.Border.Width}");
+    }
+
+    private WindowsDesignerParentWindowHost GetRequiredParentWindowHost()
+        => parentWindowHost
+            ?? throw new InvalidOperationException("The Designer host has not been attached to a Visual Studio pane.");
+
+    private void EnsureOwnerProcessMonitoring(int processId)
+    {
+        if (ownerProcess is not null)
+        {
+            try
+            {
+                if (ownerProcess.Id == processId)
+                    return;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            ownerProcess.Exited -= HandleOwnerProcessExited;
+            ownerProcess.Dispose();
+            ownerProcess = null;
+        }
+
+        StartOwnerProcessMonitoring(processId);
     }
 
     private static string GetWindowTitle(string? designDocumentPath)

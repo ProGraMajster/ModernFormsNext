@@ -68,6 +68,47 @@ public sealed class VisualStudioDesignerHostContractTests
     }
 
     [Fact]
+    public void HostIpcParsesParentReattachmentWithoutTreatingTheHwndAsADocument()
+    {
+        var parentHandle = Convert.ToBase64String(Encoding.UTF8.GetBytes("987654"));
+
+        var parsed = DesignerHostIpcCommand.TryParse(
+            $"ATTACH\t{parentHandle}\t",
+            out var command);
+
+        Assert.True(parsed);
+        Assert.Equal(DesignerHostIpcCommandKind.AttachParent, command.Kind);
+        Assert.Equal(new IntPtr(987654), command.ParentWindowHandle);
+        Assert.Null(command.ProjectPath);
+    }
+
+    [Theory]
+    [InlineData("PARK", 5)]
+    [InlineData("RESIZE", 6)]
+    [InlineData("SHOW", 7)]
+    [InlineData("HIDE", 8)]
+    [InlineData("FOCUS", 9)]
+    public void HostIpcParsesPayloadFreeWindowLifecycleCommands(
+        string commandName,
+        int expectedKind)
+    {
+        Assert.True(
+            DesignerHostIpcCommand.TryParse($"{commandName}\t\t", out var command));
+        Assert.Equal((DesignerHostIpcCommandKind)expectedKind, command.Kind);
+        Assert.Equal(IntPtr.Zero, command.ParentWindowHandle);
+    }
+
+    [Theory]
+    [InlineData("ATTACH\tMA==\t")]
+    [InlineData("ATTACH\tbm90LWEtaGFuZGxl\t")]
+    [InlineData("PARK\tQQ==\t")]
+    [InlineData("RESIZE\t\tQQ==")]
+    public void HostIpcRejectsInvalidWindowLifecyclePayloads(string input)
+    {
+        Assert.False(DesignerHostIpcCommand.TryParse(input, out _));
+    }
+
+    [Fact]
     public async Task RealNamedPipeTransportCorrelatesOneCommandWithOneResponse()
     {
         var pipeName = $"ModernFormsNext-HostContract-{Guid.NewGuid():N}";

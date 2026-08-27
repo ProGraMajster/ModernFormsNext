@@ -39,6 +39,22 @@ in-process adapter used by contract tests and the shipped out-of-process host co
 property. Visual Studio-specific style changes, `SetParent`, focus, and child-window sizing remain
 inside the Visual Studio extension/host projects.
 
+The shipped host is a real child-window contract, not merely a top-level window positioned over
+the editor. Before it can become visible, the host removes `WS_POPUP`, caption, frame, system-menu,
+minimize, and maximize styles, adds `WS_CHILD | WS_CLIPSIBLINGS`, removes top-level extended styles,
+calls `SetParent`, and applies `SWP_FRAMECHANGED`. The ModernFormsNext title bar, border, move drag,
+resize drag, minimize, and maximize affordances are disabled because Visual Studio owns all chrome.
+The original and effective `GWL_STYLE`/`GWL_EXSTYLE`, parent, owner, bounds, and DPI are written to
+the per-process diagnostic log.
+
+This ordering follows the Windows contract: [`SetParent`](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-setparent)
+does not change `WS_CHILD` or `WS_POPUP`; cached frame data is refreshed with
+[`SetWindowPos`](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-setwindowpos).
+The Windows backend recognizes an already converted `WS_CHILD` HWND as externally hosted and does
+not reapply its ordinary nullable Form owner during the first native show. The handle is therefore
+created hidden, converted and attached, and only then shown inside the pane; it is never exposed as
+a movable top-level window.
+
 The handle belongs to ModernFormsNext and is valid only while the window is alive. A host must not
 close it, cache it after window disposal, or assume that a non-Windows descriptor is an HWND.
 
@@ -67,15 +83,30 @@ process under `%LOCALAPPDATA%\ModernFormsNext\Designer` so simultaneous hosts ca
 
 The host derives the owning Visual Studio PID from the supplied parent HWND and monitors that exact
 process. If Visual Studio exits unexpectedly, the child closes instead of remaining orphaned. If
-Visual Studio recreates the pane HWND while docking or changing display state, the adapter stops
-the process attached to the obsolete HWND and launches a clean replacement for the same document.
+Visual Studio recreates the pane HWND while docking or changing display state, the adapter first
+hides and parks the child under `HWND_MESSAGE`. The new pane handle is then sent to the same host,
+which reparents and resizes the same Designer HWND. This prevents destruction of the old parent
+from destroying the child, avoids a top-level flash, and preserves the live document/session.
 
 ## Resize, DPI, and focus
 
 Visual Studio owns the editor-pane bounds and chrome. Resize and parent-DPI notifications reapply
-the pane's current device-pixel client size to the child HWND. Focus entering or clicking the pane
-is forwarded to the child window so Designer keyboard and pointer input continue through the
-ModernFormsNext input pipeline.
+the pane's current device-pixel client rectangle to the child HWND at `(0, 0)`. The host reads the
+native parent client bounds and passes those physical values directly to `SetWindowPos`; it does not
+apply a second logical-DPI conversion. Visibility is synchronized explicitly and also follows the
+normal Windows child/ancestor visibility rule.
+
+Windows documents that cross-process `SetParent` can reset the child process DPI-awareness context.
+The host therefore completes application DPI setup before creating the form, logs both parent and
+child DPI after every attach/resize, and treats the parent client rectangle as authoritative device
+pixels. Parent-DPI notifications request a fresh native bounds read instead of scaling the previous
+child size, which avoids double scaling after a monitor transition.
+
+Focus entering or clicking the pane is requested over the private IPC endpoint and executed on the
+Designer UI thread. The VSIX must not call cross-process `SetFocus` directly because
+[`SetFocus`](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-setfocus) requires the
+target to be attached to the caller's input queue. Pointer and keyboard input still flow through
+the existing ModernFormsNext input pipeline after the child receives focus.
 
 The in-process lifecycle controller uses explicit `Detached`, `Attached`, `Faulted`, and `Disposed`
 states. Failed attachment rolls back partial parent/style changes. Resize and focus failures are
@@ -83,12 +114,18 @@ captured as diagnostics instead of unwinding synchronous Visual Studio window no
 
 ## Save, reload, dirty state, and close
 
-The editor pane and its host use a private, document-scoped named pipe for four control operations:
+The editor pane and its host use a private, document-scoped named pipe for document and native-host
+control operations:
 
 - `OPEN` reloads or reattaches the pane's canonical `.mfdesign` document;
 - `SAVE` invokes the existing Designer save and generated-code path;
 - `DIRTY` lets Visual Studio participate in save prompts;
-- `SHUTDOWN` closes the owned host after Visual Studio has resolved the document close decision.
+- `SHUTDOWN` closes the owned host after Visual Studio has resolved the document close decision;
+- `ATTACH` applies a recreated Visual Studio pane HWND;
+- `PARK` hides the child and moves it to the message-only window tree before parent destruction;
+- `RESIZE` reapplies the current parent client rectangle;
+- `SHOW` and `HIDE` synchronize native visibility;
+- `FOCUS` requests focus from the Designer UI thread.
 
 This channel is an internal VSIX/host implementation detail, not the `.mfdesign` format and not a
 public runtime API. The Designer UI thread executes document mutations. Malformed or unknown
@@ -133,8 +170,10 @@ Designer.
 
 Automated tests cover the typed handle, command routing, parent argument validation, IPC command
 validation, lifecycle state transitions, attach failure rollback, close/reopen, DPI/resize/focus
-routing, item-template shape, and packaged nesting target. The following behavior still requires an
-observed Experimental Instance:
+routing, item-template shape, and packaged nesting target. A real-process Win32 regression also
+asserts child/extended styles, parent and owner relationships, top-level enumeration exclusion,
+exact parent-relative bounds, visibility, host-thread focus, parent recreation, and two independent
+hosts. The following behavior still requires an observed Experimental Instance:
 
 1. Build and install the Debug VSIX into the `Exp` hive, then create a project from the
    ModernFormsNext template.

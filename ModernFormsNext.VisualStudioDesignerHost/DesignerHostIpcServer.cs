@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Globalization;
 using System.Text;
 
 namespace ModernFormsNext.VisualStudioDesignerHost;
@@ -10,6 +11,7 @@ internal sealed class DesignerHostIpcServer : IDisposable
     private readonly CancellationTokenSource cancellation = new();
     private Task? listenTask;
     private int disposed;
+    private int readyLogged;
 
     public DesignerHostIpcServer(string pipeName, Func<DesignerHostIpcCommand, Task<string>> handleCommand)
     {
@@ -54,6 +56,9 @@ internal sealed class DesignerHostIpcServer : IDisposable
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
 
+                if (Interlocked.Exchange(ref readyLogged, 1) == 0)
+                    DesignerHostDiagnosticLog.Write($"IPC_READY PipeName={pipeName}");
+
                 await pipe.WaitForConnectionAsync(cancellation.Token);
 
                 using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
@@ -61,7 +66,10 @@ internal sealed class DesignerHostIpcServer : IDisposable
 
                 using var writer = new StreamWriter(pipe, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
                 if (DesignerHostIpcCommand.TryParse(line, out var command))
+                {
+                    DesignerHostDiagnosticLog.Write(GetReceivedMarker(command.Kind));
                     await writer.WriteLineAsync(await handleCommand(command));
+                }
                 else
                     await writer.WriteLineAsync("ERROR");
             }
@@ -71,10 +79,26 @@ internal sealed class DesignerHostIpcServer : IDisposable
             }
             catch (Exception ex)
             {
-                DesignerHostDiagnosticLog.Write($"IPC server error: {ex}");
+                DesignerHostDiagnosticLog.WriteException("IPC_SERVER_EXCEPTION", ex);
             }
         }
     }
+
+    private static string GetReceivedMarker(DesignerHostIpcCommandKind kind)
+        => kind switch
+        {
+            DesignerHostIpcCommandKind.Open => "OPEN_RECEIVED",
+            DesignerHostIpcCommandKind.Save => "SAVE_RECEIVED",
+            DesignerHostIpcCommandKind.QueryDirty => "DIRTY_RECEIVED",
+            DesignerHostIpcCommandKind.Shutdown => "SHUTDOWN_RECEIVED",
+            DesignerHostIpcCommandKind.AttachParent => "PARENT_ATTACH_RECEIVED",
+            DesignerHostIpcCommandKind.Park => "PARENT_PARK_RECEIVED",
+            DesignerHostIpcCommandKind.Resize => "RESIZE_RECEIVED",
+            DesignerHostIpcCommandKind.Show => "VISIBILITY_RECEIVED Visible=true",
+            DesignerHostIpcCommandKind.Hide => "VISIBILITY_RECEIVED Visible=false",
+            DesignerHostIpcCommandKind.Focus => "FOCUS_RECEIVED",
+            _ => $"UNKNOWN_{kind}_RECEIVED"
+        };
 }
 
 internal sealed class DesignerHostIpcCommand
@@ -82,11 +106,13 @@ internal sealed class DesignerHostIpcCommand
     private DesignerHostIpcCommand(
         DesignerHostIpcCommandKind kind,
         string designDocumentPath,
-        string? projectPath)
+        string? projectPath,
+        IntPtr parentWindowHandle)
     {
         Kind = kind;
         DesignDocumentPath = designDocumentPath;
         ProjectPath = projectPath;
+        ParentWindowHandle = parentWindowHandle;
     }
 
     public DesignerHostIpcCommandKind Kind { get; }
@@ -94,6 +120,8 @@ internal sealed class DesignerHostIpcCommand
     public string DesignDocumentPath { get; }
 
     public string? ProjectPath { get; }
+
+    public IntPtr ParentWindowHandle { get; }
 
     public static bool TryParse(string? line, out DesignerHostIpcCommand command)
     {
@@ -119,13 +147,50 @@ internal sealed class DesignerHostIpcCommand
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(designDocumentPath))
-            return false;
+        var normalizedProjectPath = string.IsNullOrWhiteSpace(projectPath) ? null : projectPath;
+        var parentWindowHandle = IntPtr.Zero;
+
+        switch (kind)
+        {
+            case DesignerHostIpcCommandKind.Open:
+            case DesignerHostIpcCommandKind.Save:
+            case DesignerHostIpcCommandKind.QueryDirty:
+            case DesignerHostIpcCommandKind.Shutdown:
+                if (string.IsNullOrWhiteSpace(designDocumentPath))
+                    return false;
+                break;
+            case DesignerHostIpcCommandKind.AttachParent:
+                if (!long.TryParse(
+                        designDocumentPath,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out var handleValue)
+                    || handleValue == 0)
+                {
+                    return false;
+                }
+
+                parentWindowHandle = new IntPtr(handleValue);
+                if (normalizedProjectPath is not null)
+                    return false;
+                break;
+            case DesignerHostIpcCommandKind.Park:
+            case DesignerHostIpcCommandKind.Resize:
+            case DesignerHostIpcCommandKind.Show:
+            case DesignerHostIpcCommandKind.Hide:
+            case DesignerHostIpcCommandKind.Focus:
+                if (designDocumentPath.Length != 0 || normalizedProjectPath is not null)
+                    return false;
+                break;
+            default:
+                return false;
+        }
 
         command = new DesignerHostIpcCommand(
             kind,
             designDocumentPath,
-            string.IsNullOrWhiteSpace(projectPath) ? null : projectPath);
+            normalizedProjectPath,
+            parentWindowHandle);
         return true;
     }
 
@@ -155,6 +220,42 @@ internal sealed class DesignerHostIpcCommand
             return true;
         }
 
+        if (string.Equals(value, "ATTACH", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.AttachParent;
+            return true;
+        }
+
+        if (string.Equals(value, "PARK", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Park;
+            return true;
+        }
+
+        if (string.Equals(value, "RESIZE", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Resize;
+            return true;
+        }
+
+        if (string.Equals(value, "SHOW", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Show;
+            return true;
+        }
+
+        if (string.Equals(value, "HIDE", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Hide;
+            return true;
+        }
+
+        if (string.Equals(value, "FOCUS", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.Focus;
+            return true;
+        }
+
         kind = default;
         return false;
     }
@@ -168,5 +269,11 @@ internal enum DesignerHostIpcCommandKind
     Open,
     Save,
     QueryDirty,
-    Shutdown
+    Shutdown,
+    AttachParent,
+    Park,
+    Resize,
+    Show,
+    Hide,
+    Focus
 }
