@@ -5,8 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 using ModernFormsNext.VisualStudioExtension.Commands;
+using Timer = System.Windows.Forms.Timer;
 
 namespace ModernFormsNext.VisualStudioExtension.Editors;
 
@@ -20,6 +22,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private readonly Timer readinessTimer;
     private readonly Timer documentStateTimer;
     private readonly string pipeName;
+    private readonly object ipcGate = new();
     private string documentPath;
     private string? projectPath;
     private Process? ownedProcess;
@@ -28,6 +31,9 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private bool disposing;
     private bool hasPublishedDirtyState;
     private bool publishedDirtyState;
+    private int dirtyQueryInFlight;
+    private int focusCommandInFlight;
+    private int documentStateGeneration;
 
     public event EventHandler<DesignerDocumentDirtyChangedEventArgs>? DocumentDirtyChanged;
 
@@ -79,12 +85,17 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             return ownedProcess is not null;
         }
 
-        if (!DesignerHostIpcClient.TrySendCommand(
-            pipeName,
-            "OPEN",
-            candidateDocumentPath,
-            candidateProjectPath,
-            TimeSpan.FromSeconds(2)))
+        bool opened;
+        lock (ipcGate)
+        {
+            opened = DesignerHostIpcClient.TrySendCommand(
+                pipeName,
+                "OPEN",
+                candidateDocumentPath,
+                candidateProjectPath,
+                TimeSpan.FromSeconds(2));
+        }
+        if (!opened)
         {
             return false;
         }
@@ -93,7 +104,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         // the request fails, Visual Studio must continue to save and query the original document.
         documentPath = candidateDocumentPath;
         projectPath = candidateProjectPath;
-        RefreshDocumentDirtyState();
+        Interlocked.Increment(ref documentStateGeneration);
+        QueueDocumentDirtyStateRefresh();
         return true;
     }
 
@@ -102,40 +114,55 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         if (ownedProcess is null || HasExited(ownedProcess))
             return DesignerHostSaveResult.Failed("The Designer host process is not running.");
 
-        var result = DesignerHostIpcClient.SaveDocument(
-            pipeName,
-            documentPath,
-            projectPath,
-            TimeSpan.FromSeconds(10));
-        if (result.Outcome == DesignerHostSaveOutcome.Saved)
-            PublishDocumentDirtyState(isDirty: false);
-        return result;
+        documentStateTimer.Stop();
+        Interlocked.Increment(ref documentStateGeneration);
+        try
+        {
+            DesignerHostSaveResult result;
+            lock (ipcGate)
+            {
+                result = DesignerHostIpcClient.SaveDocument(
+                    pipeName,
+                    documentPath,
+                    projectPath,
+                    TimeSpan.FromSeconds(10));
+            }
+
+            if (result.Outcome == DesignerHostSaveOutcome.Saved)
+                PublishDocumentDirtyState(isDirty: false);
+            return result;
+        }
+        finally
+        {
+            if (!disposing && childWindowHandle != IntPtr.Zero)
+                documentStateTimer.Start();
+        }
     }
 
     public bool TryDiscardDocumentRecovery()
-        => ownedProcess is not null
-            && !HasExited(ownedProcess)
-            && DesignerHostIpcClient.TrySendCommand(
+    {
+        if (ownedProcess is null || HasExited(ownedProcess))
+            return false;
+
+        lock (ipcGate)
+        {
+            return DesignerHostIpcClient.TrySendCommand(
                 pipeName,
                 "DISCARD",
                 documentPath,
                 projectPath,
                 TimeSpan.FromSeconds(10));
+        }
+    }
 
-    public bool TryGetDocumentDirty(out bool isDirty)
+    public void PostToOwnerThread(Action action)
     {
-        isDirty = false;
-        if (ownedProcess is null || HasExited(ownedProcess))
-            return false;
-        if (readinessTimer.Enabled && childWindowHandle == IntPtr.Zero)
-            return false;
+        if (action is null)
+            throw new ArgumentNullException(nameof(action));
+        if (disposing || IsDisposed)
+            return;
 
-        return DesignerHostIpcClient.TryGetDocumentDirty(
-            pipeName,
-            documentPath,
-            projectPath,
-            DirtyQueryTimeout,
-            out isDirty);
+        BeginInvoke(action);
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -290,7 +317,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             statusLabel.Visible = false;
             ResizeHostedWindow();
             SynchronizeHostVisibility();
-            RefreshDocumentDirtyState();
+            QueueDocumentDirtyStateRefresh();
             documentStateTimer.Start();
             return;
         }
@@ -352,17 +379,21 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         if (process is null)
             return;
 
+        DesignerEditorDiagnosticLog.Write($"HOST_SHUTDOWN_BEGIN ProcessId={TryGetProcessId(process)}");
         process.Exited -= HandleOwnedProcessExited;
         try
         {
             if (!process.HasExited)
             {
-                _ = DesignerHostIpcClient.TrySendCommand(
-                    pipeName,
-                    "SHUTDOWN",
-                    documentPath,
-                    projectPath,
-                    TimeSpan.FromSeconds(1));
+                lock (ipcGate)
+                {
+                    _ = DesignerHostIpcClient.TrySendCommand(
+                        pipeName,
+                        "SHUTDOWN",
+                        documentPath,
+                        projectPath,
+                        TimeSpan.FromSeconds(1));
+                }
 
                 if (!process.WaitForExit(1500) && !process.HasExited)
                 {
@@ -379,6 +410,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         }
         finally
         {
+            DesignerEditorDiagnosticLog.Write(
+                $"HOST_SHUTDOWN_END ProcessId={TryGetProcessId(process)} ExitCode={TryGetExitCode(process)} HResult=0x00000000");
             process.Dispose();
         }
     }
@@ -404,18 +437,69 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         statusLabel.Visible = false;
         ResizeHostedWindow();
         SynchronizeHostVisibility();
-        RefreshDocumentDirtyState();
+        QueueDocumentDirtyStateRefresh();
         documentStateTimer.Start();
         return true;
     }
 
     private void HandleDocumentStateTick(object sender, EventArgs e)
-        => RefreshDocumentDirtyState();
+        => QueueDocumentDirtyStateRefresh();
 
-    private void RefreshDocumentDirtyState()
+    private void QueueDocumentDirtyStateRefresh()
     {
-        if (TryGetDocumentDirty(out var isDirty))
-            PublishDocumentDirtyState(isDirty);
+        if (disposing
+            || ownedProcess is null
+            || HasExited(ownedProcess)
+            || childWindowHandle == IntPtr.Zero
+            || Interlocked.CompareExchange(ref dirtyQueryInFlight, 1, 0) != 0)
+        {
+            return;
+        }
+
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            var generation = Volatile.Read(ref documentStateGeneration);
+            var queryDocumentPath = documentPath;
+            var queryProjectPath = projectPath;
+            var succeeded = false;
+            var isDirty = false;
+            try
+            {
+                lock (ipcGate)
+                {
+                    succeeded = DesignerHostIpcClient.TryGetDocumentDirty(
+                        pipeName,
+                        queryDocumentPath,
+                        queryProjectPath,
+                        DirtyQueryTimeout,
+                        out isDirty);
+                }
+            }
+            catch (Exception exception)
+            {
+                DesignerEditorDiagnosticLog.WriteException("DIRTY_QUERY_EXCEPTION", exception);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref dirtyQueryInFlight, 0);
+            }
+
+            if (!succeeded || generation != Volatile.Read(ref documentStateGeneration))
+                return;
+
+            try
+            {
+                PostToOwnerThread(() =>
+                {
+                    if (generation == Volatile.Read(ref documentStateGeneration))
+                        PublishDocumentDirtyState(isDirty);
+                });
+            }
+            catch (InvalidOperationException)
+            {
+                // Handle teardown raced the background query.
+            }
+        });
     }
 
     private void PublishDocumentDirtyState(bool isDirty)
@@ -435,7 +519,22 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         => _ = TrySendLifecycleCommand(Visible ? "SHOW" : "HIDE");
 
     private void FocusHostedWindow()
-        => _ = TrySendLifecycleCommand("FOCUS");
+    {
+        if (disposing || Interlocked.CompareExchange(ref focusCommandInFlight, 1, 0) != 0)
+            return;
+
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                _ = TrySendLifecycleCommand("FOCUS");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref focusCommandInFlight, 0);
+            }
+        });
+    }
 
     private bool TrySendLifecycleCommand(string command, string? payload = null)
     {
@@ -446,11 +545,14 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             return false;
         }
 
-        return DesignerHostIpcClient.TrySendLifecycleCommand(
-            pipeName,
-            command,
-            payload,
-            LifecycleCommandTimeout);
+        lock (ipcGate)
+        {
+            return DesignerHostIpcClient.TrySendLifecycleCommand(
+                pipeName,
+                command,
+                payload,
+                LifecycleCommandTimeout);
+        }
     }
 
     private void ShowFailure(string message)
@@ -483,6 +585,18 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         catch (InvalidOperationException)
         {
             return string.Empty;
+        }
+    }
+
+    private static string TryGetProcessId(Process process)
+    {
+        try
+        {
+            return process.Id.ToString(CultureInfo.InvariantCulture);
+        }
+        catch (InvalidOperationException)
+        {
+            return "<unknown>";
         }
     }
 

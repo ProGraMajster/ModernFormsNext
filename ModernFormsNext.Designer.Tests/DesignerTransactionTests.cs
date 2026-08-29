@@ -409,6 +409,24 @@ public sealed class DesignerTransactionTests
     }
 
     [Fact]
+    public void MoveSaveMoveUndoReturnsExactlyToSavedBoundsAndCleanState()
+    {
+        using var session = CreateSession(out var button);
+        var savedBounds = new DesignBounds(30, 35, 100, 30);
+        session.SetNodeBounds(button, savedBounds);
+        session.MarkSaved();
+        session.SetNodeBounds(button, new DesignBounds(80, 95, 100, 30));
+
+        Assert.True(session.IsDirty);
+        Assert.True(session.Transactions.Undo());
+
+        Assert.Equal(savedBounds, button.Bounds);
+        Assert.False(session.IsDirty);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+    }
+
+    [Fact]
     public void ClearHistoryReleasesUndoRedoAndPreservesDirtyState()
     {
         using var session = CreateSession(out var button);
@@ -966,6 +984,86 @@ public sealed class DesignerTransactionTests
         Assert.False(surface.Capture);
         Assert.False(session.Transactions.HasActiveTransaction);
         Assert.True(session.Transactions.CanUndo);
+    }
+
+    [Fact]
+    public void UndoThenCaptureLossRollsBackOnlyCurrentDragAndLeavesHistoryPositionUnchanged()
+    {
+        using var session = CreateSession(out var button);
+        session.SelectNode(button);
+        var surface = new DesignerSurface(session) { Width = 1000, Height = 800 };
+        var controller = surface.MouseController;
+        var view = new DesignerCoordinateMapper().GetView(session, surface.Width, surface.Height);
+        var startX = view.ClientX + button.Bounds.X + 10;
+        var startY = view.ClientY + button.Bounds.Y + 10;
+
+        controller.HandleMouseDown(surface, MouseAt(startX, startY));
+        controller.HandleMouseMove(surface, MouseAt(startX + 30, startY + 20));
+        controller.HandleMouseUp(surface, MouseAt(startX + 30, startY + 20));
+        var committedBounds = button.Bounds;
+
+        Assert.NotEqual(new DesignBounds(10, 10, 100, 30), committedBounds);
+        Assert.True(session.Transactions.Undo());
+        Assert.Equal(new DesignBounds(10, 10, 100, 30), button.Bounds);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+        Assert.False(surface.Capture);
+        Assert.Equal(0, session.CurrentHistory.UndoCount);
+        Assert.Equal(1, session.CurrentHistory.RedoCount);
+
+        controller.HandleMouseDown(surface, MouseAt(startX, startY));
+        controller.HandleMouseMove(surface, MouseAt(startX + 18, startY + 12));
+
+        Assert.True(controller.HasActiveOperation);
+        Assert.True(session.Transactions.HasActiveTransaction);
+        Assert.True(surface.Capture);
+        Assert.NotEqual(new DesignBounds(10, 10, 100, 30), button.Bounds);
+
+        surface.CancelPointerInteraction();
+
+        Assert.Equal(new DesignBounds(10, 10, 100, 30), button.Bounds);
+        Assert.False(controller.HasActiveOperation);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+        Assert.False(surface.Capture);
+        Assert.Equal(0, session.CurrentHistory.UndoCount);
+        Assert.Equal(1, session.CurrentHistory.RedoCount);
+
+        controller.HandleMouseDown(surface, MouseAt(0, 0));
+
+        Assert.Equal(new DesignBounds(10, 10, 100, 30), button.Bounds);
+        Assert.Equal(0, session.CurrentHistory.UndoCount);
+        Assert.Equal(1, session.CurrentHistory.RedoCount);
+    }
+
+    [Fact]
+    public void DragOutsideSurfaceMouseUpCommitsOnceAndReleasesCapture()
+    {
+        using var session = CreateSession(out var button);
+        session.SelectNode(button);
+        var surface = new DesignerSurface(session) { Width = 1000, Height = 800 };
+        var controller = surface.MouseController;
+        var view = new DesignerCoordinateMapper().GetView(session, surface.Width, surface.Height);
+        var startX = view.ClientX + button.Bounds.X + 10;
+        var startY = view.ClientY + button.Bounds.Y + 10;
+        var outsideX = view.ClientX - 25;
+        var outsideY = view.ClientY - 20;
+
+        controller.HandleMouseDown(surface, MouseAt(startX, startY));
+        controller.HandleMouseMove(surface, MouseAt(outsideX, outsideY));
+        controller.HandleMouseUp(surface, MouseAt(outsideX, outsideY));
+        var committedBounds = button.Bounds;
+
+        Assert.NotEqual(new DesignBounds(10, 10, 100, 30), committedBounds);
+        Assert.False(controller.HasActiveOperation);
+        Assert.False(session.Transactions.HasActiveTransaction);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, session.Transactions.ReplayMode);
+        Assert.False(surface.Capture);
+        Assert.Equal(1, session.CurrentHistory.UndoCount);
+        Assert.Equal(0, session.CurrentHistory.RedoCount);
+
+        Assert.True(session.Transactions.Undo());
+        Assert.Equal(new DesignBounds(10, 10, 100, 30), button.Bounds);
     }
 
     [Fact]

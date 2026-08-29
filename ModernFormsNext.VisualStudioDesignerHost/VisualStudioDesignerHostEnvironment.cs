@@ -38,12 +38,14 @@ public sealed class VisualStudioDesignerHostEnvironment : IDesignerHostEnvironme
     /// <inheritdoc/>
     public void ReportStatus(string message)
     {
+        DesignerHostDiagnosticLog.Write($"DESIGNER_STATUS {message}");
         Console.WriteLine(message);
     }
 
     /// <inheritdoc/>
     public void ReportOutput(string message)
     {
+        DesignerHostDiagnosticLog.Write($"DESIGNER_OUTPUT {message}");
         Console.WriteLine(message);
     }
 }

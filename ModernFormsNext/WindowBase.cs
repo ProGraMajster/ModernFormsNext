@@ -219,6 +219,11 @@ namespace ModernFormsNext
                 me.Position *= window.RenderScaling;
 
                 switch (me.Type) {
+                    case RawPointerEventType.CaptureLost:
+                        // Platform capture loss replaces the missing mouse-up transition. Route it
+                        // to the logical capture owner so a control can resolve its own gesture.
+                        adapter.CancelCapturedPointerInteractionsInSubtree();
+                        break;
                     case RawPointerEventType.LeftButtonDown:
                         if (Resizeable && HandleMouseDown ((int)me.Position.X, (int)me.Position.Y))
                             return;

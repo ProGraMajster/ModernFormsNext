@@ -27,6 +27,8 @@ internal sealed class DesignerMouseController
     private DesignerTransaction? activeTransaction;
     private DesignerModelMutationSnapshot? operationSnapshot;
 
+    internal bool HasActiveOperation => activeTransaction is not null;
+
     public DesignerMouseController(DesignerSession state)
     {
         this.state = state;
@@ -38,6 +40,10 @@ internal sealed class DesignerMouseController
     {
         if (e.Button != MouseButtons.Left)
             return;
+
+        // A second down means the previous platform gesture ended without a matching up. Resolve
+        // only that in-flight Designer transaction before hit testing the new action.
+        CancelOrClearExistingOperation(surface, "NewMouseDown");
 
         var surfacePoint = ToSurfacePoint(surface, e);
         var handle = hitTestService.HitTestResizeHandle(state, surface.Width, surface.Height, surfacePoint.X, surfacePoint.Y);
@@ -151,7 +157,7 @@ internal sealed class DesignerMouseController
         catch
         {
             if (activeTransaction is not null && state.Transactions.HasActiveTransaction)
-                CancelOperation(surface);
+                CancelOperation(surface, "MouseMoveException");
             else
                 ClearOperation(surface);
             throw;
@@ -211,12 +217,12 @@ internal sealed class DesignerMouseController
         }
         catch
         {
-            if (!CancelOperation(surface))
+            if (!CancelOperation(surface, "MouseUpException"))
                 ClearOperation(surface);
             throw;
         }
 
-        ClearOperation(surface);
+        CancelOrClearExistingOperation(surface, "NewPointerOperation");
     }
 
     private void BeginOperation(
@@ -226,7 +232,7 @@ internal sealed class DesignerMouseController
         DesignerResizeHandle handle,
         DesignPoint documentPoint)
     {
-        ClearOperation(surface);
+        CancelOrClearExistingOperation(surface, "NewPointerOperation");
         operation = nextOperation;
         resizeHandle = handle;
         activeNode = node;
@@ -244,6 +250,8 @@ internal sealed class DesignerMouseController
             _ => $"Change {node.Name}"
         });
         surface.Capture = true;
+        state.Log($"GESTURE_BEGIN id={state.Transactions.CurrentTransactionId} Operation={nextOperation} " +
+            $"Node={node.Name} Bounds={DescribeBounds(node.Bounds)} {DescribeTransactionState()}");
     }
 
     private void BeginRootResize(
@@ -251,7 +259,7 @@ internal sealed class DesignerMouseController
         DesignerResizeHandle handle,
         (float X, float Y) surfacePoint)
     {
-        ClearOperation(surface);
+        CancelOrClearExistingOperation(surface, "NewRootResizeOperation");
         operation = DesignerMouseOperation.Resizing;
         resizeHandle = handle;
         activeNode = null;
@@ -265,6 +273,8 @@ internal sealed class DesignerMouseController
         operationSnapshot = DesignerModelMutationSnapshot.CaptureDocumentLayout(state.Document);
         activeTransaction = state.Transactions.Begin($"Resize {state.Document.FormName}");
         surface.Capture = true;
+        state.Log($"GESTURE_BEGIN id={state.Transactions.CurrentTransactionId} Operation=RootResize " +
+            $"Bounds=0,0,{state.Document.Size.Width},{state.Document.Size.Height} {DescribeTransactionState()}");
     }
 
     private void ClearOperation(Control surface)
@@ -295,16 +305,20 @@ internal sealed class DesignerMouseController
         }
     }
 
-    public bool CancelOperation(Control surface)
+    public bool CancelOperation(Control surface, string reason = "Explicit")
     {
         if (activeTransaction is null)
             return false;
 
+        var transactionId = state.Transactions.CurrentTransactionId;
+        var before = DescribeCurrentBounds();
+        state.Log($"GESTURE_CANCEL id={transactionId} Reason={reason} Before={before} {DescribeTransactionState()}");
         try
         {
             RecordOperationChanges();
             activeTransaction.Rollback();
-            state.Log("Cancelled the active Designer gesture.");
+            state.Log($"GESTURE_ROLLBACK_CURRENT id={transactionId} Reason={reason} " +
+                $"After={DescribeCurrentBounds()} {DescribeTransactionState()}");
             return true;
         }
         finally
@@ -326,9 +340,11 @@ internal sealed class DesignerMouseController
 
     private void CommitOperationTransaction()
     {
+        var transactionId = state.Transactions.CurrentTransactionId;
         try
         {
             activeTransaction?.Commit();
+            state.Log($"GESTURE_COMMIT id={transactionId} Bounds={DescribeCurrentBounds()} {DescribeTransactionState()}");
         }
         finally
         {
@@ -339,6 +355,26 @@ internal sealed class DesignerMouseController
             }
         }
     }
+
+    private void CancelOrClearExistingOperation(Control surface, string reason)
+    {
+        if (!CancelOperation(surface, reason))
+            ClearOperation(surface);
+    }
+
+    private string DescribeCurrentBounds()
+        => resizingRoot
+            ? $"0,0,{state.Document.Size.Width},{state.Document.Size.Height}"
+            : activeNode is null ? "<none>" : DescribeBounds(activeNode.Bounds);
+
+    private static string DescribeBounds(DesignBounds bounds)
+        => $"{bounds.X},{bounds.Y},{bounds.Width},{bounds.Height}";
+
+    private string DescribeTransactionState()
+        => $"Revision={state.CurrentHistory.CurrentRevision} UndoCount={state.CurrentHistory.UndoCount} " +
+            $"RedoCount={state.CurrentHistory.RedoCount} ActiveTransaction=" +
+            $"{state.Transactions.CurrentTransactionId?.ToString() ?? "<none>"} " +
+            $"ReplayMode={state.Transactions.ReplayMode}";
 
     private void UpdateDrag(int deltaX, int deltaY)
     {

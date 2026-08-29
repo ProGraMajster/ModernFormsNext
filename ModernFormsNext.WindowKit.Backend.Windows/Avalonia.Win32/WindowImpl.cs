@@ -73,6 +73,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private IInputRoot? _owner;
         private WindowProperties _windowProperties;
         private bool _trackingMouse;//ToDo - there is something missed. Needs investigation @Steven Kirk
+        private bool _ownsMouseCapture;
         private bool _topmost;
         private double _scaling = 1;
         private WindowState _showWindowState;

@@ -30,6 +30,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             uint timestamp = unchecked((uint)GetMessageTime());
             RawInputEventArgs? e = null;
             var shouldTakeFocus = false;
+            var releaseMouseCaptureAfterInput = false;
             var message = (WindowsMessage)msg;
             switch (message)
             {
@@ -247,6 +248,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                                     RawPointerEventType.XButton2Down,
                             },
                             DipFromLParam(lParam), GetMouseModifiers(wParam));
+                        TakeNativeMouseCapture();
                         break;
                     }
 
@@ -281,13 +283,23 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                                     RawPointerEventType.XButton2Up,
                             },
                             DipFromLParam(lParam), GetMouseModifiers(wParam));
-                            break;
+                        releaseMouseCaptureAfterInput = !HasPressedMouseButton(GetMouseModifiers(wParam));
+                        break;
                         }
                 // Mouse capture is lost
                 case WindowsMessage.WM_CANCELMODE:
-                    if (!IsMouseInPointerEnabled)
+                    if (!IsMouseInPointerEnabled && _ownsMouseCapture)
                     {
-                        //_mouseDevice.Capture(null);
+                        ReleaseNativeMouseCapture();
+                        e = CreateCaptureLostEvent(timestamp);
+                    }
+
+                    break;
+                case WindowsMessage.WM_CAPTURECHANGED:
+                    if (!IsMouseInPointerEnabled && _ownsMouseCapture && lParam != _hwnd)
+                    {
+                        _ownsMouseCapture = false;
+                        e = CreateCaptureLostEvent(timestamp);
                     }
 
                     break;
@@ -775,7 +787,15 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
             if (e != null && Input != null)
             {
-                Input(e);
+                try
+                {
+                    Input(e);
+                }
+                finally
+                {
+                    if (releaseMouseCaptureAfterInput)
+                        ReleaseNativeMouseCapture();
+                }
 
                 if (message == WindowsMessage.WM_KEYDOWN)
                 {
@@ -796,9 +816,49 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     return IntPtr.Zero;
                 }
             }
+            else if (releaseMouseCaptureAfterInput)
+            {
+                ReleaseNativeMouseCapture();
+            }
 
             return DefWindowProc(hWnd, msg, wParam, lParam);
         }
+
+        private void TakeNativeMouseCapture()
+        {
+            if (_ownsMouseCapture)
+                return;
+
+            SetCapture(_hwnd);
+            _ownsMouseCapture = true;
+        }
+
+        private void ReleaseNativeMouseCapture()
+        {
+            if (!_ownsMouseCapture)
+                return;
+
+            // ReleaseCapture synchronously produces WM_CAPTURECHANGED. Clear ownership first so
+            // an intentional button-up release is not reported as cancellation.
+            _ownsMouseCapture = false;
+            ReleaseCapture();
+        }
+
+        private RawPointerEventArgs CreateCaptureLostEvent(uint timestamp)
+            => new(
+                _mouseDevice,
+                timestamp,
+                Owner,
+                RawPointerEventType.CaptureLost,
+                default(Point),
+                RawInputModifiers.None);
+
+        private static bool HasPressedMouseButton(RawInputModifiers modifiers)
+            => (modifiers & (RawInputModifiers.LeftMouseButton
+                | RawInputModifiers.RightMouseButton
+                | RawInputModifiers.MiddleMouseButton
+                | RawInputModifiers.XButton1MouseButton
+                | RawInputModifiers.XButton2MouseButton)) != 0;
 
         private IntPtr GetMsaaAccessibilityObject(IntPtr wParam)
         {

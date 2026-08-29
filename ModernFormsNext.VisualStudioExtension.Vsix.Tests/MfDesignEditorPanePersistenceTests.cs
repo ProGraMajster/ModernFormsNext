@@ -7,6 +7,9 @@ using Microsoft.VisualStudio.Shell.Interop;
 using ModernFormsNext.VisualStudioExtension.Commands;
 using ModernFormsNext.VisualStudioExtension.Editors;
 using Xunit;
+using IOleCommandTarget = Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget;
+using OLECMD = Microsoft.VisualStudio.OLE.Interop.OLECMD;
+using OLECMDF = Microsoft.VisualStudio.OLE.Interop.OLECMDF;
 
 // The fake shell invokes every COM callback synchronously on the test thread, which is the
 // contract-level equivalent of Visual Studio's UI thread for these tests.
@@ -198,6 +201,86 @@ public sealed class MfDesignEditorPanePersistenceTests
         Assert.Equal(0, saveAsCanceled);
     }
 
+    [Fact]
+    public void StandardSaveCommandIsOwnedByPaneDeferredAndCoalesced()
+    {
+        using var context = new EditorContext();
+        context.Pane.OnRegisterDocData(91, null!, VSConstants.VSITEMID_NIL);
+        context.Host.SetDirty(true);
+        var target = Assert.IsAssignableFrom<IOleCommandTarget>(context.Pane);
+        var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
+        var commands = new[] { new OLECMD { cmdID = (uint)VSConstants.VSStd97CmdID.Save } };
+
+        Assert.Equal(VSConstants.S_OK, target.QueryStatus(ref commandGroup, 1, commands, IntPtr.Zero));
+        Assert.Equal(
+            (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_ENABLED),
+            commands[0].cmdf);
+        Assert.Equal(
+            VSConstants.S_OK,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+        Assert.Equal(
+            VSConstants.S_OK,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+
+        Assert.Equal(0, context.Host.SaveCount);
+        Assert.Single(context.Host.PostedActions);
+
+        context.Host.RunPostedActions();
+
+        Assert.Equal(1, context.Host.SaveCount);
+        Assert.False(context.Host.IsDirty);
+    }
+
+    [Fact]
+    public void PaneDoesNotClaimUndoFromVisualStudioCommandChain()
+    {
+        using var context = new EditorContext();
+        var target = Assert.IsAssignableFrom<IOleCommandTarget>(context.Pane);
+        var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
+
+        var result = target.Exec(
+            ref commandGroup,
+            (uint)VSConstants.VSStd97CmdID.Undo,
+            0,
+            IntPtr.Zero,
+            IntPtr.Zero);
+
+        Assert.Equal((int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED, result);
+    }
+
+    [Fact]
+    public void ThreeOpenCloseCyclesUseFreshValidCanonicalCookiesAndDisposeOnce()
+    {
+        var directoryPath = Path.Combine(Path.GetTempPath(), "ModernFormsNext-VsixCloseCycles-" + Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(directoryPath);
+        var services = new FakeVisualStudioDocumentServices();
+        try
+        {
+            for (uint cycle = 1; cycle <= 3; cycle++)
+            {
+                var host = new FakeDesignerDocumentHost();
+                var path = Path.Combine(directoryPath, $"Form{cycle}.mfdesign");
+                using var pane = new MfDesignEditorPane(new EmptyServiceProvider(), path, host, services);
+                var cookie = 100 + cycle;
+                services.CanonicalCookie = cookie;
+
+                Assert.Equal(VSConstants.S_OK, pane.OnRegisterDocData(cookie, null!, VSConstants.VSITEMID_NIL));
+                Assert.Equal(VSConstants.S_OK, pane.Close());
+                pane.Dispose();
+
+                Assert.Equal(1, host.DisposeCount);
+                Assert.Contains(services.RegistrationStates, state =>
+                    state.Cookie == cookie
+                    && state.CanonicalCookie == cookie
+                    && state.IsCookieValid);
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(directoryPath, recursive: true);
+        }
+    }
+
     private static int ExecuteStandardSave(MfDesignEditorPane pane, out int canceled)
         => pane.SaveDocData(VSSAVEFLAGS.VSSAVE_Save, out _, out canceled);
 
@@ -235,6 +318,7 @@ public sealed class MfDesignEditorPanePersistenceTests
             Host = new FakeDesignerDocumentHost();
             Services = new FakeVisualStudioDocumentServices();
             Pane = new MfDesignEditorPane(new EmptyServiceProvider(), documentPath, Host, Services);
+            Host.DocumentDirtyChanged += (_, e) => Services.RdtDirty = e.IsDirty;
         }
 
         public string DirectoryPath { get; }
@@ -282,6 +366,8 @@ public sealed class MfDesignEditorPanePersistenceTests
 
         public int DiscardCount { get; private set; }
 
+        public List<Action> PostedActions { get; } = new();
+
         public DesignerHostSaveResult NextSaveResult { get; set; } = DesignerHostSaveResult.Saved;
 
         public bool TryOpenDocument(string path)
@@ -300,10 +386,17 @@ public sealed class MfDesignEditorPanePersistenceTests
             return result;
         }
 
-        public bool TryGetDocumentDirty(out bool isDirty)
+        public void PostToOwnerThread(Action action)
         {
-            isDirty = IsDirty;
-            return true;
+            PostedActions.Add(action);
+        }
+
+        public void RunPostedActions()
+        {
+            var actions = PostedActions.ToArray();
+            PostedActions.Clear();
+            foreach (var action in actions)
+                action();
         }
 
         public bool TryDiscardDocumentRecovery()
@@ -334,6 +427,12 @@ public sealed class MfDesignEditorPanePersistenceTests
         public List<uint> DirtyUpdates { get; } = new();
 
         public List<string> SaveCanceledMessages { get; } = new();
+
+        public uint CanonicalCookie { get; set; }
+
+        public bool RdtDirty { get; set; }
+
+        public List<RunningDocumentState> RegistrationStates { get; } = new();
 
         public int QuerySaveFile(string documentPath, out uint result)
         {
@@ -367,6 +466,17 @@ public sealed class MfDesignEditorPanePersistenceTests
 
         public void UpdateDirtyState(uint documentCookie)
             => DirtyUpdates.Add(documentCookie);
+
+        public RunningDocumentState GetRunningDocumentState(uint documentCookie, string documentPath)
+        {
+            var state = new RunningDocumentState(
+                documentCookie,
+                CanonicalCookie == VSConstants.VSCOOKIE_NIL ? documentCookie : CanonicalCookie,
+                documentCookie != VSConstants.VSCOOKIE_NIL,
+                RdtDirty);
+            RegistrationStates.Add(state);
+            return state;
+        }
 
         public void ReportSaveCanceled(string message)
             => SaveCanceledMessages.Add(message);

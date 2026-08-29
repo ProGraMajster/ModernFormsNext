@@ -5,6 +5,9 @@ using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using ModernFormsNext.VisualStudioExtension.Commands;
+using IOleCommandTarget = Microsoft.VisualStudio.OLE.Interop.IOleCommandTarget;
+using OLECMD = Microsoft.VisualStudio.OLE.Interop.OLECMD;
+using OLECMDF = Microsoft.VisualStudio.OLE.Interop.OLECMDF;
 
 namespace ModernFormsNext.VisualStudioExtension.Editors;
 
@@ -15,9 +18,11 @@ namespace ModernFormsNext.VisualStudioExtension.Editors;
 /// One pane owns exactly one child process and one <c>.mfdesign</c> document. The process is never
 /// discovered or terminated by name, which prevents one Visual Studio instance from affecting
 /// another instance's Designer host. Visual Studio owns save prompts and the RDT document state;
-/// the out-of-process Designer remains the sole source of the actual dirty value.
+/// the out-of-process Designer remains the sole source of the actual dirty value. This pane claims
+/// only the standard Save command from Visual Studio's command chain. Undo, redo, clipboard, and
+/// delete remain owned by the Designer host so the cross-process view never executes them twice.
 /// </remarks>
-public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersistFileFormat
+public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersistFileFormat, IOleCommandTarget
 {
     private const uint CurrentFileFormat = 0;
     private readonly IDesignerDocumentHost hostControl;
@@ -27,6 +32,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     private bool lastKnownDirty;
     private int closeState;
     private int disposeState;
+    private int deferredSaveState;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MfDesignEditorPane"/> class.
@@ -72,9 +78,6 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     /// <inheritdoc/>
     public int IsDirty(out int pfIsDirty)
     {
-        if (hostControl.TryGetDocumentDirty(out var isDirty))
-            lastKnownDirty = isDirty;
-
         pfIsDirty = lastKnownDirty ? 1 : 0;
         DesignerEditorDiagnosticLog.Write($"IS_DIRTY Dirty={lastKnownDirty} Cookie={documentCookie}");
         return VSConstants.S_OK;
@@ -110,7 +113,10 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
         DesignerEditorDiagnosticLog.Write(
             $"PERSIST_SAVE_BEGIN Target={targetPath} Remember={fRemember != 0} Format={nFormatIndex}");
+        DesignerEditorDiagnosticLog.Write($"HOST_SAVE_BEGIN Target={targetPath}");
         var result = hostControl.SaveDocument();
+        DesignerEditorDiagnosticLog.Write(
+            $"HOST_SAVE_RESULT Outcome={result.Outcome} Error={result.Error ?? "<none>"}");
         if (result.Outcome == DesignerHostSaveOutcome.Saved)
         {
             if (fRemember != 0)
@@ -158,6 +164,8 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
             return VSConstants.S_OK;
         }
 
+        DesignerEditorDiagnosticLog.Write($"DOC_DATA_CLOSE_BEGIN Cookie={documentCookie} Moniker={documentPath}");
+
         if (lastKnownDirty)
         {
             var discarded = hostControl.TryDiscardDocumentRecovery();
@@ -166,7 +174,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
         hostControl.DocumentDirtyChanged -= HandleDocumentDirtyChanged;
         documentCookie = VSConstants.VSCOOKIE_NIL;
-        DesignerEditorDiagnosticLog.Write("DOC_DATA_CLOSE HResult=0x00000000");
+        DesignerEditorDiagnosticLog.Write("DOC_DATA_CLOSE_END HResult=0x00000000");
         return VSConstants.S_OK;
     }
 
@@ -198,7 +206,10 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     public int OnRegisterDocData(uint docCookie, IVsHierarchy pHierNew, uint itemidNew)
     {
         documentCookie = docCookie;
-        DesignerEditorDiagnosticLog.Write($"DOC_DATA_REGISTERED Cookie={docCookie} Moniker={documentPath}");
+        var state = GetRunningDocumentState();
+        DesignerEditorDiagnosticLog.Write(
+            $"DOC_DATA_REGISTERED Cookie={docCookie} CanonicalCookie={state.CanonicalCookie} " +
+            $"CookieValid={state.IsCookieValid} Moniker={documentPath}");
         NotifyVisualStudioDirtyState();
         return VSConstants.S_OK;
     }
@@ -215,11 +226,12 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     {
         pbstrMkDocumentNew = null!;
         pfSaveCanceled = 0;
-        DesignerEditorDiagnosticLog.Write($"SAVE_DOC_DATA_BEGIN Flags={dwSave} Moniker={documentPath}");
+        DesignerEditorDiagnosticLog.Write($"SAVEDOCDATA_BEGIN Flags={dwSave} Cookie={documentCookie} Moniker={documentPath}");
+        LogRunningDocumentState("RDT_DIRTY_BEFORE");
 
+        var result = VSConstants.E_UNEXPECTED;
         try
         {
-            int result;
             switch (dwSave)
             {
                 case VSSAVEFLAGS.VSSAVE_Save:
@@ -241,15 +253,20 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
                     break;
             }
 
-            DesignerEditorDiagnosticLog.Write(
-                $"SAVE_DOC_DATA_END Flags={dwSave} HResult=0x{result:X8} " +
-                $"Canceled={pfSaveCanceled != 0} NewMoniker={pbstrMkDocumentNew ?? "<null>"}");
             return result;
         }
         catch (Exception exception)
         {
-            DesignerEditorDiagnosticLog.WriteException("SAVE_DOC_DATA_EXCEPTION", exception);
-            return Marshal.GetHRForException(exception);
+            DesignerEditorDiagnosticLog.WriteException("SAVEDOCDATA_EXCEPTION", exception);
+            result = Marshal.GetHRForException(exception);
+            return result;
+        }
+        finally
+        {
+            LogRunningDocumentState("RDT_DIRTY_AFTER");
+            DesignerEditorDiagnosticLog.Write(
+                $"SAVEDOCDATA_END Flags={dwSave} HResult=0x{result:X8} " +
+                $"Canceled={pfSaveCanceled != 0} NewMoniker={pbstrMkDocumentNew ?? "<null>"}");
         }
     }
 
@@ -278,6 +295,81 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         DesignerEditorDiagnosticLog.Write("PANE_DISPOSE_END");
     }
 
+    /// <inheritdoc/>
+    protected override void OnClose()
+    {
+        DesignerEditorDiagnosticLog.Write("WINDOW_PANE_ON_CLOSE_BEGIN");
+        try
+        {
+            base.OnClose();
+            DesignerEditorDiagnosticLog.Write("WINDOW_PANE_ON_CLOSE_END HResult=0x00000000");
+        }
+        catch (Exception exception)
+        {
+            DesignerEditorDiagnosticLog.WriteException("WINDOW_PANE_ON_CLOSE_EXCEPTION", exception);
+            throw;
+        }
+    }
+
+    int IOleCommandTarget.QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText)
+    {
+        if (pguidCmdGroup != VSConstants.GUID_VSStandardCommandSet97 || prgCmds is null)
+            return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
+
+        var handled = false;
+        var commandCount = Math.Min((int)cCmds, prgCmds.Length);
+        for (var index = 0; index < commandCount; index++)
+        {
+            if (prgCmds[index].cmdID != (uint)VSConstants.VSStd97CmdID.Save)
+                continue;
+
+            prgCmds[index].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED
+                | (lastKnownDirty ? OLECMDF.OLECMDF_ENABLED : (OLECMDF)0));
+            handled = true;
+        }
+
+        return handled
+            ? VSConstants.S_OK
+            : (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
+    }
+
+    int IOleCommandTarget.Exec(
+        ref Guid pguidCmdGroup,
+        uint nCmdID,
+        uint nCmdexecopt,
+        IntPtr pvaIn,
+        IntPtr pvaOut)
+    {
+        if (pguidCmdGroup != VSConstants.GUID_VSStandardCommandSet97
+            || nCmdID != (uint)VSConstants.VSStd97CmdID.Save)
+        {
+            return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
+        }
+
+        DesignerEditorDiagnosticLog.Write(
+            $"VS_CMD_SAVE_RECEIVED Cookie={documentCookie} Moniker={documentPath} ExecOption={nCmdexecopt}");
+        if (Interlocked.CompareExchange(ref deferredSaveState, 1, 0) != 0)
+        {
+            DesignerEditorDiagnosticLog.Write("VS_CMD_SAVE_COALESCED");
+            return VSConstants.S_OK;
+        }
+
+        try
+        {
+            // Return from the shell command before crossing the process boundary. A synchronous
+            // host FOCUS callback can otherwise wait for this same Visual Studio UI thread while
+            // SaveDocData is waiting for the host, creating a reentrant IPC stall.
+            hostControl.PostToOwnerThread(ExecuteDeferredSaveCommand);
+            return VSConstants.S_OK;
+        }
+        catch (Exception exception)
+        {
+            Interlocked.Exchange(ref deferredSaveState, 0);
+            DesignerEditorDiagnosticLog.WriteException("VS_CMD_SAVE_SCHEDULE_EXCEPTION", exception);
+            return Marshal.GetHRForException(exception);
+        }
+    }
+
     private int SaveCurrentDocument(
         VSSAVEFLAGS saveFlags,
         out string newDocumentPath,
@@ -287,7 +379,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         saveCanceled = 0;
         var queryHResult = documentServices.QuerySaveFile(documentPath, out var queryResult);
         DesignerEditorDiagnosticLog.Write(
-            $"QUERY_SAVE_RESULT HResult=0x{queryHResult:X8} Result={(tagVSQuerySaveResult)queryResult}");
+            $"QUERYSAVE_RESULT HResult=0x{queryHResult:X8} Result={(tagVSQuerySaveResult)queryResult}");
         if (ErrorHandler.Failed(queryHResult))
             return queryHResult;
 
@@ -371,6 +463,43 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
             // still retained in the Designer host and the next explicit IsDocDataDirty query.
             DesignerEditorDiagnosticLog.WriteException("RDT_DIRTY_UPDATE_EXCEPTION", exception);
         }
+    }
+
+    private void ExecuteDeferredSaveCommand()
+    {
+        try
+        {
+#pragma warning disable VSTHRD010 // IDesignerDocumentHost posts this callback to the pane's owner UI thread.
+            var hresult = SaveDocData(VSSAVEFLAGS.VSSAVE_Save, out _, out var canceled);
+#pragma warning restore VSTHRD010
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_COMPLETED HResult=0x{hresult:X8} Canceled={canceled != 0}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref deferredSaveState, 0);
+        }
+    }
+
+    private RunningDocumentState GetRunningDocumentState()
+    {
+        try
+        {
+            return documentServices.GetRunningDocumentState(documentCookie, documentPath);
+        }
+        catch (Exception exception)
+        {
+            DesignerEditorDiagnosticLog.WriteException("RDT_STATE_EXCEPTION", exception);
+            return new RunningDocumentState(documentCookie, VSConstants.VSCOOKIE_NIL, false, lastKnownDirty);
+        }
+    }
+
+    private void LogRunningDocumentState(string marker)
+    {
+        var state = GetRunningDocumentState();
+        DesignerEditorDiagnosticLog.Write(
+            $"{marker} Dirty={state.IsDirty} CachedDirty={lastKnownDirty} Cookie={state.Cookie} " +
+            $"CanonicalCookie={state.CanonicalCookie} CookieValid={state.IsCookieValid} Moniker={documentPath}");
     }
 
     private static bool PathsEqual(string left, string right)

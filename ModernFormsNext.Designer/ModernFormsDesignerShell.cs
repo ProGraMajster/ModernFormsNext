@@ -242,9 +242,9 @@ public sealed class ModernFormsDesignerShell : Panel
         {
             handled = (e.KeyCode, e.Shift) switch
             {
-                (Keys.Z, false) => Session.Transactions.CanUndo && Session.Transactions.Undo(),
-                (Keys.Y, false) => Session.Transactions.CanRedo && Session.Transactions.Redo(),
-                (Keys.Z, true) => Session.Transactions.CanRedo && Session.Transactions.Redo(),
+                (Keys.Z, false) => Session.Transactions.CanUndo && commands.Undo("Keyboard"),
+                (Keys.Y, false) => Session.Transactions.CanRedo && commands.Redo("Keyboard"),
+                (Keys.Z, true) => Session.Transactions.CanRedo && commands.Redo("Keyboard"),
                 (Keys.C, false) => Session.CopySelectedNode(),
                 (Keys.X, false) => Session.CutSelectedNode(),
                 (Keys.V, false) => Session.PasteCopiedNode(),

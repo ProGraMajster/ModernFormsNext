@@ -18,6 +18,8 @@ internal interface IVisualStudioDocumentServices
 
     void UpdateDirtyState(uint documentCookie);
 
+    RunningDocumentState GetRunningDocumentState(uint documentCookie, string documentPath);
+
     void ReportSaveCanceled(string message);
 }
 
@@ -81,6 +83,19 @@ internal sealed class VisualStudioDocumentServices : IVisualStudioDocumentServic
         }
     }
 
+    public RunningDocumentState GetRunningDocumentState(uint documentCookie, string documentPath)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if (serviceProvider.GetService(typeof(SVsRunningDocumentTable)) is not IVsRunningDocumentTable4 runningDocuments)
+            return new RunningDocumentState(documentCookie, VSConstants.VSCOOKIE_NIL, isCookieValid: false, isDirty: false);
+
+        var canonicalCookie = runningDocuments.GetDocumentCookie(documentPath);
+        var isCookieValid = documentCookie != VSConstants.VSCOOKIE_NIL
+            && runningDocuments.IsCookieValid(documentCookie);
+        var isDirty = isCookieValid && runningDocuments.IsDocumentDirty(documentCookie);
+        return new RunningDocumentState(documentCookie, canonicalCookie, isCookieValid, isDirty);
+    }
+
     public void ReportSaveCanceled(string message)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -92,4 +107,23 @@ internal sealed class VisualStudioDocumentServices : IVisualStudioDocumentServic
             OLEMSGBUTTON.OLEMSGBUTTON_OK,
             OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
     }
+}
+
+internal readonly struct RunningDocumentState
+{
+    public RunningDocumentState(uint cookie, uint canonicalCookie, bool isCookieValid, bool isDirty)
+    {
+        Cookie = cookie;
+        CanonicalCookie = canonicalCookie;
+        IsCookieValid = isCookieValid;
+        IsDirty = isDirty;
+    }
+
+    public uint Cookie { get; }
+
+    public uint CanonicalCookie { get; }
+
+    public bool IsCookieValid { get; }
+
+    public bool IsDirty { get; }
 }

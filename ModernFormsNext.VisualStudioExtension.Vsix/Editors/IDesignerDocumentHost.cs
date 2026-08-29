@@ -16,7 +16,7 @@ internal interface IDesignerDocumentHost : IDisposable
 
     bool TryDiscardDocumentRecovery();
 
-    bool TryGetDocumentDirty(out bool isDirty);
+    void PostToOwnerThread(Action action);
 }
 
 internal sealed class DesignerDocumentDirtyChangedEventArgs : EventArgs
