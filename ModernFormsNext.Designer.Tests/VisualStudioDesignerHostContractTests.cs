@@ -39,7 +39,8 @@ public sealed class VisualStudioDesignerHostContractTests
     [InlineData("OPEN", 0)]
     [InlineData("SAVE", 1)]
     [InlineData("DIRTY", 2)]
-    [InlineData("SHUTDOWN", 3)]
+    [InlineData("DISCARD", 3)]
+    [InlineData("SHUTDOWN", 4)]
     public void HostIpcParsesOnlyTheSupportedCommandShape(
         string commandName,
         int expectedKind)
@@ -83,11 +84,11 @@ public sealed class VisualStudioDesignerHostContractTests
     }
 
     [Theory]
-    [InlineData("PARK", 5)]
-    [InlineData("RESIZE", 6)]
-    [InlineData("SHOW", 7)]
-    [InlineData("HIDE", 8)]
-    [InlineData("FOCUS", 9)]
+    [InlineData("PARK", 6)]
+    [InlineData("RESIZE", 7)]
+    [InlineData("SHOW", 8)]
+    [InlineData("HIDE", 9)]
+    [InlineData("FOCUS", 10)]
     public void HostIpcParsesPayloadFreeWindowLifecycleCommands(
         string commandName,
         int expectedKind)

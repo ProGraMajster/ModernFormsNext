@@ -80,6 +80,8 @@ immediate process exit, attachment timeout, invalid parent HWND, or backend that
 HWND produces a visible pane diagnostic. The host log remains available at
 `%TEMP%\ModernFormsNextDesignerHost-<pid>.log`. Designer diagnostic logs are likewise isolated per
 process under `%LOCALAPPDATA%\ModernFormsNext\Designer` so simultaneous hosts cannot race one file.
+The in-process editor contract writes save, RDT, HRESULT, and disposal markers to
+`%TEMP%\ModernFormsNextDesignerEditor-<visual-studio-pid>.log`.
 
 The host derives the owning Visual Studio PID from the supplied parent HWND and monitors that exact
 process. If Visual Studio exits unexpectedly, the child closes instead of remaining orphaned. If
@@ -118,8 +120,11 @@ The editor pane and its host use a private, document-scoped named pipe for docum
 control operations:
 
 - `OPEN` reloads or reattaches the pane's canonical `.mfdesign` document;
-- `SAVE` invokes the existing Designer save and generated-code path;
+- `SAVE` invokes the existing Designer save and generated-code path and returns a typed
+  `SAVED`, `CANCELED`, or `FAILED` result instead of collapsing every refusal into `E_FAIL`;
 - `DIRTY` lets Visual Studio participate in save prompts;
+- `DISCARD` applies Visual Studio's explicit Don't Save decision through the existing issue #41
+  recovery cleanup before the host is shut down;
 - `SHUTDOWN` closes the owned host after Visual Studio has resolved the document close decision;
 - `ATTACH` applies a recreated Visual Studio pane HWND;
 - `PARK` hides the child and moves it to the message-only window tree before parent destruction;
@@ -133,9 +138,28 @@ commands return an error and do not terminate the listener.
 
 Save, autosave recovery, and external-change handling remain owned by the existing Designer
 persistence coordinator from issue #41. The VSIX does not create a second recovery store or a
-parallel file watcher. If an alive host temporarily cannot answer a dirty query, the pane reports
-dirty conservatively so Visual Studio does not silently discard work. If the process has already
-exited, the recovery artifacts remain available when the document is reopened.
+parallel file watcher. A short UI-thread timer observes only the host's authoritative dirty value.
+When that value changes, the pane calls `IVsRunningDocumentTable4.UpdateDirtyState` for its RDT
+cookie. Visual Studio then refreshes the tab-caption asterisk and its standard Save and Save All
+command state by calling `IsDocDataDirty`; no global Ctrl+S handler is installed. If a query is
+temporarily unavailable, the last confirmed value is retained. A host exit publishes dirty
+conservatively so Visual Studio cannot silently discard work, while issue #41 recovery artifacts
+remain available when the document is reopened.
+
+`SaveDocData` follows the VSSDK editor contract. Ordinary and silent saves first call
+`IVsQueryEditQuerySave2.QuerySaveFile`, then delegate to `IVsUIShell.SaveDocDataToFile`, which calls
+the pane's `IPersistFileFormat.Save`. That final method sends exactly one `SAVE` request to the
+host, so canonical `.mfdesign` persistence, generated-code output, recovery cleanup, external
+conflict checks, and the issue #33 transaction guard all remain in the existing Designer
+persistence coordinator. A successful save updates the saved history revision and publishes clean
+state to the RDT. An active gesture, unresolved conflict, canceled query-save, or other deliberate
+refusal reports save canceled (`OLE_E_PROMPTSAVECANCELLED`, `0x8004000C`) rather than the generic
+`E_FAIL` (`0x80004005`). The pane stays open and dirty.
+
+`IVsPersistDocData.Close` does not dispose the child process. Visual Studio can call it while the
+document view is still unwinding, and `WindowPane` already owns disposal of its `Window` object.
+The later, idempotent pane disposal unsubscribes dirty callbacks and performs exactly one bounded
+host shutdown. A canceled close never reaches that disposal path.
 
 ## View Designer and project metadata
 
@@ -187,14 +211,17 @@ hosts. The following behavior still requires an observed Experimental Instance:
    DPI. Verify the child fills the pane, accepts pointer input, and keeps readable rendering.
 6. Move focus between Solution Explorer, code, Property Grid, and the Designer. Verify keyboard
    shortcuts return to the Designer after its pane is focused.
-7. Modify a property, use Visual Studio **Save**, and verify both `.mfdesign` and generated
-   `.Designer.cs` are updated. Change the file externally and verify the existing #41 conflict or
-   reload workflow remains authoritative.
-8. Close a dirty document and exercise Save, Don't Save, and Cancel. Reopen after Save/Don't Save
-   and verify the expected persisted/recovery state.
-9. Terminate the exact child host process. Verify only its pane shows a failure, then close/reopen
+7. Modify a property, verify the tab gains `*`, use Ctrl+S and Visual Studio **Save**, and verify
+   both `.mfdesign` and generated `.Designer.cs` are updated and `*` disappears. Change the file
+   externally and verify the existing #41 conflict or reload workflow remains authoritative.
+8. Open two Designer documents, make both dirty, use **Save All**, and verify both become clean.
+   Repeat for a directly opened `.mfdesign` and `MainForm.cs [Design]`.
+9. Close clean and dirty documents. For dirty close exercise Save, Don't Save, and Cancel; verify
+   Cancel leaves the pane and host alive, while successful close shuts down the host once and never
+   displays an unspecified-error dialog.
+10. Terminate the exact child host process. Verify only its pane shows a failure, then close/reopen
    the document and verify a new host attaches.
-10. Temporarily remove the packaged host executable and verify the pane reports the missing path;
+11. Temporarily remove the packaged host executable and verify the pane reports the missing path;
     restore it and verify close/reopen succeeds.
 
 Do not report this checklist as passed unless each behavior was observed in Visual Studio. An

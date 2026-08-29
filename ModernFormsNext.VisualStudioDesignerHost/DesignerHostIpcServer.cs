@@ -90,6 +90,7 @@ internal sealed class DesignerHostIpcServer : IDisposable
             DesignerHostIpcCommandKind.Open => "OPEN_RECEIVED",
             DesignerHostIpcCommandKind.Save => "SAVE_RECEIVED",
             DesignerHostIpcCommandKind.QueryDirty => "DIRTY_RECEIVED",
+            DesignerHostIpcCommandKind.DiscardRecovery => "DISCARD_RECEIVED",
             DesignerHostIpcCommandKind.Shutdown => "SHUTDOWN_RECEIVED",
             DesignerHostIpcCommandKind.AttachParent => "PARENT_ATTACH_RECEIVED",
             DesignerHostIpcCommandKind.Park => "PARENT_PARK_RECEIVED",
@@ -155,6 +156,7 @@ internal sealed class DesignerHostIpcCommand
             case DesignerHostIpcCommandKind.Open:
             case DesignerHostIpcCommandKind.Save:
             case DesignerHostIpcCommandKind.QueryDirty:
+            case DesignerHostIpcCommandKind.DiscardRecovery:
             case DesignerHostIpcCommandKind.Shutdown:
                 if (string.IsNullOrWhiteSpace(designDocumentPath))
                     return false;
@@ -214,6 +216,12 @@ internal sealed class DesignerHostIpcCommand
             return true;
         }
 
+        if (string.Equals(value, "DISCARD", StringComparison.Ordinal))
+        {
+            kind = DesignerHostIpcCommandKind.DiscardRecovery;
+            return true;
+        }
+
         if (string.Equals(value, "SHUTDOWN", StringComparison.Ordinal))
         {
             kind = DesignerHostIpcCommandKind.Shutdown;
@@ -269,6 +277,7 @@ internal enum DesignerHostIpcCommandKind
     Open,
     Save,
     QueryDirty,
+    DiscardRecovery,
     Shutdown,
     AttachParent,
     Park,

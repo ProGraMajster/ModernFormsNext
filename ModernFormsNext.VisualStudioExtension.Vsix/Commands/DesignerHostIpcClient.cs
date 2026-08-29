@@ -33,6 +33,49 @@ internal static class DesignerHostIpcClient
         TimeSpan timeout)
         => TrySendCommand(pipeName, "OPEN", designDocumentPath, projectPath, timeout);
 
+    public static DesignerHostSaveResult SaveDocument(
+        string pipeName,
+        string designDocumentPath,
+        string? projectPath,
+        TimeSpan timeout)
+    {
+        var response = TrySendEncodedCommandForResponse(
+            pipeName,
+            "SAVE",
+            designDocumentPath,
+            projectPath,
+            timeout);
+
+        if (string.Equals(response, "SAVE_RESULT\tSAVED", StringComparison.Ordinal))
+            return DesignerHostSaveResult.Saved;
+
+        var parts = response?.Split('\t');
+        if (parts is { Length: 3 }
+            && string.Equals(parts[0], "SAVE_RESULT", StringComparison.Ordinal)
+            && (string.Equals(parts[1], "CANCELED", StringComparison.Ordinal)
+                || string.Equals(parts[1], "FAILED", StringComparison.Ordinal)))
+        {
+            string message;
+            try
+            {
+                message = Decode(parts[2]);
+            }
+            catch (FormatException)
+            {
+                message = "The Designer host returned an invalid save diagnostic.";
+            }
+
+            return string.Equals(parts[1], "CANCELED", StringComparison.Ordinal)
+                ? DesignerHostSaveResult.Canceled(message)
+                : DesignerHostSaveResult.Failed(message);
+        }
+
+        return DesignerHostSaveResult.Failed(
+            response is null
+                ? "The Designer host did not respond to the save request."
+                : "The Designer host returned an invalid save response.");
+    }
+
     public static bool TrySendCommand(
         string pipeName,
         string command,
@@ -41,13 +84,16 @@ internal static class DesignerHostIpcClient
         TimeSpan timeout)
     {
         if (!string.Equals(command, "OPEN", StringComparison.Ordinal)
-            && !string.Equals(command, "SAVE", StringComparison.Ordinal)
+            && !string.Equals(command, "DISCARD", StringComparison.Ordinal)
             && !string.Equals(command, "SHUTDOWN", StringComparison.Ordinal))
         {
             throw new ArgumentOutOfRangeException(nameof(command), command, "Unsupported Designer host IPC command.");
         }
 
-        return TrySendEncodedCommand(pipeName, command, designDocumentPath, projectPath, timeout);
+        return string.Equals(
+            TrySendEncodedCommandForResponse(pipeName, command, designDocumentPath, projectPath, timeout),
+            "OK",
+            StringComparison.Ordinal);
     }
 
     public static bool TrySendLifecycleCommand(
@@ -66,10 +112,13 @@ internal static class DesignerHostIpcClient
             throw new ArgumentOutOfRangeException(nameof(command), command, "Unsupported Designer host lifecycle command.");
         }
 
-        return TrySendEncodedCommand(pipeName, command, payload, null, timeout);
+        return string.Equals(
+            TrySendEncodedCommandForResponse(pipeName, command, payload, null, timeout),
+            "OK",
+            StringComparison.Ordinal);
     }
 
-    private static bool TrySendEncodedCommand(
+    private static string? TrySendEncodedCommandForResponse(
         string pipeName,
         string command,
         string? payload,
@@ -88,11 +137,11 @@ internal static class DesignerHostIpcClient
 
             writer.WriteLine($"{command}\t{Encode(payload)}\t{Encode(secondaryPayload)}");
             using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
-            return string.Equals(ReadResponse(reader, timeout), "OK", StringComparison.Ordinal);
+            return ReadResponse(reader, timeout);
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 
@@ -149,4 +198,36 @@ internal static class DesignerHostIpcClient
 
     private static string Encode(string? value)
         => Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? string.Empty));
+
+    private static string Decode(string value)
+        => Encoding.UTF8.GetString(Convert.FromBase64String(value));
+}
+
+internal readonly struct DesignerHostSaveResult
+{
+    private DesignerHostSaveResult(DesignerHostSaveOutcome outcome, string? error)
+    {
+        Outcome = outcome;
+        Error = error;
+    }
+
+    public static DesignerHostSaveResult Saved { get; }
+        = new(DesignerHostSaveOutcome.Saved, error: null);
+
+    public DesignerHostSaveOutcome Outcome { get; }
+
+    public string? Error { get; }
+
+    public static DesignerHostSaveResult Canceled(string error)
+        => new(DesignerHostSaveOutcome.Canceled, error);
+
+    public static DesignerHostSaveResult Failed(string error)
+        => new(DesignerHostSaveOutcome.Failed, error);
+}
+
+internal enum DesignerHostSaveOutcome
+{
+    Saved,
+    Canceled,
+    Failed
 }

@@ -280,9 +280,32 @@ public sealed class VisualStudioDesignerHostForm : Form
                 OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath);
                 return "OK";
             case DesignerHostIpcCommandKind.Save:
-                return shell.SaveDocument(command.DesignDocumentPath) ? "OK" : "ERROR";
+                if (shell.Session.Transactions.HasActiveTransaction)
+                {
+                    const string pendingGestureMessage =
+                        "Save was canceled because a Designer transaction is still active. Complete the drag or resize gesture and save again.";
+                    DesignerHostDiagnosticLog.Write(
+                        $"SAVE_CANCELED Reason={pendingGestureMessage}");
+                    return EncodeSaveResult("CANCELED", pendingGestureMessage);
+                }
+
+                var saveResult = shell.Persistence.SaveActiveDocument(command.DesignDocumentPath);
+                if (saveResult.Succeeded)
+                {
+                    DesignerHostDiagnosticLog.Write(
+                        $"SAVE_COMPLETED Path={saveResult.Path ?? command.DesignDocumentPath} Dirty={shell.Session.IsDirty}");
+                    return "SAVE_RESULT\tSAVED";
+                }
+
+                var saveError = saveResult.Error ?? "The Designer rejected the save request.";
+                DesignerHostDiagnosticLog.Write($"SAVE_CANCELED Reason={saveError}");
+                return EncodeSaveResult("CANCELED", saveError);
             case DesignerHostIpcCommandKind.QueryDirty:
                 return shell.Session.IsDirty ? "DIRTY\t1" : "DIRTY\t0";
+            case DesignerHostIpcCommandKind.DiscardRecovery:
+                shell.DiscardActiveDocumentRecovery();
+                DesignerHostDiagnosticLog.Write("RECOVERY_DISCARDED");
+                return "OK";
             case DesignerHostIpcCommandKind.Shutdown:
                 closeConfirmed = true;
                 Application.RunOnUIThread(Close);
@@ -360,6 +383,9 @@ public sealed class VisualStudioDesignerHostForm : Form
         => string.IsNullOrWhiteSpace(designDocumentPath)
             ? "ModernFormsNext Designer"
             : $"{IOPath.GetFileName(designDocumentPath)} [Design] - ModernFormsNext Designer";
+
+    private static string EncodeSaveResult(string outcome, string message)
+        => $"SAVE_RESULT\t{outcome}\t{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(message))}";
 
     private static string? FindNearestProjectPath(string? path)
     {

@@ -10,13 +10,15 @@ using ModernFormsNext.VisualStudioExtension.Commands;
 
 namespace ModernFormsNext.VisualStudioExtension.Editors;
 
-internal sealed class OutOfProcessDesignerHostControl : UserControl
+internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDocumentHost
 {
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan LifecycleCommandTimeout = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan DirtyQueryTimeout = TimeSpan.FromMilliseconds(100);
 
     private readonly Label statusLabel;
     private readonly Timer readinessTimer;
+    private readonly Timer documentStateTimer;
     private readonly string pipeName;
     private string documentPath;
     private string? projectPath;
@@ -24,6 +26,12 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
     private IntPtr childWindowHandle;
     private DateTime startupDeadlineUtc;
     private bool disposing;
+    private bool hasPublishedDirtyState;
+    private bool publishedDirtyState;
+
+    public event EventHandler<DesignerDocumentDirtyChangedEventArgs>? DocumentDirtyChanged;
+
+    public IWin32Window Window => this;
 
     public OutOfProcessDesignerHostControl(string documentPath)
     {
@@ -47,6 +55,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
 
         readinessTimer = new Timer { Interval = 50 };
         readinessTimer.Tick += HandleReadinessTick;
+        documentStateTimer = new Timer { Interval = 250 };
+        documentStateTimer.Tick += HandleDocumentStateTick;
     }
 
     public bool TryOpenDocument(string path)
@@ -83,32 +93,48 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         // the request fails, Visual Studio must continue to save and query the original document.
         documentPath = candidateDocumentPath;
         projectPath = candidateProjectPath;
+        RefreshDocumentDirtyState();
         return true;
     }
 
-    public bool TrySaveDocument()
+    public DesignerHostSaveResult SaveDocument()
+    {
+        if (ownedProcess is null || HasExited(ownedProcess))
+            return DesignerHostSaveResult.Failed("The Designer host process is not running.");
+
+        var result = DesignerHostIpcClient.SaveDocument(
+            pipeName,
+            documentPath,
+            projectPath,
+            TimeSpan.FromSeconds(10));
+        if (result.Outcome == DesignerHostSaveOutcome.Saved)
+            PublishDocumentDirtyState(isDirty: false);
+        return result;
+    }
+
+    public bool TryDiscardDocumentRecovery()
         => ownedProcess is not null
             && !HasExited(ownedProcess)
             && DesignerHostIpcClient.TrySendCommand(
                 pipeName,
-                "SAVE",
+                "DISCARD",
                 documentPath,
                 projectPath,
-                TimeSpan.FromSeconds(2));
+                TimeSpan.FromSeconds(10));
 
     public bool TryGetDocumentDirty(out bool isDirty)
     {
         isDirty = false;
         if (ownedProcess is null || HasExited(ownedProcess))
-            return true;
+            return false;
         if (readinessTimer.Enabled && childWindowHandle == IntPtr.Zero)
-            return true;
+            return false;
 
         return DesignerHostIpcClient.TryGetDocumentDirty(
             pipeName,
             documentPath,
             projectPath,
-            TimeSpan.FromMilliseconds(500),
+            DirtyQueryTimeout,
             out isDirty);
     }
 
@@ -125,6 +151,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
     protected override void OnHandleDestroyed(EventArgs e)
     {
         readinessTimer.Stop();
+        documentStateTimer.Stop();
         if (!disposing)
         {
             // Park the child before WinForms destroys this pane HWND. Otherwise Windows destroys
@@ -175,7 +202,10 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
             this.disposing = true;
             readinessTimer.Stop();
             readinessTimer.Dispose();
+            documentStateTimer.Stop();
+            documentStateTimer.Dispose();
             StopOwnedHost();
+            DocumentDirtyChanged = null;
         }
 
         base.Dispose(disposing);
@@ -200,6 +230,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         }
 
         childWindowHandle = IntPtr.Zero;
+        documentStateTimer.Stop();
         statusLabel.Visible = true;
         statusLabel.Text = "Starting ModernFormsNext Designer...";
 
@@ -259,6 +290,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
             statusLabel.Visible = false;
             ResizeHostedWindow();
             SynchronizeHostVisibility();
+            RefreshDocumentDirtyState();
+            documentStateTimer.Start();
             return;
         }
 
@@ -297,7 +330,10 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
     private void ShowExitedProcessFailure()
     {
         readinessTimer.Stop();
+        documentStateTimer.Stop();
         childWindowHandle = IntPtr.Zero;
+
+        PublishDocumentDirtyState(isDirty: true);
 
         if (disposing)
             return;
@@ -311,6 +347,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         var process = ownedProcess;
         ownedProcess = null;
         childWindowHandle = IntPtr.Zero;
+        documentStateTimer.Stop();
 
         if (process is null)
             return;
@@ -367,7 +404,28 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl
         statusLabel.Visible = false;
         ResizeHostedWindow();
         SynchronizeHostVisibility();
+        RefreshDocumentDirtyState();
+        documentStateTimer.Start();
         return true;
+    }
+
+    private void HandleDocumentStateTick(object sender, EventArgs e)
+        => RefreshDocumentDirtyState();
+
+    private void RefreshDocumentDirtyState()
+    {
+        if (TryGetDocumentDirty(out var isDirty))
+            PublishDocumentDirtyState(isDirty);
+    }
+
+    private void PublishDocumentDirtyState(bool isDirty)
+    {
+        if (hasPublishedDirtyState && publishedDirtyState == isDirty)
+            return;
+
+        hasPublishedDirtyState = true;
+        publishedDirtyState = isDirty;
+        DocumentDirtyChanged?.Invoke(this, new DesignerDocumentDirtyChangedEventArgs(isDirty));
     }
 
     private void ResizeHostedWindow()

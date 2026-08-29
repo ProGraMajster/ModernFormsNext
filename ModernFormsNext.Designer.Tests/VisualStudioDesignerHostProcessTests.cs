@@ -88,6 +88,11 @@ public sealed class VisualStudioDesignerHostProcessTests
 
             Assert.Equal("OK", await SendCommandAsync(pipeName, "OPEN", designPath, timeout.Token));
             Assert.Equal("DIRTY\t0", await SendCommandAsync(pipeName, "DIRTY", designPath, timeout.Token));
+            Assert.Equal(
+                "SAVE_RESULT\tSAVED",
+                await SendCommandAsync(pipeName, "SAVE", designPath, timeout.Token));
+            Assert.True(File.Exists(designPath));
+            Assert.Equal("DIRTY\t0", await SendCommandAsync(pipeName, "DIRTY", designPath, timeout.Token));
             Assert.False(process.HasExited, await ReadLogAsync(logPath));
             Assert.Equal("OK", await SendCommandAsync(pipeName, "SHUTDOWN", designPath, timeout.Token));
 
@@ -109,6 +114,9 @@ public sealed class VisualStudioDesignerHostProcessTests
             Assert.Contains("FORM_SHOWN", log, StringComparison.Ordinal);
             Assert.Contains($"IPC_READY PipeName={pipeName}", log, StringComparison.Ordinal);
             Assert.Contains("OPEN_RECEIVED", log, StringComparison.Ordinal);
+            Assert.Contains("SAVE_RECEIVED", log, StringComparison.Ordinal);
+            Assert.Contains("SAVE_COMPLETED", log, StringComparison.Ordinal);
+            Assert.Contains("Dirty=False", log, StringComparison.Ordinal);
             Assert.DoesNotContain("UNHANDLED_EXCEPTION", log, StringComparison.Ordinal);
         }
         finally

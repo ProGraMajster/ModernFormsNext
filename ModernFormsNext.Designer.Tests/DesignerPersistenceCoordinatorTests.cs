@@ -2335,6 +2335,23 @@ public sealed class DesignerPersistenceCoordinatorTests
     }
 
     [Fact]
+    public void NormalSaveRejectsAnActiveGestureWithoutWritingItsPartialModel()
+    {
+        using var test = CoordinatorTestContext.CreateSaved();
+        var diskBeforeGesture = File.ReadAllText(test.DocumentPath!);
+        using var transaction = test.Session.Transactions.Begin("drag in progress");
+        test.Edit("uncommitted drag state");
+
+        var result = test.Coordinator.SaveActiveDocument(test.DocumentPath!);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("active Designer transaction", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(diskBeforeGesture, File.ReadAllText(test.DocumentPath!));
+        Assert.True(test.Session.Transactions.HasActiveTransaction);
+        transaction.Rollback();
+    }
+
+    [Fact]
     public void CoordinatorBecomesCollectibleAfterDisposeAndIdle()
     {
         var weakReference = CreateDisposedCoordinatorWeakReference();
