@@ -1612,7 +1612,11 @@ public sealed class DesignerSession : IDisposable
     }
 
     internal void LogDiagnostic(string message)
-        => DesignerDiagnosticLog.Write(message);
+    {
+        DesignerDiagnosticLog.Write(message);
+        if (environment is IDesignerDiagnosticHostEnvironment diagnosticEnvironment)
+            diagnosticEnvironment.ReportDiagnostic(message);
+    }
 
     /// <summary>
     /// Creates the sample document used by standalone hosts and tests.

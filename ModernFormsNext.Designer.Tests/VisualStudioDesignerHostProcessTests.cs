@@ -115,6 +115,15 @@ public sealed class VisualStudioDesignerHostProcessTests
             Assert.Contains($"IPC_READY PipeName={pipeName}", log, StringComparison.Ordinal);
             Assert.Contains("OPEN_RECEIVED", log, StringComparison.Ordinal);
             Assert.Contains("SAVE_RECEIVED", log, StringComparison.Ordinal);
+            Assert.Contains("RECOVERY_STATE_BEFORE_SAVE", log, StringComparison.Ordinal);
+            Assert.Contains("RECOVERY_CLASSIFICATION", log, StringComparison.Ordinal);
+            Assert.Contains("CANONICAL_HASH", log, StringComparison.Ordinal);
+            Assert.Contains("RECOVERY_HASH", log, StringComparison.Ordinal);
+            Assert.Contains("SESSION_REVISION", log, StringComparison.Ordinal);
+            Assert.Contains("SAVE_POLICY_DECISION Decision=ALLOW", log, StringComparison.Ordinal);
+            Assert.Contains("CANONICAL_SAVE_BEGIN", log, StringComparison.Ordinal);
+            Assert.Contains("CANONICAL_SAVE_OK", log, StringComparison.Ordinal);
+            Assert.Contains("DIRTY_FALSE Dirty=False", log, StringComparison.Ordinal);
             Assert.Contains("SAVE_COMPLETED", log, StringComparison.Ordinal);
             Assert.Contains("Dirty=False", log, StringComparison.Ordinal);
             Assert.DoesNotContain("UNHANDLED_EXCEPTION", log, StringComparison.Ordinal);

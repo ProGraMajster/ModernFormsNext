@@ -74,6 +74,24 @@ public sealed class MfDesignEditorPanePersistenceTests
     }
 
     [Fact]
+    public void DirtyCloseWithSaveResolvesHostRecoveryAndDoesNotPromptAgain()
+    {
+        using var context = new EditorContext();
+        context.Host.SetUnresolvedRecovery(true);
+        context.Host.SetDirty(true);
+
+        var closeResult = SimulateClose(context, CloseChoice.Save);
+        context.Pane.Dispose();
+
+        Assert.Equal(VSConstants.S_OK, closeResult);
+        Assert.Equal(1, context.Host.SaveCount);
+        Assert.False(context.Host.IsDirty);
+        Assert.False(context.Host.HasUnresolvedRecovery);
+        Assert.Empty(context.Services.SaveCanceledMessages);
+        Assert.Equal(1, context.Host.DisposeCount);
+    }
+
+    [Fact]
     public void DirtyCloseWithDontSaveDoesNotInvokePersistence()
     {
         using var context = new EditorContext();
@@ -360,6 +378,8 @@ public sealed class MfDesignEditorPanePersistenceTests
 
         public bool IsDirty { get; private set; }
 
+        public bool HasUnresolvedRecovery { get; private set; }
+
         public int SaveCount { get; private set; }
 
         public int DisposeCount { get; private set; }
@@ -382,7 +402,10 @@ public sealed class MfDesignEditorPanePersistenceTests
             var result = NextSaveResult;
             NextSaveResult = DesignerHostSaveResult.Saved;
             if (result.Outcome == DesignerHostSaveOutcome.Saved)
+            {
+                HasUnresolvedRecovery = false;
                 SetDirty(false);
+            }
             return result;
         }
 
@@ -410,6 +433,9 @@ public sealed class MfDesignEditorPanePersistenceTests
             IsDirty = isDirty;
             DocumentDirtyChanged?.Invoke(this, new DesignerDocumentDirtyChangedEventArgs(isDirty));
         }
+
+        public void SetUnresolvedRecovery(bool hasUnresolvedRecovery)
+            => HasUnresolvedRecovery = hasUnresolvedRecovery;
 
         public void Dispose()
         {

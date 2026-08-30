@@ -200,9 +200,13 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
 
         var document = session.ActiveOpenDocument;
         if (document is null || !documentStates.TryGetValue(document, out var state))
-            return DesignerSaveResult.Failure("There is no open Designer document to save.");
+            return RejectSave("NoOpenDocument", "There is no open Designer document to save.");
         if (session.Transactions.HasActiveTransaction)
-            return DesignerSaveResult.Failure("Save is unavailable until the active Designer transaction completes.");
+        {
+            return RejectSave(
+                "ActiveTransaction",
+                "Save is unavailable until the active Designer transaction completes.");
+        }
 
         string normalizedPath;
         try
@@ -212,34 +216,35 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         }
         catch (Exception exception) when (IsPathException(exception))
         {
-            return DesignerSaveResult.Failure(exception.Message);
+            return RejectSave("InvalidPath", exception.Message);
         }
 
         if (session.OpenDocuments.Any(candidate =>
             !ReferenceEquals(candidate, document) && PathsEqual(candidate.Path, normalizedPath)))
         {
-            return DesignerSaveResult.Failure(
+            return RejectSave(
+                "DocumentAlreadyOpen",
                 $"The Designer document '{normalizedPath}' is already open in another tab.");
         }
 
         var savingCanonicalPath = !string.IsNullOrWhiteSpace(document.Path)
             && PathsEqual(document.Path, normalizedPath);
-        if (savingCanonicalPath && state.Recovery is not null)
-        {
-            return DesignerSaveResult.Failure(
-                "Recovery for this document is still unresolved. Choose Restore, Open Disk, Keep, Discard, or Save As before overwriting the canonical file.");
-        }
+        LogSaveRecoveryState(document, state, normalizedPath, savingCanonicalPath);
         if (savingCanonicalPath
             && state.Notice?.Kind is DesignerPersistenceNoticeKind.ExternalDesignConflict
                 or DesignerPersistenceNoticeKind.ExternalGeneratedCodeConflict
                 or DesignerPersistenceNoticeKind.ExternalGeneratedCodeInvalid)
         {
-            return DesignerSaveResult.Failure(
+            return RejectSave(
+                "KnownExternalChange",
                 "The file changed outside the Designer. Choose Keep before overwriting it, or use Save As.");
         }
 
         var originalIdentity = GetIdentity(document, state).Value;
         var preserveUnresolvedRecoveryOnSaveAs = !savingCanonicalPath && state.Recovery is not null;
+        var attachedRecoveryIdentity = state.Recovery?.Candidate.Envelope?.Metadata?.DocumentIdentity;
+        var attachedRecoveryArtifact = state.Recovery?.Candidate.ArtifactPath;
+        var resolvingAttachedRecovery = savingCanonicalPath && state.Recovery is not null;
         CancelAutosaveSchedules(state);
         state.IsNormalSaveInProgress = true;
         var revisionGeneration = document.RevisionGeneration;
@@ -255,14 +260,16 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         {
             state.IsNormalSaveInProgress = false;
             ScheduleAutosave(document, state);
-            return DesignerSaveResult.Failure("Generation failed: " + exception.Message);
+            return RejectSave("GenerationFailed", "Generation failed: " + exception.Message);
         }
 
         if (preparedCode is { Succeeded: false })
         {
             state.IsNormalSaveInProgress = false;
             ScheduleAutosave(document, state);
-            return DesignerSaveResult.Failure("Generation failed: " + string.Join("; ", preparedCode.Errors));
+            return RejectSave(
+                "GenerationFailed",
+                "Generation failed: " + string.Join("; ", preparedCode.Errors));
         }
 
         state.WriteGate.Wait();
@@ -277,14 +284,22 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                     "Save",
                     out var verificationError))
             {
-                return DesignerSaveResult.Failure(verificationError!);
+                return RejectSave("ExternalChangeDetected", verificationError!);
             }
 
+            session.LogDiagnostic(
+                $"SAVE_POLICY_DECISION Decision=ALLOW " +
+                $"Reason={(resolvingAttachedRecovery
+                    ? "CanonicalUnchangedRecoveryWillResolve"
+                    : savingCanonicalPath ? "CanonicalTargetsVerified" : "SaveAsIndependentTarget")} " +
+                $"Target={normalizedPath}");
+            session.LogDiagnostic($"CANONICAL_SAVE_BEGIN Path={normalizedPath}");
             files.SaveDesignDocument(document.Document, normalizedPath);
             var designHash = DesignerFileHash.ComputeFileSha256(normalizedPath);
             state.KnownDesignHash = designHash;
             state.ExpectedDesignHash = designHash;
             state.SourceLastWriteUtc = TryGetLastWriteUtc(normalizedPath);
+            session.LogDiagnostic($"CANONICAL_SAVE_OK Path={normalizedPath} Hash={designHash}");
 
             if (preparedCode is not null)
                 DesignerAtomicFileWriter.WriteUtf8(preparedCode.Path, preparedCode.Code);
@@ -307,6 +322,9 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             state.ConsecutiveAutosaveFailures = 0;
 
             session.MarkSaved(document, revisionGeneration, revision, "Document saved.");
+            session.LogDiagnostic(
+                $"DIRTY_FALSE Dirty={document.IsDirty} Generation={document.RevisionGeneration} " +
+                $"Revision={document.History.CurrentRevision} SavedRevision={document.History.SavedRevision}");
             RecreateWatcher(document, state);
             DeleteObsoleteArtifacts(state);
             if (state.Recovery is { } attachedRecovery)
@@ -316,8 +334,6 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 // as though the user had explicitly discarded or restored it.
                 if (!savingCanonicalPath && !recoveryEntries.Contains(attachedRecovery))
                     recoveryEntries.Add(attachedRecovery);
-                else
-                    recoveryStore.Delete(attachedRecovery.Candidate.ArtifactPath);
                 state.Recovery = null;
             }
             var savedIdentity = GetIdentity(document, state).Value;
@@ -333,6 +349,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 identitiesToClean.UnionWith(state.SupersededPathRecoveryIdentities);
             }
 
+            var attachedRecoveryCleanupSucceeded = true;
             foreach (var identity in identitiesToClean)
             {
                 var cleanupErrors = DeleteRecoveryArtifactsForIdentity(identity);
@@ -346,6 +363,27 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 }
                 if (cleanupErrors.Count == 0)
                     state.SupersededPathRecoveryIdentities.Remove(identity);
+                if (string.Equals(attachedRecoveryIdentity, identity, StringComparison.Ordinal)
+                    && cleanupErrors.Count > 0)
+                {
+                    attachedRecoveryCleanupSucceeded = false;
+                }
+            }
+            if (resolvingAttachedRecovery)
+            {
+                if (attachedRecoveryCleanupSucceeded)
+                {
+                    session.LogDiagnostic(
+                        $"RECOVERY_RESOLVED Identity={attachedRecoveryIdentity ?? "<unknown>"} " +
+                        $"Artifact={attachedRecoveryArtifact ?? "<unknown>"} " +
+                        $"Generation={revisionGeneration} Revision={revision}");
+                }
+                else
+                {
+                    session.LogDiagnostic(
+                        $"RECOVERY_RESOLUTION_INCOMPLETE Identity={attachedRecoveryIdentity ?? "<unknown>"} " +
+                        "Reason=ArtifactCleanupFailed");
+                }
             }
             session.Log($"Saved {document.DisplayName} to {normalizedPath}.");
             RaiseStateChanged();
@@ -356,7 +394,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             state.LastAutosaveError = exception.Message;
             session.Log($"Save failed: {exception.Message}");
             RaiseStateChanged();
-            return DesignerSaveResult.Failure(exception.Message);
+            return RejectSave("PersistenceFailure", exception.Message);
         }
         finally
         {
@@ -365,6 +403,46 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             if (document.IsDirty)
                 ScheduleAutosave(document, state);
         }
+    }
+
+    private void LogSaveRecoveryState(
+        DesignerOpenDocument document,
+        DocumentState state,
+        string targetPath,
+        bool savingCanonicalPath)
+    {
+        var recovery = state.Recovery;
+        var metadata = recovery?.Candidate.Envelope?.Metadata;
+        var classification = recovery is null
+            ? "None"
+            : recovery.Conflict
+                ? "RecoveryConflictWithSnapshotSource"
+                : "RecoveryAvailable";
+        var canonicalPath = document.Path ?? targetPath;
+        session.LogDiagnostic(
+            $"RECOVERY_STATE_BEFORE_SAVE Attached={recovery is not null} " +
+            $"Canonical={savingCanonicalPath} Artifact={recovery?.Candidate.ArtifactPath ?? "<none>"}");
+        session.LogDiagnostic(
+            $"RECOVERY_CLASSIFICATION Classification={classification} " +
+            $"Identity={metadata?.DocumentIdentity ?? "<none>"}");
+        session.LogDiagnostic(
+            $"CANONICAL_HASH Path={canonicalPath} Hash={TryComputeFileHash(canonicalPath) ?? "<missing>"} " +
+            $"SessionBaselineHash={state.KnownDesignHash ?? "<missing>"}");
+        session.LogDiagnostic(
+            $"RECOVERY_HASH Hash={recovery?.Candidate.Envelope?.PayloadSha256 ?? "<none>"} " +
+            $"SourceHash={metadata?.SourceFileHashSha256 ?? "<none>"}");
+        session.LogDiagnostic(
+            $"SESSION_REVISION Generation={document.RevisionGeneration} " +
+            $"Current={document.History.CurrentRevision} Saved={document.History.SavedRevision} " +
+            $"Dirty={document.IsDirty}");
+    }
+
+    private DesignerSaveResult RejectSave(string reason, string error)
+    {
+        session.LogDiagnostic(
+            $"SAVE_POLICY_DECISION Decision=BLOCK Reason={reason} " +
+            $"Error={error.Replace('\r', ' ').Replace('\n', ' ')}");
+        return DesignerSaveResult.Failure(error);
     }
 
     private bool VerifyCanonicalTargetsBeforeWrite(
@@ -2142,7 +2220,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 ? "The original .mfdesign path no longer exists. Restore the recovery as an unsaved document or use Save As; no renamed path is guessed automatically."
                 : recovery.Conflict
                 ? "Both the recovery copy and the canonical file changed. Choose which version to open, or save the recovery copy elsewhere."
-                : "A newer recovery copy contains unsaved Designer work. Restore it, preserve it for later, or discard it.",
+                : "A newer recovery copy contains unsaved Designer work. Restore it, keep the recovery copy for a later restart, or discard the recovery copy. Saving the active model to the unchanged canonical file resolves the recovery copy.",
             metadata.SuggestedName,
             actions,
             metadata.TimestampUtc,

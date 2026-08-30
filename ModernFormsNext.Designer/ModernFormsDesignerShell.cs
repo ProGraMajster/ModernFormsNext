@@ -133,7 +133,9 @@ public sealed class ModernFormsDesignerShell : Panel
     /// <returns><see langword="true"/> only when the canonical save completed successfully.</returns>
     /// <remarks>
     /// This method updates the saved revision only after the write succeeds. It does not silently
-    /// overwrite an unresolved external-change conflict at the same canonical path.
+    /// overwrite an unresolved external-change conflict at the same canonical path. A successful
+    /// canonical save also resolves older recovery copies for the same document identity because
+    /// the active in-memory model has become the new user-selected canonical version.
     /// </remarks>
     public bool SaveDocument(string path)
         => commands.SaveDesignDocument(path).Succeeded;
@@ -201,12 +203,14 @@ public sealed class ModernFormsDesignerShell : Panel
     public string RecoveryDirectoryPath => persistence.RecoveryRootPath;
 
     /// <summary>
-    /// Gets a value indicating whether the active document has a recovery copy that still requires
-    /// an explicit Restore, Keep, Open Disk, Save As, or Discard decision.
+    /// Gets a value indicating whether the active document has a recovery copy that has not yet
+    /// been resolved by Restore, Keep Recovery, Open Disk, Save As, Discard Recovery, or a
+    /// successful canonical save.
     /// </summary>
     /// <remarks>
     /// Hosts must preserve the recovery artifact when this value is <see langword="true"/>. A
-    /// clean in-memory document does not imply that the unresolved pre-crash version is obsolete.
+    /// clean in-memory document alone does not imply that the unresolved pre-crash version is
+    /// obsolete; an explicit recovery action or verified canonical save resolves it.
     /// </remarks>
     public bool HasUnresolvedRecovery => persistence.ActiveDocumentHasUnresolvedRecovery;
 

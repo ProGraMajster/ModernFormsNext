@@ -112,8 +112,8 @@ internal sealed class DesignerSafetyBanner : Panel
             }
 
             actionButton.Action = actions[index];
-            actionButton.Button.Text = GetActionText(actions[index]);
-            actionButton.Button.Width = actions[index] == DesignerPersistenceActions.OpenDisk ? 108 : 94;
+            actionButton.Button.Text = GetActionText(notification.Kind, actions[index]);
+            actionButton.Button.Width = Math.Max(94, (actionButton.Button.Text.Length * 8) + 20);
             actionButton.Button.Visible = true;
         }
 
@@ -205,12 +205,17 @@ internal sealed class DesignerSafetyBanner : Panel
         return order.Where(action => (actions & action) != 0).Take(6);
     }
 
-    private static string GetActionText(DesignerPersistenceActions action)
-        => action switch
+    internal static string GetActionText(
+        DesignerPersistenceNoticeKind noticeKind,
+        DesignerPersistenceActions action)
+    {
+        var recoveryNotice = noticeKind is DesignerPersistenceNoticeKind.RecoveryAvailable
+            or DesignerPersistenceNoticeKind.RecoveryConflict;
+        return action switch
         {
             DesignerPersistenceActions.Restore => "Restore",
-            DesignerPersistenceActions.Discard => "Discard",
-            DesignerPersistenceActions.Keep => "Keep",
+            DesignerPersistenceActions.Discard => recoveryNotice ? "Discard Recovery" : "Discard",
+            DesignerPersistenceActions.Keep => recoveryNotice ? "Keep Recovery" : "Keep Designer",
             DesignerPersistenceActions.Reload => "Reload",
             DesignerPersistenceActions.SaveAs => "Save As",
             DesignerPersistenceActions.OpenDisk => "Open Disk",
@@ -218,6 +223,7 @@ internal sealed class DesignerSafetyBanner : Panel
             DesignerPersistenceActions.Dismiss => "Dismiss",
             _ => string.Empty
         };
+    }
 
     private sealed class ActionButton(Button button)
     {

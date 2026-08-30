@@ -1604,23 +1604,80 @@ public sealed class DesignerPersistenceCoordinatorTests
     }
 
     [Fact]
-    public void UnresolvedAttachedRecoveryBlocksCanonicalWritesAndSurvivesCurrentVersionSaveAs()
+    public async Task CanonicalSaveWithAttachedRecoveryCommitsActiveModelAndLeavesNoCloseOrRestartWork()
+    {
+        string[] recoveryArtifacts = [];
+        using var test = CoordinatorTestContext.CreateSaved(
+            configureStore: (store, documentPath, _) =>
+                recoveryArtifacts = AddTwoSavedRecoveryCandidates(store, documentPath!));
+        var originalPath = test.DocumentPath!;
+        Assert.IsType<DesignerPersistenceNotification>(test.Coordinator.CurrentNotification);
+        test.Edit("active model chosen by the current session");
+        await test.FireDebounceAsync();
+        var currentSessionArtifact = Assert.Single(test.Store.SuccessfulArtifactPaths);
+
+        var firstSave = test.Coordinator.SaveActiveDocument(originalPath);
+        var secondSave = test.Coordinator.SaveActiveDocument(originalPath);
+
+        Assert.True(firstSave.Succeeded, firstSave.Error);
+        Assert.True(secondSave.Succeeded, secondSave.Error);
+        Assert.False(test.Session.IsDirty);
+        Assert.Null(test.Coordinator.CurrentNotification);
+        Assert.Equal(
+            "active model chosen by the current session",
+            DesignDocumentSerializer.Default.Load(originalPath).Controls[0].Properties["Text"].GetString());
+        Assert.All(
+            recoveryArtifacts.Append(currentSessionArtifact),
+            artifact => Assert.Contains(artifact, test.Store.DeletedPaths));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("RECOVERY_STATE_BEFORE_SAVE", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.Contains("RECOVERY_CLASSIFICATION Classification=RecoveryAvailable", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("CANONICAL_HASH", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("RECOVERY_HASH", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("SESSION_REVISION", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.Contains("SAVE_POLICY_DECISION Decision=ALLOW Reason=CanonicalUnchangedRecoveryWillResolve", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("CANONICAL_SAVE_BEGIN", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("CANONICAL_SAVE_OK", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("RECOVERY_RESOLVED", StringComparison.Ordinal));
+        Assert.Contains(test.HostEnvironment.Diagnostics, line => line.StartsWith("DIRTY_FALSE Dirty=False", StringComparison.Ordinal));
+
+        test.Coordinator.Dispose();
+        test.Session.Dispose();
+        AssertRestartHasNoRecovery(test.Store, originalPath);
+    }
+
+    [Fact]
+    public void CanonicalSaveWithAttachedRecoveryStillRejectsARealExternalChange()
+    {
+        string[] recoveryArtifacts = [];
+        using var test = CoordinatorTestContext.CreateSaved(
+            configureStore: (store, documentPath, _) =>
+                recoveryArtifacts = AddTwoSavedRecoveryCandidates(store, documentPath!));
+        test.Edit("local active model");
+        test.WriteExternalDesign("concurrent disk model");
+        var externalDiskText = File.ReadAllText(test.DocumentPath!);
+
+        var save = test.Coordinator.SaveActiveDocument(test.DocumentPath!);
+
+        Assert.False(save.Succeeded);
+        Assert.Contains("changed outside", save.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(externalDiskText, File.ReadAllText(test.DocumentPath!));
+        Assert.Equal("local active model", test.Session.Document.Controls[0].Properties["Text"].GetString());
+        Assert.True(test.Session.IsDirty);
+        Assert.All(recoveryArtifacts, artifact => Assert.DoesNotContain(artifact, test.Store.DeletedPaths));
+    }
+
+    [Fact]
+    public void CurrentVersionSaveAsPreservesAttachedRecoveryForLaterDecision()
     {
         string[] recoveryArtifacts = [];
         using var test = CoordinatorTestContext.CreateSaved(
             configureStore: (store, documentPath, _) =>
                 recoveryArtifacts = AddTwoSavedRecoveryCandidates(store, documentPath!));
         var recoveryNotice = Assert.IsType<DesignerPersistenceNotification>(test.Coordinator.CurrentNotification);
-
-        var canonicalSave = test.Coordinator.SaveActiveDocument(test.DocumentPath!);
         var generation = test.Coordinator.GenerateActiveDocumentCode();
 
-        Assert.False(canonicalSave.Succeeded);
-        Assert.Contains("Recovery", canonicalSave.Error, StringComparison.OrdinalIgnoreCase);
         Assert.False(generation.Succeeded);
         Assert.Contains(generation.Errors, error => error.Contains("recovery", StringComparison.OrdinalIgnoreCase));
-        Assert.All(recoveryArtifacts, artifact => Assert.DoesNotContain(artifact, test.Store.DeletedPaths));
-        Assert.Equal(recoveryNotice.Id, test.Coordinator.CurrentNotification?.Id);
 
         var saveAsPath = IOPath.Combine(test.Directory.Path, "CurrentVersion.mfdesign");
         var saveAs = test.Coordinator.SaveActiveDocument(saveAsPath);
@@ -2289,6 +2346,31 @@ public sealed class DesignerPersistenceCoordinatorTests
     }
 
     [Fact]
+    public async Task DontSaveWithAttachedRecoveryLeavesCanonicalUnchangedAndDiscardsAllRecovery()
+    {
+        string[] recoveryArtifacts = [];
+        using var test = CoordinatorTestContext.CreateSaved(
+            configureStore: (store, documentPath, _) =>
+                recoveryArtifacts = AddTwoSavedRecoveryCandidates(store, documentPath!));
+        var canonicalBefore = File.ReadAllText(test.DocumentPath!);
+        test.Edit("discarded current-session edit");
+        await test.FireDebounceAsync();
+        var currentSessionArtifact = Assert.Single(test.Store.SuccessfulArtifactPaths);
+
+        var prepared = test.Coordinator.PrepareDocumentForDiscard(
+            test.Session.ActiveOpenDocument!,
+            out var error);
+
+        Assert.True(prepared, error);
+        Assert.Equal(canonicalBefore, File.ReadAllText(test.DocumentPath!));
+        Assert.True(test.Session.IsDirty);
+        Assert.Null(test.Coordinator.CurrentNotification);
+        Assert.All(
+            recoveryArtifacts.Append(currentSessionArtifact),
+            artifact => Assert.Contains(artifact, test.Store.DeletedPaths));
+    }
+
+    [Fact]
     public async Task FailedDiscardCleanupKeepsArtifactAndReschedulesDocumentProtection()
     {
         using var test = CoordinatorTestContext.CreateUnsaved(markDirty: false);
@@ -2501,7 +2583,8 @@ public sealed class DesignerPersistenceCoordinatorTests
             Watchers = new FakeFileChangeSourceFactory();
             Options = CreateOptions();
             configureOptions?.Invoke(Options);
-            Session = new DesignerSession(null, DesignerControlRenderMode.Runtime, 2000);
+            HostEnvironment = new TestDesignerHostEnvironment(DocumentPath, currentProjectPath: null);
+            Session = new DesignerSession(HostEnvironment, DesignerControlRenderMode.Runtime, 2000);
             Session.OpenDocument(document, DocumentPath, markDirty);
             Files = new DesignerFileService(currentDocumentPathProvider: () => Session.CurrentDocumentPath);
             Coordinator = new DesignerPersistenceCoordinator(
@@ -2530,6 +2613,8 @@ public sealed class DesignerPersistenceCoordinatorTests
         public FakeFileChangeSourceFactory Watchers { get; }
 
         public ModernFormsDesignerOptions Options { get; }
+
+        public TestDesignerHostEnvironment HostEnvironment { get; }
 
         public DesignerSession Session { get; }
 
@@ -2713,11 +2798,13 @@ public sealed class DesignerPersistenceCoordinatorTests
 
     private sealed class TestDesignerHostEnvironment(
         string? currentDocumentPath,
-        string? currentProjectPath) : IDesignerHostEnvironment
+        string? currentProjectPath) : IDesignerHostEnvironment, IDesignerDiagnosticHostEnvironment
     {
         public string? CurrentDocumentPath { get; } = currentDocumentPath;
 
         public string? CurrentProjectPath { get; } = currentProjectPath;
+
+        public List<string> Diagnostics { get; } = [];
 
         public void ReportStatus(string message)
         {
@@ -2726,6 +2813,9 @@ public sealed class DesignerPersistenceCoordinatorTests
         public void ReportOutput(string message)
         {
         }
+
+        public void ReportDiagnostic(string message)
+            => Diagnostics.Add(message);
     }
 
     private sealed class FakeRecoveryStore(string rootPath) : IDesignerRecoveryStore
