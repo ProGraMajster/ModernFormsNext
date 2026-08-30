@@ -88,9 +88,15 @@ public sealed class VisualStudioDesignerHostProcessTests
 
             Assert.Equal("OK", await SendCommandAsync(pipeName, "OPEN", designPath, timeout.Token));
             Assert.Equal("DIRTY\t0", await SendCommandAsync(pipeName, "DIRTY", designPath, timeout.Token));
+            const string saveRequestId = "early-startup-save-1";
             Assert.Equal(
-                "SAVE_RESULT\tSAVED",
-                await SendCommandAsync(pipeName, "SAVE", designPath, timeout.Token));
+                $"SAVE_RESULT\t{saveRequestId}\tSAVED",
+                await SendCommandAsync(
+                    pipeName,
+                    "SAVE",
+                    designPath,
+                    timeout.Token,
+                    saveRequestId));
             Assert.True(File.Exists(designPath));
             Assert.Equal("DIRTY\t0", await SendCommandAsync(pipeName, "DIRTY", designPath, timeout.Token));
             Assert.False(process.HasExited, await ReadLogAsync(logPath));
@@ -232,6 +238,57 @@ public sealed class VisualStudioDesignerHostProcessTests
             Assert.Contains("VISIBILITY_CHANGED Requested=False", log, StringComparison.Ordinal);
             Assert.Contains("VISIBILITY_CHANGED Requested=True", log, StringComparison.Ordinal);
             Assert.DoesNotContain("IPC_COMMAND_EXCEPTION", log, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RealHostCorrelatesSaveWhileDirtyFocusAndVisibilityRequestsQueue()
+    {
+        using var parent = new NativeParentWindow(840, 620);
+        var pipeName = $"ModernFormsNext-ConcurrentSave-{Guid.NewGuid():N}";
+        var designPath = IOPath.Combine(
+            IOPath.GetTempPath(),
+            $"ModernFormsNext-ConcurrentSave-{Guid.NewGuid():N}.mfdesign");
+        using var process = StartHost(pipeName, designPath, parent.Handle);
+        var logPath = DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), process.Id);
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await WaitForLogMarkerAsync(process, logPath, "FORM_SHOWN", timeout.Token);
+            await WaitForLogMarkerAsync(process, logPath, $"IPC_READY PipeName={pipeName}", timeout.Token);
+            _ = await WaitForChildWindowAsync(parent.Handle, process, timeout.Token);
+
+            const string saveRequestId = "concurrent-save-1";
+            var save = SendCommandAsync(pipeName, "SAVE", designPath, timeout.Token, saveRequestId);
+            var dirty = SendCommandAsync(pipeName, "DIRTY", designPath, timeout.Token);
+            var focus = SendCommandAsync(pipeName, "FOCUS", string.Empty, timeout.Token);
+            var show = SendCommandAsync(pipeName, "SHOW", string.Empty, timeout.Token);
+
+            await Task.WhenAll(save, dirty, focus, show);
+
+            Assert.Equal($"SAVE_RESULT\t{saveRequestId}\tSAVED", await save);
+            Assert.Equal("DIRTY\t0", await dirty);
+            Assert.Equal("OK", await focus);
+            Assert.Equal("OK", await show);
+            Assert.True(File.Exists(designPath));
+            Assert.Equal("OK", await SendCommandAsync(pipeName, "SHUTDOWN", designPath, timeout.Token));
+            await process.WaitForExitAsync(timeout.Token);
+
+            var log = ExtractLastRun(await ReadLogAsync(logPath));
+            Assert.Contains($"SAVE_RECEIVED RequestId={saveRequestId}", log, StringComparison.Ordinal);
+            Assert.Contains($"HOST_SAVE_BEGIN RequestId={saveRequestId}", log, StringComparison.Ordinal);
+            Assert.Contains($"HOST_SAVE_END RequestId={saveRequestId} Outcome=Saved", log, StringComparison.Ordinal);
+            Assert.Contains($"SAVE_COMPLETED RequestId={saveRequestId}", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("IPC_SERVER_EXCEPTION", log, StringComparison.Ordinal);
         }
         finally
         {
@@ -547,7 +604,8 @@ public sealed class VisualStudioDesignerHostProcessTests
         string pipeName,
         string command,
         string designPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? requestId = null)
     {
         await using var client = new NamedPipeClientStream(
             ".",
@@ -561,7 +619,7 @@ public sealed class VisualStudioDesignerHostProcessTests
         {
             AutoFlush = true
         };
-        await writer.WriteLineAsync($"{command}\t{encodedDesignPath}\t");
+        await writer.WriteLineAsync($"{command}\t{encodedDesignPath}\t\t{requestId ?? string.Empty}");
         using var reader = new StreamReader(client, Encoding.UTF8, true, 1024, leaveOpen: true);
         return await reader.ReadLineAsync(cancellationToken);
     }

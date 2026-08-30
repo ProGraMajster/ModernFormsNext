@@ -280,26 +280,39 @@ public sealed class VisualStudioDesignerHostForm : Form
                 OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath);
                 return "OK";
             case DesignerHostIpcCommandKind.Save:
+                var requestId = command.RequestId
+                    ?? throw new InvalidOperationException("A Designer host SAVE request requires a request ID.");
+                DesignerHostDiagnosticLog.Write(
+                    $"HOST_SAVE_BEGIN RequestId={requestId} " +
+                    $"ManagedThreadId={Environment.CurrentManagedThreadId}");
                 if (shell.Session.Transactions.HasActiveTransaction)
                 {
                     const string pendingGestureMessage =
                         "Save was canceled because a Designer transaction is still active. Complete the drag or resize gesture and save again.";
                     DesignerHostDiagnosticLog.Write(
-                        $"SAVE_CANCELED Reason={pendingGestureMessage}");
-                    return EncodeSaveResult("CANCELED", pendingGestureMessage);
+                        $"SAVE_CANCELED RequestId={requestId} Reason={pendingGestureMessage}");
+                    DesignerHostDiagnosticLog.Write(
+                        $"HOST_SAVE_END RequestId={requestId} Outcome=Canceled Dirty={shell.Session.IsDirty}");
+                    return EncodeSaveResult(requestId, "CANCELED", pendingGestureMessage);
                 }
 
                 var saveResult = shell.Persistence.SaveActiveDocument(command.DesignDocumentPath);
                 if (saveResult.Succeeded)
                 {
                     DesignerHostDiagnosticLog.Write(
-                        $"SAVE_COMPLETED Path={saveResult.Path ?? command.DesignDocumentPath} Dirty={shell.Session.IsDirty}");
-                    return "SAVE_RESULT\tSAVED";
+                        $"SAVE_COMPLETED RequestId={requestId} " +
+                        $"Path={saveResult.Path ?? command.DesignDocumentPath} Dirty={shell.Session.IsDirty}");
+                    DesignerHostDiagnosticLog.Write(
+                        $"HOST_SAVE_END RequestId={requestId} Outcome=Saved Dirty={shell.Session.IsDirty}");
+                    return $"SAVE_RESULT\t{requestId}\tSAVED";
                 }
 
                 var saveError = saveResult.Error ?? "The Designer rejected the save request.";
-                DesignerHostDiagnosticLog.Write($"SAVE_CANCELED Reason={saveError}");
-                return EncodeSaveResult("CANCELED", saveError);
+                DesignerHostDiagnosticLog.Write(
+                    $"SAVE_CANCELED RequestId={requestId} Reason={saveError}");
+                DesignerHostDiagnosticLog.Write(
+                    $"HOST_SAVE_END RequestId={requestId} Outcome=Canceled Dirty={shell.Session.IsDirty}");
+                return EncodeSaveResult(requestId, "CANCELED", saveError);
             case DesignerHostIpcCommandKind.QueryDirty:
                 return shell.Session.IsDirty ? "DIRTY\t1" : "DIRTY\t0";
             case DesignerHostIpcCommandKind.DiscardRecovery:
@@ -384,8 +397,9 @@ public sealed class VisualStudioDesignerHostForm : Form
             ? "ModernFormsNext Designer"
             : $"{IOPath.GetFileName(designDocumentPath)} [Design] - ModernFormsNext Designer";
 
-    private static string EncodeSaveResult(string outcome, string message)
-        => $"SAVE_RESULT\t{outcome}\t{Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(message))}";
+    private static string EncodeSaveResult(string requestId, string outcome, string message)
+        => $"SAVE_RESULT\t{requestId}\t{outcome}\t" +
+            Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(message));
 
     private static string? FindNearestProjectPath(string? path)
     {

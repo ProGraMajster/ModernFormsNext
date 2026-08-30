@@ -220,12 +220,12 @@ public sealed class MfDesignEditorPanePersistenceTests
     }
 
     [Fact]
-    public void StandardSaveCommandIsOwnedByPaneDeferredAndCoalesced()
+    public void StandardSaveCommandIsOwnedByPriorityTargetDeferredAndCoalesced()
     {
         using var context = new EditorContext();
         context.Pane.OnRegisterDocData(91, null!, VSConstants.VSITEMID_NIL);
         context.Host.SetDirty(true);
-        var target = Assert.IsAssignableFrom<IOleCommandTarget>(context.Pane);
+        var target = new DesignerSaveCommandTarget(() => context.Pane);
         var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
         var commands = new[] { new OLECMD { cmdID = (uint)VSConstants.VSStd97CmdID.Save } };
 
@@ -239,14 +239,81 @@ public sealed class MfDesignEditorPanePersistenceTests
         Assert.Equal(
             VSConstants.S_OK,
             target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+        Assert.Equal(
+            VSConstants.S_OK,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
 
         Assert.Equal(0, context.Host.SaveCount);
         Assert.Single(context.Host.PostedActions);
+        commands[0].cmdf = 0;
+        Assert.Equal(VSConstants.S_OK, target.QueryStatus(ref commandGroup, 1, commands, IntPtr.Zero));
+        Assert.Equal((uint)OLECMDF.OLECMDF_SUPPORTED, commands[0].cmdf);
 
         context.Host.RunPostedActions();
 
         Assert.Equal(1, context.Host.SaveCount);
         Assert.False(context.Host.IsDirty);
+    }
+
+    [Fact]
+    public void FailedDeferredCtrlSReleasesSingleFlightAndTheNextCtrlSSucceeds()
+    {
+        using var context = new EditorContext();
+        context.Host.SetDirty(true);
+        context.Host.NextSaveResult = DesignerHostSaveResult.Failed("simulated timeout");
+        var target = new DesignerSaveCommandTarget(() => context.Pane);
+        var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
+
+        Assert.Equal(
+            VSConstants.S_OK,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+        context.Host.RunPostedActions();
+
+        Assert.Equal(1, context.Host.SaveCount);
+        Assert.True(context.Host.IsDirty);
+
+        Assert.Equal(
+            VSConstants.S_OK,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+        context.Host.RunPostedActions();
+
+        Assert.Equal(2, context.Host.SaveCount);
+        Assert.False(context.Host.IsDirty);
+    }
+
+    [Fact]
+    public void PriorityCtrlSStillWorksAfterEarlierSynchronousCloseStyleSave()
+    {
+        using var context = new EditorContext();
+        context.Host.SetDirty(true);
+        Assert.Equal(VSConstants.S_OK, ExecuteStandardSave(context.Pane, out var canceled));
+        Assert.Equal(0, canceled);
+
+        context.Host.SetDirty(true);
+        var target = new DesignerSaveCommandTarget(() => context.Pane);
+        var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
+        Assert.Equal(
+            VSConstants.S_OK,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+        context.Host.RunPostedActions();
+
+        Assert.Equal(2, context.Host.SaveCount);
+        Assert.False(context.Host.IsDirty);
+    }
+
+    [Fact]
+    public void PrioritySaveTargetDoesNotClaimSaveWithoutAnActiveDesignerPane()
+    {
+        var target = new DesignerSaveCommandTarget(() => null);
+        var commandGroup = VSConstants.GUID_VSStandardCommandSet97;
+        var commands = new[] { new OLECMD { cmdID = (uint)VSConstants.VSStd97CmdID.Save } };
+
+        Assert.Equal(
+            (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED,
+            target.QueryStatus(ref commandGroup, 1, commands, IntPtr.Zero));
+        Assert.Equal(
+            (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED,
+            target.Exec(ref commandGroup, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
     }
 
     [Fact]

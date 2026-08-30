@@ -112,11 +112,14 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         }
 
         DesignerEditorDiagnosticLog.Write(
-            $"PERSIST_SAVE_BEGIN Target={targetPath} Remember={fRemember != 0} Format={nFormatIndex}");
-        DesignerEditorDiagnosticLog.Write($"HOST_SAVE_BEGIN Target={targetPath}");
+            $"PERSIST_SAVE_BEGIN Target={targetPath} Remember={fRemember != 0} Format={nFormatIndex} " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
+        DesignerEditorDiagnosticLog.Write(
+            $"HOST_SAVE_BEGIN Target={targetPath} ManagedThreadId={Environment.CurrentManagedThreadId}");
         var result = hostControl.SaveDocument();
         DesignerEditorDiagnosticLog.Write(
-            $"HOST_SAVE_RESULT Outcome={result.Outcome} Error={result.Error ?? "<none>"}");
+            $"HOST_SAVE_RESULT RequestId={result.RequestId ?? "<none>"} " +
+            $"Outcome={result.Outcome} Error={result.Error ?? "<none>"}");
         if (result.Outcome == DesignerHostSaveOutcome.Saved)
         {
             if (fRemember != 0)
@@ -226,7 +229,12 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     {
         pbstrMkDocumentNew = null!;
         pfSaveCanceled = 0;
-        DesignerEditorDiagnosticLog.Write($"SAVEDOCDATA_BEGIN Flags={dwSave} Cookie={documentCookie} Moniker={documentPath}");
+        DesignerEditorDiagnosticLog.Write(
+            $"SAVEDOCDATA_BEGIN Flags={dwSave} Cookie={documentCookie} Moniker={documentPath} " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
+        DesignerEditorDiagnosticLog.Write(
+            $"SAVE_SINGLEFLIGHT_STATE Phase=SaveDocData Active={Volatile.Read(ref deferredSaveState) != 0} " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         LogRunningDocumentState("RDT_DIRTY_BEFORE");
 
         var result = VSConstants.E_UNEXPECTED;
@@ -266,7 +274,8 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
             LogRunningDocumentState("RDT_DIRTY_AFTER");
             DesignerEditorDiagnosticLog.Write(
                 $"SAVEDOCDATA_END Flags={dwSave} HResult=0x{result:X8} " +
-                $"Canceled={pfSaveCanceled != 0} NewMoniker={pbstrMkDocumentNew ?? "<null>"}");
+                $"Canceled={pfSaveCanceled != 0} NewMoniker={pbstrMkDocumentNew ?? "<null>"} " +
+                $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         }
     }
 
@@ -324,7 +333,14 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
                 continue;
 
             prgCmds[index].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED
-                | (lastKnownDirty ? OLECMDF.OLECMDF_ENABLED : (OLECMDF)0));
+                | (lastKnownDirty && Volatile.Read(ref deferredSaveState) == 0
+                    ? OLECMDF.OLECMDF_ENABLED
+                    : (OLECMDF)0));
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_QUERYSTATUS Dirty={lastKnownDirty} " +
+                $"SingleFlightActive={Volatile.Read(ref deferredSaveState) != 0} " +
+                $"ManagedThreadId={Environment.CurrentManagedThreadId} Cookie={documentCookie} " +
+                $"Moniker={documentPath} HResult=0x{VSConstants.S_OK:X8}");
             handled = true;
         }
 
@@ -347,10 +363,27 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         }
 
         DesignerEditorDiagnosticLog.Write(
-            $"VS_CMD_SAVE_RECEIVED Cookie={documentCookie} Moniker={documentPath} ExecOption={nCmdexecopt}");
+            $"VS_CMD_SAVE_EXEC_BEGIN ExecOption={nCmdexecopt} Dirty={lastKnownDirty}");
+        DesignerEditorDiagnosticLog.Write(
+            $"VS_CMD_SAVE_EXEC_THREAD ManagedThreadId={Environment.CurrentManagedThreadId}");
+        DesignerEditorDiagnosticLog.Write($"VS_CMD_SAVE_COOKIE Cookie={documentCookie}");
+        DesignerEditorDiagnosticLog.Write($"VS_CMD_SAVE_MONIKER Moniker={documentPath}");
+        if (!lastKnownDirty)
+        {
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_EXEC_END HResult=0x{VSConstants.S_OK:X8} Scheduled=False Reason=CleanDocument");
+            return VSConstants.S_OK;
+        }
+
+        DesignerEditorDiagnosticLog.Write(
+            $"SAVE_SINGLEFLIGHT_STATE Phase=ExecBeforeAcquire " +
+            $"Active={Volatile.Read(ref deferredSaveState) != 0}");
         if (Interlocked.CompareExchange(ref deferredSaveState, 1, 0) != 0)
         {
-            DesignerEditorDiagnosticLog.Write("VS_CMD_SAVE_COALESCED");
+            DesignerEditorDiagnosticLog.Write(
+                "SAVE_SINGLEFLIGHT_STATE Phase=ExecCoalesced Active=True");
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_EXEC_END HResult=0x{VSConstants.S_OK:X8} Scheduled=False Reason=Coalesced");
             return VSConstants.S_OK;
         }
 
@@ -360,13 +393,20 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
             // host FOCUS callback can otherwise wait for this same Visual Studio UI thread while
             // SaveDocData is waiting for the host, creating a reentrant IPC stall.
             hostControl.PostToOwnerThread(ExecuteDeferredSaveCommand);
+            DesignerEditorDiagnosticLog.Write(
+                "SAVE_SINGLEFLIGHT_STATE Phase=ExecScheduled Active=True");
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_EXEC_END HResult=0x{VSConstants.S_OK:X8} Scheduled=True Reason=Deferred");
             return VSConstants.S_OK;
         }
         catch (Exception exception)
         {
             Interlocked.Exchange(ref deferredSaveState, 0);
             DesignerEditorDiagnosticLog.WriteException("VS_CMD_SAVE_SCHEDULE_EXCEPTION", exception);
-            return Marshal.GetHRForException(exception);
+            var hresult = Marshal.GetHRForException(exception);
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_EXEC_END HResult=0x{hresult:X8} Scheduled=False Reason=ScheduleException");
+            return hresult;
         }
     }
 
@@ -467,6 +507,9 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
     private void ExecuteDeferredSaveCommand()
     {
+        DesignerEditorDiagnosticLog.Write(
+            $"SAVE_SINGLEFLIGHT_STATE Phase=DeferredBegin Active=True " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         try
         {
 #pragma warning disable VSTHRD010 // IDesignerDocumentHost posts this callback to the pane's owner UI thread.
@@ -478,6 +521,8 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         finally
         {
             Interlocked.Exchange(ref deferredSaveState, 0);
+            DesignerEditorDiagnosticLog.Write(
+                "SAVE_SINGLEFLIGHT_STATE Phase=DeferredEnd Active=False");
         }
     }
 

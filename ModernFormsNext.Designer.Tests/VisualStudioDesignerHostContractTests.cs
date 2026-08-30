@@ -47,15 +47,17 @@ public sealed class VisualStudioDesignerHostContractTests
     {
         var designPath = Convert.ToBase64String(Encoding.UTF8.GetBytes("C:\\Project\\Form1.mfdesign"));
         var projectPath = Convert.ToBase64String(Encoding.UTF8.GetBytes("C:\\Project\\Project.csproj"));
+        var requestId = commandName == "SAVE" ? "save-contract-1" : string.Empty;
 
         var parsed = DesignerHostIpcCommand.TryParse(
-            $"{commandName}\t{designPath}\t{projectPath}",
+            $"{commandName}\t{designPath}\t{projectPath}\t{requestId}",
             out var command);
 
         Assert.True(parsed);
         Assert.Equal((DesignerHostIpcCommandKind)expectedKind, command.Kind);
         Assert.Equal("C:\\Project\\Form1.mfdesign", command.DesignDocumentPath);
         Assert.Equal("C:\\Project\\Project.csproj", command.ProjectPath);
+        Assert.Equal(string.IsNullOrEmpty(requestId) ? null : requestId, command.RequestId);
     }
 
     [Theory]
@@ -63,6 +65,7 @@ public sealed class VisualStudioDesignerHostContractTests
     [InlineData("UNKNOWN\tQQ==")]
     [InlineData("OPEN")]
     [InlineData("OPEN\tnot-base64")]
+    [InlineData("SAVE\tQzpcUHJvamVjdFxGb3JtMS5tZmRlc2lnbg==\t")]
     public void HostIpcRejectsMalformedOrUnknownCommands(string input)
     {
         Assert.False(DesignerHostIpcCommand.TryParse(input, out _));

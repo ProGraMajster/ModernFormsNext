@@ -67,8 +67,9 @@ internal sealed class DesignerHostIpcServer : IDisposable
                 using var writer = new StreamWriter(pipe, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
                 if (DesignerHostIpcCommand.TryParse(line, out var command))
                 {
-                    DesignerHostDiagnosticLog.Write(GetReceivedMarker(command.Kind));
-                    await writer.WriteLineAsync(await handleCommand(command));
+                    DesignerHostDiagnosticLog.Write(GetReceivedMarker(command));
+                    var response = await handleCommand(command);
+                    await writer.WriteLineAsync(response);
                 }
                 else
                     await writer.WriteLineAsync("ERROR");
@@ -84,11 +85,11 @@ internal sealed class DesignerHostIpcServer : IDisposable
         }
     }
 
-    private static string GetReceivedMarker(DesignerHostIpcCommandKind kind)
-        => kind switch
+    private static string GetReceivedMarker(DesignerHostIpcCommand command)
+        => command.Kind switch
         {
             DesignerHostIpcCommandKind.Open => "OPEN_RECEIVED",
-            DesignerHostIpcCommandKind.Save => "SAVE_RECEIVED",
+            DesignerHostIpcCommandKind.Save => $"SAVE_RECEIVED RequestId={command.RequestId}",
             DesignerHostIpcCommandKind.QueryDirty => "DIRTY_RECEIVED",
             DesignerHostIpcCommandKind.DiscardRecovery => "DISCARD_RECEIVED",
             DesignerHostIpcCommandKind.Shutdown => "SHUTDOWN_RECEIVED",
@@ -98,7 +99,7 @@ internal sealed class DesignerHostIpcServer : IDisposable
             DesignerHostIpcCommandKind.Show => "VISIBILITY_RECEIVED Visible=true",
             DesignerHostIpcCommandKind.Hide => "VISIBILITY_RECEIVED Visible=false",
             DesignerHostIpcCommandKind.Focus => "FOCUS_RECEIVED",
-            _ => $"UNKNOWN_{kind}_RECEIVED"
+            _ => $"UNKNOWN_{command.Kind}_RECEIVED"
         };
 }
 
@@ -108,12 +109,14 @@ internal sealed class DesignerHostIpcCommand
         DesignerHostIpcCommandKind kind,
         string designDocumentPath,
         string? projectPath,
-        IntPtr parentWindowHandle)
+        IntPtr parentWindowHandle,
+        string? requestId)
     {
         Kind = kind;
         DesignDocumentPath = designDocumentPath;
         ProjectPath = projectPath;
         ParentWindowHandle = parentWindowHandle;
+        RequestId = requestId;
     }
 
     public DesignerHostIpcCommandKind Kind { get; }
@@ -123,6 +126,8 @@ internal sealed class DesignerHostIpcCommand
     public string? ProjectPath { get; }
 
     public IntPtr ParentWindowHandle { get; }
+
+    public string? RequestId { get; }
 
     public static bool TryParse(string? line, out DesignerHostIpcCommand command)
     {
@@ -150,14 +155,23 @@ internal sealed class DesignerHostIpcCommand
 
         var normalizedProjectPath = string.IsNullOrWhiteSpace(projectPath) ? null : projectPath;
         var parentWindowHandle = IntPtr.Zero;
+        var requestId = parts.Length > 3 && !string.IsNullOrWhiteSpace(parts[3])
+            ? parts[3]
+            : null;
 
         switch (kind)
         {
-            case DesignerHostIpcCommandKind.Open:
             case DesignerHostIpcCommandKind.Save:
+                if (string.IsNullOrWhiteSpace(requestId)
+                    || string.IsNullOrWhiteSpace(designDocumentPath))
+                {
+                    return false;
+                }
+                break;
             case DesignerHostIpcCommandKind.QueryDirty:
             case DesignerHostIpcCommandKind.DiscardRecovery:
             case DesignerHostIpcCommandKind.Shutdown:
+            case DesignerHostIpcCommandKind.Open:
                 if (string.IsNullOrWhiteSpace(designDocumentPath))
                     return false;
                 break;
@@ -192,7 +206,8 @@ internal sealed class DesignerHostIpcCommand
             kind,
             designDocumentPath,
             normalizedProjectPath,
-            parentWindowHandle);
+            parentWindowHandle,
+            requestId);
         return true;
     }
 

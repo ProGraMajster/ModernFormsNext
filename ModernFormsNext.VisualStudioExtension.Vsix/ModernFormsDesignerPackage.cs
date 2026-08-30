@@ -60,6 +60,9 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
     internal static readonly Guid EditorFactoryGuid = new(EditorFactoryGuidString);
 
     private readonly ModernFormsDesignableFileDetector detector = new();
+    private IVsRegisterPriorityCommandTarget? priorityCommandRegistrar;
+    private DesignerSaveCommandTarget? designerSaveCommandTarget;
+    private uint priorityCommandCookie = VSConstants.VSCOOKIE_NIL;
 
     /// <inheritdoc/>
     protected override async Task InitializeAsync(
@@ -70,6 +73,61 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
 
         RegisterEditorFactory(new MfDesignEditorFactory(this));
         await ViewModernFormsNextDesignerCommand.InitializeAsync(this);
+
+        priorityCommandRegistrar = await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget))
+            as IVsRegisterPriorityCommandTarget;
+        if (priorityCommandRegistrar is not null)
+        {
+            designerSaveCommandTarget = new DesignerSaveCommandTarget(GetActiveDesignerPane);
+            ErrorHandler.ThrowOnFailure(priorityCommandRegistrar.RegisterPriorityCommandTarget(
+                0,
+                designerSaveCommandTarget,
+                out priorityCommandCookie));
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_PRIORITY_TARGET_REGISTERED Cookie={priorityCommandCookie}");
+        }
+    }
+
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing
+            && priorityCommandRegistrar is not null
+            && priorityCommandCookie != VSConstants.VSCOOKIE_NIL)
+        {
+            JoinableTaskFactory.Run(async () =>
+            {
+                await JoinableTaskFactory.SwitchToMainThreadAsync();
+                var result = priorityCommandRegistrar.UnregisterPriorityCommandTarget(priorityCommandCookie);
+                DesignerEditorDiagnosticLog.Write(
+                    $"VS_CMD_SAVE_PRIORITY_TARGET_UNREGISTERED Cookie={priorityCommandCookie} " +
+                    $"HResult=0x{result:X8}");
+                priorityCommandCookie = VSConstants.VSCOOKIE_NIL;
+                priorityCommandRegistrar = null;
+                designerSaveCommandTarget = null;
+            });
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private MfDesignEditorPane? GetActiveDesignerPane()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (GetService(typeof(SVsShellMonitorSelection)) is not IVsMonitorSelection monitorSelection
+            || ErrorHandler.Failed(monitorSelection.GetCurrentElementValue(
+                (uint)VSConstants.VSSELELEMID.SEID_DocumentFrame,
+                out var frameValue))
+            || frameValue is not IVsWindowFrame frame
+            || ErrorHandler.Failed(frame.GetProperty(
+                (int)__VSFPROPID.VSFPROPID_DocView,
+                out var docView)))
+        {
+            return null;
+        }
+
+        return docView as MfDesignEditorPane;
     }
 
     internal ModernFormsDesignableFileInfo? GetSelectedDesignableFile()

@@ -33,6 +33,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private bool publishedDirtyState;
     private int dirtyQueryInFlight;
     private int focusCommandInFlight;
+    private int saveInFlight;
     private int documentStateGeneration;
 
     public event EventHandler<DesignerDocumentDirtyChangedEventArgs>? DocumentDirtyChanged;
@@ -113,14 +114,28 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     {
         if (ownedProcess is null || HasExited(ownedProcess))
             return DesignerHostSaveResult.Failed("The Designer host process is not running.");
+        if (Interlocked.CompareExchange(ref saveInFlight, 1, 0) != 0)
+        {
+            DesignerEditorDiagnosticLog.Write(
+                "SAVE_SINGLEFLIGHT_STATE Phase=HostControlCoalesced Active=True");
+            return DesignerHostSaveResult.Canceled(
+                "A Designer save is already active; the duplicate request was coalesced.");
+        }
 
         documentStateTimer.Stop();
         Interlocked.Increment(ref documentStateGeneration);
+        DesignerEditorDiagnosticLog.Write(
+            $"SAVE_SINGLEFLIGHT_STATE Phase=HostControlBegin Active=True " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         try
         {
             DesignerHostSaveResult result;
+            DesignerEditorDiagnosticLog.Write(
+                $"IPC_SAVE_GATE_WAIT_BEGIN ManagedThreadId={Environment.CurrentManagedThreadId}");
             lock (ipcGate)
             {
+                DesignerEditorDiagnosticLog.Write(
+                    $"IPC_SAVE_GATE_ACQUIRED ManagedThreadId={Environment.CurrentManagedThreadId}");
                 result = DesignerHostIpcClient.SaveDocument(
                     pipeName,
                     documentPath,
@@ -134,6 +149,9 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         }
         finally
         {
+            Interlocked.Exchange(ref saveInFlight, 0);
+            DesignerEditorDiagnosticLog.Write(
+                "SAVE_SINGLEFLIGHT_STATE Phase=HostControlEnd Active=False");
             if (!disposing && childWindowHandle != IntPtr.Zero)
                 documentStateTimer.Start();
         }
@@ -465,8 +483,14 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             var isDirty = false;
             try
             {
+                DesignerEditorDiagnosticLog.Write(
+                    $"DIRTY_POLL_GATE_WAIT Generation={generation} " +
+                    $"ManagedThreadId={Environment.CurrentManagedThreadId}");
                 lock (ipcGate)
                 {
+                    DesignerEditorDiagnosticLog.Write(
+                        $"DIRTY_POLL_GATE_ACQUIRED Generation={generation} " +
+                        $"ManagedThreadId={Environment.CurrentManagedThreadId}");
                     succeeded = DesignerHostIpcClient.TryGetDocumentDirty(
                         pipeName,
                         queryDocumentPath,
@@ -545,8 +569,14 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             return false;
         }
 
+        DesignerEditorDiagnosticLog.Write(
+            $"IPC_LIFECYCLE_GATE_WAIT Command={command} " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         lock (ipcGate)
         {
+            DesignerEditorDiagnosticLog.Write(
+                $"IPC_LIFECYCLE_GATE_ACQUIRED Command={command} " +
+                $"ManagedThreadId={Environment.CurrentManagedThreadId}");
             return DesignerHostIpcClient.TrySendLifecycleCommand(
                 pipeName,
                 command,

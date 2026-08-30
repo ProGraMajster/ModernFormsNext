@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Security.Cryptography;
@@ -7,12 +8,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Shell;
+using ModernFormsNext.VisualStudioExtension.Editors;
 
 namespace ModernFormsNext.VisualStudioExtension.Commands;
 
 internal static class DesignerHostIpcClient
 {
     private const string PipePrefix = "ModernFormsNextDesignerHost";
+    private static long nextSaveRequestId;
 
     public static string GetPipeName(string hostKey)
     {
@@ -39,41 +42,72 @@ internal static class DesignerHostIpcClient
         string? projectPath,
         TimeSpan timeout)
     {
+        var requestId = Interlocked.Increment(ref nextSaveRequestId)
+            .ToString(CultureInfo.InvariantCulture);
+        DesignerEditorDiagnosticLog.Write(
+            $"IPC_SAVE_REQUEST_BEGIN RequestId={requestId} " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId} TimeoutMs={timeout.TotalMilliseconds:0}");
+        DesignerEditorDiagnosticLog.Write(
+            $"IPC_SAVE_REQUEST_ID RequestId={requestId} " +
+            $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         var response = TrySendEncodedCommandForResponse(
             pipeName,
             "SAVE",
             designDocumentPath,
             projectPath,
-            timeout);
+            timeout,
+            requestId);
 
-        if (string.Equals(response, "SAVE_RESULT\tSAVED", StringComparison.Ordinal))
-            return DesignerHostSaveResult.Saved;
+        return ParseSaveResponse(requestId, response);
+    }
+
+    internal static DesignerHostSaveResult ParseSaveResponse(string requestId, string? response)
+    {
+        if (string.IsNullOrWhiteSpace(requestId))
+            throw new ArgumentException("A save request ID is required.", nameof(requestId));
 
         var parts = response?.Split('\t');
+        if (parts is not null && parts.Length >= 2)
+        {
+            DesignerEditorDiagnosticLog.Write(
+                $"IPC_SAVE_RESPONSE_ID RequestId={requestId} " +
+                $"ResponseId={parts[1]} Match={string.Equals(parts[1], requestId, StringComparison.Ordinal)}");
+        }
+
         if (parts is { Length: 3 }
             && string.Equals(parts[0], "SAVE_RESULT", StringComparison.Ordinal)
-            && (string.Equals(parts[1], "CANCELED", StringComparison.Ordinal)
-                || string.Equals(parts[1], "FAILED", StringComparison.Ordinal)))
+            && string.Equals(parts[1], requestId, StringComparison.Ordinal)
+            && string.Equals(parts[2], "SAVED", StringComparison.Ordinal))
+        {
+            return DesignerHostSaveResult.SavedFor(requestId);
+        }
+
+        if (parts is { Length: 4 }
+            && string.Equals(parts[0], "SAVE_RESULT", StringComparison.Ordinal)
+            && string.Equals(parts[1], requestId, StringComparison.Ordinal)
+            && (string.Equals(parts[2], "CANCELED", StringComparison.Ordinal)
+                || string.Equals(parts[2], "FAILED", StringComparison.Ordinal)))
         {
             string message;
             try
             {
-                message = Decode(parts[2]);
+                message = Decode(parts[3]);
             }
             catch (FormatException)
             {
                 message = "The Designer host returned an invalid save diagnostic.";
             }
 
-            return string.Equals(parts[1], "CANCELED", StringComparison.Ordinal)
-                ? DesignerHostSaveResult.Canceled(message)
-                : DesignerHostSaveResult.Failed(message);
+            return string.Equals(parts[2], "CANCELED", StringComparison.Ordinal)
+                ? DesignerHostSaveResult.Canceled(message, requestId)
+                : DesignerHostSaveResult.Failed(message, requestId);
         }
 
         return DesignerHostSaveResult.Failed(
             response is null
                 ? "The Designer host did not respond to the save request."
-                : "The Designer host returned an invalid save response.");
+                : "The Designer host returned an invalid or mismatched save response.",
+            requestId);
     }
 
     public static bool TrySendCommand(
@@ -123,8 +157,11 @@ internal static class DesignerHostIpcClient
         string command,
         string? payload,
         string? secondaryPayload,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        string? requestId = null)
     {
+        var saveRequest = string.Equals(command, "SAVE", StringComparison.Ordinal);
+        var stopwatch = saveRequest ? Stopwatch.StartNew() : null;
         try
         {
             using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
@@ -135,12 +172,50 @@ internal static class DesignerHostIpcClient
                 AutoFlush = true
             };
 
-            writer.WriteLine($"{command}\t{Encode(payload)}\t{Encode(secondaryPayload)}");
+            if (saveRequest)
+            {
+                DesignerEditorDiagnosticLog.Write(
+                    $"IPC_SAVE_WRITE_BEGIN RequestId={requestId} " +
+                    $"ManagedThreadId={Environment.CurrentManagedThreadId}");
+            }
+            writer.WriteLine($"{command}\t{Encode(payload)}\t{Encode(secondaryPayload)}\t{requestId ?? string.Empty}");
+            if (saveRequest)
+            {
+                DesignerEditorDiagnosticLog.Write(
+                    $"IPC_SAVE_WRITE_END RequestId={requestId} ElapsedMs={stopwatch!.Elapsed.TotalMilliseconds:0.###}");
+            }
             using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
-            return ReadResponse(reader, timeout);
+            if (saveRequest)
+            {
+                DesignerEditorDiagnosticLog.Write(
+                    $"IPC_SAVE_WAIT_BEGIN RequestId={requestId} TimeoutMs={timeout.TotalMilliseconds:0}");
+            }
+            var response = ReadResponse(reader, timeout);
+            if (saveRequest)
+            {
+                if (response is not null)
+                {
+                    DesignerEditorDiagnosticLog.Write(
+                        $"IPC_SAVE_RESPONSE_RECEIVED RequestId={requestId} Response={response}");
+                }
+                DesignerEditorDiagnosticLog.Write(
+                    $"IPC_SAVE_WAIT_END RequestId={requestId} " +
+                    $"Outcome={(response is null ? "Timeout" : "Response")} " +
+                    $"ElapsedMs={stopwatch!.Elapsed.TotalMilliseconds:0.###}");
+            }
+            return response;
         }
-        catch
+        catch (Exception exception)
         {
+            if (saveRequest)
+            {
+                DesignerEditorDiagnosticLog.WriteException(
+                    $"IPC_SAVE_WAIT_EXCEPTION RequestId={requestId}",
+                    exception);
+                DesignerEditorDiagnosticLog.Write(
+                    $"IPC_SAVE_WAIT_END RequestId={requestId} Outcome=Exception " +
+                    $"ElapsedMs={stopwatch!.Elapsed.TotalMilliseconds:0.###}");
+            }
             return null;
         }
     }
@@ -205,24 +280,33 @@ internal static class DesignerHostIpcClient
 
 internal readonly struct DesignerHostSaveResult
 {
-    private DesignerHostSaveResult(DesignerHostSaveOutcome outcome, string? error)
+    private DesignerHostSaveResult(
+        DesignerHostSaveOutcome outcome,
+        string? error,
+        string? requestId)
     {
         Outcome = outcome;
         Error = error;
+        RequestId = requestId;
     }
 
     public static DesignerHostSaveResult Saved { get; }
-        = new(DesignerHostSaveOutcome.Saved, error: null);
+        = new(DesignerHostSaveOutcome.Saved, error: null, requestId: null);
 
     public DesignerHostSaveOutcome Outcome { get; }
 
     public string? Error { get; }
 
-    public static DesignerHostSaveResult Canceled(string error)
-        => new(DesignerHostSaveOutcome.Canceled, error);
+    public string? RequestId { get; }
 
-    public static DesignerHostSaveResult Failed(string error)
-        => new(DesignerHostSaveOutcome.Failed, error);
+    public static DesignerHostSaveResult SavedFor(string requestId)
+        => new(DesignerHostSaveOutcome.Saved, error: null, requestId);
+
+    public static DesignerHostSaveResult Canceled(string error, string? requestId = null)
+        => new(DesignerHostSaveOutcome.Canceled, error, requestId);
+
+    public static DesignerHostSaveResult Failed(string error, string? requestId = null)
+        => new(DesignerHostSaveOutcome.Failed, error, requestId);
 }
 
 internal enum DesignerHostSaveOutcome
