@@ -13,6 +13,7 @@ namespace ModernFormsNext.VisualStudioExtension.Editors;
 public sealed class MfDesignEditorFactory : IVsEditorFactory
 {
     private readonly IServiceProvider serviceProvider;
+    private readonly Func<DesignerHostingMode> hostingModeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MfDesignEditorFactory"/> class.
@@ -21,6 +22,18 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
     public MfDesignEditorFactory(IServiceProvider serviceProvider)
     {
         this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        hostingModeProvider = serviceProvider is ModernFormsDesignerPackage package
+            ? package.GetDesignerHostingMode
+            : static () => DesignerHostingMode.Integrated;
+    }
+
+    internal MfDesignEditorFactory(
+        IServiceProvider serviceProvider,
+        Func<DesignerHostingMode> hostingModeProvider)
+    {
+        this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        this.hostingModeProvider = hostingModeProvider
+            ?? throw new ArgumentNullException(nameof(hostingModeProvider));
     }
 
     /// <inheritdoc/>
@@ -69,7 +82,7 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
 
         try
         {
-            var pane = new MfDesignEditorPane(serviceProvider, pszMkDocument);
+            var pane = CreateEditorPane(pszMkDocument);
             ppunkDocView = Marshal.GetIUnknownForObject(pane);
             ppunkDocData = Marshal.GetIUnknownForObject(pane);
             return VSConstants.S_OK;
@@ -86,4 +99,7 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
             return Marshal.GetHRForException(ex);
         }
     }
+
+    internal MfDesignEditorPane CreateEditorPane(string documentPath)
+        => new(serviceProvider, documentPath, hostingModeProvider());
 }

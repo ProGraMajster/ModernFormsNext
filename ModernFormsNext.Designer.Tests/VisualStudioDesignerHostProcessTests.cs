@@ -29,6 +29,7 @@ public sealed class VisualStudioDesignerHostProcessTests
     private const long WsMinimize = 0x20000000L;
     private const long WsMaximize = 0x01000000L;
     private const long WsExTopmost = 0x00000008L;
+    private const long WsExToolWindow = 0x00000080L;
     private const long WsExWindowEdge = 0x00000100L;
     private const long WsExClientEdge = 0x00000200L;
     private const long WsExAppWindow = 0x00040000L;
@@ -61,6 +62,10 @@ public sealed class VisualStudioDesignerHostProcessTests
         process.StartInfo.ArgumentList.Add(designPath);
         process.StartInfo.ArgumentList.Add("--pipe");
         process.StartInfo.ArgumentList.Add(pipeName);
+        process.StartInfo.ArgumentList.Add("--host-mode");
+        process.StartInfo.ArgumentList.Add("standalone");
+        process.StartInfo.ArgumentList.Add("--owner-process");
+        process.StartInfo.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         Assert.True(process.Start());
         var logPath = DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), process.Id);
@@ -74,6 +79,18 @@ public sealed class VisualStudioDesignerHostProcessTests
                 $"IPC_READY PipeName={pipeName}",
                 timeout.Token);
             Assert.False(process.HasExited, await ReadLogAsync(logPath));
+
+            var window = await WaitForTopLevelWindowAsync(process, timeout.Token);
+            AssertStandaloneWindowContract(window);
+            Assert.True(SetWindowPos(
+                window,
+                IntPtr.Zero,
+                120,
+                140,
+                960,
+                640,
+                SwpNoZOrder | SwpNoActivate));
+            await WaitForTopLevelWindowBoundsAsync(window, 120, 140, 960, 640, timeout.Token);
 
             var messageWindow = await WaitForPlatformMessageWindowAsync(process, timeout.Token);
             var sent = SendMessageTimeout(
@@ -111,6 +128,8 @@ public sealed class VisualStudioDesignerHostProcessTests
             Assert.Contains("DPI_SETUP_BEGIN", log, StringComparison.Ordinal);
             Assert.Contains("DPI_SETUP_OK", log, StringComparison.Ordinal);
             Assert.Contains("FORM_CONSTRUCTOR_BEGIN", log, StringComparison.Ordinal);
+            Assert.Contains("HOSTING_MODE_CONFIGURED Mode=Standalone", log, StringComparison.Ordinal);
+            Assert.Contains("STANDALONE_CHROME_ENABLED", log, StringComparison.Ordinal);
             Assert.Contains("HANDLE_CREATED", log, StringComparison.Ordinal);
             Assert.Contains("FORM_CONSTRUCTOR_OK", log, StringComparison.Ordinal);
             Assert.Contains("IPC_SERVER_CREATE_BEGIN", log, StringComparison.Ordinal);
@@ -396,6 +415,10 @@ public sealed class VisualStudioDesignerHostProcessTests
         process.StartInfo.ArgumentList.Add(designPath);
         process.StartInfo.ArgumentList.Add("--pipe");
         process.StartInfo.ArgumentList.Add(pipeName);
+        process.StartInfo.ArgumentList.Add("--host-mode");
+        process.StartInfo.ArgumentList.Add("integrated");
+        process.StartInfo.ArgumentList.Add("--owner-process");
+        process.StartInfo.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         process.StartInfo.ArgumentList.Add("--parent-window");
         process.StartInfo.ArgumentList.Add(
             parentHandle.ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -439,6 +462,25 @@ public sealed class VisualStudioDesignerHostProcessTests
         Assert.Equal(expectedHeight, windowBounds.Bottom - windowBounds.Top);
     }
 
+    private static void AssertStandaloneWindowContract(IntPtr window)
+    {
+        var style = GetWindowLongPtr(window, GwlStyle).ToInt64();
+        var extendedStyle = GetWindowLongPtr(window, GwlExStyle).ToInt64();
+
+        Assert.Equal(0, style & WsChild);
+        Assert.NotEqual(0, style & WsVisible);
+        // ModernFormsNext draws its own managed title bar, so a supported top-level window does
+        // not require the native WS_CAPTION/WS_SYSMENU pair. Resize and min/max remain native
+        // top-level styles, while an unowned non-tool window participates in taskbar/Alt+Tab.
+        Assert.NotEqual(0, style & WsThickFrame);
+        Assert.NotEqual(0, style & WsMinimizeBox);
+        Assert.NotEqual(0, style & WsMaximizeBox);
+        Assert.Equal(0, extendedStyle & WsExToolWindow);
+        Assert.Equal(IntPtr.Zero, GetParent(window));
+        Assert.Equal(IntPtr.Zero, GetWindow(window, GwOwner));
+        Assert.True(IsTopLevelWindow(window));
+    }
+
     private static async Task<IntPtr> WaitForChildWindowAsync(
         IntPtr parent,
         Process process,
@@ -478,6 +520,61 @@ public sealed class VisualStudioDesignerHostProcessTests
         }, IntPtr.Zero);
         return result;
     }
+
+    private static async Task<IntPtr> WaitForTopLevelWindowAsync(
+        Process process,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var window = FindTopLevelWindowOwnedByProcess(process.Id);
+            if (window != IntPtr.Zero)
+                return window;
+            if (process.HasExited)
+            {
+                var logPath = DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), process.Id);
+                throw new InvalidOperationException(
+                    $"Designer host exited with code {process.ExitCode} before creating a top-level window.{Environment.NewLine}" +
+                    await ReadLogAsync(logPath));
+            }
+
+            await Task.Delay(25, cancellationToken);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return IntPtr.Zero;
+    }
+
+    private static IntPtr FindTopLevelWindowOwnedByProcess(int processId)
+    {
+        var result = IntPtr.Zero;
+        _ = EnumWindows((window, parameter) =>
+        {
+            _ = GetWindowThreadProcessId(window, out var ownerProcessId);
+            if (ownerProcessId != processId || !IsWindowVisible(window))
+                return true;
+
+            result = window;
+            return false;
+        }, IntPtr.Zero);
+        return result;
+    }
+
+    private static async Task WaitForTopLevelWindowBoundsAsync(
+        IntPtr window,
+        int x,
+        int y,
+        int width,
+        int height,
+        CancellationToken cancellationToken)
+        => await WaitForConditionAsync(
+            () => GetWindowRect(window, out var bounds)
+                && bounds.Left == x
+                && bounds.Top == y
+                && bounds.Right - bounds.Left == width
+                && bounds.Bottom - bounds.Top == height,
+            $"The standalone window did not reach bounds {x},{y},{width},{height}.",
+            cancellationToken);
 
     private static async Task WaitForWindowBoundsAsync(
         IntPtr child,

@@ -5,6 +5,7 @@ using ModernFormsNext;
 using ModernFormsNext.Designer;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
+using ModernFormsNext.VisualStudioExtension;
 
 namespace ModernFormsNext.VisualStudioDesignerHost;
 
@@ -35,25 +36,37 @@ public sealed class VisualStudioDesignerHostForm : Form
     /// <param name="arguments">The launch arguments supplied by the Visual Studio extension.</param>
     public VisualStudioDesignerHostForm(DesignerHostArguments arguments)
     {
-        var platformHandle = PlatformHandle;
-        DesignerHostDiagnosticLog.Write(
-            $"HANDLE_CREATED Descriptor={platformHandle.HandleDescriptor ?? "<none>"} " +
-            $"Handle=0x{platformHandle.Handle.ToInt64():X}");
-
-        this.arguments = arguments;
+        this.arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
 
         Text = GetWindowTitle(arguments.DesignDocumentPath);
         Name = "ModernFormsNextVisualStudioDesignerHost";
         Size = new System.Drawing.Size(1480, 900);
 
-        if (arguments.ParentWindowHandle != IntPtr.Zero)
-        {
+        // Window semantics must be fixed before PlatformHandle creates the native HWND. In
+        // particular, standalone mode must never create a top-level window and later pass it
+        // through the integrated SetParent/style-conversion path.
+        if (arguments.HostingMode == DesignerHostingMode.Integrated)
             ConfigureEmbeddedWindow();
+        else
+            ConfigureStandaloneWindow();
+        DesignerHostDiagnosticLog.Write($"HOSTING_MODE_CONFIGURED Mode={arguments.HostingMode}");
+
+        var platformHandle = PlatformHandle;
+        DesignerHostDiagnosticLog.Write(
+            $"HANDLE_CREATED Descriptor={platformHandle.HandleDescriptor ?? "<none>"} " +
+            $"Handle=0x{platformHandle.Handle.ToInt64():X}");
+
+        if (arguments.HostingMode == DesignerHostingMode.Integrated)
+        {
             parentWindowHost = new WindowsDesignerParentWindowHost(arguments.ParentWindowHandle);
             DesignerHostDiagnosticLog.Write(
                 $"ATTACH_BEGIN Parent=0x{arguments.ParentWindowHandle.ToInt64():X}");
             parentWindowHost.Attach(this);
             DesignerHostDiagnosticLog.Write("ATTACH_OK");
+        }
+        else if (arguments.OwnerProcessId > 0)
+        {
+            StartOwnerProcessMonitoring(arguments.OwnerProcessId);
         }
 
         environment = new VisualStudioDesignerHostEnvironment(
@@ -324,24 +337,30 @@ public sealed class VisualStudioDesignerHostForm : Form
                 Application.RunOnUIThread(Close);
                 return "OK";
             case DesignerHostIpcCommandKind.AttachParent:
+                EnsureIntegratedHosting(command.Kind);
                 ConfigureEmbeddedWindow();
                 parentWindowHost ??= new WindowsDesignerParentWindowHost(command.ParentWindowHandle);
                 parentWindowHost.Attach(this, command.ParentWindowHandle);
                 EnsureOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
                 return "OK";
             case DesignerHostIpcCommandKind.Park:
+                EnsureIntegratedHosting(command.Kind);
                 GetRequiredParentWindowHost().Park();
                 return "OK";
             case DesignerHostIpcCommandKind.Resize:
+                EnsureIntegratedHosting(command.Kind);
                 GetRequiredParentWindowHost().ResizeToParent();
                 return "OK";
             case DesignerHostIpcCommandKind.Show:
+                EnsureIntegratedHosting(command.Kind);
                 GetRequiredParentWindowHost().SetVisible(true);
                 return "OK";
             case DesignerHostIpcCommandKind.Hide:
+                EnsureIntegratedHosting(command.Kind);
                 GetRequiredParentWindowHost().SetVisible(false);
                 return "OK";
             case DesignerHostIpcCommandKind.Focus:
+                EnsureIntegratedHosting(command.Kind);
                 GetRequiredParentWindowHost().RequestFocus();
                 return "OK";
             default:
@@ -365,6 +384,31 @@ public sealed class VisualStudioDesignerHostForm : Form
             $"EMBEDDED_CHROME_DISABLED TitleBarVisible={TitleBar.Visible} " +
             $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize} " +
             $"BorderWidth={Style.Border.Width}");
+    }
+
+    private void ConfigureStandaloneWindow()
+    {
+        // Standalone uses the framework's normal top-level window contract. Explicitly restoring
+        // these properties keeps the two modes auditable and prevents integrated chrome choices
+        // from leaking into a future shared initialization path.
+        StartPosition = FormStartPosition.CenterScreen;
+        Resizeable = true;
+        AllowMinimize = true;
+        AllowMaximize = true;
+        WindowState = FormWindowState.Normal;
+        TitleBar.Visible = true;
+        DesignerHostDiagnosticLog.Write(
+            $"STANDALONE_CHROME_ENABLED TitleBarVisible={TitleBar.Visible} " +
+            $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize}");
+    }
+
+    private void EnsureIntegratedHosting(DesignerHostIpcCommandKind commandKind)
+    {
+        if (arguments.HostingMode != DesignerHostingMode.Integrated)
+        {
+            throw new InvalidOperationException(
+                $"The {commandKind} lifecycle command is valid only for integrated Designer hosting.");
+        }
     }
 
     private WindowsDesignerParentWindowHost GetRequiredParentWindowHost()

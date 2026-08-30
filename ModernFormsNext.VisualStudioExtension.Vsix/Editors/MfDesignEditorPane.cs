@@ -15,7 +15,7 @@ namespace ModernFormsNext.VisualStudioExtension.Editors;
 /// Visual Studio document pane for an out-of-process ModernFormsNext Designer surface.
 /// </summary>
 /// <remarks>
-/// One pane owns exactly one child process and one <c>.mfdesign</c> document. The process is never
+/// One pane owns exactly one host process and one <c>.mfdesign</c> document. The process is never
 /// discovered or terminated by name, which prevents one Visual Studio instance from affecting
 /// another instance's Designer host. Visual Studio owns save prompts and the RDT document state;
 /// the out-of-process Designer remains the sole source of the actual dirty value. This pane claims
@@ -27,6 +27,7 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     private const uint CurrentFileFormat = 0;
     private readonly IDesignerDocumentHost hostControl;
     private readonly IVisualStudioDocumentServices documentServices;
+    private readonly DesignerHostingMode hostingMode;
     private string documentPath;
     private uint documentCookie = VSConstants.VSCOOKIE_NIL;
     private bool lastKnownDirty;
@@ -40,11 +41,26 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
     /// <param name="serviceProvider">The Visual Studio service provider.</param>
     /// <param name="documentPath">The canonical Designer document path.</param>
     public MfDesignEditorPane(IServiceProvider serviceProvider, string documentPath)
+        : this(serviceProvider, documentPath, DesignerHostingMode.Integrated)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MfDesignEditorPane"/> class.
+    /// </summary>
+    /// <param name="serviceProvider">The Visual Studio service provider.</param>
+    /// <param name="documentPath">The canonical Designer document path.</param>
+    /// <param name="hostingMode">The immutable hosting mode captured for this document open.</param>
+    public MfDesignEditorPane(
+        IServiceProvider serviceProvider,
+        string documentPath,
+        DesignerHostingMode hostingMode)
         : this(
             serviceProvider,
             documentPath,
-            new OutOfProcessDesignerHostControl(documentPath),
-            new VisualStudioDocumentServices(serviceProvider))
+            new OutOfProcessDesignerHostControl(documentPath, hostingMode),
+            new VisualStudioDocumentServices(serviceProvider),
+            hostingMode)
     {
     }
 
@@ -53,6 +69,21 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         string documentPath,
         IDesignerDocumentHost hostControl,
         IVisualStudioDocumentServices documentServices)
+        : this(
+            serviceProvider,
+            documentPath,
+            hostControl,
+            documentServices,
+            DesignerHostingMode.Integrated)
+    {
+    }
+
+    internal MfDesignEditorPane(
+        IServiceProvider serviceProvider,
+        string documentPath,
+        IDesignerDocumentHost hostControl,
+        IVisualStudioDocumentServices documentServices,
+        DesignerHostingMode hostingMode)
         : base(serviceProvider)
     {
         if (string.IsNullOrWhiteSpace(documentPath))
@@ -60,10 +91,14 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
 
         this.hostControl = hostControl ?? throw new ArgumentNullException(nameof(hostControl));
         this.documentServices = documentServices ?? throw new ArgumentNullException(nameof(documentServices));
+        this.hostingMode = hostingMode;
         this.documentPath = System.IO.Path.GetFullPath(documentPath);
         this.hostControl.DocumentDirtyChanged += HandleDocumentDirtyChanged;
-        DesignerEditorDiagnosticLog.Write($"PANE_CREATED Moniker={this.documentPath}");
+        DesignerEditorDiagnosticLog.Write(
+            $"PANE_CREATED Moniker={this.documentPath} HostingMode={hostingMode}");
     }
+
+    internal DesignerHostingMode HostingMode => hostingMode;
 
     /// <inheritdoc/>
     public override System.Windows.Forms.IWin32Window Window => hostControl.Window;

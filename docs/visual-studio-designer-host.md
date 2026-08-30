@@ -2,12 +2,38 @@
 
 ModernFormsNext uses a Windows-specific, out-of-process host for its Visual Studio Designer. The
 classic VSSDK package remains small and .NET Framework-compatible, while the Designer and renderer
-run on modern .NET in `ModernFormsNext.VisualStudioDesignerHost`.
+run on modern .NET in `ModernFormsNext.VisualStudioDesignerHost`. The host can be integrated into
+the Visual Studio document pane or presented as an independent top-level window.
+
+## Designer hosting modes
+
+Choose **Tools > Options > ModernFormsNext > Designer > Designer hosting** to select one of two
+supported modes:
+
+- **Integrated in Visual Studio** (default) embeds the out-of-process Designer HWND in the
+  `.mfdesign` document pane. Visual Studio owns placement, visibility, and focus entry.
+- **Separate window** launches the same out-of-process host as a normal top-level window with the
+  ModernFormsNext title bar, resize, minimize, maximize, taskbar, and Alt+Tab behavior. It does not
+  call `SetParent`, acquire `WS_CHILD`, or depend on a pane parent HWND. This mode can be useful
+  when an IDE layout, docking extension, or unusual monitor/DPI configuration works better with an
+  independently positioned window.
+
+This is a Visual Studio per-user option. It is not written to `.csproj`, `.mfdesign`, generated
+code, or repository metadata. The selected mode is captured when a Designer document is opened.
+Changing the option does not move a live HWND: already open documents retain their mode until
+closed, and the next newly opened document uses the new preference.
+
+Both modes instantiate `ModernFormsNext.VisualStudioDesignerHost` and the same
+`ModernFormsDesignerShell`, `DesignerSession`, rendering, toolbox, property grid, transactions,
+undo/redo, persistence, code generation, autosave, and recovery services. Hosting mode changes
+window presentation only; it does not create a second Designer implementation or document format.
 
 ## Process and ownership model
 
-Each open `.mfdesign` editor pane owns one Designer host process and one document. This one-pane,
-one-process model gives every Visual Studio document an independent HWND, endpoint, lifetime, and
+Each open `.mfdesign` editor pane owns one Designer host process and one document. In standalone
+mode the pane is a lightweight Visual Studio document/RDT proxy while the actual Designer UI is in
+the independent window. This one-pane, one-process model gives every Visual Studio document an
+independent HWND, endpoint, lifetime, and
 failure boundary. Opening two projects that both contain `Form1.mfdesign` cannot mix their windows
 or commands.
 
@@ -23,8 +49,8 @@ requires an `IWin32Window`; that control supplies the pane HWND and a status lab
 paint or lay out the Designer. Designer rendering remains on the existing ModernFormsNext
 Skia/WindowKit path inside the child process.
 
-The lightweight `ModernFormsNext.VisualStudioExtension.Shared` assembly contains only the pure
-command-status contract used by the modern extension build and the classic VSIX. It targets
+The lightweight `ModernFormsNext.VisualStudioExtension.Shared` assembly contains the pure
+command-status and hosting-mode contracts used by the modern extension build, host, and classic VSIX. It targets
 `netstandard2.0`, has no VSSDK, WinForms, System.Drawing, Designer, native, package, or project
 dependencies, and is consumed through normal project references rather than linked source files.
 
@@ -39,7 +65,7 @@ in-process adapter used by contract tests and the shipped out-of-process host co
 property. Visual Studio-specific style changes, `SetParent`, focus, and child-window sizing remain
 inside the Visual Studio extension/host projects.
 
-The shipped host is a real child-window contract, not merely a top-level window positioned over
+In integrated mode the shipped host is a real child-window contract, not merely a top-level window positioned over
 the editor. Before it can become visible, the host removes `WS_POPUP`, caption, frame, system-menu,
 minimize, and maximize styles, adds `WS_CHILD | WS_CLIPSIBLINGS`, removes top-level extended styles,
 calls `SetParent`, and applies `SWP_FRAMECHANGED`. The ModernFormsNext title bar, border, move drag,
@@ -67,30 +93,33 @@ View Designer / Shift+F7
   -> conservative ModernFormsNext file detection
   -> create or locate the companion .mfdesign file
   -> open the registered .mfdesign editor factory
+  -> read the per-user hosting preference
   -> create a Visual Studio editor pane
   -> launch one owned DesignerHost process
-  -> pass the pane HWND and a unique local endpoint
-  -> host validates its typed HWND and parents it into the pane
-  -> pane observes the child window and applies its current bounds
+  -> pass --host-mode, the owning Visual Studio PID, and a unique local endpoint
+  -> integrated: pass the pane HWND, attach the child, and apply pane bounds
+  -> standalone: show a normal top-level window and retain a lightweight proxy pane
 ```
 
-Readiness is bounded to ten seconds and does not use a fixed startup sleep. The pane searches only
-its own child-window tree for a window owned by the exact launched PID. A missing executable,
-immediate process exit, attachment timeout, invalid parent HWND, or backend that does not report an
+Readiness is bounded to ten seconds and does not use a fixed startup sleep. Integrated mode searches
+only the pane child-window tree; standalone mode searches top-level windows. Both accept only a
+window owned by the exact launched PID. A missing executable, immediate process exit, attachment
+or window timeout, invalid integrated parent HWND, or backend that does not report an
 HWND produces a visible pane diagnostic. The host log remains available at
 `%TEMP%\ModernFormsNextDesignerHost-<pid>.log`. Designer diagnostic logs are likewise isolated per
 process under `%LOCALAPPDATA%\ModernFormsNext\Designer` so simultaneous hosts cannot race one file.
 The in-process editor contract writes save, RDT, HRESULT, and disposal markers to
 `%TEMP%\ModernFormsNextDesignerEditor-<visual-studio-pid>.log`.
 
-The host derives the owning Visual Studio PID from the supplied parent HWND and monitors that exact
-process. If Visual Studio exits unexpectedly, the child closes instead of remaining orphaned. If
+The launcher explicitly supplies the owning Visual Studio PID, and integrated mode additionally
+verifies it through the supplied parent HWND. The host monitors that exact process in both modes.
+If Visual Studio exits unexpectedly, its owned host closes instead of remaining orphaned. If
 Visual Studio recreates the pane HWND while docking or changing display state, the adapter first
 hides and parks the child under `HWND_MESSAGE`. The new pane handle is then sent to the same host,
 which reparents and resizes the same Designer HWND. This prevents destruction of the old parent
 from destroying the child, avoids a top-level flash, and preserves the live document/session.
 
-## Resize, DPI, and focus
+## Integrated resize, DPI, and focus
 
 Visual Studio owns the editor-pane bounds and chrome. Resize and parent-DPI notifications reapply
 the pane's current device-pixel client rectangle to the child HWND at `(0, 0)`. The host reads the
@@ -126,11 +155,18 @@ control operations:
 - `DISCARD` applies Visual Studio's explicit Don't Save decision through the existing issue #41
   recovery cleanup before the host is shut down;
 - `SHUTDOWN` closes the owned host after Visual Studio has resolved the document close decision;
-- `ATTACH` applies a recreated Visual Studio pane HWND;
-- `PARK` hides the child and moves it to the message-only window tree before parent destruction;
-- `RESIZE` reapplies the current parent client rectangle;
-- `SHOW` and `HIDE` synchronize native visibility;
-- `FOCUS` requests focus from the Designer UI thread.
+- `ATTACH` applies a recreated Visual Studio pane HWND in integrated mode;
+- `PARK` hides the integrated child and moves it to the message-only window tree before parent destruction;
+- `RESIZE` reapplies the integrated parent client rectangle;
+- `SHOW` and `HIDE` synchronize integrated native visibility;
+- `FOCUS` requests integrated focus from the Designer UI thread.
+
+Standalone never sends these parent lifecycle commands. The VSIX activates its top-level HWND when
+the proxy pane receives focus. Closing the standalone window runs the normal shared Designer
+Save/Don't Save/Cancel flow; Save and Don't Save allow that one host process to exit, while Cancel
+keeps it alive. Activating the existing proxy after a successful standalone close launches the
+same document again in the mode captured by that pane. Closing the Visual Studio document follows
+the normal RDT save decision and then shuts down its owned process.
 
 This channel is an internal VSIX/host implementation detail, not the `.mfdesign` format and not a
 public runtime API. The Designer UI thread executes document mutations. Malformed or unknown
@@ -144,7 +180,8 @@ cookie. Visual Studio then refreshes the tab-caption asterisk and its standard S
 command state by calling `IsDocDataDirty`; no global Ctrl+S handler is installed. If a query is
 temporarily unavailable, the last confirmed value is retained. A host exit publishes dirty
 conservatively so Visual Studio cannot silently discard work, while issue #41 recovery artifacts
-remain available when the document is reopened.
+remain available when the document is reopened. A standalone process that exits with code zero
+after its close confirmation is treated as a resolved clean close instead of a crash.
 
 `SaveDocData` follows the VSSDK editor contract. Ordinary and silent saves first call
 `IVsQueryEditQuerySave2.QuerySaveFile`, then delegate to `IVsUIShell.SaveDocDataToFile`, which calls
@@ -161,6 +198,12 @@ document view is still unwinding, and `WindowPane` already owns disposal of its 
 The later, idempotent pane disposal unsubscribes dirty callbacks and performs exactly one bounded
 host shutdown. A canceled close never reaches that disposal path.
 
+Ctrl+S reliability while focus is inside the integrated cross-process Designer remains tracked
+separately in [issue #99](https://github.com/ProGraMajster/ModernFormsNext/issues/99). It does not
+change either hosting mode's persistence contract. Until its Experimental Instance follow-up is
+complete, use the Designer toolbar **Save** button or choose **Save** in Visual Studio's document
+close prompt; both reach the same canonical persistence coordinator described above.
+
 ## View Designer and project metadata
 
 The package registers both its explicit **View ModernFormsNext Designer** command and Visual
@@ -168,6 +211,12 @@ Studio's standard `ViewForm` command used by **View Designer** and Shift+F7. The
 claimed only when conservative detection says the selected/active file is a supported
 ModernFormsNext Form or UserControl. For every other file it reports unsupported so command routing
 continues to the normal C#, WinForms, or other project-system handler.
+
+Both command paths and direct `.mfdesign` opens use the registered editor factory, so they read the
+same per-user mode. Direct standalone opens keep the lightweight pane because Visual Studio still
+needs a document view/docdata owner for RDT, save prompts, and duplicate-open identity. If the
+document is already open, View Designer activates its existing frame and host rather than creating
+a second session; changing the option while it is open cannot change that captured mode.
 
 The `.mfdesign` editor factory is single-view. It registers `LOGVIEWID_Designer` with an empty
 physical-view string and maps both `LOGVIEWID_Primary` and `LOGVIEWID_Designer` to that same view.
@@ -192,17 +241,22 @@ Designer.
 
 ## Interactive Visual Studio validation checklist
 
-Automated tests cover the typed handle, command routing, parent argument validation, IPC command
+Automated tests cover the typed handle, command routing, explicit integrated/standalone arguments,
+option default and conversion persistence, parent argument validation, IPC command
 validation, lifecycle state transitions, attach failure rollback, close/reopen, DPI/resize/focus
 routing, item-template shape, and packaged nesting target. A real-process Win32 regression also
 asserts child/extended styles, parent and owner relationships, top-level enumeration exclusion,
 exact parent-relative bounds, visibility, host-thread focus, parent recreation, and two independent
-hosts. The following behavior still requires an observed Experimental Instance:
+hosts. The standalone real-process regression also asserts a visible unowned top-level HWND,
+absence of `WS_CHILD`, resize/minimize/maximize styles, taskbar/Alt+Tab eligibility, independent
+bounds, the common OPEN/DIRTY/SAVE/SHUTDOWN path, and exit code zero. The following behavior still
+requires an observed Experimental Instance:
 
 1. Build and install the Debug VSIX into the `Exp` hive, then create a project from the
    ModernFormsNext template.
-2. Select `MainForm.cs`; verify **View Designer** is available and Shift+F7 opens the embedded
-   Designer pane. Verify `Program.cs` still routes normally and does not expose this Designer.
+2. Select **Integrated in Visual Studio**. Select `MainForm.cs`; verify **View Designer** is
+   available and Shift+F7 opens the embedded Designer pane. Verify `Program.cs` still routes
+   normally and does not expose this Designer.
 3. Add a **ModernFormsNext Form** and **ModernFormsNext UserControl**. Verify `.Designer.cs` and
    `.mfdesign` appear nested below their primary `.cs` item without hand-editing the project file.
 4. Open two Designer documents. Close the first and verify the second remains responsive and keeps
@@ -221,7 +275,14 @@ hosts. The following behavior still requires an observed Experimental Instance:
    displays an unspecified-error dialog.
 10. Terminate the exact child host process. Verify only its pane shows a failure, then close/reopen
    the document and verify a new host attaches.
-11. Temporarily remove the packaged host executable and verify the pane reports the missing path;
+11. Close the integrated document, select **Separate window**, and reopen with Shift+F7. Verify the
+    Designer is an independent window that can move, resize, minimize, maximize, appear in Alt+Tab,
+    save from its toolbar, close through Save/Don't Save/Cancel, and reopen from the proxy.
+12. Change the option while a Designer is open. Verify that live document stays in its captured
+    mode and that a newly opened document uses the new mode.
+13. Open the same document again through View Designer and by direct `.mfdesign` open. Verify the
+    existing Designer is activated and no duplicate process/session appears.
+14. Temporarily remove the packaged host executable and verify the pane reports the missing path;
     restore it and verify close/reopen succeeds.
 
 Do not report this checklist as passed unless each behavior was observed in Visual Studio. An

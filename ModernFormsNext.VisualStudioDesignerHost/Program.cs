@@ -18,6 +18,7 @@ internal static class Program
             DesignerHostDiagnosticLog.Write(
                 $"ARGS_PARSED DesignFile={arguments.DesignDocumentPath ?? "<none>"} " +
                 $"Project={arguments.ProjectPath ?? "<none>"} Pipe={arguments.PipeName ?? "<none>"} " +
+                $"HostMode={arguments.HostingMode} OwnerProcessId={arguments.OwnerProcessId} " +
                 $"ParentWindow=0x{arguments.ParentWindowHandle.ToInt64():X}");
 
             // Form construction also ensures the backend is initialized, but doing it explicitly

@@ -1,4 +1,5 @@
 using System.Globalization;
+using ModernFormsNext.VisualStudioExtension;
 
 namespace ModernFormsNext.VisualStudioDesignerHost;
 
@@ -12,12 +13,16 @@ public sealed class DesignerHostArguments
         string? designDocumentPath,
         string? projectPath,
         string? pipeName,
-        IntPtr parentWindowHandle)
+        IntPtr parentWindowHandle,
+        DesignerHostingMode hostingMode,
+        int ownerProcessId)
     {
         DesignDocumentPath = designDocumentPath;
         ProjectPath = projectPath;
         PipeName = pipeName;
         ParentWindowHandle = parentWindowHandle;
+        HostingMode = hostingMode;
+        OwnerProcessId = ownerProcessId;
     }
 
     /// <summary>
@@ -45,6 +50,17 @@ public sealed class DesignerHostArguments
     public IntPtr ParentWindowHandle { get; }
 
     /// <summary>
+    /// Gets the explicit window-hosting mode selected by the Visual Studio extension.
+    /// </summary>
+    public DesignerHostingMode HostingMode { get; }
+
+    /// <summary>
+    /// Gets the Visual Studio process identifier whose lifetime owns this host, or zero when the
+    /// host was started manually without an owner process monitor.
+    /// </summary>
+    public int OwnerProcessId { get; }
+
+    /// <summary>
     /// Parses command-line arguments supplied by the VSIX launcher.
     /// </summary>
     /// <param name="args">The command-line argument array.</param>
@@ -55,6 +71,9 @@ public sealed class DesignerHostArguments
         string? projectPath = null;
         string? pipeName = null;
         var parentWindowHandle = IntPtr.Zero;
+        var hostingMode = DesignerHostingMode.Integrated;
+        var hostingModeSpecified = false;
+        var ownerProcessId = 0;
 
         for (var index = 0; index < args.Count; index++)
         {
@@ -97,6 +116,44 @@ public sealed class DesignerHostArguments
 
                 parentWindowHandle = new IntPtr(rawHandle);
                 index++;
+                continue;
+            }
+
+            if (string.Equals(args[index], "--host-mode", StringComparison.OrdinalIgnoreCase)
+                && index + 1 < args.Count
+                && !string.IsNullOrWhiteSpace(args[index + 1]))
+            {
+                hostingMode = args[index + 1].ToLowerInvariant() switch
+                {
+                    "integrated" => DesignerHostingMode.Integrated,
+                    "standalone" => DesignerHostingMode.Standalone,
+                    _ => throw new ArgumentException(
+                        "The --host-mode value must be either 'integrated' or 'standalone'.",
+                        nameof(args))
+                };
+                hostingModeSpecified = true;
+                index++;
+                continue;
+            }
+
+            if (string.Equals(args[index], "--owner-process", StringComparison.OrdinalIgnoreCase)
+                && index + 1 < args.Count
+                && !string.IsNullOrWhiteSpace(args[index + 1]))
+            {
+                if (!int.TryParse(
+                        args[index + 1],
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out ownerProcessId)
+                    || ownerProcessId <= 0)
+                {
+                    throw new ArgumentException(
+                        "The --owner-process value must be a positive process identifier.",
+                        nameof(args));
+                }
+
+                index++;
+                continue;
             }
         }
 
@@ -108,6 +165,33 @@ public sealed class DesignerHostArguments
             designFile = args[0];
         }
 
-        return new DesignerHostArguments(designFile, projectPath, pipeName, parentWindowHandle);
+        if (!hostingModeSpecified)
+        {
+            throw new ArgumentException(
+                "The Designer host requires an explicit --host-mode value.",
+                nameof(args));
+        }
+
+        if (hostingMode == DesignerHostingMode.Integrated && parentWindowHandle == IntPtr.Zero)
+        {
+            throw new ArgumentException(
+                "Integrated hosting requires a non-zero --parent-window handle.",
+                nameof(args));
+        }
+
+        if (hostingMode == DesignerHostingMode.Standalone && parentWindowHandle != IntPtr.Zero)
+        {
+            throw new ArgumentException(
+                "Standalone hosting must not receive a --parent-window handle.",
+                nameof(args));
+        }
+
+        return new DesignerHostArguments(
+            designFile,
+            projectPath,
+            pipeName,
+            parentWindowHandle,
+            hostingMode,
+            ownerProcessId);
     }
 }

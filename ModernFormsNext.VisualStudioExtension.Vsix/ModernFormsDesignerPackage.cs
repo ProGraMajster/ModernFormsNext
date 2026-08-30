@@ -10,6 +10,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 using ModernFormsNext.VisualStudioExtension.Commands;
 using ModernFormsNext.VisualStudioExtension.Detection;
 using ModernFormsNext.VisualStudioExtension.Editors;
+using ModernFormsNext.VisualStudioExtension.Options;
 
 namespace ModernFormsNext.VisualStudioExtension;
 
@@ -27,6 +28,7 @@ namespace ModernFormsNext.VisualStudioExtension;
 [ProvideEditorFactory(typeof(MfDesignEditorFactory), 101)]
 [ProvideEditorExtension(typeof(MfDesignEditorFactory), DesignFileExtension, 50, DefaultName = ExtensionDisplayName)]
 [ProvideEditorLogicalView(typeof(MfDesignEditorFactory), LogicalViewID.Designer)]
+[ProvideOptionPage(typeof(DesignerOptionsPage), "ModernFormsNext", "Designer", 0, 0, true)]
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
 public sealed class ModernFormsDesignerPackage : AsyncPackage
@@ -138,6 +140,15 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         return path is null ? null : detector.Inspect(path);
     }
 
+    internal DesignerHostingMode GetDesignerHostingMode()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        return GetDialogPage(typeof(DesignerOptionsPage)) is DesignerOptionsPage options
+            ? options.HostingMode
+            : DesignerHostingMode.Integrated;
+    }
+
     internal async Task OpenDesignerForCodeFileAsync(ModernFormsDesignableFileInfo fileInfo)
     {
         if (fileInfo is null)
@@ -146,6 +157,20 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         await JoinableTaskFactory.SwitchToMainThreadAsync();
 
         EnsureDesignDocument(fileInfo);
+        if (VsShellUtilities.IsDocumentOpen(
+                this,
+                fileInfo.DesignFilePath,
+                VSConstants.LOGVIEWID_Designer,
+                out _,
+                out _,
+                out var existingFrame))
+        {
+            DesignerEditorDiagnosticLog.Write(
+                $"PANE_ACTIVATE_EXISTING Moniker={fileInfo.DesignFilePath}");
+            ErrorHandler.ThrowOnFailure(existingFrame.Show());
+            return;
+        }
+
         VsShellUtilities.OpenDocumentWithSpecificEditor(
             this,
             fileInfo.DesignFilePath,

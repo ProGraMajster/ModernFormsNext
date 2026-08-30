@@ -23,6 +23,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private readonly Timer documentStateTimer;
     private readonly string pipeName;
     private readonly object ipcGate = new();
+    private readonly DesignerHostingMode hostingMode;
     private string documentPath;
     private string? projectPath;
     private Process? ownedProcess;
@@ -41,8 +42,19 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     public IWin32Window Window => this;
 
     public OutOfProcessDesignerHostControl(string documentPath)
+        : this(documentPath, DesignerHostingMode.Integrated)
     {
+    }
+
+    public OutOfProcessDesignerHostControl(
+        string documentPath,
+        DesignerHostingMode hostingMode)
+    {
+        if (!Enum.IsDefined(typeof(DesignerHostingMode), hostingMode))
+            throw new ArgumentOutOfRangeException(nameof(hostingMode));
+
         this.documentPath = Path.GetFullPath(documentPath);
+        this.hostingMode = hostingMode;
         projectPath = FindNearestProjectPath(this.documentPath);
         pipeName = DesignerHostIpcClient.GetPipeName(
             $"{Process.GetCurrentProcess().Id}:{Guid.NewGuid():N}:{this.documentPath}");
@@ -56,8 +68,9 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             ForeColor = System.Drawing.Color.Gainsboro,
             BackColor = BackColor,
             TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
-            Text = "Starting ModernFormsNext Designer..."
+            Text = GetStartingStatusText(hostingMode)
         };
+        statusLabel.Click += (_, _) => FocusHostedWindow();
         Controls.Add(statusLabel);
 
         readinessTimer = new Timer { Interval = 50 };
@@ -197,7 +210,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     {
         readinessTimer.Stop();
         documentStateTimer.Stop();
-        if (!disposing)
+        if (!disposing && hostingMode == DesignerHostingMode.Integrated)
         {
             // Park the child before WinForms destroys this pane HWND. Otherwise Windows destroys
             // the child along with its parent and turns an ordinary docking/DPI handle recreation
@@ -277,7 +290,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         childWindowHandle = IntPtr.Zero;
         documentStateTimer.Stop();
         statusLabel.Visible = true;
-        statusLabel.Text = "Starting ModernFormsNext Designer...";
+        statusLabel.Text = GetStartingStatusText(hostingMode);
 
         var packageDirectory = Path.GetDirectoryName(GetType().Assembly.Location);
         var hostPath = packageDirectory is null
@@ -293,7 +306,13 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         var startInfo = new ProcessStartInfo
         {
             FileName = hostPath,
-            Arguments = BuildHostArguments(documentPath, projectPath, pipeName, Handle),
+            Arguments = BuildHostArguments(
+                documentPath,
+                projectPath,
+                pipeName,
+                hostingMode,
+                hostingMode == DesignerHostingMode.Integrated ? Handle : IntPtr.Zero,
+                Process.GetCurrentProcess().Id),
             UseShellExecute = false,
             WorkingDirectory = Path.GetDirectoryName(documentPath) ?? packageDirectory
         };
@@ -328,11 +347,16 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             return;
         }
 
-        childWindowHandle = FindChildWindowOwnedByProcess(Handle, ownedProcess.Id);
+        childWindowHandle = hostingMode == DesignerHostingMode.Integrated
+            ? FindChildWindowOwnedByProcess(Handle, ownedProcess.Id)
+            : FindTopLevelWindowOwnedByProcess(ownedProcess.Id);
         if (childWindowHandle != IntPtr.Zero)
         {
             readinessTimer.Stop();
-            statusLabel.Visible = false;
+            statusLabel.Text = hostingMode == DesignerHostingMode.Standalone
+                ? "The ModernFormsNext Designer is open in a separate window."
+                : string.Empty;
+            statusLabel.Visible = hostingMode == DesignerHostingMode.Standalone;
             ResizeHostedWindow();
             SynchronizeHostVisibility();
             QueueDocumentDirtyStateRefresh();
@@ -346,7 +370,9 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             var logHint = GetLogHint(ownedProcess);
             StopOwnedHost();
             ShowFailure(
-                $"Designer host did not attach to the Visual Studio pane within {StartupTimeout.TotalSeconds:0} seconds.{logHint}");
+                hostingMode == DesignerHostingMode.Integrated
+                    ? $"Designer host did not attach to the Visual Studio pane within {StartupTimeout.TotalSeconds:0} seconds.{logHint}"
+                    : $"Designer host did not create a standalone window within {StartupTimeout.TotalSeconds:0} seconds.{logHint}");
         }
     }
 
@@ -378,10 +404,24 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         documentStateTimer.Stop();
         childWindowHandle = IntPtr.Zero;
 
-        PublishDocumentDirtyState(isDirty: true);
-
         if (disposing)
             return;
+
+        if (hostingMode == DesignerHostingMode.Standalone && HasSuccessfulExit(ownedProcess))
+        {
+            // A zero exit after the standalone window's close confirmation means Save, Don't
+            // Save, or a clean close was resolved inside the canonical Designer close flow.
+            // Cancel never reaches this branch because it leaves the window and process alive.
+            PublishDocumentDirtyState(isDirty: false);
+            DesignerEditorDiagnosticLog.Write(
+                $"STANDALONE_HOST_CLOSED ProcessId={TryGetProcessId(ownedProcess!)} ExitCode=0");
+            ShowFailure(
+                "The standalone ModernFormsNext Designer window was closed. " +
+                "Activate this document to open it again.");
+            return;
+        }
+
+        PublishDocumentDirtyState(isDirty: true);
 
         var exitCode = TryGetExitCode(ownedProcess);
         ShowFailure($"Designer host exited unexpectedly{exitCode}.{GetLogHint(ownedProcess)}");
@@ -441,6 +481,15 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             || childWindowHandle == IntPtr.Zero)
         {
             return false;
+        }
+
+        if (hostingMode == DesignerHostingMode.Standalone)
+        {
+            statusLabel.Text = "The ModernFormsNext Designer is open in a separate window.";
+            statusLabel.Visible = true;
+            QueueDocumentDirtyStateRefresh();
+            documentStateTimer.Start();
+            return true;
         }
 
         var attached = TrySendLifecycleCommand(
@@ -537,13 +586,31 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     }
 
     private void ResizeHostedWindow()
-        => _ = TrySendLifecycleCommand("RESIZE");
+    {
+        if (hostingMode == DesignerHostingMode.Integrated)
+            _ = TrySendLifecycleCommand("RESIZE");
+    }
 
     private void SynchronizeHostVisibility()
-        => _ = TrySendLifecycleCommand(Visible ? "SHOW" : "HIDE");
+    {
+        if (hostingMode == DesignerHostingMode.Integrated)
+            _ = TrySendLifecycleCommand(Visible ? "SHOW" : "HIDE");
+    }
 
     private void FocusHostedWindow()
     {
+        if (hostingMode == DesignerHostingMode.Standalone)
+        {
+            if (ownedProcess is null || HasExited(ownedProcess))
+            {
+                LaunchOwnedHost();
+                return;
+            }
+
+            ActivateStandaloneWindow();
+            return;
+        }
+
         if (disposing || Interlocked.CompareExchange(ref focusCommandInFlight, 1, 0) != 0)
             return;
 
@@ -558,6 +625,18 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
                 Interlocked.Exchange(ref focusCommandInFlight, 0);
             }
         });
+    }
+
+    private void ActivateStandaloneWindow()
+    {
+        var windowHandle = childWindowHandle;
+        if (windowHandle == IntPtr.Zero)
+            return;
+
+        if (IsIconic(windowHandle))
+            _ = ShowWindow(windowHandle, ShowWindowRestore);
+
+        _ = SetForegroundWindow(windowHandle);
     }
 
     private bool TrySendLifecycleCommand(string command, string? payload = null)
@@ -618,6 +697,18 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         }
     }
 
+    private static bool HasSuccessfulExit(Process? process)
+    {
+        try
+        {
+            return process is not null && process.HasExited && process.ExitCode == 0;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     private static string TryGetProcessId(Process process)
     {
         try
@@ -650,20 +741,33 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             : string.Empty;
     }
 
-    private static string BuildHostArguments(
+    internal static string BuildHostArguments(
         string designFilePath,
         string? projectFilePath,
         string endpointName,
-        IntPtr parentHandle)
+        DesignerHostingMode hostingMode,
+        IntPtr parentHandle,
+        int ownerProcessId)
     {
         var builder = new StringBuilder();
         AppendArgument(builder, "--design-file", designFilePath);
         if (!string.IsNullOrWhiteSpace(projectFilePath))
             AppendArgument(builder, "--project", projectFilePath!);
         AppendArgument(builder, "--pipe", endpointName);
-        AppendArgument(builder, "--parent-window", parentHandle.ToInt64().ToString(CultureInfo.InvariantCulture));
+        AppendArgument(
+            builder,
+            "--host-mode",
+            hostingMode == DesignerHostingMode.Integrated ? "integrated" : "standalone");
+        AppendArgument(builder, "--owner-process", ownerProcessId.ToString(CultureInfo.InvariantCulture));
+        if (hostingMode == DesignerHostingMode.Integrated)
+            AppendArgument(builder, "--parent-window", parentHandle.ToInt64().ToString(CultureInfo.InvariantCulture));
         return builder.ToString();
     }
+
+    private static string GetStartingStatusText(DesignerHostingMode mode)
+        => mode == DesignerHostingMode.Standalone
+            ? "Starting ModernFormsNext Designer in a separate window..."
+            : "Starting ModernFormsNext Designer...";
 
     private static void AppendArgument(StringBuilder builder, string name, string value)
     {
@@ -734,12 +838,44 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         return result;
     }
 
+    private static IntPtr FindTopLevelWindowOwnedByProcess(int processId)
+    {
+        var result = IntPtr.Zero;
+        EnumWindows((windowHandle, _) =>
+        {
+            GetWindowThreadProcessId(windowHandle, out var ownerProcessId);
+            if (ownerProcessId != (uint)processId || !IsWindowVisible(windowHandle))
+                return true;
+
+            result = windowHandle;
+            return false;
+        }, IntPtr.Zero);
+        return result;
+    }
+
     private delegate bool EnumWindowsCallback(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsCallback callback, IntPtr lParam);
 
     [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int command);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    private const int ShowWindowRestore = 9;
 
 }

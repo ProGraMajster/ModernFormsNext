@@ -18,6 +18,7 @@
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Designer\ModernFormsNext.Designer.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Designing\ModernFormsNext.Designing.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Shared\ModernFormsNext.VisualStudioExtension.Shared.csproj" />
   </ItemGroup>
 
 </Project>

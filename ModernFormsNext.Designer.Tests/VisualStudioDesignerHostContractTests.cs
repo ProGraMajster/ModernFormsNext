@@ -1,5 +1,6 @@
 using ModernFormsNext.VisualStudioExtension.Hosting;
 using ModernFormsNext.VisualStudioExtension.Commands;
+using ModernFormsNext.VisualStudioExtension;
 using ModernFormsNext.VisualStudioDesignerHost;
 using System.IO.Pipes;
 using System.Text;
@@ -17,12 +18,16 @@ public sealed class VisualStudioDesignerHostContractTests
                 "--design-file", "C:\\Project\\Form1.mfdesign",
                 "--project", "C:\\Project\\Project.csproj",
                 "--pipe", "endpoint",
+                "--host-mode", "integrated",
+                "--owner-process", "777",
                 "--parent-window", "123456"
             ]);
 
         Assert.Equal("C:\\Project\\Form1.mfdesign", arguments.DesignDocumentPath);
         Assert.Equal("C:\\Project\\Project.csproj", arguments.ProjectPath);
         Assert.Equal("endpoint", arguments.PipeName);
+        Assert.Equal(DesignerHostingMode.Integrated, arguments.HostingMode);
+        Assert.Equal(777, arguments.OwnerProcessId);
         Assert.Equal(new IntPtr(123456), arguments.ParentWindowHandle);
     }
 
@@ -34,6 +39,43 @@ public sealed class VisualStudioDesignerHostContractTests
         Assert.Throws<ArgumentException>(
             () => DesignerHostArguments.Parse(["--parent-window", value]));
     }
+
+    [Fact]
+    public void StandaloneHostArgumentsHaveNoParentWindowContract()
+    {
+        var arguments = DesignerHostArguments.Parse(
+            [
+                "--host-mode", "standalone",
+                "--owner-process", "778",
+                "--design-file", "C:\\Project\\Form1.mfdesign"
+            ]);
+
+        Assert.Equal(DesignerHostingMode.Standalone, arguments.HostingMode);
+        Assert.Equal(IntPtr.Zero, arguments.ParentWindowHandle);
+        Assert.Equal(778, arguments.OwnerProcessId);
+    }
+
+    [Theory]
+    [InlineData("integrated", false)]
+    [InlineData("standalone", true)]
+    public void HostArgumentsRejectModeAndParentMismatch(string mode, bool includeParent)
+    {
+        var arguments = new List<string> { "--host-mode", mode };
+        if (includeParent)
+        {
+            arguments.Add("--parent-window");
+            arguments.Add("123");
+        }
+
+        Assert.Throws<ArgumentException>(() => DesignerHostArguments.Parse(arguments));
+    }
+
+    [Theory]
+    [InlineData()]
+    [InlineData("--host-mode", "unknown")]
+    [InlineData("--owner-process", "0", "--host-mode", "standalone")]
+    public void HostArgumentsRejectMissingOrInvalidExplicitHostingContract(params string[] values)
+        => Assert.Throws<ArgumentException>(() => DesignerHostArguments.Parse(values));
 
     [Theory]
     [InlineData("OPEN", 0)]
