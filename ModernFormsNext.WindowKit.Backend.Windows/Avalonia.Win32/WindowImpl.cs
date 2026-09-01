@@ -674,7 +674,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public void BeginMoveDrag(PointerPressedEventArgs e)
         {
-                //e.Pointer.Capture(null);
+                PrepareForSystemWindowDrag();
                 DefWindowProc(_hwnd, (int)WindowsMessage.WM_NCLBUTTONDOWN,
                 new IntPtr((int)HitTestValues.HTCAPTION), IntPtr.Zero);
         }
@@ -686,11 +686,25 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 #if USE_MANAGED_DRAG
                 _managedDrag.BeginResizeDrag(edge, ScreenToClient(MouseDevice.Position.ToPoint(_scaling)));
 #else
-                //e.Pointer.Capture(null);
+                PrepareForSystemWindowDrag();
                 DefWindowProc(_hwnd, (int)WindowsMessage.WM_NCLBUTTONDOWN,
                     new IntPtr((int)s_edgeLookup[edge]), IntPtr.Zero);
 #endif
             }
+        }
+
+        /// <summary>
+        /// Hands backend-owned pointer capture back to Windows before entering its modal
+        /// move/size loop.
+        /// </summary>
+        /// <remarks>
+        /// The raw-input path captures the HWND so Designer gestures continue outside the
+        /// client area. A system chrome drag is the one operation where retaining that capture
+        /// prevents <c>WM_NCLBUTTONDOWN</c> from starting the native move/size loop.
+        /// </remarks>
+        internal void PrepareForSystemWindowDrag()
+        {
+            ReleaseNativeMouseCapture();
         }
 
         public void SetTitle(string? title)

@@ -129,7 +129,10 @@ public sealed class VisualStudioDesignerHostProcessTests
             Assert.Contains("DPI_SETUP_OK", log, StringComparison.Ordinal);
             Assert.Contains("FORM_CONSTRUCTOR_BEGIN", log, StringComparison.Ordinal);
             Assert.Contains("HOSTING_MODE_CONFIGURED Mode=Standalone", log, StringComparison.Ordinal);
-            Assert.Contains("STANDALONE_CHROME_ENABLED", log, StringComparison.Ordinal);
+            Assert.Contains(
+                "STANDALONE_CHROME_ENABLED ChromeInteractionMode=TopLevel",
+                log,
+                StringComparison.Ordinal);
             Assert.Contains("HANDLE_CREATED", log, StringComparison.Ordinal);
             Assert.Contains("FORM_CONSTRUCTOR_OK", log, StringComparison.Ordinal);
             Assert.Contains("IPC_SERVER_CREATE_BEGIN", log, StringComparison.Ordinal);
@@ -238,10 +241,18 @@ public sealed class VisualStudioDesignerHostProcessTests
             var log = ExtractLastRun(await ReadLogAsync(logPath));
             Assert.Contains("HOST_WINDOW_CREATED", log, StringComparison.Ordinal);
             Assert.Contains(
-                "EMBEDDED_CHROME_DISABLED TitleBarVisible=False Resizeable=False " +
+                "EMBEDDED_CHROME_DISABLED ChromeInteractionMode=EmbeddedChild " +
+                "TitleBarVisible=False Resizeable=False " +
                 "AllowMinimize=False AllowMaximize=False BorderWidth=0",
                 log,
                 StringComparison.Ordinal);
+            var embeddedModeIndex = log.IndexOf(
+                "EMBEDDED_CHROME_DISABLED ChromeInteractionMode=EmbeddedChild",
+                StringComparison.Ordinal);
+            var handleCreatedIndex = log.IndexOf("HANDLE_CREATED", StringComparison.Ordinal);
+            var attachBeginIndex = log.IndexOf("ATTACH_BEGIN", StringComparison.Ordinal);
+            Assert.True(embeddedModeIndex >= 0 && embeddedModeIndex < handleCreatedIndex);
+            Assert.True(handleCreatedIndex < attachBeginIndex);
             Assert.Contains("PARENT_ATTACH_BEGIN", log, StringComparison.Ordinal);
             Assert.Contains("STYLE_BEFORE_ATTACH", log, StringComparison.Ordinal);
             Assert.Contains("STYLE_AFTER_ATTACH", log, StringComparison.Ordinal);

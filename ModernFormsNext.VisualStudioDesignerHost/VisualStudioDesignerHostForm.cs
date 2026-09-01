@@ -373,6 +373,7 @@ public sealed class VisualStudioDesignerHostForm : Form
         // Visual Studio supplies the only visible chrome and owns placement. Disabling every
         // managed move/resize/minimize/maximize affordance also prevents title-bar input from
         // invoking native top-level window operations after the HWND becomes a child.
+        ChromeInteractionMode = WindowChromeInteractionMode.EmbeddedChild;
         StartPosition = FormStartPosition.Manual;
         Resizeable = false;
         AllowMinimize = false;
@@ -381,7 +382,8 @@ public sealed class VisualStudioDesignerHostForm : Form
         TitleBar.Visible = false;
         Style.Border.Width = 0;
         DesignerHostDiagnosticLog.Write(
-            $"EMBEDDED_CHROME_DISABLED TitleBarVisible={TitleBar.Visible} " +
+            $"EMBEDDED_CHROME_DISABLED ChromeInteractionMode={ChromeInteractionMode} " +
+            $"TitleBarVisible={TitleBar.Visible} " +
             $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize} " +
             $"BorderWidth={Style.Border.Width}");
     }
@@ -391,6 +393,7 @@ public sealed class VisualStudioDesignerHostForm : Form
         // Standalone uses the framework's normal top-level window contract. Explicitly restoring
         // these properties keeps the two modes auditable and prevents integrated chrome choices
         // from leaking into a future shared initialization path.
+        ChromeInteractionMode = WindowChromeInteractionMode.TopLevel;
         StartPosition = FormStartPosition.CenterScreen;
         Resizeable = true;
         AllowMinimize = true;
@@ -398,7 +401,8 @@ public sealed class VisualStudioDesignerHostForm : Form
         WindowState = FormWindowState.Normal;
         TitleBar.Visible = true;
         DesignerHostDiagnosticLog.Write(
-            $"STANDALONE_CHROME_ENABLED TitleBarVisible={TitleBar.Visible} " +
+            $"STANDALONE_CHROME_ENABLED ChromeInteractionMode={ChromeInteractionMode} " +
+            $"TitleBarVisible={TitleBar.Visible} " +
             $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize}");
     }
 

@@ -824,7 +824,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             return DefWindowProc(hWnd, msg, wParam, lParam);
         }
 
-        private void TakeNativeMouseCapture()
+        /// <summary>
+        /// Captures raw pointer input for the native window until the active button sequence ends.
+        /// </summary>
+        internal void TakeNativeMouseCapture()
         {
             if (_ownsMouseCapture)
                 return;
