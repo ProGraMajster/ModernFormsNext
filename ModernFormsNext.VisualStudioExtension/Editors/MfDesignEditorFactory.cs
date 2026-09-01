@@ -70,9 +70,26 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
         if (punkDocDataExisting != IntPtr.Zero)
             return VSConstants.VS_E_INCOMPATIBLEDOCDATA;
 
-        var pane = new MfDesignEditorPane(serviceProvider, pszMkDocument);
-        ppunkDocView = Marshal.GetIUnknownForObject(pane);
-        ppunkDocData = Marshal.GetIUnknownForObject(pane);
-        return VSConstants.S_OK;
+        try
+        {
+            var pane = new MfDesignEditorPane(serviceProvider, pszMkDocument);
+            ppunkDocView = Marshal.GetIUnknownForObject(pane);
+            ppunkDocData = Marshal.GetIUnknownForObject(pane);
+            return VSConstants.S_OK;
+        }
+        catch (Exception ex)
+        {
+            // Initialization failures must not leave partially attached HWND state behind. The
+            // host lifecycle has already rolled back native state; report the actionable reason
+            // through Visual Studio and return its HRESULT to the editor infrastructure.
+            VsShellUtilities.ShowMessageBox(
+                serviceProvider,
+                $"ModernFormsNext Designer could not initialize.{Environment.NewLine}{ex.Message}",
+                ModernFormsDesignerPackage.ExtensionDisplayName,
+                OLEMSGICON.OLEMSGICON_CRITICAL,
+                OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            return Marshal.GetHRForException(ex);
+        }
     }
 }

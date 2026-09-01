@@ -33,6 +33,10 @@ public static class WindowsPlatformBootstrap
             if (initialized)
                 return;
 
+            // The platform constructor creates a native message window immediately. Register the
+            // settings service first because Windows can synchronously deliver WM_SETTINGCHANGE to
+            // that WndProc before the remainder of backend initialization has completed.
+            AvaloniaGlobals.AddService<IPlatformSettings>(new Win32PlatformSettings());
             Win32Platform.Initialize();
             Win32ComRegistration.Initialize();
 

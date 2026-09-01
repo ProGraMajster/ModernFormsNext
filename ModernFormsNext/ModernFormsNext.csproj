@@ -24,6 +24,7 @@
 	<ItemGroup>
 		<None Include="icon.png" Pack="true" PackagePath="\" />
 		<None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+		<None Include="buildTransitive\ModernFormsNext.targets" Pack="true" PackagePath="buildTransitive\ModernFormsNext.targets" />
 	</ItemGroup>
 
 	<!-- BindingNavigator still depends on WinForms ToolStrip concepts and needs a ModernFormsNext-native port. -->

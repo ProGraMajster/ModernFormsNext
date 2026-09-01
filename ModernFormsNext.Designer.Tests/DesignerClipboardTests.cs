@@ -931,6 +931,30 @@ public sealed class DesignerClipboardTests
         Assert.Equal(expectedControlCount, document.Controls.Count);
     }
 
+    [Fact]
+    public void ShellCtrlZExecutesExactlyOneUndoAndLeavesTransactionManagerIdle()
+    {
+        using var shell = new ModernFormsDesignerShell();
+        var document = CreateDocument(out var button);
+        shell.LoadDocument(document);
+        shell.Session.SelectNode(button);
+        var firstBounds = new DesignBounds(20, 25, 100, 30);
+        var secondBounds = new DesignBounds(45, 55, 100, 30);
+        shell.Session.SetNodeBounds(button, firstBounds);
+        shell.Session.SetNodeBounds(button, secondBounds);
+        var args = new KeyEventArgs(Keys.Control | Keys.Z);
+
+        Assert.True(shell.ProcessDesignerShortcut(args));
+
+        Assert.True(args.SuppressKeyPress);
+        Assert.True(args.Handled);
+        Assert.Equal(firstBounds, button.Bounds);
+        Assert.True(shell.Session.Transactions.CanUndo);
+        Assert.True(shell.Session.Transactions.CanRedo);
+        Assert.False(shell.Session.Transactions.HasActiveTransaction);
+        Assert.Equal(DesignerHistoryReplayMode.Idle, shell.Session.Transactions.ReplayMode);
+    }
+
     [Theory]
     [InlineData(Keys.C)]
     [InlineData(Keys.X)]

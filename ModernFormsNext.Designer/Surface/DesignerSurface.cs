@@ -10,6 +10,8 @@ internal sealed class DesignerSurface : Panel
     private readonly DesignerSurfaceRenderer renderer;
     private readonly DesignerMouseController mouseController;
 
+    internal DesignerMouseController MouseController => mouseController;
+
     public DesignerSurface(DesignerSession state)
     {
         this.state = state;
@@ -37,64 +39,20 @@ internal sealed class DesignerSurface : Panel
     {
         base.OnKeyDown(e);
 
-        if (e.KeyCode == Keys.Escape && mouseController.CancelOperation(this))
+        if (e.KeyCode == Keys.Escape && mouseController.CancelOperation(this, "Escape"))
         {
             e.Handled = true;
             Invalidate();
-            return;
         }
+    }
 
-        if (e.KeyCode == Keys.Delete)
-        {
-            e.Handled = state.DeleteSelectedNode();
-            Invalidate();
-            return;
-        }
-
-        if (!e.Control || e.Alt)
-            return;
-
-        if (e.KeyCode == Keys.C)
-        {
-            e.Handled = state.CopySelectedNode();
-            return;
-        }
-
-        if (e.KeyCode == Keys.X)
-        {
-            e.Handled = state.CutSelectedNode();
-            Invalidate();
-            return;
-        }
-
-        if (e.KeyCode == Keys.V)
-        {
-            e.Handled = state.PasteCopiedNode();
-            Invalidate();
-            return;
-        }
-
-        if (e.KeyCode == Keys.D)
-        {
-            e.Handled = state.DuplicateSelectedNode();
-            Invalidate();
-            return;
-        }
-
-        if (e.KeyCode == Keys.Z)
-        {
-            e.Handled = e.Shift
-                ? state.Transactions.CanRedo && state.Transactions.Redo()
-                : state.Transactions.CanUndo && state.Transactions.Undo();
-            Invalidate();
-            return;
-        }
-
-        if (e.KeyCode == Keys.Y)
-        {
-            e.Handled = state.Transactions.CanRedo && state.Transactions.Redo();
-            Invalidate();
-        }
+    internal override void CancelPointerInteraction(int? pointerId = null)
+    {
+        // The shell owns edit commands. The surface owns only its in-flight pointer gesture, so a
+        // focus or native-capture transition can roll back that gesture without touching history.
+        mouseController.CancelOperation(this, pointerId is null ? "FocusOrCaptureLost" : $"PointerCanceled:{pointerId}");
+        base.CancelPointerInteraction(pointerId);
+        Invalidate();
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

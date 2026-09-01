@@ -5,7 +5,9 @@ namespace ModernFormsNext.VisualStudioDesignerHost;
 /// <summary>
 /// Provides file, status, and output integration for the standalone designer host launched by Visual Studio.
 /// </summary>
-public sealed class VisualStudioDesignerHostEnvironment : IDesignerHostEnvironment
+public sealed class VisualStudioDesignerHostEnvironment :
+    IDesignerHostEnvironment,
+    IDesignerDiagnosticHostEnvironment
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="VisualStudioDesignerHostEnvironment"/> class.
@@ -38,12 +40,17 @@ public sealed class VisualStudioDesignerHostEnvironment : IDesignerHostEnvironme
     /// <inheritdoc/>
     public void ReportStatus(string message)
     {
+        DesignerHostDiagnosticLog.Write($"DESIGNER_STATUS {message}");
         Console.WriteLine(message);
     }
 
     /// <inheritdoc/>
     public void ReportOutput(string message)
     {
+        DesignerHostDiagnosticLog.Write($"DESIGNER_OUTPUT {message}");
         Console.WriteLine(message);
     }
+
+    void IDesignerDiagnosticHostEnvironment.ReportDiagnostic(string message)
+        => DesignerHostDiagnosticLog.Write(message);
 }

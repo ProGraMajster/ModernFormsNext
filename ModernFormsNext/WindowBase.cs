@@ -219,6 +219,11 @@ namespace ModernFormsNext
                 me.Position *= window.RenderScaling;
 
                 switch (me.Type) {
+                    case RawPointerEventType.CaptureLost:
+                        // Platform capture loss replaces the missing mouse-up transition. Route it
+                        // to the logical capture owner so a control can resolve its own gesture.
+                        adapter.CancelCapturedPointerInteractionsInSubtree();
+                        break;
                     case RawPointerEventType.LeftButtonDown:
                         if (Resizeable && HandleMouseDown ((int)me.Position.X, (int)me.Position.Y))
                             return;
@@ -444,6 +449,26 @@ namespace ModernFormsNext
         /// Gets the current scale factor of the window.
         /// </summary>
         public double Scaling => window.RenderScaling;
+
+        /// <summary>
+        /// Gets the non-owning platform handle for this window.
+        /// </summary>
+        /// <remarks>
+        /// The returned handle remains owned by ModernFormsNext and is valid only for the
+        /// lifetime of this window. Hosts must inspect <see cref="IPlatformHandle.HandleDescriptor"/>
+        /// before using the value with platform APIs; the Windows backend reports <c>HWND</c>.
+        /// Access this property from the UI thread after the window has been created.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var platformHandle = form.PlatformHandle;
+        /// if (platformHandle.HandleDescriptor == "HWND")
+        /// {
+        ///     EmbedWindowsHandle(platformHandle.Handle);
+        /// }
+        /// </code>
+        /// </example>
+        public IPlatformHandle PlatformHandle => window.Handle;
 
         /// <summary>
         /// Gets the current scale factor of the desktop.

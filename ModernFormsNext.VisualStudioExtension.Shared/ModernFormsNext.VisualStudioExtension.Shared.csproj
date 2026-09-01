@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>ModernFormsNext.VisualStudioExtension.Shared</AssemblyName>
+    <RootNamespace>ModernFormsNext.VisualStudioExtension</RootNamespace>
+    <Description>Lightweight command contracts shared by the ModernFormsNext Visual Studio integration assemblies.</Description>
+  </PropertyGroup>
+
+</Project>

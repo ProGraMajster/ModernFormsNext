@@ -33,6 +33,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Shared\ModernFormsNext.VisualStudioExtension.Shared.csproj" />
     <!--
       Reference only the Visual Studio contracts used by the in-process package.
       The Microsoft.VisualStudio.SDK metapackage also restores unrelated editor,
@@ -50,6 +51,8 @@
 
   <ItemGroup>
     <Reference Include="System.Design" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>

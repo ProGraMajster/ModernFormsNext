@@ -78,6 +78,8 @@ public sealed class DesignerTransactionManager
     /// </summary>
     public bool HasActiveTransaction => frames.Count > 0;
 
+    internal long? CurrentTransactionId => frames.Count == 0 ? null : frames[^1].Id;
+
     /// <summary>
     /// Gets the current recording or replay mode.
     /// </summary>

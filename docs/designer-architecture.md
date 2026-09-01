@@ -321,26 +321,30 @@ overwriting the `.mfdesign` document.
 
 See [Known limitations](known-limitations.md) for the central classification and priorities.
 
-## Current Visual Studio integration boundaries
+## Visual Studio integration boundaries
 
-The Visual Studio extension hosts the shared shell through a small HWND adapter. The adapter
-creates a lightweight ModernFormsNext form, places `ModernFormsDesignerShell` inside it, and
-parents that HWND into the Visual Studio editor pane. This keeps the designer UI in
-`ModernFormsNext.Designer` instead of copying property grid, surface, toolbox, or outline code
-into the VSIX.
+The Visual Studio extension hosts the shared shell in an owned modern .NET child process. A small
+classic VSSDK editor pane supplies the parent HWND; the Designer host obtains its own HWND through
+the typed `WindowBase.PlatformHandle` API and parents it into that pane. No extension code reflects
+over `WindowBase` internals, and the VSSDK layer does not copy property grid, surface, toolbox,
+outline, persistence, or code-generation logic.
 
-The remaining integration boundaries are:
+The classic pane is a WinForms/VSSDK native-window adapter because Visual Studio's `WindowPane`
+contract exposes `IWin32Window`. It supplies only HWND ownership, bounds, focus, and a startup/error
+label; ModernFormsNext still owns all Designer layout and Skia rendering. A dependency-free
+`netstandard2.0` command-status assembly is referenced normally by both extension builds, avoiding
+linked-source implementation sharing and keeping VSSDK/WinForms out of Designer and runtime
+projects.
 
-- hardening of the HWND adapter into a supported public hosting API in the framework or a
-  dedicated embeddable WindowKit surface, so the VSIX no longer needs reflection to obtain the
-  runtime HWND
-- optional integration with Visual Studio's built-in `View Designer` and Shift+F7 routing for
-  designable ModernFormsNext C# files
-- optional Solution Explorer automation for existing projects that do not yet have dependent
-  file metadata for `MainForm.Designer.cs` and `MainForm.mfdesign` under `MainForm.cs`
+The package claims Visual Studio's standard View Designer/Shift+F7 command only for files accepted
+by conservative ModernFormsNext detection. Packaged build-transitive metadata nests
+`MainForm.Designer.cs` and `MainForm.mfdesign` beneath `MainForm.cs` without overwriting explicit
+project metadata. See [Visual Studio Designer host](visual-studio-designer-host.md) for process
+ownership, lifecycle, diagnostics, failure handling, and the interactive validation checklist.
 
-`ModernFormsNext.VisualStudioExtension` must remain a thin host and must not duplicate designer
-UI or code generation.
+Custom-control metadata discovery and broader isolation remain separate work tracked by issue #68.
+`ModernFormsNext.VisualStudioExtension` must remain a thin host and must not duplicate Designer UI
+or code generation.
 
 ## Repository Boundary
 

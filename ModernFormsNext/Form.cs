@@ -83,7 +83,24 @@ namespace ModernFormsNext
         /// <summary>
         /// Begins dragging the window to move it.
         /// </summary>
-        public void BeginMoveDrag () => Window.BeginMoveDrag (new PointerPressedEventArgs ());
+        public void BeginMoveDrag ()
+        {
+            if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild)
+                return;
+
+            Window.BeginMoveDrag (new PointerPressedEventArgs ());
+        }
+
+        /// <summary>
+        /// Gets or sets whether this form owns top-level chrome interactions or is hosted as an
+        /// embedded child whose parent owns move and resize behavior.
+        /// </summary>
+        /// <remarks>
+        /// This is an explicit hosting contract. It must not be inferred from the current parent
+        /// HWND or window styles because those can change during Designer reattachment.
+        /// </remarks>
+        internal WindowChromeInteractionMode ChromeInteractionMode { get; set; }
+            = WindowChromeInteractionMode.TopLevel;
 
         /// <summary>
         /// Gets or sets the bounds of the Window.
@@ -237,6 +254,9 @@ namespace ModernFormsNext
 
         internal override bool HandleMouseDown (int x, int y)
         {
+            if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild)
+                return false;
+
             var element = GetElementAtLocation (x, y);
 
             switch (element) {
@@ -271,6 +291,9 @@ namespace ModernFormsNext
 
         internal override bool HandleMouseMove (int x, int y)
         {
+            if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild)
+                return base.HandleMouseMove (x, y);
+
             var element = GetElementAtLocation (x, y);
 
             switch (element) {
@@ -301,6 +324,22 @@ namespace ModernFormsNext
             }
 
             return base.HandleMouseMove (x, y);
+        }
+
+        /// <summary>
+        /// Identifies who owns native move and resize interactions for a form.
+        /// </summary>
+        internal enum WindowChromeInteractionMode
+        {
+            /// <summary>
+            /// The form is a normal top-level window and owns move and resize behavior.
+            /// </summary>
+            TopLevel,
+
+            /// <summary>
+            /// The form is embedded in another native window which owns placement and sizing.
+            /// </summary>
+            EmbeddedChild
         }
 
         /// <summary>

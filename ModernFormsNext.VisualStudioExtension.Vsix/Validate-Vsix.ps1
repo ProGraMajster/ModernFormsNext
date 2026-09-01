@@ -49,10 +49,30 @@ function Read-VsixManifest {
         }
 
         $entries = @($zip.Entries | ForEach-Object { $_.FullName })
+        $pkgDefEntry = $zip.GetEntry("ModernFormsNext.VisualStudioExtension.pkgdef")
+        if ($null -eq $pkgDefEntry) {
+            throw "VSIX does not contain ModernFormsNext.VisualStudioExtension.pkgdef: $Path"
+        }
+
+        $pkgDefStream = $pkgDefEntry.Open()
+        try {
+            $pkgDefReader = [System.IO.StreamReader]::new($pkgDefStream)
+            try {
+                $pkgDef = $pkgDefReader.ReadToEnd()
+            }
+            finally {
+                $pkgDefReader.Dispose()
+            }
+        }
+        finally {
+            $pkgDefStream.Dispose()
+        }
+
         [pscustomobject]@{
             Path = $Path
             Xml = $manifestXml
             Entries = $entries
+            PkgDef = $pkgDef
         }
     }
     finally {
@@ -160,6 +180,17 @@ function Assert-ModernFormsNextVsix {
 
     if (-not ($Manifest.Entries | Where-Object { $_ -like "ItemTemplates/*" })) {
         throw "VSIX does not contain physical ItemTemplates files."
+    }
+
+    if ($Manifest.Entries -notcontains "ModernFormsNext.VisualStudioExtension.Shared.dll") {
+        throw "VSIX does not contain the shared Visual Studio command-contract assembly."
+    }
+
+    $logicalViewsSection = '[$RootKey$\Editors\{c61567c8-f5ac-4f9e-9c6e-b4ec99c7ab31}\LogicalViews]'
+    $designerLogicalView = '"{7651a702-06e5-11d1-8ebd-00a0c90f26ea}"=""'
+    if (-not $Manifest.PkgDef.Contains($logicalViewsSection) -or
+        -not $Manifest.PkgDef.Contains($designerLogicalView)) {
+        throw "VSIX does not register LOGVIEWID_Designer as the editor factory's single primary physical view."
     }
 
     $requiredUserControlTemplateEntries = @(

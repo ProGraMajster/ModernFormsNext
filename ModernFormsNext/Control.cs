@@ -2074,7 +2074,7 @@ namespace ModernFormsNext
             Invalidate ();
         }
 
-        private void CancelCapturedPointerInteractionsInSubtree()
+        internal void CancelCapturedPointerInteractionsInSubtree()
         {
             // Capture is stored on the leaf and propagated to its ancestors. Clear every actual
             // owner before detaching the subtree; assigning Parent first would strand the old

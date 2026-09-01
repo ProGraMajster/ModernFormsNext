@@ -341,6 +341,24 @@ public sealed class EditorPointerInputRegressionTests
     }
 
     [Fact]
+    public void PlatformCaptureLossCancelsCapturedControlSubtree()
+    {
+        using var root = new VisiblePanel { Size = new Size(360, 80) };
+        var textBox = CreateTextBox<PointerTextBox>("alpha beta gamma");
+        root.Controls.Add(textBox);
+        textBox.RaiseMouseDown(Mouse(PointForIndex(textBox, 2), pointerId: 15));
+
+        Assert.True(textBox.Capture);
+        Assert.True(root.Capture);
+
+        root.CancelCapturedPointerInteractionsInSubtree();
+
+        Assert.False(textBox.Capture);
+        Assert.False(root.Capture);
+        Assert.Equal(-1, textBox.SelectionStart);
+    }
+
+    [Fact]
     public void RemovingCapturedEditorClearsPointerOwner()
     {
         using var root = new VisiblePanel { Size = new Size(360, 80) };

@@ -109,6 +109,10 @@ internal sealed class DesignerHistory
 
     public bool CanRedo => redoUnits.Count > 0;
 
+    internal int UndoCount => undoUnits.Count;
+
+    internal int RedoCount => redoUnits.Count;
+
     public string? UndoDescription => CanUndo ? undoUnits[^1].Description : null;
 
     public string? RedoDescription => CanRedo ? redoUnits[^1].Description : null;

@@ -8,6 +8,7 @@ namespace ModernFormsNext.Designer.Services;
 
 internal sealed class DesignerCommandService : IDisposable
 {
+    private static long nextCommandId;
     private readonly DesignerSession state;
     private readonly DesignerFileService files;
     private readonly ModernFormsDesignerOptions options;
@@ -75,9 +76,15 @@ internal sealed class DesignerCommandService : IDisposable
 
     public void AddTextBox() => state.AddControl("TextBox");
 
-    public bool Undo() => state.Transactions.Undo();
+    public bool Undo() => Undo("Toolbar");
 
-    public bool Redo() => state.Transactions.Redo();
+    internal bool Undo(string source)
+        => ExecuteHistoryCommand("UNDO", source, state.Transactions.Undo);
+
+    public bool Redo() => Redo("Toolbar");
+
+    internal bool Redo(string source)
+        => ExecuteHistoryCommand("REDO", source, state.Transactions.Redo);
 
     public bool Cut() => state.CutSelectedNode();
 
@@ -94,6 +101,29 @@ internal sealed class DesignerCommandService : IDisposable
     public bool CanPaste => state.CanPasteCopiedNode;
 
     public bool CanDuplicate => state.CanDuplicateSelectedNode;
+
+    private bool ExecuteHistoryCommand(string command, string source, Func<bool> execute)
+    {
+        var commandId = Interlocked.Increment(ref nextCommandId);
+        state.Log($"{command}_REQUEST source={source} id={commandId} {DescribeHistoryState()}");
+
+        var executed = execute();
+        state.Log($"{command}_EXECUTED id={commandId} Executed={executed} {DescribeHistoryState()}");
+        state.Log($"{command}_COMPLETED id={commandId} {DescribeHistoryState()}");
+        return executed;
+    }
+
+    private string DescribeHistoryState()
+    {
+        var selected = state.SelectedNode;
+        var bounds = selected is null
+            ? "<none>"
+            : $"{selected.Bounds.X},{selected.Bounds.Y},{selected.Bounds.Width},{selected.Bounds.Height}";
+        return $"Revision={state.CurrentHistory.CurrentRevision} " +
+            $"UndoCount={state.CurrentHistory.UndoCount} RedoCount={state.CurrentHistory.RedoCount} " +
+            $"ActiveTransaction={state.Transactions.CurrentTransactionId?.ToString() ?? "<none>"} " +
+            $"ReplayMode={state.Transactions.ReplayMode} Selected={selected?.Name ?? "<form>"} Bounds={bounds}";
+    }
 
     public void AddControlType(string typeName)
     {

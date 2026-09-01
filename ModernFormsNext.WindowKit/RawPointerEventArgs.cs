@@ -15,6 +15,11 @@ namespace ModernFormsNext.WindowKit.Input.Raw
         LeaveWindow,
 
         /// <summary>
+        /// The platform revoked pointer capture before the matching button release was received.
+        /// </summary>
+        CaptureLost,
+
+        /// <summary>
         /// The left pointer button was pressed.
         /// </summary>
         LeftButtonDown,

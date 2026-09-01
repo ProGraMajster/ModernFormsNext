@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -12,6 +9,8 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using ModernFormsNext.VisualStudioExtension.Commands;
 using ModernFormsNext.VisualStudioExtension.Detection;
+using ModernFormsNext.VisualStudioExtension.Editors;
+using ModernFormsNext.VisualStudioExtension.Options;
 
 namespace ModernFormsNext.VisualStudioExtension;
 
@@ -26,6 +25,10 @@ namespace ModernFormsNext.VisualStudioExtension;
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.10.0")]
 [ProvideMenuResource("ModernFormsNext.VisualStudioExtension.CTMENU", 1)]
+[ProvideEditorFactory(typeof(MfDesignEditorFactory), 101)]
+[ProvideEditorExtension(typeof(MfDesignEditorFactory), DesignFileExtension, 50, DefaultName = ExtensionDisplayName)]
+[ProvideEditorLogicalView(typeof(MfDesignEditorFactory), LogicalViewID.Designer)]
+[ProvideOptionPage(typeof(DesignerOptionsPage), "ModernFormsNext", "Designer", 0, 0, true)]
 [ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExists_string, PackageAutoLoadFlags.BackgroundLoad)]
 [Guid(PackageGuidString)]
 public sealed class ModernFormsDesignerPackage : AsyncPackage
@@ -40,10 +43,28 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
     /// </summary>
     public const string CommandSetGuidString = "CDA8870E-234B-44C9-BA43-362BFF40A0E3";
 
+    /// <summary>
+    /// Gets the editor factory GUID for ModernFormsNext design documents.
+    /// </summary>
+    public const string EditorFactoryGuidString = "C61567C8-F5AC-4F9E-9C6E-B4EC99C7AB31";
+
+    /// <summary>
+    /// Gets the extension handled by the ModernFormsNext metadata editor.
+    /// </summary>
+    public const string DesignFileExtension = ".mfdesign";
+
+    /// <summary>
+    /// Gets the display name used by the Designer editor.
+    /// </summary>
+    public const string ExtensionDisplayName = "ModernFormsNext Designer";
+
     internal static readonly Guid CommandSetGuid = new(CommandSetGuidString);
+    internal static readonly Guid EditorFactoryGuid = new(EditorFactoryGuidString);
 
     private readonly ModernFormsDesignableFileDetector detector = new();
-    private readonly Dictionary<string, Process> designerHostProcesses = new(StringComparer.OrdinalIgnoreCase);
+    private IVsRegisterPriorityCommandTarget? priorityCommandRegistrar;
+    private DesignerSaveCommandTarget? designerSaveCommandTarget;
+    private uint priorityCommandCookie = VSConstants.VSCOOKIE_NIL;
 
     /// <inheritdoc/>
     protected override async Task InitializeAsync(
@@ -52,7 +73,63 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
     {
         await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
+        RegisterEditorFactory(new MfDesignEditorFactory(this));
         await ViewModernFormsNextDesignerCommand.InitializeAsync(this);
+
+        priorityCommandRegistrar = await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget))
+            as IVsRegisterPriorityCommandTarget;
+        if (priorityCommandRegistrar is not null)
+        {
+            designerSaveCommandTarget = new DesignerSaveCommandTarget(GetActiveDesignerPane);
+            ErrorHandler.ThrowOnFailure(priorityCommandRegistrar.RegisterPriorityCommandTarget(
+                0,
+                designerSaveCommandTarget,
+                out priorityCommandCookie));
+            DesignerEditorDiagnosticLog.Write(
+                $"VS_CMD_SAVE_PRIORITY_TARGET_REGISTERED Cookie={priorityCommandCookie}");
+        }
+    }
+
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing
+            && priorityCommandRegistrar is not null
+            && priorityCommandCookie != VSConstants.VSCOOKIE_NIL)
+        {
+            JoinableTaskFactory.Run(async () =>
+            {
+                await JoinableTaskFactory.SwitchToMainThreadAsync();
+                var result = priorityCommandRegistrar.UnregisterPriorityCommandTarget(priorityCommandCookie);
+                DesignerEditorDiagnosticLog.Write(
+                    $"VS_CMD_SAVE_PRIORITY_TARGET_UNREGISTERED Cookie={priorityCommandCookie} " +
+                    $"HResult=0x{result:X8}");
+                priorityCommandCookie = VSConstants.VSCOOKIE_NIL;
+                priorityCommandRegistrar = null;
+                designerSaveCommandTarget = null;
+            });
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private MfDesignEditorPane? GetActiveDesignerPane()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (GetService(typeof(SVsShellMonitorSelection)) is not IVsMonitorSelection monitorSelection
+            || ErrorHandler.Failed(monitorSelection.GetCurrentElementValue(
+                (uint)VSConstants.VSSELELEMID.SEID_DocumentFrame,
+                out var frameValue))
+            || frameValue is not IVsWindowFrame frame
+            || ErrorHandler.Failed(frame.GetProperty(
+                (int)__VSFPROPID.VSFPROPID_DocView,
+                out var docView)))
+        {
+            return null;
+        }
+
+        return docView as MfDesignEditorPane;
     }
 
     internal ModernFormsDesignableFileInfo? GetSelectedDesignableFile()
@@ -63,6 +140,15 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         return path is null ? null : detector.Inspect(path);
     }
 
+    internal DesignerHostingMode GetDesignerHostingMode()
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        return GetDialogPage(typeof(DesignerOptionsPage)) is DesignerOptionsPage options
+            ? options.HostingMode
+            : DesignerHostingMode.Integrated;
+    }
+
     internal async Task OpenDesignerForCodeFileAsync(ModernFormsDesignableFileInfo fileInfo)
     {
         if (fileInfo is null)
@@ -71,7 +157,30 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         await JoinableTaskFactory.SwitchToMainThreadAsync();
 
         EnsureDesignDocument(fileInfo);
-        LaunchDesignerHost(fileInfo.DesignFilePath);
+        if (VsShellUtilities.IsDocumentOpen(
+                this,
+                fileInfo.DesignFilePath,
+                VSConstants.LOGVIEWID_Designer,
+                out _,
+                out _,
+                out var existingFrame))
+        {
+            DesignerEditorDiagnosticLog.Write(
+                $"PANE_ACTIVATE_EXISTING Moniker={fileInfo.DesignFilePath}");
+            ErrorHandler.ThrowOnFailure(existingFrame.Show());
+            return;
+        }
+
+        VsShellUtilities.OpenDocumentWithSpecificEditor(
+            this,
+            fileInfo.DesignFilePath,
+            EditorFactoryGuid,
+            VSConstants.LOGVIEWID_Designer,
+            out _,
+            out _,
+            out var frame);
+
+        ErrorHandler.ThrowOnFailure(frame.Show());
     }
 
     private string? GetSelectedFilePath()
@@ -356,150 +465,6 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         }
     }
 
-    private void LaunchDesignerHost(string designFilePath)
-    {
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        var projectPath = FindNearestProjectPath(designFilePath);
-        var hostKey = projectPath ?? Path.GetDirectoryName(designFilePath) ?? designFilePath;
-        var pipeName = DesignerHostIpcClient.GetPipeName(hostKey);
-
-        if (designerHostProcesses.TryGetValue(hostKey, out var existingHost)
-            && !existingHost.HasExited)
-        {
-            if (!DesignerHostIpcClient.TryOpenDocument(pipeName, designFilePath, projectPath, TimeSpan.FromSeconds(2)))
-            {
-                VsShellUtilities.ShowMessageBox(
-                    this,
-                    "ModernFormsNext Designer is already running, but it did not accept the open-document command. Try closing the designer host window and opening the designer again.",
-                    "ModernFormsNext Designer",
-                    OLEMSGICON.OLEMSGICON_WARNING,
-                    OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-            }
-
-            ActivateExistingHost(existingHost);
-            return;
-        }
-
-        var packageDirectory = Path.GetDirectoryName(GetType().Assembly.Location);
-        var hostPath = packageDirectory is null
-            ? null
-            : Path.Combine(packageDirectory, "DesignerHost", "ModernFormsNext.VisualStudioDesignerHost.exe");
-
-        if (hostPath is null || !File.Exists(hostPath))
-        {
-            VsShellUtilities.ShowMessageBox(
-                this,
-                $"ModernFormsNext Designer host was not found.{Environment.NewLine}{hostPath}",
-                "ModernFormsNext Designer",
-                OLEMSGICON.OLEMSGICON_WARNING,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-            return;
-        }
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = hostPath,
-            Arguments = BuildHostArguments(designFilePath, projectPath, pipeName),
-            UseShellExecute = false,
-            WorkingDirectory = Path.GetDirectoryName(designFilePath) ?? packageDirectory ?? Environment.CurrentDirectory
-        };
-
-        try
-        {
-            var process = Process.Start(startInfo);
-
-            if (process is not null)
-            {
-                designerHostProcesses[hostKey] = process;
-                process.EnableRaisingEvents = true;
-                process.Exited += (_, _) => designerHostProcesses.Remove(hostKey);
-            }
-
-            if (process is not null && process.WaitForExit(1500))
-            {
-                var logPath = Path.Combine(Path.GetTempPath(), "ModernFormsNextDesignerHost.log");
-                var logHint = File.Exists(logPath)
-                    ? $"{Environment.NewLine}{Environment.NewLine}Log: {logPath}"
-                    : string.Empty;
-
-                VsShellUtilities.ShowMessageBox(
-                    this,
-                    $"ModernFormsNext Designer host exited immediately with code {process.ExitCode}.{logHint}",
-                    "ModernFormsNext Designer",
-                    OLEMSGICON.OLEMSGICON_CRITICAL,
-                    OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-            }
-        }
-        catch (Exception ex)
-        {
-            VsShellUtilities.ShowMessageBox(
-                this,
-                $"ModernFormsNext Designer host could not be started.{Environment.NewLine}{ex.Message}",
-                "ModernFormsNext Designer",
-                OLEMSGICON.OLEMSGICON_CRITICAL,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
-        }
-    }
-
-    private static string BuildHostArguments(string designFilePath, string? projectPath, string pipeName)
-        => string.IsNullOrWhiteSpace(projectPath)
-            ? $"--design-file {QuoteProcessArgument(designFilePath)} --pipe {QuoteProcessArgument(pipeName)}"
-            : $"--design-file {QuoteProcessArgument(designFilePath)} --project {QuoteProcessArgument(projectPath!)} --pipe {QuoteProcessArgument(pipeName)}";
-
-    private static string? FindNearestProjectPath(string path)
-    {
-        var directory = File.Exists(path)
-            ? Path.GetDirectoryName(path)
-            : Directory.Exists(path)
-                ? path
-                : null;
-
-        while (!string.IsNullOrWhiteSpace(directory))
-        {
-            var project = Directory.EnumerateFiles(directory, "*.csproj").FirstOrDefault();
-
-            if (project is not null)
-                return project;
-
-            directory = Directory.GetParent(directory)?.FullName;
-        }
-
-        return null;
-    }
-
-    private static void ActivateExistingHost(Process process)
-    {
-        try
-        {
-            process.Refresh();
-
-            if (process.MainWindowHandle == IntPtr.Zero)
-                return;
-
-            ShowWindow(process.MainWindowHandle, 5);
-            SetForegroundWindow(process.MainWindowHandle);
-        }
-        catch
-        {
-            // Activation is best-effort. The command should never fail just because Windows
-            // refuses foreground focus for a still-running designer process.
-        }
-    }
-
     private static string EscapeJson(string value)
         => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
-
-    private static string QuoteProcessArgument(string value)
-        => "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 }

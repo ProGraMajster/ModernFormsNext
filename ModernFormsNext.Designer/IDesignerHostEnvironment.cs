@@ -39,3 +39,19 @@ public interface IDesignerHostEnvironment
     /// <param name="message">The output message to append.</param>
     void ReportOutput(string message);
 }
+
+/// <summary>
+/// Receives verbose Designer diagnostics without adding them to the user-facing output panel.
+/// </summary>
+/// <remarks>
+/// This internal extension is implemented by diagnostic-aware hosts. The shared Designer still
+/// writes its per-process diagnostic file when the host does not provide this optional sink.
+/// </remarks>
+internal interface IDesignerDiagnosticHostEnvironment
+{
+    /// <summary>
+    /// Reports one diagnostic trace entry to the hosting process.
+    /// </summary>
+    /// <param name="message">The diagnostic message to record.</param>
+    void ReportDiagnostic(string message);
+}

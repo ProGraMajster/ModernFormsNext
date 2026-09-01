@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using ModernFormsNext;
 using ModernFormsNext.Designer;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
+using ModernFormsNext.VisualStudioExtension;
 
 namespace ModernFormsNext.VisualStudioDesignerHost;
 
@@ -22,6 +24,9 @@ public sealed class VisualStudioDesignerHostForm : Form
     private readonly VisualStudioDesignerHostEnvironment environment;
     private readonly ModernFormsDesignerShell shell;
     private readonly DesignerHostIpcServer? ipcServer;
+    private WindowsDesignerParentWindowHost? parentWindowHost;
+    private Process? ownerProcess;
+    private int ownerExitScheduled;
     private bool closeConfirmationPending;
     private bool closeConfirmed;
 
@@ -31,11 +36,38 @@ public sealed class VisualStudioDesignerHostForm : Form
     /// <param name="arguments">The launch arguments supplied by the Visual Studio extension.</param>
     public VisualStudioDesignerHostForm(DesignerHostArguments arguments)
     {
-        this.arguments = arguments;
+        this.arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
 
         Text = GetWindowTitle(arguments.DesignDocumentPath);
         Name = "ModernFormsNextVisualStudioDesignerHost";
         Size = new System.Drawing.Size(1480, 900);
+
+        // Window semantics must be fixed before PlatformHandle creates the native HWND. In
+        // particular, standalone mode must never create a top-level window and later pass it
+        // through the integrated SetParent/style-conversion path.
+        if (arguments.HostingMode == DesignerHostingMode.Integrated)
+            ConfigureEmbeddedWindow();
+        else
+            ConfigureStandaloneWindow();
+        DesignerHostDiagnosticLog.Write($"HOSTING_MODE_CONFIGURED Mode={arguments.HostingMode}");
+
+        var platformHandle = PlatformHandle;
+        DesignerHostDiagnosticLog.Write(
+            $"HANDLE_CREATED Descriptor={platformHandle.HandleDescriptor ?? "<none>"} " +
+            $"Handle=0x{platformHandle.Handle.ToInt64():X}");
+
+        if (arguments.HostingMode == DesignerHostingMode.Integrated)
+        {
+            parentWindowHost = new WindowsDesignerParentWindowHost(arguments.ParentWindowHandle);
+            DesignerHostDiagnosticLog.Write(
+                $"ATTACH_BEGIN Parent=0x{arguments.ParentWindowHandle.ToInt64():X}");
+            parentWindowHost.Attach(this);
+            DesignerHostDiagnosticLog.Write("ATTACH_OK");
+        }
+        else if (arguments.OwnerProcessId > 0)
+        {
+            StartOwnerProcessMonitoring(arguments.OwnerProcessId);
+        }
 
         environment = new VisualStudioDesignerHostEnvironment(
             arguments.DesignDocumentPath,
@@ -55,16 +87,45 @@ public sealed class VisualStudioDesignerHostForm : Form
         Controls.Add(shell);
         OpenDesignDocument(arguments.DesignDocumentPath, arguments.ProjectPath);
 
+        DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_BEGIN");
         if (!string.IsNullOrWhiteSpace(arguments.PipeName))
         {
             ipcServer = new DesignerHostIpcServer(
                 arguments.PipeName,
-                command => Application.RunOnUIThread(() => OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath)));
+                InvokeIpcCommandAsync);
             ipcServer.Start();
+            DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_OK");
         }
+        else
+            DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_OK Disabled=true");
 
         Closing += HandleClosing;
-        Closed += (_, _) => ipcServer?.Dispose();
+        Closed += HandleClosed;
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        // ModernFormsNext has no separate WinForms Load event. This marker identifies the
+        // equivalent first-show load boundary immediately before the Shown callback is raised.
+        DesignerHostDiagnosticLog.Write("FORM_LOAD");
+
+        try
+        {
+            if (parentWindowHost is not null)
+            {
+                parentWindowHost.ResizeToParent();
+                parentWindowHost.SetVisible(true);
+                StartOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
+            }
+
+            base.OnShown(e);
+            DesignerHostDiagnosticLog.Write("FORM_SHOWN");
+        }
+        catch (Exception ex)
+        {
+            DesignerHostDiagnosticLog.WriteException("FORM_SHOWN_EXCEPTION", ex);
+            throw;
+        }
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -90,6 +151,56 @@ public sealed class VisualStudioDesignerHostForm : Form
 
         closeConfirmationPending = true;
         Application.RunOnUIThread(ConfirmCloseAndRetry);
+    }
+
+    private void StartOwnerProcessMonitoring(int processId)
+    {
+        Process process;
+        try
+        {
+            process = Process.GetProcessById(processId);
+        }
+        catch (ArgumentException)
+        {
+            // The pane HWND was valid during attachment, but Visual Studio can exit between
+            // that check and opening its Process object. Treat that race as the normal owner-exit
+            // path so the host terminates cleanly instead of surfacing a startup crash.
+            HandleOwnerProcessExited(null, EventArgs.Empty);
+            return;
+        }
+
+        process.EnableRaisingEvents = true;
+        process.Exited += HandleOwnerProcessExited;
+        ownerProcess = process;
+        DesignerHostDiagnosticLog.Write($"OWNER_MONITOR_CREATED ProcessId={processId}");
+
+        if (process.HasExited)
+            HandleOwnerProcessExited(process, EventArgs.Empty);
+    }
+
+    private void HandleOwnerProcessExited(object? sender, EventArgs e)
+    {
+        if (Interlocked.Exchange(ref ownerExitScheduled, 1) != 0)
+            return;
+
+        DesignerHostDiagnosticLog.Write("Visual Studio owner process exited; closing owned Designer host.");
+        Application.RunOnUIThread(() =>
+        {
+            closeConfirmed = true;
+            Close();
+        });
+    }
+
+    private void HandleClosed(object? sender, EventArgs e)
+    {
+        ipcServer?.Dispose();
+
+        if (ownerProcess is not null)
+        {
+            ownerProcess.Exited -= HandleOwnerProcessExited;
+            ownerProcess.Dispose();
+            ownerProcess = null;
+        }
     }
 
     private async void ConfirmCloseAndRetry()
@@ -124,8 +235,24 @@ public sealed class VisualStudioDesignerHostForm : Form
         {
             try
             {
-                shell.Session.OpenDocument(DesignDocumentSerializer.Default.Load(designDocumentPath), designDocumentPath);
-                shell.Session.Log($"Opened {designDocumentPath}.");
+                var loadedDocument = DesignDocumentSerializer.Default.Load(designDocumentPath);
+                var activeDocument = shell.Session.ActiveOpenDocument;
+                if (activeDocument is not null
+                    && string.Equals(activeDocument.Path, IOPath.GetFullPath(designDocumentPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    shell.Session.ReloadDocumentBaseline(
+                        activeDocument,
+                        loadedDocument,
+                        markDirty: false,
+                        $"Reloaded {IOPath.GetFileName(designDocumentPath)} from Visual Studio.");
+                    shell.Session.Log($"Reloaded {designDocumentPath}.");
+                }
+                else
+                {
+                    shell.Session.OpenDocument(loadedDocument, designDocumentPath);
+                    shell.Session.Log($"Opened {designDocumentPath}.");
+                }
+
                 return;
             }
             catch (Exception ex)
@@ -137,10 +264,190 @@ public sealed class VisualStudioDesignerHostForm : Form
         shell.LoadDocument(DesignerSession.CreateDefaultDocument());
     }
 
+    private Task<string> InvokeIpcCommandAsync(DesignerHostIpcCommand command)
+    {
+        var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Application.RunOnUIThread(() =>
+        {
+            try
+            {
+                completion.SetResult(HandleIpcCommand(command));
+            }
+            catch (Exception ex)
+            {
+                DesignerHostDiagnosticLog.WriteException(
+                    $"IPC_COMMAND_EXCEPTION Kind={command.Kind}",
+                    ex);
+                shell.Session.Log($"Visual Studio host command failed: {ex.Message}");
+                completion.SetResult("ERROR");
+            }
+        });
+        return completion.Task;
+    }
+
+    private string HandleIpcCommand(DesignerHostIpcCommand command)
+    {
+        switch (command.Kind)
+        {
+            case DesignerHostIpcCommandKind.Open:
+                OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath);
+                return "OK";
+            case DesignerHostIpcCommandKind.Save:
+                var requestId = command.RequestId
+                    ?? throw new InvalidOperationException("A Designer host SAVE request requires a request ID.");
+                DesignerHostDiagnosticLog.Write(
+                    $"HOST_SAVE_BEGIN RequestId={requestId} " +
+                    $"ManagedThreadId={Environment.CurrentManagedThreadId}");
+                if (shell.Session.Transactions.HasActiveTransaction)
+                {
+                    const string pendingGestureMessage =
+                        "Save was canceled because a Designer transaction is still active. Complete the drag or resize gesture and save again.";
+                    DesignerHostDiagnosticLog.Write(
+                        $"SAVE_CANCELED RequestId={requestId} Reason={pendingGestureMessage}");
+                    DesignerHostDiagnosticLog.Write(
+                        $"HOST_SAVE_END RequestId={requestId} Outcome=Canceled Dirty={shell.Session.IsDirty}");
+                    return EncodeSaveResult(requestId, "CANCELED", pendingGestureMessage);
+                }
+
+                var saveResult = shell.Persistence.SaveActiveDocument(command.DesignDocumentPath);
+                if (saveResult.Succeeded)
+                {
+                    DesignerHostDiagnosticLog.Write(
+                        $"SAVE_COMPLETED RequestId={requestId} " +
+                        $"Path={saveResult.Path ?? command.DesignDocumentPath} Dirty={shell.Session.IsDirty}");
+                    DesignerHostDiagnosticLog.Write(
+                        $"HOST_SAVE_END RequestId={requestId} Outcome=Saved Dirty={shell.Session.IsDirty}");
+                    return $"SAVE_RESULT\t{requestId}\tSAVED";
+                }
+
+                var saveError = saveResult.Error ?? "The Designer rejected the save request.";
+                DesignerHostDiagnosticLog.Write(
+                    $"SAVE_CANCELED RequestId={requestId} Reason={saveError}");
+                DesignerHostDiagnosticLog.Write(
+                    $"HOST_SAVE_END RequestId={requestId} Outcome=Canceled Dirty={shell.Session.IsDirty}");
+                return EncodeSaveResult(requestId, "CANCELED", saveError);
+            case DesignerHostIpcCommandKind.QueryDirty:
+                return shell.Session.IsDirty ? "DIRTY\t1" : "DIRTY\t0";
+            case DesignerHostIpcCommandKind.DiscardRecovery:
+                shell.DiscardActiveDocumentRecovery();
+                DesignerHostDiagnosticLog.Write("RECOVERY_DISCARDED");
+                return "OK";
+            case DesignerHostIpcCommandKind.Shutdown:
+                closeConfirmed = true;
+                Application.RunOnUIThread(Close);
+                return "OK";
+            case DesignerHostIpcCommandKind.AttachParent:
+                EnsureIntegratedHosting(command.Kind);
+                ConfigureEmbeddedWindow();
+                parentWindowHost ??= new WindowsDesignerParentWindowHost(command.ParentWindowHandle);
+                parentWindowHost.Attach(this, command.ParentWindowHandle);
+                EnsureOwnerProcessMonitoring(parentWindowHost.OwnerProcessId);
+                return "OK";
+            case DesignerHostIpcCommandKind.Park:
+                EnsureIntegratedHosting(command.Kind);
+                GetRequiredParentWindowHost().Park();
+                return "OK";
+            case DesignerHostIpcCommandKind.Resize:
+                EnsureIntegratedHosting(command.Kind);
+                GetRequiredParentWindowHost().ResizeToParent();
+                return "OK";
+            case DesignerHostIpcCommandKind.Show:
+                EnsureIntegratedHosting(command.Kind);
+                GetRequiredParentWindowHost().SetVisible(true);
+                return "OK";
+            case DesignerHostIpcCommandKind.Hide:
+                EnsureIntegratedHosting(command.Kind);
+                GetRequiredParentWindowHost().SetVisible(false);
+                return "OK";
+            case DesignerHostIpcCommandKind.Focus:
+                EnsureIntegratedHosting(command.Kind);
+                GetRequiredParentWindowHost().RequestFocus();
+                return "OK";
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unsupported Designer host command.");
+        }
+    }
+
+    private void ConfigureEmbeddedWindow()
+    {
+        // Visual Studio supplies the only visible chrome and owns placement. Disabling every
+        // managed move/resize/minimize/maximize affordance also prevents title-bar input from
+        // invoking native top-level window operations after the HWND becomes a child.
+        ChromeInteractionMode = WindowChromeInteractionMode.EmbeddedChild;
+        StartPosition = FormStartPosition.Manual;
+        Resizeable = false;
+        AllowMinimize = false;
+        AllowMaximize = false;
+        WindowState = FormWindowState.Normal;
+        TitleBar.Visible = false;
+        Style.Border.Width = 0;
+        DesignerHostDiagnosticLog.Write(
+            $"EMBEDDED_CHROME_DISABLED ChromeInteractionMode={ChromeInteractionMode} " +
+            $"TitleBarVisible={TitleBar.Visible} " +
+            $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize} " +
+            $"BorderWidth={Style.Border.Width}");
+    }
+
+    private void ConfigureStandaloneWindow()
+    {
+        // Standalone uses the framework's normal top-level window contract. Explicitly restoring
+        // these properties keeps the two modes auditable and prevents integrated chrome choices
+        // from leaking into a future shared initialization path.
+        ChromeInteractionMode = WindowChromeInteractionMode.TopLevel;
+        StartPosition = FormStartPosition.CenterScreen;
+        Resizeable = true;
+        AllowMinimize = true;
+        AllowMaximize = true;
+        WindowState = FormWindowState.Normal;
+        TitleBar.Visible = true;
+        DesignerHostDiagnosticLog.Write(
+            $"STANDALONE_CHROME_ENABLED ChromeInteractionMode={ChromeInteractionMode} " +
+            $"TitleBarVisible={TitleBar.Visible} " +
+            $"Resizeable={Resizeable} AllowMinimize={AllowMinimize} AllowMaximize={AllowMaximize}");
+    }
+
+    private void EnsureIntegratedHosting(DesignerHostIpcCommandKind commandKind)
+    {
+        if (arguments.HostingMode != DesignerHostingMode.Integrated)
+        {
+            throw new InvalidOperationException(
+                $"The {commandKind} lifecycle command is valid only for integrated Designer hosting.");
+        }
+    }
+
+    private WindowsDesignerParentWindowHost GetRequiredParentWindowHost()
+        => parentWindowHost
+            ?? throw new InvalidOperationException("The Designer host has not been attached to a Visual Studio pane.");
+
+    private void EnsureOwnerProcessMonitoring(int processId)
+    {
+        if (ownerProcess is not null)
+        {
+            try
+            {
+                if (ownerProcess.Id == processId)
+                    return;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            ownerProcess.Exited -= HandleOwnerProcessExited;
+            ownerProcess.Dispose();
+            ownerProcess = null;
+        }
+
+        StartOwnerProcessMonitoring(processId);
+    }
+
     private static string GetWindowTitle(string? designDocumentPath)
         => string.IsNullOrWhiteSpace(designDocumentPath)
             ? "ModernFormsNext Designer"
             : $"{IOPath.GetFileName(designDocumentPath)} [Design] - ModernFormsNext Designer";
+
+    private static string EncodeSaveResult(string requestId, string outcome, string message)
+        => $"SAVE_RESULT\t{requestId}\t{outcome}\t" +
+            Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(message));
 
     private static string? FindNearestProjectPath(string? path)
     {
