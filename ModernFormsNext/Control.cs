@@ -1509,6 +1509,10 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the MouseWheel event.
         /// </summary>
+        /// <remarks>
+        /// Handlers can set <see cref="MouseEventArgs.Handled"/> to prevent wheel routing from
+        /// continuing through ancestor controls.
+        /// </remarks>
         protected virtual void OnMouseWheel (MouseEventArgs e) => (Events[s_mouseWheelEvent] as EventHandler<MouseEventArgs>)?.Invoke (this, e);
 
         /// <summary>
@@ -2089,9 +2093,19 @@ namespace ModernFormsNext
         {
             var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
-            if (child != null)
-                child.RaiseMouseWheel (TranslateMouseEvents (e, child));
-            else if (Enabled)
+            if (child != null) {
+                var childEvent = TranslateMouseEvents (e, child);
+                child.RaiseMouseWheel (childEvent);
+                if (childEvent.Handled) {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Wheel input differs from pointer presses: if the child did not consume it, the
+            // nearest enabled ancestor gets a chance to scroll. Recursion through immediate
+            // children preserves the child-to-parent order for nested scrolling containers.
+            if (Enabled)
                 OnMouseWheel (e);
         }
 
@@ -2470,7 +2484,9 @@ namespace ModernFormsNext
                 e.Location.Y,
                 e.Modifiers,
                 e.PointerId,
-                e.PointerKind);
+                e.PointerKind) {
+                Handled = e.Handled
+            };
         }
 
 

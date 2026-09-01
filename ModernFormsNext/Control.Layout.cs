@@ -164,7 +164,12 @@ public partial class Control
         }
     }
 
-    bool IArrangedElement.ParticipatesInLayout => GetState (States.Visible);
+    // ScrollableControl positions its implicit scrollbars and size grip itself. Letting a
+    // derived flow/table engine arrange that chrome would add it to the content extent and
+    // could keep a scrollbar visible after the explicit content no longer overflows.
+    bool IArrangedElement.ParticipatesInLayout
+        => GetState (States.Visible)
+            && !(Parent is ScrollableControl scrollable && scrollable.IsInternalScrollControl (this));
 
     void IArrangedElement.PerformLayout (IArrangedElement affectedElement, string? affectedProperty)
     {

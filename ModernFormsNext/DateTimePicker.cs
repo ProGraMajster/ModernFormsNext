@@ -505,13 +505,16 @@ namespace ModernFormsNext
         {
             base.OnMouseWheel (e);
 
-            if (!Enabled || (!Checked && ShowCheckBox))
+            if (e.Handled || !Enabled || (!Checked && ShowCheckBox))
                 return;
 
+            var previousValue = Value;
             if (e.Delta.Y > 0)
                 StepValue (+1);
             else if (e.Delta.Y < 0)
                 StepValue (-1);
+
+            e.Handled = Value != previousValue;
         }
 
         /// <summary>

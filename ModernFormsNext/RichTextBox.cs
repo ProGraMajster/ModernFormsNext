@@ -937,6 +937,7 @@ namespace ModernFormsNext
         {
             if (e.IsShortcutControlPressed && e.Delta.Y != 0) {
                 AdjustZoomFromMouseWheel(e.Delta.Y);
+                e.Handled = true;
                 return;
             }
 
