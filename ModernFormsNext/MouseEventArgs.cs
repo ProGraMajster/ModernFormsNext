@@ -8,8 +8,8 @@ using System.Drawing;
 namespace ModernFormsNext
 {
     /// <summary>
-    ///  Provides data for the <see cref='Control.MouseUp'/>, <see cref='Control.MouseDown'/> and
-    /// <see cref='Control.MouseMove'/> events.
+    ///  Provides data for the <see cref='Control.MouseUp'/>, <see cref='Control.MouseDown'/>,
+    /// <see cref='Control.MouseMove'/>, and <see cref='Control.MouseWheel'/> events.
     /// </summary>
     public class MouseEventArgs : EventArgs
     {
@@ -112,6 +112,16 @@ namespace ModernFormsNext
         /// Get the mouse location in screen coordinates.
         /// </summary>
         public Point ScreenLocation { get; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the mouse event was handled by the receiving control.
+        /// </summary>
+        /// <remarks>
+        /// Mouse-wheel routing uses this value to stop bubbling the event through parent controls.
+        /// A scrollable control should set it only when the wheel input changed its scroll position,
+        /// allowing an outer scrolling container to continue at an inner container's boundary.
+        /// </remarks>
+        public bool Handled { get; set; }
 
         /// <summary>Gets the platform-stable identifier for this pointer sequence.</summary>
         /// <remarks>Desktop mouse events use zero. Touch hosts preserve the platform pointer ID.</remarks>

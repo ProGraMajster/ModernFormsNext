@@ -111,6 +111,9 @@ namespace ModernFormsNext
             var height = 0;
             var extra_width = hscrollbar.Value + PresentationPadding.Right;
             var extra_height = vscrollbar.Value + PresentationPadding.Bottom;
+            var layout_bounds = LayoutEngine == DefaultLayout.Instance
+                ? Size.Empty
+                : CommonProperties.GetLayoutBounds (this);
 
             foreach (var c in Controls) {
                 if (IsInternalScrollControl (c))
@@ -125,6 +128,16 @@ namespace ModernFormsNext
             if (!auto_scroll_min_size.IsEmpty) {
                 width = auto_scroll_min_size.Width;
                 height = auto_scroll_min_size.Height;
+            }
+
+            // Non-default layout engines arrange children as a group and publish the full
+            // content extent through CommonProperties. Reading individual child bounds is not
+            // sufficient for flow/table layouts, especially on the same pass that adds or
+            // removes children, because those bounds belong to the preceding arrangement.
+            if (!layout_bounds.IsEmpty) {
+                canvas_size.Width = Math.Max (width, layout_bounds.Width + PresentationPadding.Right);
+                canvas_size.Height = Math.Max (height, layout_bounds.Height + PresentationPadding.Bottom);
+                return;
             }
 
             foreach (var c in Controls) {
@@ -195,6 +208,13 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnLayout (LayoutEventArgs e)
         {
+            var usesDerivedLayoutEngine = LayoutEngine != DefaultLayout.Instance;
+            if (usesDerivedLayoutEngine) {
+                // Derived layout engines must arrange their children and publish LayoutBounds
+                // before the scroll range is calculated. Otherwise the range lags one pass behind.
+                base.OnLayout (e);
+            }
+
             CalculateCanvasSize ();
 
             // A Bounds layout runs after the client size has already changed. Keep the existing
@@ -214,7 +234,27 @@ namespace ModernFormsNext
                 preserve_anchor_layout_during_scrollbar_adjustment = previousPreserveAnchorLayout;
             }
 
-            base.OnLayout (e);
+            // DefaultLayout keeps the established pre-adjustment order because it owns anchor
+            // distance initialization during bounds and presentation-padding changes.
+            if (!usesDerivedLayoutEngine)
+                base.OnLayout (e);
+        }
+
+        /// <inheritdoc/>
+        protected override void OnMouseWheel (MouseEventArgs e)
+        {
+            base.OnMouseWheel (e);
+
+            if (e.Handled || !Enabled || !AutoScroll)
+                return;
+
+            if (e.Delta.Y != 0 && vscrollbar.Visible) {
+                vscrollbar.RaiseMouseWheel (e);
+                return;
+            }
+
+            if (e.Delta.X != 0 && hscrollbar.Visible)
+                hscrollbar.RaiseMouseWheel (e);
         }
 
         /// <inheritdoc/>

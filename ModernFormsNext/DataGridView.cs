@@ -946,7 +946,7 @@ namespace ModernFormsNext
         {
             base.OnMouseWheel(e);
 
-            if (vscrollbar.Visible)
+            if (!e.Handled && vscrollbar.Visible)
                 vscrollbar.RaiseMouseWheel(e);
         }
 
