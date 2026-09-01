@@ -582,13 +582,16 @@ namespace ModernFormsNext
         {
             base.OnMouseWheel(e);
 
-            if (!Enabled)
+            if (e.Handled || !Enabled)
                 return;
 
+            var previousValue = Value;
             if (e.Delta.Y > 0)
                 ChangeValueBy(SmallChange);
             else if (e.Delta.Y < 0)
                 ChangeValueBy(-SmallChange);
+
+            e.Handled = Value != previousValue;
         }
 
         /// <inheritdoc/>

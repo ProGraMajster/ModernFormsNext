@@ -18,14 +18,11 @@ namespace ControlGallery.Panels
             };
 
             sc.Controls.AddRange (
-                CreateButton ("1", 0, 0),
-                CreateButton ("2", 100, 0),
-                CreateButton ("3", 0, 100),
-                CreateButton ("4", 100, 100),
-                CreateButton ("5", 0, 200),
-                CreateButton ("6", 100, 200),
-                CreateButton ("7", 0, 300),
-                CreateButton ("8", 100, 300));
+                new Label { Left = 10, Top = 10, Width = 160, Height = 30, Text = "Wheel over label" },
+                new TextBox { Left = 10, Top = 55, Width = 160, Height = 36, Text = "Wheel over input" },
+                new CheckBox { Left = 10, Top = 110, Width = 160, Height = 36, Text = "Wheel over option" },
+                CreateButton ("Wheel over button", 10, 165),
+                CreateButton ("Overflow", 10, 300));
 
             Controls.Add (sc);
 
@@ -37,15 +34,27 @@ namespace ControlGallery.Panels
                 AutoScroll = true
             };
 
+            var nested = new ScrollableControl {
+                Left = 10,
+                Top = 10,
+                Width = 185,
+                Height = 110,
+                AutoScroll = true
+            };
+            nested.Controls.AddRange (
+                CreateButton ("Inner 1", 5, 5),
+                CreateButton ("Inner 2", 5, 140),
+                CreateButton ("Inner 3", 5, 275));
             sc2.Controls.AddRange (
-                CreateButton ("1", 0, 0),
-                CreateButton ("2", 100, 0),
-                CreateButton ("3", 0, 100),
-                CreateButton ("4", 100, 100),
-                CreateButton ("5", 0, 200),
-                CreateButton ("6", 100, 200),
-                CreateButton ("7", 0, 300),
-                CreateButton ("8", 100, 300));
+                nested,
+                new Label {
+                    Left = 10,
+                    Top = 340,
+                    Width = 180,
+                    Height = 50,
+                    Multiline = true,
+                    Text = "At the inner limit, keep wheeling to scroll the outer panel."
+                });
 
             Controls.Add (sc2);
 
@@ -83,7 +92,7 @@ namespace ControlGallery.Panels
             return new Button {
                 Left = x,
                 Top = y,
-                Width = 110,
+                Width = 160,
                 Height = 110,
                 Text = text
             };

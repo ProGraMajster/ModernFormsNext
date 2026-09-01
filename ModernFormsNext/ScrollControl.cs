@@ -47,7 +47,16 @@ namespace ModernFormsNext
         {
             base.OnMouseWheel (e);
 
-            vscrollbar.RaiseMouseWheel (e);
+            if (e.Handled)
+                return;
+
+            if (e.Delta.Y != 0 && vscrollbar.Visible) {
+                vscrollbar.RaiseMouseWheel (e);
+                return;
+            }
+
+            if (e.Delta.X != 0 && hscrollbar.Visible)
+                hscrollbar.RaiseMouseWheel (e);
         }
 
         /// <inheritdoc/>
