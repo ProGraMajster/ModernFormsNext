@@ -87,8 +87,9 @@ public partial class Control
             var used = new bool[existing.Count];
             var synchronized = new List<TNode>(items.Count);
 
-            foreach (object item in items)
+            for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
             {
+                object item = items[itemIndex];
                 TNode? matched = null;
 
                 for (int i = 0; i < existing.Count; i++)
@@ -102,7 +103,7 @@ public partial class Control
                 }
 
                 matched ??= create(item);
-                matched.Attach();
+                matched.Attach(itemIndex);
                 synchronized.Add(matched);
             }
 
@@ -126,12 +127,6 @@ public partial class Control
 
         private MenuItemAccessibleObject GetMenuItemObject(MenuBase owner, MenuItem item)
             => menu_item_objects.GetValue(item, value => new MenuItemAccessibleObject(this, owner, value));
-
-        private int IndexOfListBoxItem(ListBoxItemAccessibleObject item, ListBox owner)
-            => GetListBoxItemObjects(owner).IndexOfReference(item);
-
-        private int IndexOfComboBoxItem(ComboBoxItemAccessibleObject item, ComboBox owner)
-            => GetComboBoxItemObjects(owner).IndexOfReference(item);
 
         private static AccessibleObject? NavigateLogicalObject(AccessibleObject current, AccessibleNavigation direction)
         {
@@ -219,6 +214,7 @@ public partial class Control
         {
             private readonly WeakReference<object> item_reference;
             private bool attached = true;
+            private int current_index;
 
             protected OccurrenceItemAccessibleObject(ControlAccessibleObject root, Control owner, object item)
                 : base(root, owner)
@@ -231,12 +227,22 @@ public partial class Control
 
             protected bool IsAttached => attached && Item is not null;
 
+            protected int CurrentIndex => IsAttached ? current_index : -1;
+
             public bool Represents(object item)
                 => item_reference.TryGetTarget(out object? current) && ReferenceEquals(current, item);
 
-            public void Attach() => attached = true;
+            public void Attach(int index)
+            {
+                attached = true;
+                current_index = index;
+            }
 
-            public void Detach() => attached = false;
+            public void Detach()
+            {
+                attached = false;
+                current_index = -1;
+            }
 
             public override string? Name
             {
@@ -267,7 +273,7 @@ public partial class Control
             private ListBox? Owner
                 => owner_reference.TryGetTarget(out ListBox? owner) && !owner.IsDisposed ? owner : null;
 
-            private int Index => Owner is { } owner ? Root.IndexOfListBoxItem(this, owner) : -1;
+            private int Index => Owner is not null ? CurrentIndex : -1;
 
             public override AccessibleObject? Parent => Index >= 0 ? Root : null;
 
@@ -355,7 +361,7 @@ public partial class Control
             private ComboBox? Owner
                 => owner_reference.TryGetTarget(out ComboBox? owner) && !owner.IsDisposed ? owner : null;
 
-            private int Index => Owner is { } owner ? Root.IndexOfComboBoxItem(this, owner) : -1;
+            private int Index => Owner is not null ? CurrentIndex : -1;
 
             public override AccessibleObject? Parent => Index >= 0 ? Root : null;
 
@@ -796,20 +802,5 @@ public partial class Control
                 }
             }
         }
-    }
-}
-
-internal static class AccessibleObjectListExtensions
-{
-    public static int IndexOfReference<T>(this IReadOnlyList<T> items, T item)
-        where T : class
-    {
-        for (int i = 0; i < items.Count; i++)
-        {
-            if (ReferenceEquals(items[i], item))
-                return i;
-        }
-
-        return -1;
     }
 }

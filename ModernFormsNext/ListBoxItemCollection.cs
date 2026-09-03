@@ -89,6 +89,12 @@ namespace ModernFormsNext
 
             UpdateSelectionAfterCollectionChange(e);
             owner.Invalidate ();
+
+            // Once semantics have been requested, synchronize the occurrence cache at the
+            // mutation boundary so an externally held peer detaches immediately after removal.
+            if (owner.IsAccessibilityObjectCreated)
+                _ = owner.AccessibilityObject.GetChildCount();
+
             owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
             owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
         }

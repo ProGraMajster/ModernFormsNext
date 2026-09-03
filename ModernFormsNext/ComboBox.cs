@@ -21,7 +21,12 @@ namespace ModernFormsNext
         {
             popup_listbox = new ListBox { Dock = DockStyle.Fill, SelectItemOnMouseUp = true, ShowHover = true };
             popup_listbox.SelectedIndexChanged += ListBox_SelectedIndexChanged;
-            popup_listbox.Items.CollectionChanged += (_, _) => NotifyAccessibilityClients(AccessibleEvents.Reorder);
+            popup_listbox.Items.CollectionChanged += (_, _) => {
+                if (IsAccessibilityObjectCreated)
+                    _ = AccessibilityObject.GetChildCount();
+
+                NotifyAccessibilityClients(AccessibleEvents.Reorder);
+            };
         }
 
         /// <inheritdoc/>
