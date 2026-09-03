@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using ModernFormsNext.Accessibility;
 
 namespace ModernFormsNext;
@@ -34,7 +36,7 @@ public partial class Control
         {
             get
             {
-                if (Owner is not { } owner || !owner.Visible)
+                if (Owner is not { } owner || owner.IsDisposed || !owner.Visible)
                     return Rectangle.Empty;
 
                 // Transform all corners. Two diagonal corners are insufficient after rotation or
@@ -60,6 +62,35 @@ public partial class Control
                     return base.DefaultAction;
 
                 return owner.AccessibleDefaultActionDescription ?? GetDefaultAction(owner) ?? base.DefaultAction;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override string? AutomationId
+        {
+            get
+            {
+                if (Owner is not { } owner)
+                    return base.AutomationId;
+
+                return owner.AccessibleAutomationId ?? owner.Name;
+            }
+            set
+            {
+                if (Owner is { } owner)
+                    owner.AccessibleAutomationId = value;
+                else
+                    base.AutomationId = value;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override AccessibleControlType ControlType
+        {
+            get
+            {
+                var controlType = Owner?.AccessibleControlType ?? AccessibleControlType.Default;
+                return controlType == AccessibleControlType.Default ? GetDefaultControlType(Owner) : controlType;
             }
         }
 
@@ -108,7 +139,16 @@ public partial class Control
         public Control? Owner => _owner.TryGetTarget(out Control? owner) ? owner : null;
 
         /// <inheritdoc/>
-        public override AccessibleObject? Parent => Owner?.Parent?.AccessibilityObject;
+        public override AccessibleObject? Parent
+        {
+            get
+            {
+                if (Owner is not { IsDisposed: false } owner)
+                    return null;
+
+                return owner.Parent?.AccessibilityObject;
+            }
+        }
 
         /// <inheritdoc/>
         public override AccessibleRole Role
@@ -125,8 +165,8 @@ public partial class Control
         {
             get
             {
-                if (Owner is not { } owner)
-                    return AccessibleStates.Unavailable;
+                if (Owner is not { } owner || owner.IsDisposed)
+                    return AccessibleStates.Unavailable | AccessibleStates.Invisible | AccessibleStates.Offscreen;
 
                 var state = AccessibleStates.None;
 
@@ -134,7 +174,7 @@ public partial class Control
                     state |= AccessibleStates.Unavailable;
 
                 if (!owner.Visible)
-                    state |= AccessibleStates.Invisible;
+                    state |= AccessibleStates.Invisible | AccessibleStates.Offscreen;
 
                 if (owner.Focused)
                     state |= AccessibleStates.Focused;
@@ -145,6 +185,70 @@ public partial class Control
                 state |= GetDefaultState(owner);
 
                 return state;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override bool IsSensitive
+            => Owner is TextBox { PasswordCharacter: not null };
+
+        /// <inheritdoc/>
+        public override AccessibleRangeValue? RangeValue
+            => Owner switch
+            {
+                TrackBar trackBar => new AccessibleRangeValue(
+                    trackBar.Value,
+                    trackBar.Minimum,
+                    trackBar.Maximum,
+                    trackBar.SmallChange,
+                    trackBar.LargeChange,
+                    isReadOnly: false),
+                ProgressBar progressBar => new AccessibleRangeValue(
+                    progressBar.Value,
+                    progressBar.Minimum,
+                    progressBar.Maximum,
+                    progressBar.Step,
+                    progressBar.Step,
+                    isReadOnly: true),
+                _ => null
+            };
+
+        /// <inheritdoc/>
+        public override AccessibleActions SupportedActions
+        {
+            get
+            {
+                if (Owner is not { IsDisposed: false } owner)
+                    return AccessibleActions.None;
+
+                var actions = owner.CanSelect ? AccessibleActions.Focus : AccessibleActions.None;
+
+                actions |= owner switch
+                {
+                    Button => AccessibleActions.Invoke,
+                    CheckBox { AutoCheck: true } => AccessibleActions.Toggle,
+                    RadioButton { AutoCheck: true } => AccessibleActions.Select,
+                    Switch => AccessibleActions.Toggle,
+                    TextBox { ReadOnly: false } => AccessibleActions.SetValue,
+                    ComboBox => AccessibleActions.Expand | AccessibleActions.Collapse,
+                    TrackBar => AccessibleActions.SetValue | AccessibleActions.Increment | AccessibleActions.Decrement,
+                    _ => AccessibleActions.None
+                };
+
+                return actions;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override AccessibilityView View
+        {
+            get
+            {
+                if (Owner is not { IsDisposed: false } owner || !owner.Visible)
+                    return AccessibilityView.Hidden;
+
+                var view = owner.AccessibilityView;
+                return view == AccessibilityView.Default ? GetDefaultAccessibilityView(owner) : view;
             }
         }
 
@@ -170,14 +274,37 @@ public partial class Control
         /// <inheritdoc/>
         public override AccessibleObject? GetChild(int index)
         {
-            if (Owner is not { } owner || index < 0 || index >= owner.Controls.Count)
+            if (index < 0)
                 return null;
 
-            return owner.Controls[index].AccessibilityObject;
+            return EnumerateActiveChildren().ElementAtOrDefault(index);
         }
 
         /// <inheritdoc/>
-        public override int GetChildCount() => Owner?.Controls.Count ?? 0;
+        public override int GetChildCount() => EnumerateActiveChildren().Count();
+
+        /// <summary>
+        /// Enumerates the control and logical objects that are candidates for this object's child
+        /// sequence before visibility and view filtering is applied.
+        /// </summary>
+        /// <returns>
+        /// An on-demand sequence of accessible children. The default implementation returns the
+        /// represented control's explicit visual children.
+        /// </returns>
+        /// <remarks>
+        /// Override this method to insert logical children for custom-rendered or composite
+        /// controls. Logical children do not need to derive from <see cref="Control"/>. Return the
+        /// same child object while its logical item remains alive so <see cref="AccessibleObject.RuntimeId"/>
+        /// is stable. Do not cache a strong owner reference when a weak reference is sufficient.
+        /// </remarks>
+        protected virtual IEnumerable<AccessibleObject> GetAccessibilityChildren()
+        {
+            if (Owner is not { IsDisposed: false } owner)
+                yield break;
+
+            foreach (Control child in owner.Controls)
+                yield return child.AccessibilityObject;
+        }
 
         /// <inheritdoc/>
         public override AccessibleObject? GetFocused()
@@ -185,10 +312,13 @@ public partial class Control
             if (Owner is not { } owner)
                 return null;
 
-            foreach (var child in owner.Controls.GetAllControls(true))
+            foreach (AccessibleObject child in EnumerateActiveChildren())
             {
-                if (child.Focused)
-                    return child.AccessibilityObject;
+                if ((child.State & AccessibleStates.Focused) != 0)
+                    return child;
+
+                if (child.GetFocused() is { } focused)
+                    return focused;
             }
 
             return owner.Focused ? this : null;
@@ -216,11 +346,11 @@ public partial class Control
                 return null;
 
             // Accessibility hit testing follows the same front-to-back contract as pointer
-            // dispatch: the last collection index is the first eligible overlapping child.
-            for (int i = owner.Controls.Count - 1; i >= 0; i--)
+            // dispatch: the last child is the first eligible overlapping object.
+            AccessibleObject[] children = EnumerateActiveChildren().ToArray();
+            for (int i = children.Length - 1; i >= 0; i--)
             {
-                var child = owner.Controls[i];
-                var hit = child.AccessibilityObject.HitTest(x, y);
+                var hit = children[i].HitTest(x, y);
                 if (hit is not null)
                     return hit;
             }
@@ -245,6 +375,108 @@ public partial class Control
         }
 
         /// <inheritdoc/>
+        public override void DoDefaultAction()
+        {
+            AccessibleActions action = Owner switch
+            {
+                Button => AccessibleActions.Invoke,
+                CheckBox => AccessibleActions.Toggle,
+                RadioButton => AccessibleActions.Select,
+                Switch => AccessibleActions.Toggle,
+                ComboBox comboBox => comboBox.DroppedDown ? AccessibleActions.Collapse : AccessibleActions.Expand,
+                _ => AccessibleActions.None
+            };
+
+            if (action != AccessibleActions.None)
+                PerformAction(action);
+        }
+
+        /// <inheritdoc/>
+        public override bool PerformAction(AccessibleActions action, object? parameter = null)
+        {
+            if (!IsSingleAction(action)
+                || (SupportedActions & action) == 0
+                || Owner is not { IsDisposed: false } owner
+                || !owner.Enabled
+                || !owner.Visible)
+            {
+                return false;
+            }
+
+            if (action != AccessibleActions.SetValue && parameter is not null)
+                return false;
+
+            switch (action)
+            {
+                case AccessibleActions.Invoke when owner is Button button:
+                    button.PerformClick();
+                    return true;
+
+                case AccessibleActions.Toggle when owner is CheckBox checkBox:
+                    checkBox.OnClick(CreateAccessibilityClick());
+                    return true;
+
+                case AccessibleActions.Select when owner is RadioButton radioButton:
+                    radioButton.OnClick(CreateAccessibilityClick());
+                    return true;
+
+                case AccessibleActions.Toggle when owner is Switch @switch:
+                    @switch.Toggle();
+                    return true;
+
+                case AccessibleActions.Expand when owner is ComboBox comboBox:
+                    comboBox.DroppedDown = true;
+                    return true;
+
+                case AccessibleActions.Collapse when owner is ComboBox comboBox:
+                    comboBox.DroppedDown = false;
+                    return true;
+
+                case AccessibleActions.SetValue when owner is TextBox textBox:
+                    if (parameter is not null and not string)
+                        return false;
+
+                    textBox.Text = (string?)parameter ?? string.Empty;
+                    return true;
+
+                case AccessibleActions.SetValue when owner is TrackBar trackBar:
+                    if (!TryGetRangeActionValue(parameter, trackBar.Minimum, trackBar.Maximum, out int requestedValue))
+                        return false;
+
+                    trackBar.Value = requestedValue;
+                    return true;
+
+                case AccessibleActions.Increment when owner is TrackBar trackBar:
+                    trackBar.Value = Math.Min(trackBar.Maximum, trackBar.Value + trackBar.SmallChange);
+                    return true;
+
+                case AccessibleActions.Decrement when owner is TrackBar trackBar:
+                    trackBar.Value = Math.Max(trackBar.Minimum, trackBar.Value - trackBar.SmallChange);
+                    return true;
+
+                case AccessibleActions.Focus:
+                    owner.Select();
+                    return owner.Focused;
+
+                default:
+                    return false;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override void Select(AccessibleSelection flags)
+        {
+            if ((flags & AccessibleSelection.TakeFocus) != 0)
+                PerformAction(AccessibleActions.Focus);
+
+            if ((flags & AccessibleSelection.TakeSelection) != 0
+                && (SupportedActions & AccessibleActions.Select) != 0)
+            {
+                PerformAction(AccessibleActions.Select);
+            }
+        }
+
+        /// <inheritdoc/>
         public override string ToString() => $"{nameof(ControlAccessibleObject)}: Owner = {Owner}";
 
         private static string? GetDefaultAction(Control owner)
@@ -262,6 +494,14 @@ public partial class Control
 
         private static string? GetDefaultAccessibleName(Control owner)
         {
+            if (owner is ControlAdapter { ParentForm: Form form })
+                return form.Text;
+
+            // Editable text is a value, not a label. Falling back to Text here would leak user
+            // content into the accessible name and would conflate two distinct semantic fields.
+            if (owner is TextBox)
+                return owner.Name;
+
             if (!string.IsNullOrEmpty(owner.Text))
                 return owner.Text;
 
@@ -271,6 +511,7 @@ public partial class Control
         private static AccessibleRole GetDefaultRole(Control? owner)
             => owner switch
             {
+                ControlAdapter => AccessibleRole.Window,
                 Button => AccessibleRole.PushButton,
                 CheckBox => AccessibleRole.CheckButton,
                 ComboBox => AccessibleRole.ComboBox,
@@ -294,7 +535,42 @@ public partial class Control
                 TabControl => AccessibleRole.PageTabList,
                 TextBox => AccessibleRole.Text,
                 TrackBar => AccessibleRole.Slider,
+                TreeView => AccessibleRole.Outline,
+                Menu => AccessibleRole.MenuBar,
+                MenuDropDown => AccessibleRole.MenuPopup,
                 _ => AccessibleRole.Client
+            };
+
+        private static AccessibleControlType GetDefaultControlType(Control? owner)
+            => owner switch
+            {
+                ControlAdapter => AccessibleControlType.Window,
+                Button => AccessibleControlType.Button,
+                CheckBox => AccessibleControlType.CheckBox,
+                RadioButton => AccessibleControlType.RadioButton,
+                Switch => AccessibleControlType.Switch,
+                TextBox => AccessibleControlType.Edit,
+                ComboBox => AccessibleControlType.ComboBox,
+                ListBox or ListView => AccessibleControlType.List,
+                TreeView => AccessibleControlType.Tree,
+                TabControl => AccessibleControlType.Tab,
+                TrackBar => AccessibleControlType.Slider,
+                ProgressBar => AccessibleControlType.ProgressBar,
+                ScrollBar => AccessibleControlType.ScrollBar,
+                Menu or MenuDropDown => AccessibleControlType.Menu,
+                ToolBar => AccessibleControlType.ToolBar,
+                Label => AccessibleControlType.Text,
+                PictureBox or Shape => AccessibleControlType.Image,
+                GroupBox => AccessibleControlType.Group,
+                Panel or FlowLayoutPanel or TableLayoutPanel => AccessibleControlType.Pane,
+                _ => AccessibleControlType.Custom
+            };
+
+        private static AccessibilityView GetDefaultAccessibilityView(Control owner)
+            => owner switch
+            {
+                Label or PictureBox or Shape or ProgressBar => AccessibilityView.Content,
+                _ => AccessibilityView.Control
             };
 
         private static AccessibleStates GetDefaultState(Control owner)
@@ -317,7 +593,7 @@ public partial class Control
                 state |= AccessibleStates.Selectable;
 
                 if (radioButton.Checked)
-                    state |= AccessibleStates.Checked;
+                    state |= AccessibleStates.Checked | AccessibleStates.Selected;
             }
             else if (owner is Switch @switch)
             {
@@ -389,6 +665,10 @@ public partial class Control
                 if (trackBar.ThumbPressed)
                     state |= AccessibleStates.Pressed;
             }
+            else if (owner is ProgressBar)
+            {
+                state |= AccessibleStates.ReadOnly;
+            }
 
             return state;
         }
@@ -408,18 +688,93 @@ public partial class Control
                 _ => null
             };
 
+        private IEnumerable<AccessibleObject> EnumerateActiveChildren()
+        {
+            foreach (AccessibleObject child in GetAccessibilityChildren())
+            {
+                if (child is null
+                    || child.View == AccessibilityView.Hidden
+                    || (child.State & AccessibleStates.Invisible) != 0)
+                {
+                    continue;
+                }
+
+                yield return child;
+            }
+        }
+
         private static AccessibleObject? GetSibling(Control owner, int offset)
         {
             if (owner.Parent is not { } parent)
                 return null;
 
-            int index = parent.Controls.IndexOf(owner);
+            AccessibleObject parentObject = parent.AccessibilityObject;
+            AccessibleObject ownerObject = owner.AccessibilityObject;
+            int index = -1;
+
+            for (int i = 0; i < parentObject.GetChildCount(); i++)
+            {
+                if (ReferenceEquals(parentObject.GetChild(i), ownerObject))
+                {
+                    index = i;
+                    break;
+                }
+            }
+
             int siblingIndex = index + offset;
 
-            if (index < 0 || siblingIndex < 0 || siblingIndex >= parent.Controls.Count)
+            if (index < 0 || siblingIndex < 0 || siblingIndex >= parentObject.GetChildCount())
                 return null;
 
-            return parent.Controls[siblingIndex].AccessibilityObject;
+            return parentObject.GetChild(siblingIndex);
+        }
+
+        private static MouseEventArgs CreateAccessibilityClick()
+            => new(MouseButtons.Left, 1, 0, 0, Point.Empty);
+
+        private static bool IsSingleAction(AccessibleActions action)
+        {
+            int value = (int)action;
+            return value > 0 && (value & (value - 1)) == 0;
+        }
+
+        private static bool TryGetRangeActionValue(object? parameter, int minimum, int maximum, out int value)
+        {
+            value = default;
+
+            try
+            {
+                double number = parameter switch
+                {
+                    byte typed => typed,
+                    sbyte typed => typed,
+                    short typed => typed,
+                    ushort typed => typed,
+                    int typed => typed,
+                    uint typed => typed,
+                    long typed => typed,
+                    ulong typed => typed,
+                    float typed => typed,
+                    double typed => typed,
+                    decimal typed => (double)typed,
+                    _ => double.NaN
+                };
+
+                if (!double.IsFinite(number)
+                    || number < minimum
+                    || number > maximum
+                    || number != Math.Truncate(number))
+                {
+                    return false;
+                }
+
+                value = checked((int)number);
+                return true;
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
         }
     }
 }
