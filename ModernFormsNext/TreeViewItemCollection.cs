@@ -54,29 +54,49 @@ namespace ModernFormsNext
         }
 
         /// <inheritdoc/>
+        protected override void ClearItems()
+        {
+            TreeView? treeView = owner.TreeView;
+            TreeViewItem[] removedItems = Items.ToArray();
+
+            foreach (TreeViewItem item in removedItems)
+                item.Parent = null;
+
+            base.ClearItems();
+            owner.Invalidate();
+            treeView?.OnAccessibilityItemsRemoved(removedItems);
+            treeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+        }
+
+        /// <inheritdoc/>
         protected override void InsertItem (int index, TreeViewItem item)
         {
             base.InsertItem (index, item);
 
             item.Parent = owner;
             owner.Invalidate ();
+            owner.TreeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
 
         /// <inheritdoc/>
         protected override void RemoveItem (int index)
         {
             var item = this[index];
+            TreeView? treeView = owner.TreeView;
 
             base.RemoveItem (index);
 
             item.Parent = null;
             owner.Invalidate ();
+            treeView?.OnAccessibilityItemsRemoved([item]);
+            treeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
 
         /// <inheritdoc/>
         protected override void SetItem (int index, TreeViewItem item)
         {
             var old_item = this.ElementAtOrDefault (index);
+            TreeView? treeView = owner.TreeView;
 
             if (old_item != null)
                 old_item.Parent = null;
@@ -85,6 +105,9 @@ namespace ModernFormsNext
 
             item.Parent = owner;
             owner.Invalidate ();
+            if (old_item is not null)
+                treeView?.OnAccessibilityItemsRemoved([old_item]);
+            treeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
     }
 }

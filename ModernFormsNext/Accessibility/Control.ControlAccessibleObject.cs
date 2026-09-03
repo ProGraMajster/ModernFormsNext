@@ -17,7 +17,7 @@ public partial class Control
     /// not create native handles or COM providers; platform backends can adapt this object to
     /// their native accessibility systems.
     /// </remarks>
-    public class ControlAccessibleObject : AccessibleObject
+    public partial class ControlAccessibleObject : AccessibleObject
     {
         private readonly WeakReference<Control> _owner;
 
@@ -302,6 +302,9 @@ public partial class Control
             if (Owner is not { IsDisposed: false } owner)
                 yield break;
 
+            foreach (AccessibleObject logicalChild in GetLogicalAccessibilityChildren(owner))
+                yield return logicalChild;
+
             foreach (Control child in owner.Controls)
                 yield return child.AccessibilityObject;
         }
@@ -425,6 +428,9 @@ public partial class Control
                     return true;
 
                 case AccessibleActions.Expand when owner is ComboBox comboBox:
+                    if (comboBox.FindForm() is null)
+                        return false;
+
                     comboBox.DroppedDown = true;
                     return true;
 

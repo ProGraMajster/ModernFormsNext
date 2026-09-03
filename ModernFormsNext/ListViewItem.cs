@@ -9,6 +9,9 @@ namespace ModernFormsNext
     /// </summary>
     public class ListViewItem
     {
+        private bool selected;
+        private string text = string.Empty;
+
         /// <summary>
         /// Gets the current bounding box of the item.
         /// </summary>
@@ -27,7 +30,19 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets a value indicating if the item is currently selected.
         /// </summary>
-        public bool Selected { get; set; }
+        public bool Selected
+        {
+            get => selected;
+            set
+            {
+                if (selected == value)
+                    return;
+
+                selected = value;
+                Parent?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+                Parent?.Invalidate();
+            }
+        }
 
         /// <summary>
         /// Sets the bounding box of the item. This is internal API and should not be called.
@@ -45,6 +60,19 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the text displayed on the item.
         /// </summary>
-        public string Text { get; set; } = string.Empty;
+        public string Text
+        {
+            get => text;
+            set
+            {
+                value ??= string.Empty;
+                if (text == value)
+                    return;
+
+                text = value;
+                Parent?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.NameChange);
+                Parent?.Invalidate();
+            }
+        }
     }
 }

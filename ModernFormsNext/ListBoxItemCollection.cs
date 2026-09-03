@@ -6,7 +6,6 @@ using System.Linq;
 
 namespace ModernFormsNext
 {
-    // TODO: Update selected indexes when adding/removing items
     /// <summary>
     /// Represents a collection of items for ListBox.
     /// </summary>
@@ -88,7 +87,73 @@ namespace ModernFormsNext
         {
             base.OnCollectionChanged (e);
 
+            UpdateSelectionAfterCollectionChange(e);
             owner.Invalidate ();
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+        }
+
+        private void UpdateSelectionAfterCollectionChange(NotifyCollectionChangedEventArgs e)
+        {
+            switch (e.Action)
+            {
+                case NotifyCollectionChangedAction.Add when e.NewStartingIndex >= 0:
+                    int addedCount = e.NewItems?.Count ?? 1;
+                    for (int i = 0; i < SelectedIndexes.Count; i++)
+                    {
+                        if (SelectedIndexes[i] >= e.NewStartingIndex)
+                            SelectedIndexes[i] += addedCount;
+                    }
+
+                    if (focused_index >= e.NewStartingIndex)
+                        focused_index += addedCount;
+                    break;
+
+                case NotifyCollectionChangedAction.Remove when e.OldStartingIndex >= 0:
+                    int removedCount = e.OldItems?.Count ?? 1;
+                    int removedEnd = e.OldStartingIndex + removedCount;
+                    SelectedIndexes.RemoveAll(index => index >= e.OldStartingIndex && index < removedEnd);
+                    for (int i = 0; i < SelectedIndexes.Count; i++)
+                    {
+                        if (SelectedIndexes[i] >= removedEnd)
+                            SelectedIndexes[i] -= removedCount;
+                    }
+
+                    if (focused_index >= removedEnd)
+                        focused_index -= removedCount;
+                    else if (focused_index >= e.OldStartingIndex)
+                        focused_index = e.OldStartingIndex;
+                    break;
+
+                case NotifyCollectionChangedAction.Move when e.OldStartingIndex >= 0 && e.NewStartingIndex >= 0:
+                    for (int i = 0; i < SelectedIndexes.Count; i++)
+                        SelectedIndexes[i] = RemapMovedIndex(SelectedIndexes[i], e.OldStartingIndex, e.NewStartingIndex);
+
+                    focused_index = RemapMovedIndex(focused_index, e.OldStartingIndex, e.NewStartingIndex);
+                    break;
+
+                case NotifyCollectionChangedAction.Reset:
+                    SelectedIndexes.Clear();
+                    focused_index = 0;
+                    break;
+            }
+
+            SelectedIndexes.Sort();
+            focused_index = Count == 0 ? 0 : Math.Clamp(focused_index, 0, Count - 1);
+        }
+
+        private static int RemapMovedIndex(int index, int oldIndex, int newIndex)
+        {
+            if (index == oldIndex)
+                return newIndex;
+
+            if (oldIndex < newIndex && index > oldIndex && index <= newIndex)
+                return index - 1;
+
+            if (newIndex < oldIndex && index >= newIndex && index < oldIndex)
+                return index + 1;
+
+            return index;
         }
 
         internal void RemoveSelectedIndex (int index)

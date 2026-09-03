@@ -21,6 +21,7 @@ namespace ModernFormsNext
         {
             popup_listbox = new ListBox { Dock = DockStyle.Fill, SelectItemOnMouseUp = true, ShowHover = true };
             popup_listbox.SelectedIndexChanged += ListBox_SelectedIndexChanged;
+            popup_listbox.Items.CollectionChanged += (_, _) => NotifyAccessibilityClients(AccessibleEvents.Reorder);
         }
 
         /// <inheritdoc/>
@@ -71,6 +72,7 @@ namespace ModernFormsNext
                 if (DroppedDown && !value) {
                     popup?.Hide ();
                     OnDropDownClosed (EventArgs.Empty);
+                    NotifyAccessibilityClients(AccessibleEvents.StateChange);
                 } else if (!DroppedDown && value) {
                     if (FindForm () is not Form form)
                         throw new InvalidOperationException ("Cannot drop down a ComboBox that is not parented to a Form");
@@ -84,6 +86,7 @@ namespace ModernFormsNext
                     popup.Show (this, 1, Height);
 
                     OnDropDownOpened (EventArgs.Empty);
+                    NotifyAccessibilityClients(AccessibleEvents.StateChange);
                 }
             }
         }

@@ -55,6 +55,8 @@ namespace ModernFormsNext
             base.ClearItems ();
 
             owner.Invalidate ();
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
         }
 
         /// <inheritdoc/>
@@ -64,6 +66,7 @@ namespace ModernFormsNext
 
             item.Parent = owner;
             owner.Invalidate ();
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
 
         /// <inheritdoc/>
@@ -75,6 +78,8 @@ namespace ModernFormsNext
 
             item.Parent = null;
             owner.Invalidate ();
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
         }
 
         /// <inheritdoc/>
@@ -89,6 +94,8 @@ namespace ModernFormsNext
 
             item.Parent = owner;
             owner.Invalidate ();
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
         }
     }
 }
