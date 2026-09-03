@@ -32,7 +32,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Initializes a new instance of the Form class.
         /// </summary>
-        public Form () : base (CreateWindowImpl())
+        public Form () : this(CreateWindowImpl())
+        {
+        }
+
+        internal Form(IWindowBaseImpl window) : base(window)
         {
             // The client area must be an internal root child, not the public
             // Controls collection. Dock layout processes children from the back,
