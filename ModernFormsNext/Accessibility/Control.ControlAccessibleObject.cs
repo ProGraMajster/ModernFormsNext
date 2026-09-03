@@ -305,7 +305,11 @@ public partial class Control
             foreach (AccessibleObject logicalChild in GetLogicalAccessibilityChildren(owner))
                 yield return logicalChild;
 
-            foreach (Control child in owner.Controls)
+            IEnumerable<Control> visualChildren = owner is ControlAdapter adapter
+                ? adapter.ParentForm.Controls
+                : owner.Controls;
+
+            foreach (Control child in visualChildren)
                 yield return child.AccessibilityObject;
         }
 

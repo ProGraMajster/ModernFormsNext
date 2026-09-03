@@ -509,6 +509,7 @@ namespace ModernFormsNext
                     text = value;
                     Window.SetTitle (text);
                     TitleBar.Text = text;
+                    adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.NameChange);
                 }
             }
         }
