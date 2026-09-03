@@ -10,9 +10,12 @@ public partial class Control
 {
     private static readonly int s_accessibilityObjectProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleDefaultActionDescriptionProperty = PropertyStore.CreateKey();
+    private static readonly int s_accessibleAutomationIdProperty = PropertyStore.CreateKey();
+    private static readonly int s_accessibleControlTypeProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleDescriptionProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleNameProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleRoleProperty = PropertyStore.CreateKey();
+    private static readonly int s_accessibilityViewProperty = PropertyStore.CreateKey();
     private bool raising_accessibility_notification;
 
     /// <summary>
@@ -33,6 +36,53 @@ public partial class Control
 
             SetNullableAccessibilityString(s_accessibleDefaultActionDescriptionProperty, value);
             NotifyAccessibilityClients(AccessibleEvents.DefaultActionChange);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the stable developer-defined semantic automation identifier for this control.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> value lets <see cref="AccessibleObject.AutomationId"/> fall
+    /// back to <see cref="Name"/>. This identifier is distinct from the process-local
+    /// <see cref="AccessibleObject.RuntimeId"/> and does not change the accessible name.
+    /// </remarks>
+    public string? AccessibleAutomationId
+    {
+        get => Properties.GetObject<string>(s_accessibleAutomationIdProperty);
+        set
+        {
+            if (AccessibleAutomationId == value)
+                return;
+
+            SetNullableAccessibilityString(s_accessibleAutomationIdProperty, value);
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the normalized platform-neutral semantic type for this control.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AccessibleControlType.Default"/> lets <see cref="ControlAccessibleObject"/> infer a
+    /// type while <see cref="AccessibleRole"/> continues to provide WinForms/MSAA compatibility.
+    /// </remarks>
+    public AccessibleControlType AccessibleControlType
+    {
+        get => Properties.GetEnum(s_accessibleControlTypeProperty, AccessibleControlType.Default);
+        set
+        {
+            SourceGenerated.EnumValidator.Validate(value);
+
+            if (AccessibleControlType == value)
+                return;
+
+            if (value == AccessibleControlType.Default)
+                Properties.RemoveInteger(s_accessibleControlTypeProperty);
+            else
+                Properties.SetEnum(s_accessibleControlTypeProperty, value);
+
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
         }
     }
 
@@ -113,6 +163,35 @@ public partial class Control
                 Properties.SetEnum(s_accessibleRoleProperty, value);
 
             NotifyAccessibilityClients(AccessibleEvents.StateChange);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the accessibility-tree projection for this control.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ModernFormsNext.Accessibility.AccessibilityView.Default"/> lets the framework infer
+    /// a suitable projection. Setting <see cref="ModernFormsNext.Accessibility.AccessibilityView.Hidden"/>
+    /// excludes the control from its parent's active accessibility children without changing the
+    /// visual tree or <see cref="Visible"/> property.
+    /// </remarks>
+    public AccessibilityView AccessibilityView
+    {
+        get => Properties.GetEnum(s_accessibilityViewProperty, AccessibilityView.Default);
+        set
+        {
+            SourceGenerated.EnumValidator.Validate(value);
+
+            if (AccessibilityView == value)
+                return;
+
+            if (value == AccessibilityView.Default)
+                Properties.RemoveInteger(s_accessibilityViewProperty);
+            else
+                Properties.SetEnum(s_accessibilityViewProperty, value);
+
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+            Parent?.NotifyAccessibilityClients(AccessibleEvents.Reorder);
         }
     }
 
