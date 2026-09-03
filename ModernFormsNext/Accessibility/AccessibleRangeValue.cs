@@ -79,4 +79,3 @@ public readonly struct AccessibleRangeValue
     /// </summary>
     public bool IsReadOnly { get; }
 }
-

@@ -38,4 +38,3 @@ public enum AccessibilityView
     /// </summary>
     Hidden
 }
-
