@@ -449,7 +449,14 @@ namespace ModernFormsNext
         /// </summary>
         public char? PasswordCharacter {
             get => document.PasswordCharacter;
-            set => document.PasswordCharacter = value;
+            set {
+                if (document.PasswordCharacter == value)
+                    return;
+
+                document.PasswordCharacter = value;
+                NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
+                NotifyAccessibilityClients (Accessibility.AccessibleEvents.ValueChange);
+            }
         }
 
         /// <summary>
@@ -479,7 +486,13 @@ namespace ModernFormsNext
         /// </summary>
         public bool ReadOnly {
             get => document.ReadOnly;
-            set => document.ReadOnly = value;
+            set {
+                if (document.ReadOnly == value)
+                    return;
+
+                document.ReadOnly = value;
+                NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
+            }
         }
 
         /// <summary>

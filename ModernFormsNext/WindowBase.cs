@@ -60,6 +60,16 @@ namespace ModernFormsNext
             get => new System.Drawing.Rectangle (Location, Size);
         }
 
+        /// <summary>
+        /// Gets the canonical platform-neutral accessibility object for this window.
+        /// </summary>
+        /// <remarks>
+        /// The object is backed by the window's internal root adapter and exposes the window title,
+        /// normalized window type, state, and user-control hierarchy without creating a native UI
+        /// Automation provider. Mutable state must be read and acted upon on the UI thread.
+        /// </remarks>
+        public Accessibility.AccessibleObject AccessibilityObject => adapter.AccessibilityObject;
+
         private MouseEventArgs BuildMouseClickArgs (MouseButtons buttons, Point point, Keys keyData)
         {
             var click_count = 1;

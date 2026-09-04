@@ -35,11 +35,22 @@ namespace ModernFormsNext
         }
 
         /// <inheritdoc/>
+        protected override void ClearItems()
+        {
+            foreach (MenuItem item in Items)
+                item.Parent = null;
+
+            base.ClearItems();
+            owner.AccessibilityOwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+        }
+
+        /// <inheritdoc/>
         protected override void InsertItem (int index, MenuItem item)
         {
             base.InsertItem (index, item);
 
             item.Parent = owner;
+            owner.AccessibilityOwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
 
         /// <inheritdoc/>
@@ -50,6 +61,7 @@ namespace ModernFormsNext
             base.RemoveItem (index);
 
             item.Parent = null;
+            owner.AccessibilityOwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
 
         /// <inheritdoc/>
@@ -63,6 +75,7 @@ namespace ModernFormsNext
             base.SetItem (index, item);
 
             item.Parent = owner;
+            owner.AccessibilityOwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
     }
 }

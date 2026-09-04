@@ -15,6 +15,7 @@ namespace ModernFormsNext
         private readonly TreeView? tree_view;
 
         private bool expanded;
+        private string text = string.Empty;
         internal TreeViewItemCollection? items;
 
         /// <summary>
@@ -55,6 +56,7 @@ namespace ModernFormsNext
             if (expanded && tree_view is null) {
                 expanded = false;
                 Invalidate ();
+                TreeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
             }
         }
 
@@ -88,6 +90,7 @@ namespace ModernFormsNext
 
             expanded = true;
             Invalidate ();
+            TreeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
         }
 
         /// <summary>
@@ -259,7 +262,20 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the text of the item.
         /// </summary>
-        public string Text { get; set; } = string.Empty;
+        public string Text
+        {
+            get => text;
+            set
+            {
+                value ??= string.Empty;
+                if (text == value)
+                    return;
+
+                text = value;
+                Invalidate();
+                TreeView?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.NameChange);
+            }
+        }
 
         /// <summary>
         /// Gets the TreeView that contains this item.

@@ -16,6 +16,7 @@ namespace ModernFormsNext
         private bool checkedState;
         private bool enabled = true;
         private bool selected;
+        private string text = string.Empty;
 
         /// <summary>
         /// Initializes a new instance of the MenuItem class.
@@ -59,6 +60,7 @@ namespace ModernFormsNext
 
                 checkedState = value;
                 OwnerControl?.Invalidate (Bounds);
+                OwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
             }
         }
 
@@ -71,6 +73,7 @@ namespace ModernFormsNext
                 if (enabled != value) {
                     enabled = value;
                     OwnerControl?.Invalidate ();
+                    OwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
                 }
             }
         }
@@ -178,6 +181,10 @@ namespace ModernFormsNext
             }
         }
 
+        // Accessibility peers use the same owning control to transform item-local bounds without
+        // exposing MenuItem internals or introducing a platform-specific node type.
+        internal Control? AccessibilityOwnerControl => OwnerControl;
+
         /// <summary>
         /// Gets or sets the amount of padding to apply to the menu item.
         /// </summary>
@@ -239,7 +246,20 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the text of the menu item.
         /// </summary>
-        public string Text { get; set; } = string.Empty;
+        public string Text
+        {
+            get => text;
+            set
+            {
+                value ??= string.Empty;
+                if (text == value)
+                    return;
+
+                text = value;
+                OwnerControl?.Invalidate();
+                OwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.NameChange);
+            }
+        }
 
         /// <summary>
         /// Gets or sets the explanatory text displayed when the pointer rests over this item in a

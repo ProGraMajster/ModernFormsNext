@@ -453,6 +453,7 @@ public partial class Control
             MoveElement (child, currentIndex, newIndex);
 
             LayoutTransaction.DoLayout (Owner, child, PropertyNames.ChildIndex);
+            Owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
         }
 
         /// <summary>

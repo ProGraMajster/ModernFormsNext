@@ -246,7 +246,24 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the ItemSelected event.
         /// </summary>
-        protected virtual void OnItemSelected (EventArgs<TreeViewItem> e) => ItemSelected?.Invoke (this, e);
+        protected virtual void OnItemSelected (EventArgs<TreeViewItem> e)
+        {
+            ItemSelected?.Invoke(this, e);
+            NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+            NotifyAccessibilityClients(Accessibility.AccessibleEvents.ValueChange);
+        }
+
+        // A logical accessible item can outlive its collection membership. Clear a selection that
+        // points into a removed subtree so GetSelected never returns a detached semantic object.
+        internal void OnAccessibilityItemsRemoved(IEnumerable<TreeViewItem> removedItems)
+        {
+            if (!removedItems.Any(item => item.GetAllItems().Contains(selected_item)))
+                return;
+
+            selected_item = root_item;
+            NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+            NotifyAccessibilityClients(Accessibility.AccessibleEvents.ValueChange);
+        }
 
         /// <inheritdoc/>
         protected override void OnKeyDown (KeyEventArgs e)

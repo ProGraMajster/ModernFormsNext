@@ -10,9 +10,12 @@ public partial class Control
 {
     private static readonly int s_accessibilityObjectProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleDefaultActionDescriptionProperty = PropertyStore.CreateKey();
+    private static readonly int s_accessibleAutomationIdProperty = PropertyStore.CreateKey();
+    private static readonly int s_accessibleControlTypeProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleDescriptionProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleNameProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleRoleProperty = PropertyStore.CreateKey();
+    private static readonly int s_accessibilityViewProperty = PropertyStore.CreateKey();
     private bool raising_accessibility_notification;
 
     /// <summary>
@@ -33,6 +36,53 @@ public partial class Control
 
             SetNullableAccessibilityString(s_accessibleDefaultActionDescriptionProperty, value);
             NotifyAccessibilityClients(AccessibleEvents.DefaultActionChange);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the stable developer-defined semantic automation identifier for this control.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="null"/> value lets <see cref="AccessibleObject.AutomationId"/> fall
+    /// back to <see cref="Name"/>. This identifier is distinct from the process-local
+    /// <see cref="AccessibleObject.RuntimeId"/> and does not change the accessible name.
+    /// </remarks>
+    public string? AccessibleAutomationId
+    {
+        get => Properties.GetObject<string>(s_accessibleAutomationIdProperty);
+        set
+        {
+            if (AccessibleAutomationId == value)
+                return;
+
+            SetNullableAccessibilityString(s_accessibleAutomationIdProperty, value);
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the normalized platform-neutral semantic type for this control.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AccessibleControlType.Default"/> lets <see cref="ControlAccessibleObject"/> infer a
+    /// type while <see cref="AccessibleRole"/> continues to provide WinForms/MSAA compatibility.
+    /// </remarks>
+    public AccessibleControlType AccessibleControlType
+    {
+        get => Properties.GetEnum(s_accessibleControlTypeProperty, AccessibleControlType.Default);
+        set
+        {
+            SourceGenerated.EnumValidator.Validate(value);
+
+            if (AccessibleControlType == value)
+                return;
+
+            if (value == AccessibleControlType.Default)
+                Properties.RemoveInteger(s_accessibleControlTypeProperty);
+            else
+                Properties.SetEnum(s_accessibleControlTypeProperty, value);
+
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
         }
     }
 
@@ -117,6 +167,35 @@ public partial class Control
     }
 
     /// <summary>
+    /// Gets or sets the accessibility-tree projection for this control.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ModernFormsNext.Accessibility.AccessibilityView.Default"/> lets the framework infer
+    /// a suitable projection. Setting <see cref="ModernFormsNext.Accessibility.AccessibilityView.Hidden"/>
+    /// excludes the control from its parent's active accessibility children without changing the
+    /// visual tree or <see cref="Visible"/> property.
+    /// </remarks>
+    public AccessibilityView AccessibilityView
+    {
+        get => Properties.GetEnum(s_accessibilityViewProperty, AccessibilityView.Default);
+        set
+        {
+            SourceGenerated.EnumValidator.Validate(value);
+
+            if (AccessibilityView == value)
+                return;
+
+            if (value == AccessibilityView.Default)
+                Properties.RemoveInteger(s_accessibilityViewProperty);
+            else
+                Properties.SetEnum(s_accessibilityViewProperty, value);
+
+            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+            Parent?.NotifyAccessibilityClients(AccessibleEvents.Reorder);
+        }
+    }
+
+    /// <summary>
     /// Gets the accessible object that represents this control.
     /// </summary>
     /// <remarks>
@@ -133,7 +212,11 @@ public partial class Control
                 accessibleObject = CreateAccessibilityInstance()
                     ?? throw new InvalidOperationException($"{nameof(CreateAccessibilityInstance)} must not return null.");
 
-                accessibleObject.ClientNotification += AccessibilityObject_ClientNotification;
+                // An accessible object can outlive its control when a platform adapter or test
+                // retains the peer. Keep the notification route weak so the event subscription
+                // does not defeat ControlAccessibleObject's weak owner contract.
+                var notificationForwarder = new AccessibilityNotificationForwarder(this);
+                accessibleObject.ClientNotification += notificationForwarder.OnClientNotification;
                 Properties.SetObject(s_accessibilityObjectProperty, accessibleObject);
             }
 
@@ -214,6 +297,22 @@ public partial class Control
     {
         if (!raising_accessibility_notification)
             NotifyPlatformAccessibilityClients(e.EventId, e.ObjectId, e.ChildId);
+    }
+
+    private sealed class AccessibilityNotificationForwarder
+    {
+        private readonly WeakReference<Control> owner_reference;
+
+        public AccessibilityNotificationForwarder(Control owner)
+        {
+            owner_reference = new WeakReference<Control>(owner);
+        }
+
+        public void OnClientNotification(object? sender, AccessibleObjectNotificationEventArgs e)
+        {
+            if (owner_reference.TryGetTarget(out Control? owner))
+                owner.AccessibilityObject_ClientNotification(sender, e);
+        }
     }
 
     private void NotifyPlatformAccessibilityClients(AccessibleEvents accEvent, int objectID, int childID)

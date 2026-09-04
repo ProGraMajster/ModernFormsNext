@@ -74,7 +74,14 @@ namespace ModernFormsNext
         public override string Text
         {
             get => TabStripItem.Text;
-            set => TabStripItem.Text = value;
+            set
+            {
+                if (TabStripItem.Text == value)
+                    return;
+
+                TabStripItem.Text = value;
+                Parent?.NotifyAccessibilityClients(ModernFormsNext.Accessibility.AccessibleEvents.NameChange);
+            }
         }
 
         /// <summary>

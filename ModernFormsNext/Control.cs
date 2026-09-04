@@ -720,6 +720,11 @@ namespace ModernFormsNext
         public bool Disposing => GetState (States.Disposing);
 
         /// <summary>
+        /// Gets whether this control has completed its disposal path.
+        /// </summary>
+        internal bool IsDisposed => disposedValue;
+
+        /// <summary>
         /// Gets or sets whether the control can be interacted with.
         /// </summary>
         public bool Enabled {
@@ -1296,12 +1301,20 @@ namespace ModernFormsNext
         /// <summary>
         ///  Raises the <see cref='ControlAdded'/> event.
         /// </summary>
-        protected virtual void OnControlAdded (EventArgs<Control> e) => (Events[s_controlAddedEvent] as EventHandler<EventArgs<Control>>)?.Invoke (this, e);
+        protected virtual void OnControlAdded (EventArgs<Control> e)
+        {
+            (Events[s_controlAddedEvent] as EventHandler<EventArgs<Control>>)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.Reorder);
+        }
 
         /// <summary>
         ///  Raises the <see cref='ControlRemoved'/> event.
         /// </summary>
-        protected virtual void OnControlRemoved (EventArgs<Control> e) => (Events[s_controlRemovedEvent] as EventHandler<EventArgs<Control>>)?.Invoke (this, e);
+        protected virtual void OnControlRemoved (EventArgs<Control> e)
+        {
+            (Events[s_controlRemovedEvent] as EventHandler<EventArgs<Control>>)?.Invoke(this, e);
+            NotifyAccessibilityClients(AccessibleEvents.Reorder);
+        }
 
         /// <summary>
         ///  Called when the control is first created.
@@ -2576,6 +2589,7 @@ namespace ModernFormsNext
                     c.Dispose (disposing);
 
                 disposedValue = true;
+                Parent?.NotifyAccessibilityClients(AccessibleEvents.Reorder);
             }
 
             base.Dispose (disposing);
