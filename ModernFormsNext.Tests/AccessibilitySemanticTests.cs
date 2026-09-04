@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using ModernFormsNext.Accessibility;
 using ModernFormsNext.WindowKit.Platform;
 using Xunit;
@@ -48,8 +49,14 @@ public sealed class AccessibilitySemanticTests
         Assert.Equal("document.save", first.AutomationId);
         Assert.Equal("Save", first.Name);
 
+        button.Name = "renamedButton";
+        Assert.Equal("document.save", first.AutomationId);
+        Assert.Equal(runtimeId, first.RuntimeId);
+
         button.AccessibleAutomationId = null;
-        Assert.Equal("saveButton", first.AutomationId);
+        Assert.Equal("renamedButton", first.AutomationId);
+        button.Name = string.Empty;
+        Assert.Equal(string.Empty, first.AutomationId);
         Assert.Equal(runtimeId, first.RuntimeId);
     }
 
@@ -122,22 +129,35 @@ public sealed class AccessibilitySemanticTests
         textBox.ReadOnly = false;
         textBox.PasswordCharacter = '*';
         Assert.True(accessible.IsSensitive);
-        Assert.Equal(string.Empty, accessible.Value);
+        Assert.True(string.IsNullOrEmpty(accessible.Value));
         Assert.Equal("passwordField", accessible.Name);
         AssertHasFlag(accessible.State, AccessibleStates.Protected);
+        Assert.False((accessible.ToString() ?? string.Empty).Contains(sampleSensitiveValue, StringComparison.Ordinal));
         Assert.True(accessible.PerformAction(AccessibleActions.SetValue, "replacement"));
         Assert.Equal("replacement", textBox.Text);
+        Assert.True(string.IsNullOrEmpty(accessible.Value));
+        Assert.False((accessible.ToString() ?? string.Empty).Contains("replacement", StringComparison.Ordinal));
+
+        textBox.ReadOnly = true;
+        AssertDoesNotHaveFlag(accessible.SupportedActions, AccessibleActions.SetValue);
+        Assert.False(accessible.PerformAction(AccessibleActions.SetValue, "rejected"));
+        textBox.Text = string.Empty;
+        Assert.True(string.IsNullOrEmpty(accessible.Value));
+
+        textBox.ReadOnly = false;
+        textBox.PasswordCharacter = null;
+        Assert.False(accessible.IsSensitive);
         Assert.Equal(string.Empty, accessible.Value);
 
         string diagnosticProjection = $"{accessible.Name}|{(accessible.IsSensitive ? "<redacted>" : accessible.Value)}";
-        Assert.DoesNotContain(sampleSensitiveValue, diagnosticProjection);
+        Assert.False(diagnosticProjection.Contains(sampleSensitiveValue, StringComparison.Ordinal));
     }
 
     [Fact]
     public void ComboBoxExposesCollapsedStateAndSelectableLogicalItems()
     {
-        using var root = new VisibleRootControl();
-        using var comboBox = root.Controls.Add(new ComboBox { Name = "choice" });
+        using var form = new Form(CreateWindowImplementation());
+        using var comboBox = form.Controls.Add(new ComboBox { Name = "choice" });
         comboBox.Items.Add("Alpha");
         comboBox.Items.Add("Beta");
 
@@ -147,7 +167,12 @@ public sealed class AccessibilitySemanticTests
         Assert.Equal(AccessibleControlType.ComboBox, accessible.ControlType);
         AssertHasFlag(accessible.State, AccessibleStates.Collapsed);
         AssertHasFlag(accessible.SupportedActions, AccessibleActions.Expand);
+        AssertDoesNotHaveFlag(accessible.SupportedActions, AccessibleActions.Collapse);
+        Assert.True(accessible.PerformAction(AccessibleActions.Expand));
+        AssertHasFlag(accessible.State, AccessibleStates.Expanded);
         AssertHasFlag(accessible.SupportedActions, AccessibleActions.Collapse);
+        AssertDoesNotHaveFlag(accessible.SupportedActions, AccessibleActions.Expand);
+        Assert.True(accessible.PerformAction(AccessibleActions.Collapse));
         Assert.Equal(2, accessible.GetChildCount());
         Assert.Equal(AccessibleControlType.ListItem, beta.ControlType);
         Assert.True(beta.PerformAction(AccessibleActions.Select));
@@ -182,6 +207,52 @@ public sealed class AccessibilitySemanticTests
         Assert.Null(betaNode.Parent);
         Assert.Equal(AccessibilityView.Hidden, betaNode.View);
         Assert.Null(list.GetSelected());
+    }
+
+    [Fact]
+    public void EqualListAndComboOccurrencesKeepDistinctIdentityAcrossReorder()
+    {
+        using var root = new VisibleRootControl();
+        using var listBox = root.Controls.Add(new ListBox());
+        using var comboBox = root.Controls.Add(new ComboBox());
+        var repeatedItem = new NamedItem("Repeated");
+
+        listBox.Items.Add(repeatedItem);
+        listBox.Items.Add(repeatedItem);
+        comboBox.Items.Add(repeatedItem);
+        comboBox.Items.Add(repeatedItem);
+
+        AssertOccurrenceIdentityAcrossMove(listBox.AccessibilityObject, listBox.Items);
+        AssertOccurrenceIdentityAcrossMove(comboBox.AccessibilityObject, comboBox.Items);
+    }
+
+    [Fact]
+    public void EqualTreeItemTextDoesNotCollideAndReinsertionIsDeterministic()
+    {
+        using var root = new VisibleRootControl();
+        using var treeView = root.Controls.Add(new TreeView());
+        var first = new TreeViewItem("Repeated");
+        var second = new TreeViewItem("Repeated");
+        treeView.Items.Add(first);
+        treeView.Items.Add(second);
+
+        AccessibleObject tree = treeView.AccessibilityObject;
+        AccessibleObject firstNode = Assert.IsAssignableFrom<AccessibleObject>(tree.GetChild(0));
+        AccessibleObject secondNode = Assert.IsAssignableFrom<AccessibleObject>(tree.GetChild(1));
+        long firstId = firstNode.RuntimeId;
+        long secondId = secondNode.RuntimeId;
+
+        Assert.NotSame(firstNode, secondNode);
+        Assert.NotEqual(firstId, secondId);
+
+        treeView.Items.Remove(first);
+        Assert.Null(firstNode.Parent);
+        treeView.Items.Insert(1, first);
+
+        Assert.Same(firstNode, tree.GetChild(1));
+        Assert.Same(secondNode, tree.GetChild(0));
+        Assert.Equal(firstId, firstNode.RuntimeId);
+        Assert.Equal(secondId, secondNode.RuntimeId);
     }
 
     [Fact]
@@ -315,8 +386,8 @@ public sealed class AccessibilitySemanticTests
     [Fact]
     public void MenuItemsExposeCommandsSubmenusAndHierarchy()
     {
-        using var root = new VisibleRootControl();
-        using var menu = root.Controls.Add(new Menu());
+        using var form = new Form(CreateWindowImplementation());
+        using var menu = form.Controls.Add(new Menu());
         int invocations = 0;
         MenuItem file = menu.Items.Add("File");
         file.Items.Add("Open", onClick: (_, _) => invocations++);
@@ -329,6 +400,9 @@ public sealed class AccessibilitySemanticTests
 
         Assert.Equal(AccessibleControlType.MenuItem, fileNode.ControlType);
         AssertHasFlag(fileNode.SupportedActions, AccessibleActions.Expand);
+        Assert.True(fileNode.PerformAction(AccessibleActions.Expand));
+        AssertHasFlag(fileNode.SupportedActions, AccessibleActions.Collapse);
+        Assert.True(fileNode.PerformAction(AccessibleActions.Collapse));
         Assert.Same(fileNode, openNode.Parent);
         AssertHasFlag(openNode.SupportedActions, AccessibleActions.Invoke);
         Assert.True(exitNode.PerformAction(AccessibleActions.Invoke));
@@ -338,8 +412,7 @@ public sealed class AccessibilitySemanticTests
     [Fact]
     public void FormExposesWindowSemanticsAndUserControlHierarchy()
     {
-        IWindowImpl implementation = DispatchProxy.Create<IWindowImpl, WindowImplProxy>();
-        using var form = new Form(implementation) { Text = "Settings" };
+        using var form = new Form(CreateWindowImplementation()) { Text = "Settings" };
         using var button = form.Controls.Add(new Button { Text = "Apply" });
 
         AccessibleObject window = form.AccessibilityObject;
@@ -352,6 +425,25 @@ public sealed class AccessibilitySemanticTests
 
         form.Text = "Preferences";
         Assert.Equal("Preferences", window.Name);
+    }
+
+    [Fact]
+    public async Task ModalFormExposesDialogSemanticsWhileShown()
+    {
+        using var parent = new Form(CreateWindowImplementation());
+        using var dialog = new Form(CreateWindowImplementation())
+        {
+            Text = "Confirm",
+            StartPosition = FormStartPosition.Manual
+        };
+
+        Task<DialogResult> completion = dialog.ShowDialog(parent);
+
+        Assert.Equal(AccessibleRole.Dialog, dialog.AccessibilityObject.Role);
+        Assert.Equal(AccessibleControlType.Dialog, dialog.AccessibilityObject.ControlType);
+
+        dialog.DialogResult = DialogResult.OK;
+        Assert.Equal(DialogResult.OK, await completion);
     }
 
     [Fact]
@@ -413,6 +505,75 @@ public sealed class AccessibilitySemanticTests
     }
 
     [Fact]
+    public void CollectionSelectionAndPopupNotificationsAreSpecificAndNotDuplicated()
+    {
+        using var root = new VisibleRootControl();
+        using var listBox = root.Controls.Add(new ListBox());
+        AccessibleObject listBoxObject = listBox.AccessibilityObject;
+        var listBoxEvents = new List<AccessibleEvents>();
+        listBoxObject.ClientNotification += (_, e) => listBoxEvents.Add(e.EventId);
+
+        listBox.Items.Add("Item");
+
+        Assert.Single(listBoxEvents, value => value == AccessibleEvents.Reorder);
+        Assert.DoesNotContain(AccessibleEvents.Selection, listBoxEvents);
+
+        using var listView = root.Controls.Add(new ListView());
+        ListViewItem first = listView.Items.Add("First");
+        ListViewItem second = listView.Items.Add("Second");
+        var listViewEvents = new List<AccessibleEvents>();
+        listView.AccessibilityObject.ClientNotification += (_, e) => listViewEvents.Add(e.EventId);
+
+        listView.SelectedItem = first;
+        Assert.Equal([AccessibleEvents.Selection, AccessibleEvents.ValueChange], listViewEvents);
+
+        listViewEvents.Clear();
+        listView.SelectedItem = second;
+        Assert.Equal(
+            [AccessibleEvents.SelectionRemove, AccessibleEvents.Selection, AccessibleEvents.ValueChange],
+            listViewEvents);
+
+        listViewEvents.Clear();
+        listView.Items[1] = new ListViewItem { Text = "Replacement", Selected = true };
+        Assert.Equal(
+            [AccessibleEvents.Reorder, AccessibleEvents.SelectionRemove, AccessibleEvents.Selection],
+            listViewEvents);
+
+        using var form = new Form(CreateWindowImplementation());
+        using var comboBox = form.Controls.Add(new ComboBox());
+        using var menu = form.Controls.Add(new Menu());
+        MenuItem submenu = menu.Items.Add("Submenu");
+        submenu.Items.Add("Child");
+        AccessibleObject submenuObject = Assert.IsAssignableFrom<AccessibleObject>(
+            menu.AccessibilityObject.GetChild(0));
+        var comboEvents = new List<AccessibleEvents>();
+        var menuRootEvents = new List<AccessibleEvents>();
+        var menuItemEvents = new List<AccessibleEvents>();
+        comboBox.AccessibilityObject.ClientNotification += (_, e) => comboEvents.Add(e.EventId);
+        menu.AccessibilityObject.ClientNotification += (_, e) => menuRootEvents.Add(e.EventId);
+        submenuObject.ClientNotification += (_, e) => menuItemEvents.Add(e.EventId);
+
+        comboBox.Items.Add("Selected");
+        comboBox.SelectedIndex = 0;
+        comboEvents.Clear();
+        comboBox.Items.RemoveAt(0);
+
+        Assert.Equal(
+            [AccessibleEvents.Reorder, AccessibleEvents.Selection, AccessibleEvents.ValueChange],
+            comboEvents);
+
+        comboEvents.Clear();
+        Assert.True(comboBox.AccessibilityObject.PerformAction(AccessibleActions.Expand));
+        Assert.True(comboBox.AccessibilityObject.PerformAction(AccessibleActions.Collapse));
+        Assert.True(submenuObject.PerformAction(AccessibleActions.Expand));
+        Assert.True(submenuObject.PerformAction(AccessibleActions.Collapse));
+
+        Assert.Equal(2, comboEvents.Count(value => value == AccessibleEvents.StateChange));
+        Assert.Equal(2, menuRootEvents.Count(value => value == AccessibleEvents.StateChange));
+        Assert.Equal(2, menuItemEvents.Count(value => value == AccessibleEvents.StateChange));
+    }
+
+    [Fact]
     public void CustomRenderedControlCanExposeLogicalChildStateBoundsAndAction()
     {
         using var root = new VisibleRootControl();
@@ -423,6 +584,7 @@ public sealed class AccessibilitySemanticTests
         Assert.Equal(AccessibleControlType.Group, customObject.ControlType);
         Assert.Equal(AccessibleRole.Grouping, customObject.Role);
         Assert.Equal("Painted action", child.Name);
+        Assert.Equal("painted.action", child.AutomationId);
         Assert.Equal(new Rectangle(4, 5, 60, 20), child.Bounds);
         AssertHasFlag(child.State, AccessibleStates.Focusable);
         Assert.Same(customObject, child.Parent);
@@ -457,6 +619,133 @@ public sealed class AccessibilitySemanticTests
     }
 
     [Fact]
+    public void SupportedActionsAreExecutableForRepresentativeControlsAndLogicalItems()
+    {
+        using var form = new Form(CreateWindowImplementation());
+        using var button = form.Controls.Add(new Button { Text = "Action" });
+        using var checkBox = form.Controls.Add(new CheckBox { Text = "Check" });
+        using var radioButton = form.Controls.Add(new RadioButton { Text = "Choice" });
+        using var toggle = form.Controls.Add(new Switch { Text = "Toggle" });
+        using var textBox = form.Controls.Add(new TextBox { Name = "editor" });
+        using var comboBox = form.Controls.Add(new ComboBox());
+        using var trackBar = form.Controls.Add(new TrackBar { Minimum = 0, Maximum = 10, Value = 5 });
+        using var listBox = form.Controls.Add(new ListBox());
+        using var listView = form.Controls.Add(new ListView());
+        using var treeView = form.Controls.Add(new TreeView());
+        using var tabs = form.Controls.Add(new TabControl());
+        using var menu = form.Controls.Add(new Menu());
+        using var progressBar = form.Controls.Add(new ProgressBar());
+
+        comboBox.Items.Add("Combo item");
+        listBox.Items.Add("List item");
+        listView.Items.Add("List view item");
+        treeView.Items.Add(new TreeViewItem("Branch", new TreeViewItem("Child")));
+        tabs.TabPages.Add("Tab");
+        MenuItem submenu = menu.Items.Add("Submenu");
+        submenu.Items.Add("Child command");
+        menu.Items.Add("Command");
+
+        AccessibleObject comboItem = Assert.IsAssignableFrom<AccessibleObject>(comboBox.AccessibilityObject.GetChild(0));
+        AccessibleObject listItem = Assert.IsAssignableFrom<AccessibleObject>(listBox.AccessibilityObject.GetChild(0));
+        AccessibleObject listViewItem = Assert.IsAssignableFrom<AccessibleObject>(listView.AccessibilityObject.GetChild(0));
+        AccessibleObject treeItem = Assert.IsAssignableFrom<AccessibleObject>(treeView.AccessibilityObject.GetChild(0));
+        AccessibleObject tabItem = Assert.IsAssignableFrom<AccessibleObject>(tabs.AccessibilityObject.GetChild(0));
+        AccessibleObject submenuItem = Assert.IsAssignableFrom<AccessibleObject>(menu.AccessibilityObject.GetChild(0));
+        AccessibleObject commandItem = Assert.IsAssignableFrom<AccessibleObject>(menu.AccessibilityObject.GetChild(1));
+
+        AccessibleObject[] representatives =
+        [
+            button.AccessibilityObject,
+            checkBox.AccessibilityObject,
+            radioButton.AccessibilityObject,
+            toggle.AccessibilityObject,
+            textBox.AccessibilityObject,
+            comboBox.AccessibilityObject,
+            trackBar.AccessibilityObject,
+            listBox.AccessibilityObject,
+            listView.AccessibilityObject,
+            treeView.AccessibilityObject,
+            tabs.AccessibilityObject,
+            menu.AccessibilityObject,
+            progressBar.AccessibilityObject,
+            comboItem,
+            listItem,
+            listViewItem,
+            treeItem,
+            tabItem,
+            submenuItem,
+            commandItem
+        ];
+
+        foreach (AccessibleObject accessible in representatives)
+            AssertEveryAdvertisedActionCanExecute(accessible);
+
+        // Expanding changes the advertised action from Expand to Collapse. Exercise the second
+        // state as a separate contract snapshot.
+        AssertEveryAdvertisedActionCanExecute(submenuItem);
+        AssertEveryAdvertisedActionCanExecute(comboBox.AccessibilityObject);
+        AssertEveryAdvertisedActionCanExecute(comboBox.AccessibilityObject);
+    }
+
+    [Fact]
+    public void UnavailableOrInapplicableActionsAreNotAdvertised()
+    {
+        using var root = new VisibleRootControl();
+        using var button = root.Controls.Add(new Button());
+        using var toggle = root.Controls.Add(new Switch { AutoToggle = false });
+        using var comboBox = root.Controls.Add(new ComboBox());
+        using var listBox = root.Controls.Add(new ListBox { SelectionMode = SelectionMode.None });
+        using var menu = root.Controls.Add(new Menu());
+        listBox.Items.Add("Item");
+        MenuItem submenu = menu.Items.Add("Submenu");
+        submenu.Items.Add("Child");
+
+        button.Enabled = false;
+        Assert.Equal(AccessibleActions.None, button.AccessibilityObject.SupportedActions);
+        AssertDoesNotHaveFlag(toggle.AccessibilityObject.SupportedActions, AccessibleActions.Toggle);
+        AssertDoesNotHaveFlag(comboBox.AccessibilityObject.SupportedActions, AccessibleActions.Expand);
+        AssertDoesNotHaveFlag(
+            Assert.IsAssignableFrom<AccessibleObject>(listBox.AccessibilityObject.GetChild(0)).SupportedActions,
+            AccessibleActions.Select);
+        AssertDoesNotHaveFlag(
+            Assert.IsAssignableFrom<AccessibleObject>(menu.AccessibilityObject.GetChild(0)).SupportedActions,
+            AccessibleActions.Expand);
+    }
+
+    [Fact]
+    public void RuntimeIdsArePositiveAndUniqueUnderConcurrentConstruction()
+    {
+        const int count = 512;
+        var runtimeIds = new long[count];
+
+        Parallel.For(0, count, index => runtimeIds[index] = new AccessibleObject().RuntimeId);
+
+        Assert.All(runtimeIds, runtimeId => Assert.True(runtimeId > 0));
+        Assert.Equal(count, runtimeIds.Distinct().Count());
+    }
+
+    [Fact]
+    public void RetainedPeerDoesNotKeepItsControlOrLogicalOwnerAlive()
+    {
+        (AccessibleObject controlPeer, WeakReference controlReference) = CreateCollectibleControlPeer();
+        (AccessibleObject itemPeer, WeakReference ownerReference, WeakReference itemReference) =
+            CreateCollectibleLogicalItemPeer();
+
+        CollectGarbage();
+
+        Assert.False(controlReference.IsAlive);
+        Assert.Null(Assert.IsType<Control.ControlAccessibleObject>(controlPeer).Owner);
+        Assert.Equal(AccessibleActions.None, controlPeer.SupportedActions);
+        Assert.False(ownerReference.IsAlive);
+        Assert.False(itemReference.IsAlive);
+        Assert.Null(itemPeer.Parent);
+        Assert.Equal(AccessibilityView.Hidden, itemPeer.View);
+        Assert.Equal(AccessibleActions.None, itemPeer.SupportedActions);
+        GC.KeepAlive(controlPeer);
+        GC.KeepAlive(itemPeer);
+    }
+
+    [Fact]
     public void RangeValueRejectsInvalidMetadata()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AccessibleRangeValue(0, 10, 5, 1, 1, false));
@@ -484,6 +773,77 @@ public sealed class AccessibilitySemanticTests
 
     private static void AssertDoesNotHaveFlag(AccessibleStates value, AccessibleStates flag)
         => Assert.Equal(AccessibleStates.None, value & flag);
+
+    private static void AssertOccurrenceIdentityAcrossMove(
+        AccessibleObject root,
+        ListBoxItemCollection items)
+    {
+        AccessibleObject firstNode = Assert.IsAssignableFrom<AccessibleObject>(root.GetChild(0));
+        AccessibleObject secondNode = Assert.IsAssignableFrom<AccessibleObject>(root.GetChild(1));
+        long firstId = firstNode.RuntimeId;
+        long secondId = secondNode.RuntimeId;
+
+        Assert.NotSame(firstNode, secondNode);
+        Assert.NotEqual(firstId, secondId);
+
+        items.Move(0, 1);
+
+        Assert.Same(firstNode, root.GetChild(1));
+        Assert.Same(secondNode, root.GetChild(0));
+        Assert.Equal(firstId, firstNode.RuntimeId);
+        Assert.Equal(secondId, secondNode.RuntimeId);
+    }
+
+    private static void AssertEveryAdvertisedActionCanExecute(AccessibleObject accessible)
+    {
+        AccessibleActions advertised = accessible.SupportedActions;
+
+        foreach (AccessibleActions action in Enum.GetValues<AccessibleActions>())
+        {
+            if (action == AccessibleActions.None || (advertised & action) == 0)
+                continue;
+
+            object? parameter = action == AccessibleActions.SetValue
+                ? accessible.ControlType == AccessibleControlType.Edit
+                    ? "updated"
+                    : accessible.RangeValue?.Value
+                : null;
+
+            Assert.True(
+                accessible.PerformAction(action, parameter),
+                $"{accessible.ControlType} advertised {action} but rejected it.");
+        }
+    }
+
+    private static IWindowImpl CreateWindowImplementation()
+        => DispatchProxy.Create<IWindowImpl, WindowImplProxy>();
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (AccessibleObject Peer, WeakReference ControlReference) CreateCollectibleControlPeer()
+    {
+        var control = new Button();
+        return (control.AccessibilityObject, new WeakReference(control));
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (AccessibleObject Peer, WeakReference OwnerReference, WeakReference ItemReference)
+        CreateCollectibleLogicalItemPeer()
+    {
+        var root = new VisibleRootControl();
+        var owner = root.Controls.Add(new ListBox());
+        var item = new NamedItem("Collectible");
+        owner.Items.Add(item);
+        AccessibleObject peer = Assert.IsAssignableFrom<AccessibleObject>(owner.AccessibilityObject.GetChild(0));
+        return (peer, new WeakReference(owner), new WeakReference(item));
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void CollectGarbage()
+    {
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
 
     private sealed class NamedItem
     {
@@ -534,6 +894,7 @@ public sealed class AccessibilitySemanticTests
         {
             this.parent = new WeakReference<AccessibleObject>(parent);
             this.invoke = invoke;
+            AutomationId = "painted.action";
         }
 
         public override Rectangle Bounds => new(4, 5, 60, 20);
@@ -569,6 +930,12 @@ public sealed class AccessibilitySemanticTests
     {
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            if (targetMethod?.Name == nameof(ITopLevelImpl.CreatePopup))
+                return DispatchProxy.Create<IPopupImpl, WindowImplProxy>();
+
+            if (targetMethod?.Name is "get_RenderScaling" or "get_DesktopScaling")
+                return 1d;
+
             Type? returnType = targetMethod?.ReturnType;
             return returnType is not null && returnType != typeof(void) && returnType.IsValueType
                 ? Activator.CreateInstance(returnType)
