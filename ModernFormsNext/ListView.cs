@@ -109,7 +109,6 @@ namespace ModernFormsNext
                     value.Selected = true;
 
                 Invalidate ();
-                NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
                 NotifyAccessibilityClients(Accessibility.AccessibleEvents.ValueChange);
             }
         }

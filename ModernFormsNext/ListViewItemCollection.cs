@@ -49,6 +49,8 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void ClearItems ()
         {
+            bool selectionChanged = Items.Any(item => item.Selected);
+
             foreach (var item in Items)
                 item.Parent = null;
 
@@ -56,7 +58,8 @@ namespace ModernFormsNext
 
             owner.Invalidate ();
             owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
-            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+            if (selectionChanged)
+                owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.SelectionRemove);
         }
 
         /// <inheritdoc/>
@@ -67,25 +70,30 @@ namespace ModernFormsNext
             item.Parent = owner;
             owner.Invalidate ();
             owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
+            if (item.Selected)
+                owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
         }
 
         /// <inheritdoc/>
         protected override void RemoveItem (int index)
         {
             var item = this[index];
+            bool selectionChanged = item.Selected;
 
             base.RemoveItem (index);
 
             item.Parent = null;
             owner.Invalidate ();
             owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
-            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+            if (selectionChanged)
+                owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.SelectionRemove);
         }
 
         /// <inheritdoc/>
         protected override void SetItem (int index, ListViewItem item)
         {
             var old_item = this.ElementAtOrDefault (index);
+            bool oldSelected = old_item?.Selected == true;
 
             if (old_item != null)
                 old_item.Parent = null;
@@ -95,7 +103,10 @@ namespace ModernFormsNext
             item.Parent = owner;
             owner.Invalidate ();
             owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);
-            owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+            if (oldSelected)
+                owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.SelectionRemove);
+            if (item.Selected)
+                owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
         }
     }
 }

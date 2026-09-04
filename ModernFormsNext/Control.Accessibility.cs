@@ -212,7 +212,11 @@ public partial class Control
                 accessibleObject = CreateAccessibilityInstance()
                     ?? throw new InvalidOperationException($"{nameof(CreateAccessibilityInstance)} must not return null.");
 
-                accessibleObject.ClientNotification += AccessibilityObject_ClientNotification;
+                // An accessible object can outlive its control when a platform adapter or test
+                // retains the peer. Keep the notification route weak so the event subscription
+                // does not defeat ControlAccessibleObject's weak owner contract.
+                var notificationForwarder = new AccessibilityNotificationForwarder(this);
+                accessibleObject.ClientNotification += notificationForwarder.OnClientNotification;
                 Properties.SetObject(s_accessibilityObjectProperty, accessibleObject);
             }
 
@@ -293,6 +297,22 @@ public partial class Control
     {
         if (!raising_accessibility_notification)
             NotifyPlatformAccessibilityClients(e.EventId, e.ObjectId, e.ChildId);
+    }
+
+    private sealed class AccessibilityNotificationForwarder
+    {
+        private readonly WeakReference<Control> owner_reference;
+
+        public AccessibilityNotificationForwarder(Control owner)
+        {
+            owner_reference = new WeakReference<Control>(owner);
+        }
+
+        public void OnClientNotification(object? sender, AccessibleObjectNotificationEventArgs e)
+        {
+            if (owner_reference.TryGetTarget(out Control? owner))
+                owner.AccessibilityObject_ClientNotification(sender, e);
+        }
     }
 
     private void NotifyPlatformAccessibilityClients(AccessibleEvents accEvent, int objectID, int childID)

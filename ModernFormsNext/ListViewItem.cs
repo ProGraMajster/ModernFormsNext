@@ -39,7 +39,10 @@ namespace ModernFormsNext
                     return;
 
                 selected = value;
-                Parent?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Selection);
+                Parent?.NotifyAccessibilityClients(
+                    value
+                        ? Accessibility.AccessibleEvents.Selection
+                        : Accessibility.AccessibleEvents.SelectionRemove);
                 Parent?.Invalidate();
             }
         }
