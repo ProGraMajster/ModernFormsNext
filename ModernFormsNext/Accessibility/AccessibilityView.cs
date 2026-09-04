@@ -9,12 +9,16 @@ namespace ModernFormsNext.Accessibility;
 /// available only in the complete semantic tree, <see cref="Control"/> objects also appear in the
 /// interactive control projection, and <see cref="Content"/> objects also appear in the content
 /// projection. <see cref="Hidden"/> objects are excluded from active accessibility trees. This enum
-/// is independent from platform-specific view enumerations.
+/// is independent from platform-specific view enumerations. Phase 1 records this classification but
+/// does not expose separate projection-query endpoints; active child enumeration filters
+/// <see cref="Hidden"/> objects.
 /// </remarks>
 public enum AccessibilityView
 {
     /// <summary>
-    /// The framework should infer the view from the represented object.
+    /// The framework should infer the view from the represented object. Standard static content and
+    /// progress indicators resolve to <see cref="Content"/>; other standard controls resolve to
+    /// <see cref="Control"/> unless their accessible object overrides the classification.
     /// </summary>
     Default,
 

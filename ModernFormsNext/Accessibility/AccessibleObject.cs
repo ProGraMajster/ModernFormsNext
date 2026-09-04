@@ -93,7 +93,7 @@ public class AccessibleObject
     /// Gets a stable identifier for this accessible object within the current process session.
     /// </summary>
     /// <remarks>
-    /// Runtime identifiers are assigned lazily with object construction and are not persistent
+    /// Runtime identifiers are assigned atomically during object construction and are not persistent
     /// across application runs. Logical-item implementations should cache their accessible object
     /// for the lifetime of the represented item so this value remains stable across reorderings.
     /// </remarks>

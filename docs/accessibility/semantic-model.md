@@ -28,6 +28,9 @@ native platform enum. `Control.AccessibleControlType` defaults to `Default`, all
 `ControlAccessibleObject` to infer the type. A custom control can explicitly set that property or
 override `AccessibleObject.ControlType`.
 
+A top-level `Form` is a window by default. While it is shown through `ShowDialog`, its root maps to
+the compatibility `Dialog` role and normalized `Dialog` control type.
+
 Both properties are intentional:
 
 - `AccessibleRole` is the compatibility/legacy role.
@@ -42,6 +45,12 @@ Both properties are intentional:
 - `Content` also appears in a content projection.
 - `Hidden` is excluded from active trees.
 - `Default` lets a control infer the appropriate value.
+
+These values classify semantic nodes; they are not Windows UIA `TreeScope` or native view values.
+Phase 1 does not expose separate projection-query endpoints. Its active child enumeration filters
+`Hidden`; future platform adapters and diagnostics can use `Raw`, `Control`, and `Content` to build
+the projection they require. For the standard mapping, `Default` resolves labels, images, shapes,
+and progress indicators to `Content`, and other controls to `Control`.
 
 Setting `Control.AccessibilityView` to `Hidden` changes only the accessibility tree; it does not
 change the visual tree or `Control.Visible`. Standard invisible and disposed controls report a
@@ -71,7 +80,9 @@ does not make the underlying password readable through `Value`.
 `AccessibleActions` is the only public action vocabulary. `SupportedActions` is a flags value used
 for capability inspection; `PerformAction` accepts exactly one action and an optional parameter.
 It returns `false` for an unsupported action, an invalid parameter, an unavailable object, or a
-rejected state change.
+rejected state change. Capability flags describe the current state: disabled, invisible, hidden,
+detached, or otherwise unavailable elements do not advertise actions, and expandable controls
+advertise `Expand` or `Collapse` according to their current state rather than both at once.
 
 Standard actions call normal framework behavior:
 
@@ -100,9 +111,15 @@ not pixels.
 
 ## Identity
 
-Every `AccessibleObject` receives a positive process-session `RuntimeId`. It remains stable for that
-object but is not persistent across application runs. Logical-item peers are cached for the life of
-their represented item, so moving an item does not change its runtime identity.
+Every `AccessibleObject` receives a positive process-session `RuntimeId`. Allocation is atomic,
+thread-safe, and fails explicitly if the signed 64-bit identifier space is ever exhausted rather
+than wrapping into duplicate or negative identifiers. The identifier remains stable for that object
+but is not persistent across application runs.
+
+Logical-item peers are cached for the life of their represented element, so moving an item does not
+change its runtime identity. `ListBox` and `ComboBox` assign identity per collection occurrence:
+inserting the same object instance more than once produces distinct semantic elements, and moving
+either occurrence preserves the corresponding peer and runtime identifier.
 
 `AutomationId` is a separate developer-facing semantic identifier. `Control.AccessibleAutomationId`
 can set it explicitly and otherwise falls back to `Control.Name`. Reordering a control does not alter
@@ -122,11 +139,12 @@ The built-in Phase 1 mapping creates logical peers on demand for:
 - `TabPage` tab headers;
 - `MenuItem` instances and nested menu items.
 
-These peers use weak owner/item references where retaining an object would extend UI lifetime. Item
-move operations preserve runtime identity. Removal or owner disposal detaches the peer from its
-parent and makes it hidden. Tree selection is cleared when a selected subtree is removed. The
-implementation does not materialize controls for logical items and does not implement the separate
-virtualization roadmap work.
+These peers use weak owner/item references where retaining an object would extend UI lifetime. The
+control-to-peer notification route also uses a weak owner reference, so an externally retained peer
+does not keep its control alive. Item move operations preserve runtime identity. Removal or owner
+disposal detaches the peer from its parent and makes it hidden. Tree selection is cleared when a
+selected subtree is removed. The implementation does not materialize controls for logical items and
+does not implement the separate virtualization roadmap work.
 
 Example custom semantic child:
 
@@ -175,7 +193,7 @@ Semantic changes map as follows:
 | value | `ValueChange` |
 | enabled, checked, expanded, read-only, or other state | `StateChange` |
 | keyboard focus | `Focus` plus `StateChange` |
-| selection | `Selection` or `SelectionWithin` |
+| selection | `Selection`, `SelectionRemove`, or `SelectionWithin` |
 | child add, remove, reorder, or dispose | `Reorder` |
 | bounds | `LocationChange` |
 
