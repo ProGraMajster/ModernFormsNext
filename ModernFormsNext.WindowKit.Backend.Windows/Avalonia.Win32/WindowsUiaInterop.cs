@@ -496,7 +496,7 @@ internal static class WindowsUiaNativeMethods
     private static extern int UiaRaiseStructureChangedEvent(
         IntPtr provider,
         StructureChangeType structureChangeType,
-        [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 3)] int[] runtimeId,
+        [MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 3)] int[]? runtimeId,
         int runtimeIdLength);
 
     [DllImport("uiautomationcore.dll")]
@@ -602,7 +602,7 @@ internal static class WindowsUiaNativeMethods
     public static void RaiseStructureChangedEvent(
         WindowsUiaProvider provider,
         StructureChangeType changeType,
-        int[] runtimeId)
+        int[]? runtimeId)
     {
         IntPtr providerPointer = GetComInterfacePointer(provider, SimpleProviderInterfaceId);
         try
@@ -612,7 +612,7 @@ internal static class WindowsUiaNativeMethods
                     providerPointer,
                     changeType,
                     runtimeId,
-                    runtimeId.Length));
+                    runtimeId?.Length ?? 0));
         }
         finally
         {

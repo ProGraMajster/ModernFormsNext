@@ -73,18 +73,35 @@ internal static class WindowsUiaEventMapper
                 RaiseEvent(eventSink, provider, WindowsUiaIds.SelectionInvalidatedEvent);
                 break;
             case EventReorder:
-                RaiseStructureChanged(eventSink, provider, StructureChangeType.ChildrenReordered);
+                WindowsUiaStructureChange change = provider.ConsumeStructureChange();
+                RaiseStructureChanged(
+                    eventSink,
+                    change.Provider,
+                    change.ChangeType,
+                    change.RuntimeId);
                 break;
             case EventParentChange:
-                RaiseStructureChanged(eventSink, provider, StructureChangeType.ChildrenReordered);
+                RaiseStructureChanged(
+                    eventSink,
+                    GetStructureParent(provider, source, context),
+                    StructureChangeType.ChildrenReordered,
+                    runtimeId: null);
                 break;
             case EventShow:
                 RaisePropertyChanged(eventSink, provider, WindowsUiaIds.IsOffscreenProperty, false);
-                RaiseStructureChanged(eventSink, GetStructureParent(provider, source, context), StructureChangeType.ChildAdded);
+                RaiseStructureChanged(
+                    eventSink,
+                    GetStructureParent(provider, source, context),
+                    StructureChangeType.ChildAdded,
+                    runtimeId: null);
                 break;
             case EventHide:
                 RaisePropertyChanged(eventSink, provider, WindowsUiaIds.IsOffscreenProperty, true);
-                RaiseStructureChanged(eventSink, GetStructureParent(provider, source, context), StructureChangeType.ChildRemoved);
+                RaiseStructureChanged(
+                    eventSink,
+                    GetStructureParent(provider, source, context),
+                    StructureChangeType.ChildRemoved,
+                    provider.GetRuntimeId());
                 break;
         }
     }
@@ -175,11 +192,12 @@ internal static class WindowsUiaEventMapper
     private static void RaiseStructureChanged(
         IWindowsUiaEventSink eventSink,
         WindowsUiaProvider provider,
-        StructureChangeType changeType)
+        StructureChangeType changeType,
+        int[]? runtimeId)
         => eventSink.RaiseStructureChangedEvent(
             provider,
             changeType,
-            provider.GetRuntimeId());
+            runtimeId);
 }
 
 internal interface IWindowsUiaEventSink
@@ -197,7 +215,7 @@ internal interface IWindowsUiaEventSink
     void RaiseStructureChangedEvent(
         WindowsUiaProvider provider,
         StructureChangeType changeType,
-        int[] runtimeId);
+        int[]? runtimeId);
 }
 
 internal sealed class WindowsUiaNativeEventSink : IWindowsUiaEventSink
@@ -223,6 +241,6 @@ internal sealed class WindowsUiaNativeEventSink : IWindowsUiaEventSink
     public void RaiseStructureChangedEvent(
         WindowsUiaProvider provider,
         StructureChangeType changeType,
-        int[] runtimeId)
+        int[]? runtimeId)
         => WindowsUiaNativeMethods.RaiseStructureChangedEvent(provider, changeType, runtimeId);
 }

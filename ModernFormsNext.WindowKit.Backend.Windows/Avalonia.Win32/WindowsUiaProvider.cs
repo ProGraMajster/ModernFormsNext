@@ -71,6 +71,7 @@ internal partial class WindowsUiaProvider :
     private const int ViewHidden = 4;
 
     private readonly WeakReference<IPlatformAccessibleObject> target;
+    private long[] lastChildRuntimeIds;
 
     internal WindowsUiaProvider(
         WindowsUiaProviderContext context,
@@ -80,6 +81,7 @@ internal partial class WindowsUiaProvider :
         Context = context;
         target = new WeakReference<IPlatformAccessibleObject>(platformObject);
         IsRoot = isRoot;
+        lastChildRuntimeIds = CaptureChildRuntimeIds(platformObject);
     }
 
     /// <summary>
@@ -172,7 +174,9 @@ internal partial class WindowsUiaProvider :
                 if (node.GetIsSensitive())
                     throw new WindowsUiaAccessDeniedException();
 
-                return node.Value ?? string.Empty;
+                return SupportsValue(node, node.GetSupportedActions())
+                    ? node.Value ?? string.Empty
+                    : null;
             }
 
             return null;
@@ -200,21 +204,7 @@ internal partial class WindowsUiaProvider :
 
     /// <inheritdoc/>
     public int[] GetRuntimeId()
-    {
-        return Read(node =>
-        {
-            long id = node.GetRuntimeId();
-            if (id == 0)
-                id = RuntimeHelpers.GetHashCode(node);
-
-            return new int[]
-            {
-                WindowsUiaIds.AppendRuntimeId,
-                unchecked((int)(id & uint.MaxValue)),
-                unchecked((int)(id >> 32))
-            };
-        });
-    }
+        => Read(node => CreateRuntimeId(GetEffectiveRuntimeId(node)));
 
     /// <inheritdoc/>
     public UiaRect BoundingRectangle
@@ -239,6 +229,53 @@ internal partial class WindowsUiaProvider :
 
     /// <inheritdoc/>
     public IRawElementProviderFragmentRoot FragmentRoot => Context.Root;
+
+    /// <summary>
+    /// Compares the current canonical children with the event snapshot kept by this provider so a
+    /// shared Reorder notification can become the narrowest correct UIA structure-change event.
+    /// The snapshot contains runtime IDs only and does not form a second semantic hierarchy.
+    /// </summary>
+    internal WindowsUiaStructureChange ConsumeStructureChange()
+    {
+        return Read(node =>
+        {
+            long[] currentIds = CaptureChildRuntimeIds(node);
+            HashSet<long> previousSet = lastChildRuntimeIds.ToHashSet();
+            HashSet<long> currentSet = currentIds.ToHashSet();
+            long[] added = currentIds
+                .Where(id => !previousSet.Contains(id))
+                .ToArray();
+            long[] removed = lastChildRuntimeIds
+                .Where(id => !currentSet.Contains(id))
+                .ToArray();
+
+            lastChildRuntimeIds = currentIds;
+
+            if (added.Length == 1 && removed.Length == 0)
+            {
+                return new WindowsUiaStructureChange(
+                    this,
+                    StructureChangeType.ChildAdded,
+                    RuntimeId: null);
+            }
+
+            if (removed.Length == 1 && added.Length == 0)
+            {
+                return new WindowsUiaStructureChange(
+                    this,
+                    StructureChangeType.ChildRemoved,
+                    CreateRuntimeId(removed[0]));
+            }
+
+            if (added.Length > 0 && removed.Length == 0)
+                return new WindowsUiaStructureChange(this, StructureChangeType.ChildrenBulkAdded, RuntimeId: null);
+
+            if (removed.Length > 0 && added.Length == 0)
+                return new WindowsUiaStructureChange(this, StructureChangeType.ChildrenBulkRemoved, RuntimeId: null);
+
+            return new WindowsUiaStructureChange(this, StructureChangeType.ChildrenReordered, RuntimeId: null);
+        });
+    }
 
     /// <inheritdoc/>
     void IInvokeProvider.Invoke()
@@ -452,6 +489,33 @@ internal partial class WindowsUiaProvider :
             || node.Bounds.Width <= 0
             || node.Bounds.Height <= 0;
 
+    internal static int[] CreateRuntimeId(long id)
+        =>
+        [
+            WindowsUiaIds.AppendRuntimeId,
+            unchecked((int)(id & uint.MaxValue)),
+            unchecked((int)(id >> 32))
+        ];
+
+    private static long GetEffectiveRuntimeId(IPlatformAccessibleObject node)
+    {
+        long id = node.GetRuntimeId();
+        return id == 0 ? RuntimeHelpers.GetHashCode(node) : id;
+    }
+
+    private static long[] CaptureChildRuntimeIds(IPlatformAccessibleObject node)
+    {
+        int count = node.GetChildCount();
+        var runtimeIds = new List<long>(count);
+        for (int index = 0; index < count; index++)
+        {
+            if (node.GetChild(index) is { } child)
+                runtimeIds.Add(GetEffectiveRuntimeId(child));
+        }
+
+        return runtimeIds.ToArray();
+    }
+
     private T ReadRange<T>(Func<PlatformAccessibleRangeValue, T> selector)
         => Read(node => selector(node.GetRangeValue()
             ?? throw new InvalidOperationException("The semantic object does not expose a numeric range.")));
@@ -467,6 +531,11 @@ internal partial class WindowsUiaProvider :
         });
     }
 }
+
+internal readonly record struct WindowsUiaStructureChange(
+    WindowsUiaProvider Provider,
+    StructureChangeType ChangeType,
+    int[]? RuntimeId);
 
 /// <summary>
 /// Represents the fragment root associated with one ModernFormsNext HWND.

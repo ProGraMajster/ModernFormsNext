@@ -55,6 +55,7 @@ public sealed class WindowsUiaProviderTests
         Assert.Equal("Application settings", Property(provider, WindowsUiaIds.HelpTextProperty));
         Assert.Equal("SettingsForm", Property(provider, WindowsUiaIds.ClassNameProperty));
         Assert.Equal("ModernFormsNext", Property(provider, WindowsUiaIds.FrameworkIdProperty));
+        Assert.Null(Property(provider, WindowsUiaIds.ValueProperty));
     }
 
     [Theory]
@@ -405,7 +406,6 @@ public sealed class WindowsUiaProviderTests
         Assert.Contains(WindowsUiaIds.IsEnabledProperty, eventSink.PropertyChanges);
         Assert.Contains(WindowsUiaIds.ToggleStateProperty, eventSink.PropertyChanges);
         Assert.Contains(WindowsUiaIds.BoundingRectangleProperty, eventSink.PropertyChanges);
-        Assert.Contains(StructureChangeType.ChildrenReordered, eventSink.StructureChanges);
         Assert.Contains(StructureChangeType.ChildAdded, eventSink.StructureChanges);
         Assert.Contains(StructureChangeType.ChildRemoved, eventSink.StructureChanges);
 
@@ -420,6 +420,43 @@ public sealed class WindowsUiaProviderTests
         provider.RaiseNotification(node, 0x800E);
         Assert.Equal(propertyChangeCount, eventSink.PropertyChanges.Count);
         Assert.DoesNotContain(eventSink.Values, value => Equals(value, "must-not-be-emitted"));
+    }
+
+    [Fact]
+    public void ReorderNotificationsDifferentiateAddRemoveAndReorderWithoutCachingNodes()
+    {
+        var eventSink = new RecordingEventSink();
+        TestAccessibleObject root = Root("List", controlType: 12);
+        TestAccessibleObject first = root.AddChild(new TestAccessibleObject("First", 13));
+        TestAccessibleObject second = root.AddChild(new TestAccessibleObject("Second", 13));
+        using WindowsUiaRootProvider provider = WindowsUiaRootProvider.Create(
+            new IntPtr(42),
+            root,
+            new InlineDispatcher(),
+            eventSink);
+
+        root.AddChild(new TestAccessibleObject("Added", 13));
+        provider.RaiseNotification(root, 0x8004);
+        WindowsUiaStructureEvent addEvent = eventSink.StructureEvents[^1];
+        Assert.Equal(StructureChangeType.ChildAdded, addEvent.ChangeType);
+        Assert.Same(provider, addEvent.Provider);
+        Assert.Null(addEvent.RuntimeId);
+
+        root.Children.Remove(first);
+        first.ParentObject = null;
+        provider.RaiseNotification(root, 0x8004);
+        WindowsUiaStructureEvent removeEvent = eventSink.StructureEvents[^1];
+        Assert.Equal(StructureChangeType.ChildRemoved, removeEvent.ChangeType);
+        Assert.Same(provider, removeEvent.Provider);
+        Assert.Equal(WindowsUiaProvider.CreateRuntimeId(first.RuntimeId), removeEvent.RuntimeId);
+
+        root.Children.Reverse();
+        provider.RaiseNotification(root, 0x8004);
+        WindowsUiaStructureEvent reorderEvent = eventSink.StructureEvents[^1];
+        Assert.Equal(StructureChangeType.ChildrenReordered, reorderEvent.ChangeType);
+        Assert.Same(provider, reorderEvent.Provider);
+        Assert.Null(reorderEvent.RuntimeId);
+        Assert.Contains(second, root.Children);
     }
 
     [Fact]
@@ -652,7 +689,10 @@ public sealed class WindowsUiaProviderTests
 
         public List<object?> Values { get; } = [];
 
-        public List<StructureChangeType> StructureChanges { get; } = [];
+        public List<StructureChangeType> StructureChanges
+            => StructureEvents.Select(static change => change.ChangeType).ToList();
+
+        public List<WindowsUiaStructureEvent> StructureEvents { get; } = [];
 
         public void RaiseAutomationEvent(WindowsUiaProvider provider, int eventId)
             => AutomationEvents.Add(eventId);
@@ -670,9 +710,14 @@ public sealed class WindowsUiaProviderTests
         public void RaiseStructureChangedEvent(
             WindowsUiaProvider provider,
             StructureChangeType changeType,
-            int[] runtimeId)
-            => StructureChanges.Add(changeType);
+            int[]? runtimeId)
+            => StructureEvents.Add(new WindowsUiaStructureEvent(provider, changeType, runtimeId));
     }
+
+    private sealed record WindowsUiaStructureEvent(
+        WindowsUiaProvider Provider,
+        StructureChangeType ChangeType,
+        int[]? RuntimeId);
 
     private sealed class TestAccessibleObject : IPlatformUiaAccessibleObject
     {

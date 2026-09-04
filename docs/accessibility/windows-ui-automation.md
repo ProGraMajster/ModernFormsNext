@@ -96,8 +96,12 @@ boundary instead of escaping through the native callback.
 Canonical notifications map to UIA focus, property, selection, and structure notifications.
 Name/help/value/range/bounds/enabled/toggle/expand/selection state are mapped to their corresponding
 UIA property IDs. Password value notifications are suppressed. Reorder notifications use
-`ChildrenReordered`; explicit show/hide notifications additionally map to child-added/removed and
-offscreen changes. Native events are raised only after UIAutomationCore reports a listening client.
+an event-only snapshot of child runtime IDs to distinguish `ChildAdded`, `ChildRemoved`, bulk
+changes, and `ChildrenReordered` without retaining semantic nodes or building another hierarchy.
+The native runtime-ID argument is supplied only for `ChildRemoved`, as required by
+`UiaRaiseStructureChangedEvent`; explicit show/hide notifications additionally map to
+child-added/removed and offscreen changes. Native events are raised only after UIAutomationCore
+reports a listening client.
 
 ## Automated validation
 
