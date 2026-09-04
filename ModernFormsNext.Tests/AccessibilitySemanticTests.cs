@@ -217,6 +217,25 @@ public sealed class AccessibilitySemanticTests
     }
 
     [Fact]
+    public void MultiSelectListBoxSemanticItemsHonorAddAndRemoveSelectionFlags()
+    {
+        using var root = new VisibleRootControl();
+        using var listBox = root.Controls.Add(new ListBox { SelectionMode = SelectionMode.MultiSimple });
+        listBox.Items.Add("Alpha");
+        listBox.Items.Add("Beta");
+
+        AccessibleObject first = Assert.IsAssignableFrom<AccessibleObject>(listBox.AccessibilityObject.GetChild(0));
+        AccessibleObject second = Assert.IsAssignableFrom<AccessibleObject>(listBox.AccessibilityObject.GetChild(1));
+
+        first.Select(AccessibleSelection.AddSelection);
+        second.Select(AccessibleSelection.AddSelection);
+        Assert.Equal(new[] { 0, 1 }, listBox.Items.SelectedIndexes);
+
+        first.Select(AccessibleSelection.RemoveSelection);
+        Assert.Equal(new[] { 1 }, listBox.Items.SelectedIndexes);
+    }
+
+    [Fact]
     public void EqualListAndComboOccurrencesKeepDistinctIdentityAcrossReorder()
     {
         using var root = new VisibleRootControl();

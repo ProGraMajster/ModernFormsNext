@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -24,6 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient.csproj"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

@@ -19,6 +19,8 @@
     <Project Path="ModernFormsNext.VisualStudioExtension.Vsix.Tests/ModernFormsNext.VisualStudioExtension.Vsix.Tests.csproj" />
     <Project Path="ModernFormsNext.WindowKit.Backend.Android.Tests/ModernFormsNext.WindowKit.Backend.Android.Tests.csproj" />
     <Project Path="ModernFormsNext.WindowKit.Backend.Windows.Tests/ModernFormsNext.WindowKit.Backend.Windows.Tests.csproj" />
+    <Project Path="ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient/ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient.csproj" />
+    <Project Path="ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost/ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost.csproj" />
     <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
