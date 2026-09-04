@@ -7,6 +7,13 @@ using Xunit;
 
 namespace ModernFormsNext.Tests;
 
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class AccessibilitySemanticCollection
+{
+    public const string Name = "Accessibility semantics";
+}
+
+[Collection(AccessibilitySemanticCollection.Name)]
 public sealed class AccessibilitySemanticTests
 {
     [Fact]
