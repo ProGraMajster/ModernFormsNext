@@ -10,7 +10,6 @@ using ModernFormsNext.WindowKit.Input.Raw;
 using ModernFormsNext.WindowKit.Platform;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
 using ModernFormsNext.WindowKit.Threading;
-using System.Windows.Automation.Provider;
 //using ModernFormsNext.WindowKit.Backend.Windows.Win32.Automation;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32.Input;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop;
@@ -782,7 +781,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         if (ToInt32(lParam) == objIdClient)
                             return GetMsaaAccessibilityObject(wParam);
 
-                        if (ToInt32(lParam) == AutomationInteropProvider.RootObjectId)
+                        if (ToInt32(lParam) == WindowsUiaIds.RootObject)
                             return GetUiaAccessibilityObject(wParam, lParam);
 
                         break;
@@ -905,7 +904,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 _uiaAccessibilityObject = WindowsUiaRootProvider.Create(_hwnd, root, Dispatcher.UIThread);
             }
 
-            return AutomationInteropProvider.ReturnRawElementProvider(
+            return WindowsUiaNativeMethods.ReturnRawElementProvider(
                 _hwnd,
                 wParam,
                 lParam,

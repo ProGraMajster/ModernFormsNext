@@ -15,7 +15,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
     /// windows. Win32 accessibility notifications therefore target the owning top-level window's
     /// client object unless the shared caller supplies a more specific native object identifier.
     /// </remarks>
-    internal sealed class WindowsAccessibilityService : IPlatformAccessibilityService
+    internal sealed class WindowsAccessibilityService : IPlatformUiaAccessibilityService
     {
         private const int ObjIdClient = unchecked((int)0xFFFFFFFC);
 

@@ -1,5 +1,3 @@
-using System.Windows.Automation;
-using System.Windows.Automation.Provider;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Win32;
@@ -28,62 +26,65 @@ internal static class WindowsUiaEventMapper
         WindowsUiaProvider provider,
         IPlatformAccessibleObject source,
         int eventId,
-        WindowsUiaProviderContext context)
+        WindowsUiaProviderContext context,
+        IWindowsUiaEventSink eventSink)
     {
         switch (eventId)
         {
             case EventFocus:
-                RaiseEvent(provider, AutomationElementIdentifiers.AutomationFocusChangedEvent);
+                RaiseEvent(eventSink, provider, WindowsUiaIds.AutomationFocusChangedEvent);
                 break;
             case EventNameChange:
-                RaisePropertyChanged(provider, AutomationElementIdentifiers.NameProperty, source.Name ?? string.Empty);
+                RaisePropertyChanged(eventSink, provider, WindowsUiaIds.NameProperty, source.Name ?? string.Empty);
                 break;
             case EventDescriptionChange:
                 RaisePropertyChanged(
+                    eventSink,
                     provider,
-                    AutomationElementIdentifiers.HelpTextProperty,
+                    WindowsUiaIds.HelpTextProperty,
                     source.Help ?? source.Description ?? string.Empty);
                 break;
-            case EventValueChange when !source.IsSensitive:
-                RaisePropertyChanged(provider, ValuePatternIdentifiers.ValueProperty, source.Value ?? string.Empty);
+            case EventValueChange when !source.GetIsSensitive():
+                if (source.GetRangeValue() is { } range)
+                    RaisePropertyChanged(eventSink, provider, WindowsUiaIds.RangeValueProperty, range.Value);
+                else
+                    RaisePropertyChanged(eventSink, provider, WindowsUiaIds.ValueProperty, source.Value ?? string.Empty);
                 break;
             case EventStateChange:
-                RaisePropertyChanged(
-                    provider,
-                    AutomationElementIdentifiers.IsEnabledProperty,
-                    (source.State & 0x1) == 0);
+                RaiseStateProperties(eventSink, provider, source);
                 break;
             case EventLocationChange:
                 RaisePropertyChanged(
+                    eventSink,
                     provider,
-                    AutomationElementIdentifiers.BoundingRectangleProperty,
+                    WindowsUiaIds.BoundingRectangleProperty,
                     WindowsUiaCoordinateConverter.ToBoundingRectangle(source.Bounds));
                 break;
             case EventSelection:
-                RaiseEvent(provider, SelectionItemPatternIdentifiers.ElementSelectedEvent);
+                RaiseEvent(eventSink, provider, WindowsUiaIds.ElementSelectedEvent);
                 break;
             case EventSelectionAdd:
-                RaiseEvent(provider, SelectionItemPatternIdentifiers.ElementAddedToSelectionEvent);
+                RaiseEvent(eventSink, provider, WindowsUiaIds.ElementAddedToSelectionEvent);
                 break;
             case EventSelectionRemove:
-                RaiseEvent(provider, SelectionItemPatternIdentifiers.ElementRemovedFromSelectionEvent);
+                RaiseEvent(eventSink, provider, WindowsUiaIds.ElementRemovedFromSelectionEvent);
                 break;
             case EventSelectionWithin:
-                RaiseEvent(provider, SelectionPatternIdentifiers.InvalidatedEvent);
+                RaiseEvent(eventSink, provider, WindowsUiaIds.SelectionInvalidatedEvent);
                 break;
             case EventReorder:
-                RaiseStructureChanged(provider, StructureChangeType.ChildrenReordered);
+                RaiseStructureChanged(eventSink, provider, StructureChangeType.ChildrenReordered);
                 break;
             case EventParentChange:
-                RaiseStructureChanged(provider, StructureChangeType.ChildrenReordered);
+                RaiseStructureChanged(eventSink, provider, StructureChangeType.ChildrenReordered);
                 break;
             case EventShow:
-                RaisePropertyChanged(provider, AutomationElementIdentifiers.IsOffscreenProperty, false);
-                RaiseStructureChanged(GetStructureParent(provider, source, context), StructureChangeType.ChildAdded);
+                RaisePropertyChanged(eventSink, provider, WindowsUiaIds.IsOffscreenProperty, false);
+                RaiseStructureChanged(eventSink, GetStructureParent(provider, source, context), StructureChangeType.ChildAdded);
                 break;
             case EventHide:
-                RaisePropertyChanged(provider, AutomationElementIdentifiers.IsOffscreenProperty, true);
-                RaiseStructureChanged(GetStructureParent(provider, source, context), StructureChangeType.ChildRemoved);
+                RaisePropertyChanged(eventSink, provider, WindowsUiaIds.IsOffscreenProperty, true);
+                RaiseStructureChanged(eventSink, GetStructureParent(provider, source, context), StructureChangeType.ChildRemoved);
                 break;
         }
     }
@@ -94,25 +95,134 @@ internal static class WindowsUiaEventMapper
         WindowsUiaProviderContext context)
         => source.Parent is { } parent ? context.GetOrCreate(parent) : provider;
 
+    private static void RaiseStateProperties(
+        IWindowsUiaEventSink eventSink,
+        WindowsUiaProvider provider,
+        IPlatformAccessibleObject source)
+    {
+        const int stateUnavailable = 0x1;
+        const int stateSelected = 0x2;
+        const int stateChecked = 0x10;
+        const int stateMixed = 0x20;
+        const int stateExpanded = 0x200;
+        const int stateCollapsed = 0x400;
+        const int actionSelect = 1 << 2;
+        const int actionExpand = 1 << 3;
+        const int actionCollapse = 1 << 4;
+
+        int state = source.State;
+        int actions = source.GetSupportedActions();
+        int controlType = source.GetControlType();
+
+        RaisePropertyChanged(
+            eventSink,
+            provider,
+            WindowsUiaIds.IsEnabledProperty,
+            (state & stateUnavailable) == 0);
+
+        if (controlType is 7 or 8 or 9)
+        {
+            int toggleState = (state & stateMixed) != 0
+                ? (int)ToggleState.Indeterminate
+                : (state & stateChecked) != 0
+                    ? (int)ToggleState.On
+                    : (int)ToggleState.Off;
+            RaisePropertyChanged(eventSink, provider, WindowsUiaIds.ToggleStateProperty, toggleState);
+        }
+
+        if ((actions & (actionExpand | actionCollapse)) != 0
+            || (state & (stateExpanded | stateCollapsed)) != 0)
+        {
+            int expandCollapseState = (state & stateExpanded) != 0
+                ? (int)ExpandCollapseState.Expanded
+                : (state & stateCollapsed) != 0
+                    ? (int)ExpandCollapseState.Collapsed
+                    : (int)ExpandCollapseState.LeafNode;
+            RaisePropertyChanged(
+                eventSink,
+                provider,
+                WindowsUiaIds.ExpandCollapseStateProperty,
+                expandCollapseState);
+        }
+
+        if ((actions & actionSelect) != 0 || (state & stateSelected) != 0)
+        {
+            RaisePropertyChanged(
+                eventSink,
+                provider,
+                WindowsUiaIds.SelectionItemIsSelectedProperty,
+                (state & stateSelected) != 0);
+        }
+    }
+
     private static void RaisePropertyChanged(
-        IRawElementProviderSimple provider,
-        AutomationProperty property,
+        IWindowsUiaEventSink eventSink,
+        WindowsUiaProvider provider,
+        int propertyId,
         object newValue)
-        => AutomationInteropProvider.RaiseAutomationPropertyChangedEvent(
+        => eventSink.RaiseAutomationPropertyChangedEvent(
             provider,
-            new AutomationPropertyChangedEventArgs(
-                property,
-                AutomationElement.NotSupported,
-                newValue));
+            propertyId,
+            oldValue: null,
+            newValue);
 
-    private static void RaiseEvent(IRawElementProviderSimple provider, AutomationEvent eventId)
-        => AutomationInteropProvider.RaiseAutomationEvent(
-            eventId,
-            provider,
-            new AutomationEventArgs(eventId));
+    private static void RaiseEvent(
+        IWindowsUiaEventSink eventSink,
+        WindowsUiaProvider provider,
+        int eventId)
+        => eventSink.RaiseAutomationEvent(provider, eventId);
 
-    private static void RaiseStructureChanged(WindowsUiaProvider provider, StructureChangeType changeType)
-        => AutomationInteropProvider.RaiseStructureChangedEvent(
+    private static void RaiseStructureChanged(
+        IWindowsUiaEventSink eventSink,
+        WindowsUiaProvider provider,
+        StructureChangeType changeType)
+        => eventSink.RaiseStructureChangedEvent(
             provider,
-            new StructureChangedEventArgs(changeType, provider.GetRuntimeId()));
+            changeType,
+            provider.GetRuntimeId());
+}
+
+internal interface IWindowsUiaEventSink
+{
+    bool ClientsAreListening { get; }
+
+    void RaiseAutomationEvent(WindowsUiaProvider provider, int eventId);
+
+    void RaiseAutomationPropertyChangedEvent(
+        WindowsUiaProvider provider,
+        int propertyId,
+        object? oldValue,
+        object? newValue);
+
+    void RaiseStructureChangedEvent(
+        WindowsUiaProvider provider,
+        StructureChangeType changeType,
+        int[] runtimeId);
+}
+
+internal sealed class WindowsUiaNativeEventSink : IWindowsUiaEventSink
+{
+    public static WindowsUiaNativeEventSink Instance { get; } = new();
+
+    public bool ClientsAreListening => WindowsUiaNativeMethods.ClientsAreListening;
+
+    public void RaiseAutomationEvent(WindowsUiaProvider provider, int eventId)
+        => WindowsUiaNativeMethods.RaiseAutomationEvent(provider, eventId);
+
+    public void RaiseAutomationPropertyChangedEvent(
+        WindowsUiaProvider provider,
+        int propertyId,
+        object? oldValue,
+        object? newValue)
+        => WindowsUiaNativeMethods.RaiseAutomationPropertyChangedEvent(
+            provider,
+            propertyId,
+            oldValue,
+            newValue);
+
+    public void RaiseStructureChangedEvent(
+        WindowsUiaProvider provider,
+        StructureChangeType changeType,
+        int[] runtimeId)
+        => WindowsUiaNativeMethods.RaiseStructureChangedEvent(provider, changeType, runtimeId);
 }

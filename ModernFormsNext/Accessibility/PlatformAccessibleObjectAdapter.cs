@@ -13,7 +13,7 @@ namespace ModernFormsNext.Accessibility;
 /// contracts. Backend projects consume <see cref="IPlatformAccessibleObject"/> and do not need a
 /// reference back to the main ModernFormsNext assembly.
 /// </remarks>
-internal sealed class PlatformAccessibleObjectAdapter : IPlatformAccessibleObject
+internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject
 {
     private static readonly ConditionalWeakTable<AccessibleObject, PlatformAccessibleObjectAdapter> s_cache = new();
     private readonly AccessibleObject accessible_object;

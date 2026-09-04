@@ -1,12 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Automation;
-using System.Windows.Automation.Provider;
+using System.Runtime.InteropServices.Marshalling;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
 using ModernFormsNext.WindowKit.Threading;
-using UiaRect = System.Windows.Rect;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Win32;
 
@@ -19,7 +15,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32;
 /// <see cref="GetPatternProvider(int)"/> only when the canonical semantic object advertises the
 /// corresponding capability. All framework state is read or mutated through the UI dispatcher.
 /// </remarks>
-internal class WindowsUiaProvider :
+[GeneratedComClass]
+internal partial class WindowsUiaProvider :
     IRawElementProviderSimple,
     IRawElementProviderFragment,
     IInvokeProvider,
@@ -29,7 +26,17 @@ internal class WindowsUiaProvider :
     IExpandCollapseProvider,
     ISelectionProvider,
     ISelectionItemProvider,
-    IScrollItemProvider
+    IScrollItemProvider,
+    IRawElementProviderSimpleAbi,
+    IRawElementProviderFragmentAbi,
+    IInvokeProviderAbi,
+    IToggleProviderAbi,
+    IValueProviderAbi,
+    IRangeValueProviderAbi,
+    IExpandCollapseProviderAbi,
+    ISelectionProviderAbi,
+    ISelectionItemProviderAbi,
+    IScrollItemProviderAbi
 {
     private const int ActionInvoke = 1 << 0;
     private const int ActionToggle = 1 << 1;
@@ -100,25 +107,25 @@ internal class WindowsUiaProvider :
     /// <inheritdoc/>
     public object? GetPatternProvider(int patternId)
     {
-        return Read(node =>
+        return Read<object?>(node =>
         {
-            int actions = node.SupportedActions;
+            int actions = node.GetSupportedActions();
 
-            if (patternId == InvokePatternIdentifiers.Pattern.Id && HasAction(actions, ActionInvoke))
+            if (patternId == WindowsUiaIds.InvokePattern && HasAction(actions, ActionInvoke))
                 return this;
-            if (patternId == TogglePatternIdentifiers.Pattern.Id && HasAction(actions, ActionToggle))
+            if (patternId == WindowsUiaIds.TogglePattern && HasAction(actions, ActionToggle))
                 return this;
-            if (patternId == ValuePatternIdentifiers.Pattern.Id && SupportsValue(node, actions))
+            if (patternId == WindowsUiaIds.ValuePattern && SupportsValue(node, actions))
                 return this;
-            if (patternId == RangeValuePatternIdentifiers.Pattern.Id && node.RangeValue is not null)
+            if (patternId == WindowsUiaIds.RangeValuePattern && node.GetRangeValue() is not null)
                 return this;
-            if (patternId == ExpandCollapsePatternIdentifiers.Pattern.Id && SupportsExpandCollapse(node, actions))
+            if (patternId == WindowsUiaIds.ExpandCollapsePattern && SupportsExpandCollapse(node, actions))
                 return this;
-            if (patternId == SelectionPatternIdentifiers.Pattern.Id && IsSelectionContainer(node))
+            if (patternId == WindowsUiaIds.SelectionPattern && IsSelectionContainer(node))
                 return this;
-            if (patternId == SelectionItemPatternIdentifiers.Pattern.Id && HasAction(actions, ActionSelect))
+            if (patternId == WindowsUiaIds.SelectionItemPattern && HasAction(actions, ActionSelect))
                 return this;
-            if (patternId == ScrollItemPatternIdentifiers.Pattern.Id && HasAction(actions, ActionScrollIntoView))
+            if (patternId == WindowsUiaIds.ScrollItemPattern && HasAction(actions, ActionScrollIntoView))
                 return this;
 
             return null;
@@ -128,47 +135,47 @@ internal class WindowsUiaProvider :
     /// <inheritdoc/>
     public object? GetPropertyValue(int propertyId)
     {
-        return Read(node =>
+        return Read<object?>(node =>
         {
             int state = node.State;
 
-            if (propertyId == AutomationElementIdentifiers.NameProperty.Id)
+            if (propertyId == WindowsUiaIds.NameProperty)
                 return node.Name ?? string.Empty;
-            if (propertyId == AutomationElementIdentifiers.AutomationIdProperty.Id)
-                return node.AutomationId ?? string.Empty;
-            if (propertyId == AutomationElementIdentifiers.ControlTypeProperty.Id)
-                return WindowsUiaControlTypeMapper.Map(node.ControlType);
-            if (propertyId == AutomationElementIdentifiers.IsEnabledProperty.Id)
+            if (propertyId == WindowsUiaIds.AutomationIdProperty)
+                return node.GetAutomationId() ?? string.Empty;
+            if (propertyId == WindowsUiaIds.ControlTypeProperty)
+                return WindowsUiaControlTypeMapper.Map(node.GetControlType());
+            if (propertyId == WindowsUiaIds.IsEnabledProperty)
                 return !HasState(state, StateUnavailable);
-            if (propertyId == AutomationElementIdentifiers.IsKeyboardFocusableProperty.Id)
-                return HasState(state, StateFocusable) || HasAction(node.SupportedActions, ActionFocus);
-            if (propertyId == AutomationElementIdentifiers.HasKeyboardFocusProperty.Id)
+            if (propertyId == WindowsUiaIds.IsKeyboardFocusableProperty)
+                return HasState(state, StateFocusable) || HasAction(node.GetSupportedActions(), ActionFocus);
+            if (propertyId == WindowsUiaIds.HasKeyboardFocusProperty)
                 return HasState(state, StateFocused);
-            if (propertyId == AutomationElementIdentifiers.BoundingRectangleProperty.Id)
+            if (propertyId == WindowsUiaIds.BoundingRectangleProperty)
                 return WindowsUiaCoordinateConverter.ToBoundingRectangle(node.Bounds);
-            if (propertyId == AutomationElementIdentifiers.IsOffscreenProperty.Id)
+            if (propertyId == WindowsUiaIds.IsOffscreenProperty)
                 return IsOffscreen(node, state);
-            if (propertyId == AutomationElementIdentifiers.HelpTextProperty.Id)
+            if (propertyId == WindowsUiaIds.HelpTextProperty)
                 return node.Help ?? node.Description ?? string.Empty;
-            if (propertyId == AutomationElementIdentifiers.IsPasswordProperty.Id)
-                return node.IsSensitive || HasState(state, unchecked((int)0x20000000));
-            if (propertyId == AutomationElementIdentifiers.IsControlElementProperty.Id)
-                return IsControlElement(node.View);
-            if (propertyId == AutomationElementIdentifiers.IsContentElementProperty.Id)
-                return IsContentElement(node.View);
-            if (propertyId == AutomationElementIdentifiers.ClassNameProperty.Id)
-                return node.ClassName ?? WindowsUiaControlTypeMapper.GetClassName(node.ControlType);
-            if (propertyId == AutomationElementIdentifiers.FrameworkIdProperty.Id)
+            if (propertyId == WindowsUiaIds.IsPasswordProperty)
+                return node.GetIsSensitive() || HasState(state, unchecked((int)0x20000000));
+            if (propertyId == WindowsUiaIds.IsControlElementProperty)
+                return IsControlElement(node.GetAccessibilityView());
+            if (propertyId == WindowsUiaIds.IsContentElementProperty)
+                return IsContentElement(node.GetAccessibilityView());
+            if (propertyId == WindowsUiaIds.ClassNameProperty)
+                return node.GetClassName() ?? WindowsUiaControlTypeMapper.GetClassName(node.GetControlType());
+            if (propertyId == WindowsUiaIds.FrameworkIdProperty)
                 return "ModernFormsNext";
-            if (propertyId == ValuePatternIdentifiers.ValueProperty.Id)
+            if (propertyId == WindowsUiaIds.ValueProperty)
             {
-                if (node.IsSensitive)
-                    throw new InvalidOperationException("The value of a password element is not available.");
+                if (node.GetIsSensitive())
+                    throw new WindowsUiaAccessDeniedException();
 
                 return node.Value ?? string.Empty;
             }
 
-            return AutomationElement.NotSupported;
+            return null;
         });
     }
 
@@ -196,13 +203,13 @@ internal class WindowsUiaProvider :
     {
         return Read(node =>
         {
-            long id = node.RuntimeId;
+            long id = node.GetRuntimeId();
             if (id == 0)
                 id = RuntimeHelpers.GetHashCode(node);
 
             return new int[]
             {
-                AutomationInteropProvider.AppendRuntimeId,
+                WindowsUiaIds.AppendRuntimeId,
                 unchecked((int)(id & uint.MaxValue)),
                 unchecked((int)(id >> 32))
             };
@@ -221,7 +228,7 @@ internal class WindowsUiaProvider :
     {
         Mutate(node =>
         {
-            if (HasAction(node.SupportedActions, ActionFocus) && node.PerformAction(ActionFocus))
+            if (HasAction(node.GetSupportedActions(), ActionFocus) && node.PerformUiaAction(ActionFocus))
                 return;
 
             // Logical items can route focus through their canonical Select implementation even
@@ -255,14 +262,14 @@ internal class WindowsUiaProvider :
 
     /// <inheritdoc/>
     string IValueProvider.Value
-        => Read(static node => node.IsSensitive
-            ? throw new InvalidOperationException("The value of a password element is not available.")
+        => Read(static node => node.GetIsSensitive()
+            ? throw new WindowsUiaAccessDeniedException()
             : node.Value ?? string.Empty);
 
     /// <inheritdoc/>
     bool IValueProvider.IsReadOnly
         => Read(static node => HasState(node.State, StateReadOnly)
-            || !HasAction(node.SupportedActions, ActionSetValue));
+            || !HasAction(node.GetSupportedActions(), ActionSetValue));
 
     /// <inheritdoc/>
     void IValueProvider.SetValue(string value)
@@ -271,10 +278,10 @@ internal class WindowsUiaProvider :
         Mutate(node =>
         {
             if (HasState(node.State, StateUnavailable))
-                throw new ElementNotEnabledException();
-            if (HasState(node.State, StateReadOnly) || !HasAction(node.SupportedActions, ActionSetValue))
+                throw new WindowsUiaElementNotEnabledException();
+            if (HasState(node.State, StateReadOnly) || !HasAction(node.GetSupportedActions(), ActionSetValue))
                 throw new InvalidOperationException("The semantic value is read-only.");
-            if (!node.PerformAction(ActionSetValue, value))
+            if (!node.PerformUiaAction(ActionSetValue, value))
                 throw new InvalidOperationException("The semantic object rejected the value.");
         });
     }
@@ -302,16 +309,16 @@ internal class WindowsUiaProvider :
     {
         Mutate(node =>
         {
-            PlatformAccessibleRangeValue range = node.RangeValue
+            PlatformAccessibleRangeValue range = node.GetRangeValue()
                 ?? throw new InvalidOperationException("The semantic object does not expose a numeric range.");
 
             if (HasState(node.State, StateUnavailable))
-                throw new ElementNotEnabledException();
-            if (range.IsReadOnly || !HasAction(node.SupportedActions, ActionSetValue))
+                throw new WindowsUiaElementNotEnabledException();
+            if (range.IsReadOnly || !HasAction(node.GetSupportedActions(), ActionSetValue))
                 throw new InvalidOperationException("The semantic range is read-only.");
             if (double.IsNaN(value) || value < range.Minimum || value > range.Maximum)
                 throw new ArgumentOutOfRangeException(nameof(value));
-            if (!node.PerformAction(ActionSetValue, value))
+            if (!node.PerformUiaAction(ActionSetValue, value))
                 throw new InvalidOperationException("The semantic object rejected the range value.");
         });
     }
@@ -421,7 +428,8 @@ internal class WindowsUiaProvider :
     private static bool HasState(int state, int flag) => (state & flag) != 0;
 
     private static bool SupportsValue(IPlatformAccessibleObject node, int actions)
-        => node.RangeValue is null && HasAction(actions, ActionSetValue);
+        => node.GetRangeValue() is null
+            && (HasAction(actions, ActionSetValue) || node.GetControlType() == 10);
 
     private static bool SupportsExpandCollapse(IPlatformAccessibleObject node, int actions)
         => HasAction(actions, ActionExpand)
@@ -430,7 +438,7 @@ internal class WindowsUiaProvider :
             || HasState(node.State, StateCollapsed);
 
     private static bool IsSelectionContainer(IPlatformAccessibleObject node)
-        => node.ControlType is 11 or 12 or 14 or 16;
+        => node.GetControlType() is 11 or 12 or 14 or 16;
 
     private static bool IsControlElement(int view)
         => view is ViewControl or ViewContent;
@@ -445,7 +453,7 @@ internal class WindowsUiaProvider :
             || node.Bounds.Height <= 0;
 
     private T ReadRange<T>(Func<PlatformAccessibleRangeValue, T> selector)
-        => Read(node => selector(node.RangeValue
+        => Read(node => selector(node.GetRangeValue()
             ?? throw new InvalidOperationException("The semantic object does not expose a numeric range.")));
 
     private void PerformRequiredAction(int action)
@@ -453,8 +461,8 @@ internal class WindowsUiaProvider :
         Mutate(node =>
         {
             if (HasState(node.State, StateUnavailable))
-                throw new ElementNotEnabledException();
-            if (!HasAction(node.SupportedActions, action) || !node.PerformAction(action))
+                throw new WindowsUiaElementNotEnabledException();
+            if (!HasAction(node.GetSupportedActions(), action) || !node.PerformUiaAction(action))
                 throw new InvalidOperationException("The semantic action is not available.");
         });
     }
@@ -463,7 +471,12 @@ internal class WindowsUiaProvider :
 /// <summary>
 /// Represents the fragment root associated with one ModernFormsNext HWND.
 /// </summary>
-internal sealed class WindowsUiaRootProvider : WindowsUiaProvider, IRawElementProviderFragmentRoot, IDisposable
+[GeneratedComClass]
+internal sealed partial class WindowsUiaRootProvider :
+    WindowsUiaProvider,
+    IRawElementProviderFragmentRoot,
+    IRawElementProviderFragmentRootAbi,
+    IDisposable
 {
     private WindowsUiaRootProvider(WindowsUiaProviderContext context, IPlatformAccessibleObject root)
         : base(context, root, isRoot: true)
@@ -477,22 +490,32 @@ internal sealed class WindowsUiaRootProvider : WindowsUiaProvider, IRawElementPr
         IntPtr hwnd,
         IPlatformAccessibleObject root,
         Dispatcher dispatcher)
+        => Create(hwnd, root, new WindowsUiaDispatcher(dispatcher));
+
+    /// <summary>
+    /// Creates a UIA fragment root using an explicit dispatcher boundary.
+    /// </summary>
+    internal static WindowsUiaRootProvider Create(
+        IntPtr hwnd,
+        IPlatformAccessibleObject root,
+        IWindowsUiaDispatcher dispatcher,
+        IWindowsUiaEventSink? eventSink = null)
     {
-        var context = new WindowsUiaProviderContext(hwnd, dispatcher);
+        var context = new WindowsUiaProviderContext(
+            hwnd,
+            dispatcher,
+            eventSink ?? WindowsUiaNativeEventSink.Instance);
         var provider = new WindowsUiaRootProvider(context, root);
         context.Initialize(root, provider);
         return provider;
     }
 
     /// <inheritdoc/>
-    public override IRawElementProviderSimple HostRawElementProvider
-        => AutomationInteropProvider.HostProviderFromHandle(Context.Hwnd);
+    public override IRawElementProviderSimple? HostRawElementProvider => null;
 
     /// <inheritdoc/>
     public override IRawElementProviderFragment? Navigate(NavigateDirection direction)
-        => direction == NavigateDirection.Parent
-            ? HostRawElementProvider as IRawElementProviderFragment
-            : base.Navigate(direction);
+        => direction == NavigateDirection.Parent ? null : base.Navigate(direction);
 
     /// <inheritdoc/>
     public IRawElementProviderFragment? ElementProviderFromPoint(double x, double y)
@@ -533,13 +556,18 @@ internal sealed class WindowsUiaProviderContext : IDisposable
 {
     private static readonly TimeSpan DispatcherTimeout = TimeSpan.FromSeconds(10);
     private readonly ConditionalWeakTable<IPlatformAccessibleObject, WindowsUiaProvider> providers = new();
-    private readonly Dispatcher dispatcher;
+    private readonly IWindowsUiaDispatcher dispatcher;
+    private readonly IWindowsUiaEventSink eventSink;
     private bool disposed;
 
-    public WindowsUiaProviderContext(IntPtr hwnd, Dispatcher dispatcher)
+    public WindowsUiaProviderContext(
+        IntPtr hwnd,
+        IWindowsUiaDispatcher dispatcher,
+        IWindowsUiaEventSink eventSink)
     {
         Hwnd = hwnd;
         this.dispatcher = dispatcher;
+        this.eventSink = eventSink;
     }
 
     public IntPtr Hwnd { get; }
@@ -576,15 +604,15 @@ internal sealed class WindowsUiaProviderContext : IDisposable
 
     public void RaiseNotification(IPlatformAccessibleObject source, int eventId)
     {
-        if (disposed || !AutomationInteropProvider.ClientsAreListening)
+        if (disposed || !eventSink.ClientsAreListening)
             return;
 
         try
         {
             WindowsUiaProvider provider = GetOrCreate(source);
-            WindowsUiaEventMapper.Raise(provider, source, eventId, this);
+            WindowsUiaEventMapper.Raise(provider, source, eventId, this, eventSink);
         }
-        catch (ElementNotAvailableException)
+        catch (WindowsUiaElementNotAvailableException)
         {
             // A semantic object can be removed between the shared notification and provider lookup.
         }
@@ -592,7 +620,7 @@ internal sealed class WindowsUiaProviderContext : IDisposable
         {
             // Do not include semantic values in diagnostics: they may contain user-entered or
             // password data. UIA event failures must not escape the native window callback.
-            Debug.WriteLine($"ModernFormsNext UIA notification failed: {exception.GetType().Name}");
+            Trace.TraceError("ModernFormsNext UIA notification failed: {0}", exception.GetType().Name);
         }
     }
 
@@ -606,19 +634,19 @@ internal sealed class WindowsUiaProviderContext : IDisposable
         {
             return dispatcher.CheckAccess()
                 ? callback()
-                : dispatcher.Invoke(callback, DispatcherPriority.Send, CancellationToken.None, DispatcherTimeout);
+                : dispatcher.Invoke(callback, DispatcherTimeout);
         }
-        catch (ElementNotAvailableException)
+        catch (WindowsUiaElementNotAvailableException)
         {
             throw;
         }
         catch (TimeoutException exception)
         {
-            throw new ElementNotAvailableException("The ModernFormsNext UI thread did not accept the automation request.", exception);
+            throw new WindowsUiaElementNotAvailableException("The ModernFormsNext UI thread did not accept the automation request.", exception);
         }
         catch (OperationCanceledException exception)
         {
-            throw new ElementNotAvailableException("The ModernFormsNext dispatcher is shutting down.", exception);
+            throw new WindowsUiaElementNotAvailableException("The ModernFormsNext dispatcher is shutting down.", exception);
         }
     }
 
@@ -631,19 +659,19 @@ internal sealed class WindowsUiaProviderContext : IDisposable
             if (dispatcher.CheckAccess())
                 callback();
             else
-                dispatcher.Invoke(callback, DispatcherPriority.Send, CancellationToken.None, DispatcherTimeout);
+                dispatcher.Invoke(callback, DispatcherTimeout);
         }
-        catch (ElementNotAvailableException)
+        catch (WindowsUiaElementNotAvailableException)
         {
             throw;
         }
         catch (TimeoutException exception)
         {
-            throw new ElementNotAvailableException("The ModernFormsNext UI thread did not accept the automation request.", exception);
+            throw new WindowsUiaElementNotAvailableException("The ModernFormsNext UI thread did not accept the automation request.", exception);
         }
         catch (OperationCanceledException exception)
         {
-            throw new ElementNotAvailableException("The ModernFormsNext dispatcher is shutting down.", exception);
+            throw new WindowsUiaElementNotAvailableException("The ModernFormsNext dispatcher is shutting down.", exception);
         }
     }
 
@@ -653,9 +681,9 @@ internal sealed class WindowsUiaProviderContext : IDisposable
     {
         ThrowIfDisposed();
         if (!target.TryGetTarget(out IPlatformAccessibleObject? node))
-            throw new ElementNotAvailableException("The semantic object is no longer available.");
+            throw new WindowsUiaElementNotAvailableException("The semantic object is no longer available.");
         if (!isRoot && node.Parent is null)
-            throw new ElementNotAvailableException("The semantic object is detached from its accessibility tree.");
+            throw new WindowsUiaElementNotAvailableException("The semantic object is detached from its accessibility tree.");
 
         return node;
     }
@@ -663,8 +691,41 @@ internal sealed class WindowsUiaProviderContext : IDisposable
     private void ThrowIfDisposed()
     {
         if (disposed || Hwnd == IntPtr.Zero)
-            throw new ElementNotAvailableException("The native window is no longer available.");
+            throw new WindowsUiaElementNotAvailableException("The native window is no longer available.");
     }
+}
+
+/// <summary>
+/// Provides the narrow dispatcher operations needed at the native UIA callback boundary.
+/// </summary>
+internal interface IWindowsUiaDispatcher
+{
+    bool CheckAccess();
+
+    T Invoke<T>(Func<T> callback, TimeSpan timeout);
+
+    void Invoke(Action callback, TimeSpan timeout);
+}
+
+/// <summary>
+/// Routes UIA callbacks through the framework's canonical UI dispatcher.
+/// </summary>
+internal sealed class WindowsUiaDispatcher : IWindowsUiaDispatcher
+{
+    private readonly Dispatcher dispatcher;
+
+    public WindowsUiaDispatcher(Dispatcher dispatcher)
+    {
+        this.dispatcher = dispatcher;
+    }
+
+    public bool CheckAccess() => dispatcher.CheckAccess();
+
+    public T Invoke<T>(Func<T> callback, TimeSpan timeout)
+        => dispatcher.Invoke(callback, DispatcherPriority.Send, CancellationToken.None, timeout);
+
+    public void Invoke(Action callback, TimeSpan timeout)
+        => dispatcher.Invoke(callback, DispatcherPriority.Send, CancellationToken.None, timeout);
 }
 
 /// <summary>
@@ -675,32 +736,32 @@ internal static class WindowsUiaControlTypeMapper
     public static int Map(int controlType)
         => controlType switch
         {
-            2 => ControlType.Window.Id,
-            3 => ControlType.Pane.Id,
-            4 => ControlType.Group.Id,
-            5 => ControlType.Text.Id,
-            6 => ControlType.Button.Id,
-            7 => ControlType.CheckBox.Id,
-            8 => ControlType.RadioButton.Id,
-            9 => ControlType.CheckBox.Id,
-            10 => ControlType.Edit.Id,
-            11 => ControlType.ComboBox.Id,
-            12 => ControlType.List.Id,
-            13 => ControlType.ListItem.Id,
-            14 => ControlType.Tree.Id,
-            15 => ControlType.TreeItem.Id,
-            16 => ControlType.Tab.Id,
-            17 => ControlType.TabItem.Id,
-            18 => ControlType.Menu.Id,
-            19 => ControlType.MenuItem.Id,
-            20 => ControlType.Slider.Id,
-            21 => ControlType.ProgressBar.Id,
-            22 => ControlType.ScrollBar.Id,
-            23 => ControlType.Window.Id,
-            24 => ControlType.Image.Id,
-            25 => ControlType.ToolBar.Id,
-            26 => ControlType.Separator.Id,
-            _ => ControlType.Custom.Id
+            2 => 50032,
+            3 => 50033,
+            4 => 50026,
+            5 => 50020,
+            6 => 50000,
+            7 => 50002,
+            8 => 50013,
+            9 => 50002,
+            10 => 50004,
+            11 => 50003,
+            12 => 50008,
+            13 => 50007,
+            14 => 50023,
+            15 => 50024,
+            16 => 50018,
+            17 => 50019,
+            18 => 50009,
+            19 => 50011,
+            20 => 50015,
+            21 => 50012,
+            22 => 50014,
+            23 => 50032,
+            24 => 50006,
+            25 => 50021,
+            26 => 50038,
+            _ => 50025
         };
 
     public static string GetClassName(int controlType)
@@ -752,29 +813,9 @@ internal static class WindowsUiaCoordinateConverter
             || bounds.Width <= 0
             || bounds.Height <= 0)
         {
-            return UiaRect.Empty;
+            return new UiaRect(0, 0, 0, 0);
         }
 
         return new UiaRect(bounds.X, bounds.Y, bounds.Width, bounds.Height);
-    }
-}
-
-internal static class WindowsUiaNativeMethods
-{
-    [DllImport("uiautomationcore.dll")]
-    private static extern int UiaDisconnectProvider(
-        [MarshalAs(UnmanagedType.Interface)] IRawElementProviderSimple provider);
-
-    public static void DisconnectProvider(IRawElementProviderSimple provider)
-    {
-        try
-        {
-            _ = UiaDisconnectProvider(provider);
-        }
-        catch (DllNotFoundException)
-        {
-            // UIAutomationCore is part of supported Windows desktop installations. Keep teardown
-            // resilient for stripped-down test images where it is intentionally unavailable.
-        }
     }
 }

@@ -388,6 +388,12 @@ public partial class Control
                 if ((flags & AccessibleSelection.TakeSelection) != 0)
                     PerformAction(AccessibleActions.Select);
 
+                if ((flags & AccessibleSelection.AddSelection) != 0)
+                    Owner?.SetAccessibilitySelection(Index, selected: true);
+
+                if ((flags & AccessibleSelection.RemoveSelection) != 0)
+                    Owner?.SetAccessibilitySelection(Index, selected: false);
+
                 if ((flags & AccessibleSelection.TakeFocus) != 0)
                     Owner?.Select();
             }

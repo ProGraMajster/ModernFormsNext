@@ -43,12 +43,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- UIAutomationProvider and UIAutomationTypes expose the stable managed definitions of
-		     the native Windows UI Automation provider contracts. No WPF or WinForms controls are used. -->
-		<FrameworkReference Include="Microsoft.WindowsDesktop.App" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<Folder Include="Generated\" />
 	</ItemGroup>
 
