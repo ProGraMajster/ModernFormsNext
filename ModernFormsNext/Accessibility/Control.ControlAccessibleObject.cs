@@ -218,8 +218,13 @@ public partial class Control
         {
             get
             {
-                if (Owner is not { IsDisposed: false } owner)
+                if (Owner is not { IsDisposed: false } owner
+                    || !owner.Enabled
+                    || !owner.Visible
+                    || owner.AccessibilityView == AccessibilityView.Hidden)
+                {
                     return AccessibleActions.None;
+                }
 
                 var actions = owner.CanSelect ? AccessibleActions.Focus : AccessibleActions.None;
 
@@ -228,9 +233,10 @@ public partial class Control
                     Button => AccessibleActions.Invoke,
                     CheckBox { AutoCheck: true } => AccessibleActions.Toggle,
                     RadioButton { AutoCheck: true } => AccessibleActions.Select,
-                    Switch => AccessibleActions.Toggle,
+                    Switch { AutoToggle: true } => AccessibleActions.Toggle,
                     TextBox { ReadOnly: false } => AccessibleActions.SetValue,
-                    ComboBox => AccessibleActions.Expand | AccessibleActions.Collapse,
+                    ComboBox { DroppedDown: true } => AccessibleActions.Collapse,
+                    ComboBox comboBox when comboBox.FindForm() is not null => AccessibleActions.Expand,
                     TrackBar => AccessibleActions.SetValue | AccessibleActions.Increment | AccessibleActions.Decrement,
                     _ => AccessibleActions.None
                 };
@@ -457,11 +463,15 @@ public partial class Control
                     return true;
 
                 case AccessibleActions.Increment when owner is TrackBar trackBar:
-                    trackBar.Value = Math.Min(trackBar.Maximum, trackBar.Value + trackBar.SmallChange);
+                    trackBar.Value = (int)Math.Min(
+                        trackBar.Maximum,
+                        (long)trackBar.Value + trackBar.SmallChange);
                     return true;
 
                 case AccessibleActions.Decrement when owner is TrackBar trackBar:
-                    trackBar.Value = Math.Max(trackBar.Minimum, trackBar.Value - trackBar.SmallChange);
+                    trackBar.Value = (int)Math.Max(
+                        trackBar.Minimum,
+                        (long)trackBar.Value - trackBar.SmallChange);
                     return true;
 
                 case AccessibleActions.Focus:
@@ -521,6 +531,7 @@ public partial class Control
         private static AccessibleRole GetDefaultRole(Control? owner)
             => owner switch
             {
+                ControlAdapter { ParentForm: Form { IsAccessibilityDialog: true } } => AccessibleRole.Dialog,
                 ControlAdapter => AccessibleRole.Window,
                 Button => AccessibleRole.PushButton,
                 CheckBox => AccessibleRole.CheckButton,
@@ -554,6 +565,7 @@ public partial class Control
         private static AccessibleControlType GetDefaultControlType(Control? owner)
             => owner switch
             {
+                ControlAdapter { ParentForm: Form { IsAccessibilityDialog: true } } => AccessibleControlType.Dialog,
                 ControlAdapter => AccessibleControlType.Window,
                 Button => AccessibleControlType.Button,
                 CheckBox => AccessibleControlType.CheckBox,

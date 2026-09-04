@@ -59,6 +59,8 @@ namespace ModernFormsNext
             ClientSize = DefaultSize;
         }
 
+        internal bool IsAccessibilityDialog => dialog_parent is not null;
+
         private static IWindowBaseImpl CreateWindowImpl()
         {
             if (TestWindowFactoryScope.TryCreateWindow() is { } testWindow)
@@ -468,6 +470,7 @@ namespace ModernFormsNext
 
             dialog_parent = parent.Window;
             Window.SetParent (parent.Window);
+            adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
 
             ShowDialog (parent.Window);
 

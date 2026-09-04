@@ -62,7 +62,8 @@ public partial class Control
             list_box_item_objects = SynchronizeOccurrenceItems(
                 list_box_item_objects,
                 owner.Items,
-                item => new ListBoxItemAccessibleObject(this, owner, item));
+                owner.Items.GetAccessibilityIdentity,
+                (item, identity) => new ListBoxItemAccessibleObject(this, owner, item, identity));
 
             return list_box_item_objects;
         }
@@ -72,7 +73,8 @@ public partial class Control
             combo_box_item_objects = SynchronizeOccurrenceItems(
                 combo_box_item_objects,
                 owner.Items,
-                item => new ComboBoxItemAccessibleObject(this, owner, item));
+                owner.Items.GetAccessibilityIdentity,
+                (item, identity) => new ComboBoxItemAccessibleObject(this, owner, item, identity));
 
             return combo_box_item_objects;
         }
@@ -80,7 +82,8 @@ public partial class Control
         private static List<TNode> SynchronizeOccurrenceItems<TNode>(
             List<TNode>? existing,
             IReadOnlyList<object> items,
-            Func<object, TNode> create)
+            Func<int, object> getIdentity,
+            Func<object, object, TNode> create)
             where TNode : OccurrenceItemAccessibleObject
         {
             existing ??= [];
@@ -90,11 +93,12 @@ public partial class Control
             for (int itemIndex = 0; itemIndex < items.Count; itemIndex++)
             {
                 object item = items[itemIndex];
+                object identity = getIdentity(itemIndex);
                 TNode? matched = null;
 
                 for (int i = 0; i < existing.Count; i++)
                 {
-                    if (!used[i] && existing[i].Represents(item))
+                    if (!used[i] && existing[i].Represents(identity))
                     {
                         used[i] = true;
                         matched = existing[i];
@@ -102,7 +106,7 @@ public partial class Control
                     }
                 }
 
-                matched ??= create(item);
+                matched ??= create(item, identity);
                 matched.Attach(itemIndex);
                 synchronized.Add(matched);
             }
@@ -163,7 +167,14 @@ public partial class Control
                 return Rectangle.Empty;
 
             Point topLeft = owner.PointToScreen(localBounds.Location);
-            return new Rectangle(topLeft, localBounds.Size);
+            Point topRight = owner.PointToScreen(new Point(localBounds.Right, localBounds.Top));
+            Point bottomLeft = owner.PointToScreen(new Point(localBounds.Left, localBounds.Bottom));
+            Point bottomRight = owner.PointToScreen(new Point(localBounds.Right, localBounds.Bottom));
+            int left = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+            int top = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+            int right = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+            int bottom = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+            return Rectangle.FromLTRB(left, top, right, bottom);
         }
 
         private abstract class LogicalItemAccessibleObject : AccessibleObject
@@ -182,10 +193,13 @@ public partial class Control
                 => owner_reference.TryGetTarget(out Control? owner) && !owner.IsDisposed ? owner : null;
 
             protected bool IsOwnerAvailable
-                => OwnerControl is { Enabled: true, Visible: true };
+                => Root.View != AccessibilityView.Hidden
+                    && OwnerControl is { Enabled: true, Visible: true };
 
             public override AccessibilityView View
-                => OwnerControl is { Visible: true } ? AccessibilityView.Control : AccessibilityView.Hidden;
+                => Root.View != AccessibilityView.Hidden && OwnerControl is { Visible: true }
+                    ? AccessibilityView.Control
+                    : AccessibilityView.Hidden;
 
             public override AccessibleObject? Navigate(AccessibleNavigation navdir)
                 => NavigateLogicalObject(this, navdir);
@@ -213,13 +227,19 @@ public partial class Control
         private abstract class OccurrenceItemAccessibleObject : LogicalItemAccessibleObject
         {
             private readonly WeakReference<object> item_reference;
+            private readonly object occurrence_identity;
             private bool attached = true;
             private int current_index;
 
-            protected OccurrenceItemAccessibleObject(ControlAccessibleObject root, Control owner, object item)
+            protected OccurrenceItemAccessibleObject(
+                ControlAccessibleObject root,
+                Control owner,
+                object item,
+                object occurrenceIdentity)
                 : base(root, owner)
             {
                 item_reference = new WeakReference<object>(item);
+                occurrence_identity = occurrenceIdentity;
             }
 
             protected object? Item
@@ -229,8 +249,8 @@ public partial class Control
 
             protected int CurrentIndex => IsAttached ? current_index : -1;
 
-            public bool Represents(object item)
-                => item_reference.TryGetTarget(out object? current) && ReferenceEquals(current, item);
+            public bool Represents(object identity)
+                => ReferenceEquals(occurrence_identity, identity);
 
             public void Attach(int index)
             {
@@ -264,8 +284,12 @@ public partial class Control
         {
             private readonly WeakReference<ListBox> owner_reference;
 
-            public ListBoxItemAccessibleObject(ControlAccessibleObject root, ListBox owner, object item)
-                : base(root, owner, item)
+            public ListBoxItemAccessibleObject(
+                ControlAccessibleObject root,
+                ListBox owner,
+                object item,
+                object occurrenceIdentity)
+                : base(root, owner, item, occurrenceIdentity)
             {
                 owner_reference = new WeakReference<ListBox>(owner);
             }
@@ -305,6 +329,9 @@ public partial class Control
                     bool offscreen = Bounds.IsEmpty || Index < owner.FirstVisibleIndex;
                     var state = GetCommonState(IsAttached, offscreen);
 
+                    if (owner.SelectionMode == SelectionMode.None)
+                        state &= ~AccessibleStates.Selectable;
+
                     if (owner.Items.SelectedIndexes.Contains(Index))
                         state |= AccessibleStates.Selected;
 
@@ -316,12 +343,30 @@ public partial class Control
             }
 
             public override AccessibleActions SupportedActions
-                => Index >= 0 ? AccessibleActions.Select | AccessibleActions.ScrollIntoView : AccessibleActions.None;
+            {
+                get
+                {
+                    if (Index < 0 || !IsOwnerAvailable || Owner is not { } owner)
+                        return AccessibleActions.None;
+
+                    var actions = AccessibleActions.ScrollIntoView;
+                    if (owner.SelectionMode != SelectionMode.None)
+                        actions |= AccessibleActions.Select;
+
+                    return actions;
+                }
+            }
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
-                if (parameter is not null || Owner is not { } owner || Index < 0 || !IsOwnerAvailable)
+                if (!IsSingleAction(action)
+                    || (SupportedActions & action) == 0
+                    || parameter is not null
+                    || Owner is not { } owner
+                    || Index < 0)
+                {
                     return false;
+                }
 
                 if (action == AccessibleActions.Select)
                 {
@@ -352,8 +397,12 @@ public partial class Control
         {
             private readonly WeakReference<ComboBox> owner_reference;
 
-            public ComboBoxItemAccessibleObject(ControlAccessibleObject root, ComboBox owner, object item)
-                : base(root, owner, item)
+            public ComboBoxItemAccessibleObject(
+                ControlAccessibleObject root,
+                ComboBox owner,
+                object item,
+                object occurrenceIdentity)
+                : base(root, owner, item, occurrenceIdentity)
             {
                 owner_reference = new WeakReference<ComboBox>(owner);
             }
@@ -388,15 +437,16 @@ public partial class Control
             }
 
             public override AccessibleActions SupportedActions
-                => Index >= 0 ? AccessibleActions.Select : AccessibleActions.None;
+                => Index >= 0 && IsOwnerAvailable ? AccessibleActions.Select : AccessibleActions.None;
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
-                if (action != AccessibleActions.Select
+                if (!IsSingleAction(action)
+                    || (SupportedActions & action) == 0
+                    || action != AccessibleActions.Select
                     || parameter is not null
                     || Owner is not { } owner
-                    || Index < 0
-                    || !IsOwnerAvailable)
+                    || Index < 0)
                 {
                     return false;
                 }
@@ -459,13 +509,14 @@ public partial class Control
             }
 
             public override AccessibleActions SupportedActions
-                => IsAttached ? AccessibleActions.Select : AccessibleActions.None;
+                => IsAttached && IsOwnerAvailable ? AccessibleActions.Select : AccessibleActions.None;
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
-                if (action != AccessibleActions.Select
+                if (!IsSingleAction(action)
+                    || (SupportedActions & action) == 0
+                    || action != AccessibleActions.Select
                     || parameter is not null
-                    || !IsOwnerAvailable
                     || !IsAttached
                     || Owner is not { } owner
                     || Item is not { } item)
@@ -549,7 +600,7 @@ public partial class Control
             {
                 get
                 {
-                    if (!IsAttached)
+                    if (!IsAttached || !IsOwnerAvailable)
                         return AccessibleActions.None;
 
                     var actions = AccessibleActions.Select | AccessibleActions.ScrollIntoView;
@@ -573,8 +624,9 @@ public partial class Control
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
-                if (parameter is not null
-                    || !IsOwnerAvailable
+                if (!IsSingleAction(action)
+                    || (SupportedActions & action) == 0
+                    || parameter is not null
                     || !IsAttached
                     || Owner is not { } owner
                     || Item is not { } item)
@@ -657,13 +709,14 @@ public partial class Control
             }
 
             public override AccessibleActions SupportedActions
-                => IsAttached ? AccessibleActions.Select : AccessibleActions.None;
+                => IsAttached && IsOwnerAvailable ? AccessibleActions.Select : AccessibleActions.None;
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
-                if (action != AccessibleActions.Select
+                if (!IsSingleAction(action)
+                    || (SupportedActions & action) == 0
+                    || action != AccessibleActions.Select
                     || parameter is not null
-                    || !IsOwnerAvailable
                     || !IsAttached
                     || Owner is not { } owner
                     || Page is not { } page)
@@ -751,14 +804,26 @@ public partial class Control
             }
 
             public override AccessibleActions SupportedActions
-                => Item switch
+            {
+                get
                 {
-                    _ when !IsAttached => AccessibleActions.None,
-                    MenuSeparatorItem => AccessibleActions.None,
-                    { HasItems: true } => AccessibleActions.Expand | AccessibleActions.Collapse,
-                    not null => AccessibleActions.Invoke,
-                    _ => AccessibleActions.None
-                };
+                    if (!IsAttached || !IsOwnerAvailable || Item is not { Enabled: true } item)
+                        return AccessibleActions.None;
+
+                    if (item is MenuSeparatorItem)
+                        return AccessibleActions.None;
+
+                    if (!item.HasItems)
+                        return AccessibleActions.Invoke;
+
+                    if (item.IsDropDownOpened)
+                        return AccessibleActions.Collapse;
+
+                    return item.AccessibilityOwnerControl?.FindForm() is not null
+                        ? AccessibleActions.Expand
+                        : AccessibleActions.None;
+                }
+            }
 
             public override int GetChildCount()
                 => IsAttached && Item is { } item ? item.Items.Count : 0;
@@ -773,8 +838,9 @@ public partial class Control
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
-                if (parameter is not null
-                    || !IsOwnerAvailable
+                if (!IsSingleAction(action)
+                    || (SupportedActions & action) == 0
+                    || parameter is not null
                     || !IsAttached
                     || Item is not { Enabled: true } item)
                 {
@@ -792,10 +858,12 @@ public partial class Control
 
                         item.ShowDropDown();
                         NotifyClients(AccessibleEvents.StateChange);
+                        item.AccessibilityOwnerControl?.NotifyAccessibilityClients(AccessibleEvents.StateChange);
                         return true;
                     case AccessibleActions.Collapse when item.HasItems:
                         item.HideDropDown();
                         NotifyClients(AccessibleEvents.StateChange);
+                        item.AccessibilityOwnerControl?.NotifyAccessibilityClients(AccessibleEvents.StateChange);
                         return true;
                     default:
                         return false;

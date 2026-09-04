@@ -22,7 +22,7 @@ namespace ModernFormsNext.Accessibility;
 public class AccessibleObject
 {
     private static long s_nextRuntimeId;
-    private readonly long runtime_id = Interlocked.Increment(ref s_nextRuntimeId);
+    private readonly long runtime_id = CreateRuntimeId();
 
     /// <summary>
     /// Occurs when <see cref="NotifyClients(AccessibleEvents, int, int)"/> is called for this object.
@@ -247,6 +247,23 @@ public class AccessibleObject
     /// <param name="flags">Selection behavior flags.</param>
     public virtual void Select(AccessibleSelection flags)
     {
+    }
+
+    private static long CreateRuntimeId()
+    {
+        while (true)
+        {
+            long current = Volatile.Read(ref s_nextRuntimeId);
+            if (current == long.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    "The process-local accessibility runtime identifier space has been exhausted.");
+            }
+
+            long next = current + 1;
+            if (Interlocked.CompareExchange(ref s_nextRuntimeId, next, current) == current)
+                return next;
+        }
     }
 }
 
