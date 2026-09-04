@@ -219,10 +219,12 @@ transport. Phase 1 does not add another set of public semantic enums to WindowKi
 the existing `IPlatformAccessibleObject` contract. The Windows `WM_GETOBJECT`/MSAA path continues to
 consume names, roles, states, values, bounds, hierarchy, navigation, selection, and default actions.
 
-The remaining issue phases are intentionally separate:
+The remaining issue phases are intentionally separate. The Windows Phase 2 implementation is now
+available for manual inspection; see [Windows UI Automation backend](windows-ui-automation.md).
 
-- **Phase 2 — Windows:** native UI Automation provider, patterns, UIA event translation, and observed
-  validation with accessibility inspection tools.
+- **Phase 2 — Windows:** native UI Automation provider, common patterns, UIA event translation, and
+  automated real-HWND/client coverage are implemented. Accessibility Insights, Inspect.exe, and
+  screen-reader validation remain manual.
 - **Phase 3 — Android:** `AccessibilityNodeProvider` mapping, native events/focus, and TalkBack
   validation.
 - **Phase 4 — broader coverage:** deeper control and virtualized-item coverage, diagnostics,
