@@ -29,5 +29,27 @@ namespace ModernFormsNext.WindowKit.Platform.Services
         /// accessibility notification APIs are associated with the owning window handle.
         /// </remarks>
         void NotifyClients(IWindowBaseImpl owner, int eventId, int objectId, int childId);
+
+        /// <summary>
+        /// Notifies the platform accessibility layer that a specific semantic object changed.
+        /// </summary>
+        /// <param name="owner">The platform window that owns the notifying object.</param>
+        /// <param name="source">The semantic object that raised the notification.</param>
+        /// <param name="eventId">The platform-neutral event identifier.</param>
+        /// <param name="objectId">The platform object identifier.</param>
+        /// <param name="childId">The child identifier, or <c>0</c> for <paramref name="source"/>.</param>
+        /// <remarks>
+        /// The default implementation preserves compatibility with accessibility services that
+        /// only support window-level notifications. Backends with element-level automation should
+        /// override this member and retain neither <paramref name="source"/> nor its owner beyond
+        /// the notification call.
+        /// </remarks>
+        void NotifyClients(
+            IWindowBaseImpl owner,
+            Platform.Accessibility.IPlatformAccessibleObject source,
+            int eventId,
+            int objectId,
+            int childId)
+            => NotifyClients(owner, eventId, objectId, childId);
     }
 }

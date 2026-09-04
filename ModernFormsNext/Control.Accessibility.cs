@@ -323,6 +323,11 @@ public partial class Control
         if (service is null || owner is null)
             return;
 
-        service.NotifyClients(owner.window, (int)accEvent, objectID, childID);
+        service.NotifyClients(
+            owner.window,
+            PlatformAccessibleObjectAdapter.From(AccessibilityObject)!,
+            (int)accEvent,
+            objectID,
+            childID);
     }
 }

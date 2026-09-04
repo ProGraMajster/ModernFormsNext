@@ -32,6 +32,40 @@ namespace ModernFormsNext.WindowKit.Platform.Accessibility
     public interface IPlatformAccessibleObject
     {
         /// <summary>
+        /// Gets the stable process-local semantic runtime identifier.
+        /// </summary>
+        /// <remarks>
+        /// A value of <c>0</c> indicates that the implementation predates runtime identifiers.
+        /// Platform adapters should preserve a non-zero value for the lifetime of the represented
+        /// semantic object.
+        /// </remarks>
+        long RuntimeId => 0;
+
+        /// <summary>
+        /// Gets the developer-defined automation identifier for the object.
+        /// </summary>
+        string? AutomationId => null;
+
+        /// <summary>
+        /// Gets the canonical platform-neutral control type identifier.
+        /// </summary>
+        /// <remarks>
+        /// The integer is supplied by the shared accessibility model so WindowKit does not define
+        /// a second semantic control-type enumeration.
+        /// </remarks>
+        int ControlType => 0;
+
+        /// <summary>
+        /// Gets the canonical platform-neutral accessibility view identifier.
+        /// </summary>
+        int View => 0;
+
+        /// <summary>
+        /// Gets a backend-safe class name for diagnostics and native automation properties.
+        /// </summary>
+        string? ClassName => null;
+
+        /// <summary>
         /// Gets the object bounds in screen coordinates, measured in logical pixels.
         /// </summary>
         Rect Bounds { get; }
@@ -77,6 +111,22 @@ namespace ModernFormsNext.WindowKit.Platform.Accessibility
         int State { get; }
 
         /// <summary>
+        /// Gets whether the object contains sensitive content that native automation providers
+        /// must not disclose.
+        /// </summary>
+        bool IsSensitive => false;
+
+        /// <summary>
+        /// Gets optional numeric range metadata for the object.
+        /// </summary>
+        PlatformAccessibleRangeValue? RangeValue => null;
+
+        /// <summary>
+        /// Gets the canonical platform-neutral action flags supported by the object.
+        /// </summary>
+        int SupportedActions => 0;
+
+        /// <summary>
         /// Gets or sets the current value exposed by the object.
         /// </summary>
         string? Value { get; set; }
@@ -85,6 +135,14 @@ namespace ModernFormsNext.WindowKit.Platform.Accessibility
         /// Performs the object's default action when one is available.
         /// </summary>
         void DoDefaultAction();
+
+        /// <summary>
+        /// Performs one canonical platform-neutral semantic action.
+        /// </summary>
+        /// <param name="action">Exactly one action flag supplied by the shared accessibility model.</param>
+        /// <param name="parameter">Optional action data, such as a string or numeric value.</param>
+        /// <returns><see langword="true"/> when the action was accepted; otherwise <see langword="false"/>.</returns>
+        bool PerformAction(int action, object? parameter = null) => false;
 
         /// <summary>
         /// Gets the help topic identifier and help file associated with this object.
@@ -139,6 +197,23 @@ namespace ModernFormsNext.WindowKit.Platform.Accessibility
         /// <param name="flags">The selection behavior flags.</param>
         void Select(int flags);
     }
+
+    /// <summary>
+    /// Describes backend-neutral numeric range metadata exposed by an accessible object.
+    /// </summary>
+    /// <param name="Value">The current value.</param>
+    /// <param name="Minimum">The minimum supported value.</param>
+    /// <param name="Maximum">The maximum supported value.</param>
+    /// <param name="SmallChange">The small increment used by keyboard or automation actions.</param>
+    /// <param name="LargeChange">The large increment used by page-style actions.</param>
+    /// <param name="IsReadOnly">Whether automation clients may change the value.</param>
+    public readonly record struct PlatformAccessibleRangeValue(
+        double Value,
+        double Minimum,
+        double Maximum,
+        double SmallChange,
+        double LargeChange,
+        bool IsReadOnly);
 
     /// <summary>
     /// Specifies common platform-neutral directions for accessibility tree navigation.

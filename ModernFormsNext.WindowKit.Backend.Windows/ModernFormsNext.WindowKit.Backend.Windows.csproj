@@ -38,8 +38,14 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="System.Drawing.Common" Version="10.0.10" />
+		<PackageReference Include="System.Drawing.Common" Version="10.0.10" NoWarn="NU1510" />
 		<PackageReference Include="SkiaSharp" Version="3.119.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- UIAutomationProvider and UIAutomationTypes expose the stable managed definitions of
+		     the native Windows UI Automation provider contracts. No WPF or WinForms controls are used. -->
+		<FrameworkReference Include="Microsoft.WindowsDesktop.App" />
 	</ItemGroup>
 
 	<ItemGroup>
