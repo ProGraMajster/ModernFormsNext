@@ -20,6 +20,9 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <PackageReference Include="SkiaSharp.Views" Version="3.119.2" />
+    <!-- WindowKit's existing System.Drawing dependency needs this assembly for Android AOT.
+         Keep the repository's existing workaround here so every host receives it transitively. -->
+    <PackageReference Include="System.Formats.Nrbf" Version="10.0.10" />
   </ItemGroup>
 
   <!-- The plain net10.0 target contains deterministic backend mapping and lifecycle logic,
