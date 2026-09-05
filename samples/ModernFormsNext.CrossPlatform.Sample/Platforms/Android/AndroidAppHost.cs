@@ -43,6 +43,7 @@ public sealed class AndroidAppHost : IDisposable
             EnableInputConnectionDiagnostics = enableInputConnectionDiagnostics
         };
         nativeSurface.TextInputStateProvider = GetTextInputState;
+        nativeSurface.AccessibilityHost = controlSurface;
 
         controlSurface.Invalidated += OnControlSurfaceInvalidated;
         nativeSurface.Render += OnRender;
@@ -123,6 +124,7 @@ public sealed class AndroidAppHost : IDisposable
         nativeSurface.KeyInput -= OnKeyInput;
         nativeSurface.TextSelectionRequested -= OnTextSelectionRequested;
         nativeSurface.TextInputStateProvider = null;
+        nativeSurface.AccessibilityHost = null;
         // This sample owns one process-wide surface. Snap its global theme transition before
         // detaching so Activity recreation cannot leave non-control scheduler work waiting for a
         // surface that no longer exists.

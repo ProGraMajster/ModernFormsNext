@@ -7,6 +7,8 @@ using SkiaSharp.Views.Android;
 using System.Text.Json;
 using ICharSequence = Java.Lang.ICharSequence;
 using NativeKeyEvent = Android.Views.KeyEvent;
+using ModernFormsNext.WindowKit.Backend.Android.Accessibility;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 
@@ -32,6 +34,8 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     private long inputDiagnosticSequence;
     private bool inputStateNotificationPending;
     private bool disposed;
+    private IPlatformAccessibilityHost? accessibilityHost;
+    private AndroidAccessibilityNodeProvider? accessibilityProvider;
 
     /// <summary>Creates a Skia host using the supplied Android context.</summary>
     /// <param name="context">The current activity context.</param>
@@ -51,6 +55,39 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         Focusable = true;
         FocusableInTouchMode = true;
     }
+
+    /// <summary>Gets or sets the borrowed canonical accessibility host for this Skia surface.</summary>
+    /// <remarks>
+    /// Set this on the Android main thread, normally to the existing SkiaControlSurface. The host
+    /// remains owned by the application. Replacing it disconnects all previous virtual node IDs.
+    /// The view supplies physical screen coordinates; the windowless host supplies surface-relative
+    /// logical bounds. No native child View is required for a semantic child.
+    /// </remarks>
+    public IPlatformAccessibilityHost? AccessibilityHost
+    {
+        get => accessibilityHost;
+        set
+        {
+            ThrowIfDisposed();
+            if (ReferenceEquals(accessibilityHost, value)) return;
+            accessibilityProvider?.Dispose();
+            accessibilityHost = value;
+            accessibilityProvider = value is null ? null : new AndroidAccessibilityNodeProvider(this, value);
+            ImportantForAccessibility = value is null ? ImportantForAccessibility.Auto : ImportantForAccessibility.Yes;
+            if (IsAttachedToWindow) accessibilityProvider?.Attach();
+        }
+    }
+
+    /// <inheritdoc/>
+    public override global::Android.Views.Accessibility.AccessibilityNodeProvider? AccessibilityNodeProvider
+        => accessibilityProvider ?? base.AccessibilityNodeProvider;
+
+    internal void InitializeAccessibilityHostNode(global::Android.Views.Accessibility.AccessibilityNodeInfo info)
+        => base.OnInitializeAccessibilityNodeInfo(info);
+
+    /// <inheritdoc/>
+    protected override bool DispatchHoverEvent(MotionEvent? e)
+        => accessibilityProvider?.DispatchHover(e) == true || base.DispatchHoverEvent(e);
 
     /// <summary>Occurs when the shared renderer should paint the logical surface.</summary>
     public event EventHandler<AndroidSkiaRenderEventArgs>? Render;
@@ -348,6 +385,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
 
         if (state.AttachSurface())
             PostInvalidateOnAnimation();
+        accessibilityProvider?.Attach();
         UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Native Skia surface attached.", diagnosticSink);
     }
@@ -357,6 +395,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     {
         if (!disposed)
         {
+            accessibilityProvider?.Detach();
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.DetachSurface(), primaryPointerId);
             UpdateAnimationSurfaceRegistration();
@@ -424,6 +463,9 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         if (!disposed)
         {
             disposed = true;
+            accessibilityProvider?.Dispose();
+            accessibilityProvider = null;
+            accessibilityHost = null;
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.Dispose(), primaryPointerId);
             animationSurfaceRegistration?.Dispose();

@@ -29,8 +29,10 @@ internal static class AndroidAccessibilityBounds
         var current = node;
         for (int depth = 0; depth < 512; depth++)
         {
-            if (current.GetAccessibilityView() == 4
-                || (current.State & (AndroidAccessibilityMapper.Invisible | AndroidAccessibilityMapper.Offscreen)) != 0)
+            bool logicalRowAncestor = !ReferenceEquals(current, node) && current.GetControlType() is 13 or 15 or 17 or 19;
+            int excludedStates = AndroidAccessibilityMapper.Invisible
+                | (logicalRowAncestor ? 0 : AndroidAccessibilityMapper.Offscreen);
+            if (current.GetAccessibilityView() == 4 || (current.State & excludedStates) != 0)
                 return default;
             // A tree/menu item's rectangle describes its own row, not the viewport containing
             // expanded children. Clip against structural ancestors, not these logical rows.
