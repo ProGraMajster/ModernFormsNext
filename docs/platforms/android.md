@@ -71,7 +71,9 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   microphone capture, media, WebView, sharing, and cursor services are not implemented as complete
   Android WindowKit services. The permission service grants authorization only; it does not provide
   the corresponding device feature.
-- Accessibility semantics and screen-reader integration are not complete.
+- The [Android accessibility backend](../android-accessibility.md) exposes canonical virtual nodes,
+  supported actions, focus and native events. Emulator instrumentation is available; full TalkBack
+  and physical-device validation, advanced text, scrolling and broader control coverage remain open.
 - Focus, hardware keyboard behavior, and IME handling cover the current shared text-control path,
   but have not reached desktop parity across every control, keyboard, language, and vendor IME.
 - Rotation and configuration changes are handled by the sample host, but general host-independent
