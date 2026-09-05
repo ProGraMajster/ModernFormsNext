@@ -24,16 +24,17 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
     private bool disposed;
     private int generation;
 
-    internal AndroidAccessibilityNodeProvider(AndroidSkiaHostView host, IPlatformAccessibilityHost semantics)
+    internal AndroidAccessibilityNodeProvider(AndroidSkiaHostView host, IPlatformAccessibilityHost semantics, int lastId)
     {
         this.host = host;
-        session = new(semantics);
+        session = new(semantics, lastId);
         dispatch = new(new AndroidMainThreadDispatcher(),
             () => AndroidLogger.Write("Accessibility callback failed; request ignored."));
         session.EventsPending += ScheduleEvents;
     }
 
     internal void Attach() => dispatch.Run(() => { session.Attach(); return true; }, false);
+    internal int LastAllocatedId => session.LastAllocatedId;
 
     internal void InvalidateGeometry() => dispatch.Run(() => { session.InvalidateGeometry(); return true; }, false);
 

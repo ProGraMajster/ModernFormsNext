@@ -36,6 +36,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     private bool disposed;
     private IPlatformAccessibilityHost? accessibilityHost;
     private AndroidAccessibilityNodeProvider? accessibilityProvider;
+    private int lastAccessibilityVirtualId;
 
     /// <summary>Creates a Skia host using the supplied Android context.</summary>
     /// <param name="context">The current activity context.</param>
@@ -70,9 +71,13 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         {
             ThrowIfDisposed();
             if (ReferenceEquals(accessibilityHost, value)) return;
+            // Android identifies a virtual node by native View plus integer ID. Replacing only
+            // the semantic host must keep the allocator advancing within that same native View.
+            if (accessibilityProvider is not null)
+                lastAccessibilityVirtualId = accessibilityProvider.LastAllocatedId;
             accessibilityProvider?.Dispose();
             accessibilityHost = value;
-            accessibilityProvider = value is null ? null : new AndroidAccessibilityNodeProvider(this, value);
+            accessibilityProvider = value is null ? null : new AndroidAccessibilityNodeProvider(this, value, lastAccessibilityVirtualId);
             ImportantForAccessibility = value is null ? ImportantForAccessibility.Auto : ImportantForAccessibility.Yes;
             if (IsAttachedToWindow) accessibilityProvider?.Attach();
         }

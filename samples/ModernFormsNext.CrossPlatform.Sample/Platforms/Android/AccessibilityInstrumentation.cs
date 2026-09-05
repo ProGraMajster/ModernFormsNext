@@ -137,13 +137,25 @@ public sealed class AccessibilityInstrumentation : Instrumentation
             Check(eventCounts.ContainsKey(EventTypes.ViewSelected), "native selection event");
             Check(eventCounts.ContainsKey(EventTypes.WindowContentChanged), "native content event");
             Check(sensitiveEvents > 0 && sensitivePayloads == 0, "sensitive native event payloads");
+            RunOnMainSync(() =>
+            {
+                var content = activity.FindViewById<global::Android.Views.ViewGroup>(global::Android.Resource.Id.Content)!;
+                var view = (ModernFormsNext.WindowKit.Backend.Android.Rendering.AndroidSkiaHostView)content.GetChildAt(0)!;
+                var semantics = view.AccessibilityHost;
+                view.AccessibilityHost = null;
+                view.AccessibilityHost = semantics;
+            });
+            Thread.Sleep(150);
+            Check(!button.Refresh(), "same View replacement rejects previous IDs");
+            using var rebound = Find("Invoke sample");
+            Check(rebound.PerformAction(NativeAction.Click), "same View replacement action");
             // Recreate through Android's real activity lifecycle, preserving the process tree.
             RunOnMainSync(activity.Recreate);
             Thread.Sleep(1000);
             WaitForIdleSync();
             using var recreated = Find("Invoke sample");
             Check(recreated.PerformAction(NativeAction.Click), "recreated host action");
-            Check(!button.Refresh(), "old host native identity rejected");
+            Check(!rebound.Refresh(), "old host native identity rejected");
             result.PutString("stream", $"ANDROID_ACCESSIBILITY_PASS assertions={assertions}\n");
             Finish(Result.Ok, result);
         }

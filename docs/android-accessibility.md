@@ -41,7 +41,9 @@ The view borrows this `IPlatformAccessibilityHost`; it never owns or disposes ap
 route, peer subscriptions, and confirmation of existing ListBox selection removal are internal,
 platform-neutral transport extensions. There are no Android types in shared public APIs and no
 changes to the Windows UIA or MSAA contract. Android now references the existing WindowKit
-abstraction project; no external package was added.
+abstraction project. The repository's existing `System.Formats.Nrbf` Android AOT workaround moves
+from the cross-platform sample to the Android backend, so all hosts receive that dependency.
+No new package or package version is introduced to the repository.
 
 ```csharp
 var surface = new SkiaControlSurface(applicationRoot);
@@ -218,9 +220,9 @@ for manual validation when automated checks pass, and is not declared COMPLETE w
 
 ### Recorded Android evidence (2026-09-05)
 
-- Deterministic backend tests: 147/147, including mapper 51 and provider/session 24.
-- Native instrumentation: 44/44 assertions on Pixel_8 emulator, Android API 34, including native
-  service queries/actions/events, sensitive payload checks and actual Activity recreation.
+- Deterministic backend tests: 148/148, including mapper 51 and provider/session 25.
+- Native instrumentation: 46/46 assertions passed on Pixel_8 emulator, Android API 34, including native
+  service queries/actions/events, sensitive payload checks, same-View semantic replacement and actual Activity recreation.
 - TalkBack 14.2.0.618048417: limited observed smoke only. The service started, and touch exploration
   placed its visible focus rectangle around the virtual CheckBox. Speech and the complete gesture/
   control checklist were **NOT EXECUTED**; double-tap activation was not confirmed. This observation

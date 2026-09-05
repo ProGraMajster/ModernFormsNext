@@ -85,6 +85,21 @@ public class AndroidAccessibilityProviderTests
     }
 
     [Fact]
+    public void ReplacingSemanticsWithinSameNativeViewContinuesItsIdNamespace()
+    {
+        var first = new TestPeer(); var oldChild = first.Add(new TestPeer());
+        using var old = Started(first);
+        int oldId = old.Register(Adapt(oldChild));
+        int lastId = old.LastAllocatedId;
+        old.Dispose();
+        var replacement = new TestPeer(); var newChild = replacement.Add(new TestPeer());
+        using var current = new AndroidAccessibilitySession(new Host(replacement), lastId);
+        current.Attach();
+        Assert.NotEqual(oldId, current.Register(Adapt(newChild)));
+        Assert.Null(current.Find(oldId));
+    }
+
+    [Fact]
     public void IdentityExhaustionFailsPredictablyWithoutReusingOrWrappingIds()
     {
         var root = new TestPeer();

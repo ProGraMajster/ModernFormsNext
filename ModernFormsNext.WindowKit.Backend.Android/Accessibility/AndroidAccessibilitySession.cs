@@ -29,6 +29,7 @@ internal sealed class AndroidAccessibilitySession : IDisposable
     internal int HoveredId { get; private set; } = InvalidId;
     internal IPlatformAccessibleObject? Root => attached && !disposed ? host.AccessibilityRoot : null;
     internal int CachedNodeCount => entries.Count;
+    internal int LastAllocatedId => nextId;
 
     internal void InvalidateGeometry() => Queue(HostId, 2048, 1);
 

@@ -5,7 +5,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Accessibility;
 /// <summary>Contains callback failures and prevents UI-thread self-waits or late queued mutations.</summary>
 internal sealed class AndroidAccessibilityDispatch(IPlatformDispatcher dispatcher, Action? reportFailure = null)
 {
-    private bool failureReported;
+    private int failureReported;
 
     internal T Run<T>(Func<T> callback, T fallback, int timeoutMilliseconds = 2000)
     {
@@ -21,9 +21,8 @@ internal sealed class AndroidAccessibilityDispatch(IPlatformDispatcher dispatche
         {
             // Exception messages and parameters can contain user text. Report only one generic
             // category per provider; stale/unsupported queries normally return without throwing.
-            if (!failureReported)
+            if (Interlocked.Exchange(ref failureReported, 1) == 0)
             {
-                failureReported = true;
                 reportFailure?.Invoke();
             }
         }
