@@ -13,7 +13,7 @@ namespace ModernFormsNext.Accessibility;
 /// contracts. Backend projects consume <see cref="IPlatformAccessibleObject"/> and do not need a
 /// reference back to the main ModernFormsNext assembly.
 /// </remarks>
-internal sealed class PlatformAccessibleObjectAdapter : IPlatformAccessibleObject
+internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject
 {
     private static readonly ConditionalWeakTable<AccessibleObject, PlatformAccessibleObjectAdapter> s_cache = new();
     private readonly AccessibleObject accessible_object;
@@ -30,6 +30,24 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformAccessibleObjec
     /// <returns>The adapted object, or <see langword="null"/> when <paramref name="accessibleObject"/> is <see langword="null"/>.</returns>
     public static IPlatformAccessibleObject? From(AccessibleObject? accessibleObject)
         => accessibleObject is null ? null : s_cache.GetValue(accessibleObject, static value => new PlatformAccessibleObjectAdapter(value));
+
+    /// <inheritdoc/>
+    public long RuntimeId => accessible_object.RuntimeId;
+
+    /// <inheritdoc/>
+    public string? AutomationId => accessible_object.AutomationId;
+
+    /// <inheritdoc/>
+    public int ControlType => (int)accessible_object.ControlType;
+
+    /// <inheritdoc/>
+    public int View => (int)accessible_object.View;
+
+    /// <inheritdoc/>
+    public string? ClassName
+        => accessible_object is Control.ControlAccessibleObject { Owner: { } owner }
+            ? owner.GetType().Name
+            : accessible_object.ControlType.ToString();
 
     /// <inheritdoc/>
     public Rect Bounds => ToRect(accessible_object.Bounds);
@@ -63,6 +81,24 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformAccessibleObjec
     public int State => (int)accessible_object.State;
 
     /// <inheritdoc/>
+    public bool IsSensitive => accessible_object.IsSensitive;
+
+    /// <inheritdoc/>
+    public PlatformAccessibleRangeValue? RangeValue
+        => accessible_object.RangeValue is { } range
+            ? new PlatformAccessibleRangeValue(
+                range.Value,
+                range.Minimum,
+                range.Maximum,
+                range.SmallChange,
+                range.LargeChange,
+                range.IsReadOnly)
+            : null;
+
+    /// <inheritdoc/>
+    public int SupportedActions => (int)accessible_object.SupportedActions;
+
+    /// <inheritdoc/>
     public string? Value
     {
         get => accessible_object.Value;
@@ -71,6 +107,10 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformAccessibleObjec
 
     /// <inheritdoc/>
     public void DoDefaultAction() => accessible_object.DoDefaultAction();
+
+    /// <inheritdoc/>
+    public bool PerformAction(int action, object? parameter = null)
+        => accessible_object.PerformAction((AccessibleActions)action, parameter);
 
     /// <inheritdoc/>
     public int GetHelpTopic(out string? fileName) => accessible_object.GetHelpTopic(out fileName);

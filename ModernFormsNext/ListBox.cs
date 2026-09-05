@@ -419,6 +419,31 @@ namespace ModernFormsNext
             NotifyAccessibilityClients (AccessibleEvents.ValueChange);
         }
 
+        // UI Automation selection-item operations must use the same collection state and event
+        // path as pointer/keyboard selection. Keep this internal so it does not become a second
+        // public selection API alongside SelectedIndex and SelectionMode.
+        internal bool SetAccessibilitySelection(int index, bool selected)
+        {
+            if (SelectionMode is not (SelectionMode.MultiSimple or SelectionMode.MultiExtended)
+                || index < 0
+                || index >= Items.Count)
+            {
+                return false;
+            }
+
+            bool isSelected = Items.SelectedIndexes.Contains(index);
+            if (isSelected == selected)
+                return true;
+
+            if (selected)
+                Items.AddSelectedIndex(index, single: false);
+            else
+                Items.RemoveSelectedIndex(index);
+
+            OnSelectedIndexChanged(EventArgs.Empty);
+            return true;
+        }
+
         /// <summary>
         /// Gets the scaled height each item occupies.
         /// </summary>

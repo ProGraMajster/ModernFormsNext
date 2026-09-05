@@ -87,6 +87,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 case WindowsMessage.WM_DESTROY:
                     {
+                        WindowsUiaRootProvider? uiaAccessibilityObject = _uiaAccessibilityObject;
+                        _uiaAccessibilityObject = null;
+                        uiaAccessibilityObject?.Dispose();
+
                         // The first and foremost thing to do - notify the TopLevel
                         Closed?.Invoke();
                         
@@ -126,6 +130,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                         // Schedule cleanup of anything that requires window to be destroyed
                         Dispatcher.UIThread.Post(AfterCloseCleanup);
+                        if (uiaAccessibilityObject is not null)
+                        {
+                            // UiaDisconnectProvider performs an outbound COM call and must not run
+                            // inside an inbound SendMessage callback such as WM_DESTROY.
+                            Dispatcher.UIThread.Post(uiaAccessibilityObject.Disconnect);
+                        }
                         return IntPtr.Zero;
                     }
 
@@ -771,6 +781,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         if (ToInt32(lParam) == objIdClient)
                             return GetMsaaAccessibilityObject(wParam);
 
+                        if (ToInt32(lParam) == WindowsUiaIds.RootObject)
+                            return GetUiaAccessibilityObject(wParam, lParam);
+
                         break;
                     }
             }
@@ -874,6 +887,44 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             var interfaceId = WindowsMsaaAccessibleObject.InterfaceId;
             return LresultFromObject(ref interfaceId, wParam, _msaaAccessibilityObject);
         }
+
+        private IntPtr GetUiaAccessibilityObject(IntPtr wParam, IntPtr lParam)
+        {
+            try
+            {
+                if (_owner is not IPlatformAccessibilityHost host || host.AccessibilityRoot is not { } root)
+                    return IntPtr.Zero;
+
+                if (_uiaAccessibilityObject is null
+                    || !ReferenceEquals(_uiaAccessibilityObject.PlatformObject, root))
+                {
+                    WindowsUiaRootProvider? previous = _uiaAccessibilityObject;
+                    previous?.Dispose();
+                    if (previous is not null)
+                        Dispatcher.UIThread.Post(previous.Disconnect);
+
+                    _uiaAccessibilityObject = WindowsUiaRootProvider.Create(_hwnd, root, Dispatcher.UIThread);
+                }
+
+                return WindowsUiaNativeMethods.ReturnRawElementProvider(
+                    _hwnd,
+                    wParam,
+                    lParam,
+                    _uiaAccessibilityObject);
+            }
+            catch (Exception exception)
+            {
+                // A managed exception must never cross the unmanaged WndProc callback. Keep the
+                // diagnostic value-free because accessibility properties can contain passwords.
+                Trace.TraceError(
+                    "ModernFormsNext UIA WM_GETOBJECT failed: {0}",
+                    exception.GetType().Name);
+                return IntPtr.Zero;
+            }
+        }
+
+        internal void TryRaiseUiaNotification(IPlatformAccessibleObject source, int eventId)
+            => _uiaAccessibilityObject?.RaiseNotification(source, eventId);
 
         //private Lazy<IReadOnlyList<RawPointerPoint>?>? CreateLazyIntermediatePoints(POINTER_INFO info)
         //{

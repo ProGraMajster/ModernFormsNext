@@ -19,6 +19,7 @@ namespace ControlGallery
             tree.Style.Border.Width = 0;
             tree.Style.Border.Right.Width = 1;
 
+            tree.Items.Add ("Accessibility", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Button", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Animations", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("Animated layout", ImageLoader.Get ("swatches.png"));
@@ -107,6 +108,8 @@ namespace ControlGallery
         private Panel? CreatePanel (string text)
         {
             switch (text) {
+                case "Accessibility":
+                    return new AccessibilityPanel ();
                 case "Animations":
                     return new AnimationSchedulerPanel ();
                 case "Animated layout":

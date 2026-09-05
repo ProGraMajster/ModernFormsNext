@@ -67,6 +67,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         //private readonly Win32NativeControlHost _nativeControlHost;
         private readonly IStorageProvider _storageProvider;
         private WindowsMsaaAccessibleObject? _msaaAccessibilityObject;
+        private WindowsUiaRootProvider? _uiaAccessibilityObject;
         private WndProc _wndProcDelegate;
         private string? _className;
         private IntPtr _hwnd;

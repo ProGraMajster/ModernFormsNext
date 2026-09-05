@@ -29,5 +29,21 @@ namespace ModernFormsNext.WindowKit.Platform.Services
         /// accessibility notification APIs are associated with the owning window handle.
         /// </remarks>
         void NotifyClients(IWindowBaseImpl owner, int eventId, int objectId, int childId);
+
+    }
+
+    /// <summary>
+    /// Adds element-level notification routing for platform backends that support native UI
+    /// Automation providers. This contract remains internal so the public WindowKit API stays
+    /// unchanged.
+    /// </summary>
+    internal interface IPlatformUiaAccessibilityService : IPlatformAccessibilityService
+    {
+        void NotifyClients(
+            IWindowBaseImpl owner,
+            Platform.Accessibility.IPlatformAccessibleObject source,
+            int eventId,
+            int objectId,
+            int childId);
     }
 }
