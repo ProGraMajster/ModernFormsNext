@@ -17,7 +17,15 @@ namespace ControlGallery.Panels
             multi.Style.FontSize = 16;
 
             Controls.Add (new TextBox { Left = 10, Top = 315, Width = 150, Text = "Disabled", Enabled = false });
-            Controls.Add (new TextBox { Left = 10, Top = 355, Width = 150, Placeholder = "Password", PasswordCharacter = (char)0x25CF });
+            Controls.Add (new TextBox {
+                Left = 10,
+                Top = 355,
+                Width = 150,
+                Placeholder = "Password",
+                PasswordCharacter = (char)0x25CF,
+                AccessibleName = "Password test input",
+                AccessibleAutomationId = "controlgallery.textbox.password"
+            });
             
             var padded = Controls.Add (new TextBox { Text = "With Padding", Left = 200, Top = 10, Width = 150, Padding = new Padding (5) });
             padded.Style.ForegroundColor = SKColors.Red;
