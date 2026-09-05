@@ -890,25 +890,37 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private IntPtr GetUiaAccessibilityObject(IntPtr wParam, IntPtr lParam)
         {
-            if (_owner is not IPlatformAccessibilityHost host || host.AccessibilityRoot is not { } root)
-                return IntPtr.Zero;
-
-            if (_uiaAccessibilityObject is null
-                || !ReferenceEquals(_uiaAccessibilityObject.PlatformObject, root))
+            try
             {
-                WindowsUiaRootProvider? previous = _uiaAccessibilityObject;
-                previous?.Dispose();
-                if (previous is not null)
-                    Dispatcher.UIThread.Post(previous.Disconnect);
+                if (_owner is not IPlatformAccessibilityHost host || host.AccessibilityRoot is not { } root)
+                    return IntPtr.Zero;
 
-                _uiaAccessibilityObject = WindowsUiaRootProvider.Create(_hwnd, root, Dispatcher.UIThread);
+                if (_uiaAccessibilityObject is null
+                    || !ReferenceEquals(_uiaAccessibilityObject.PlatformObject, root))
+                {
+                    WindowsUiaRootProvider? previous = _uiaAccessibilityObject;
+                    previous?.Dispose();
+                    if (previous is not null)
+                        Dispatcher.UIThread.Post(previous.Disconnect);
+
+                    _uiaAccessibilityObject = WindowsUiaRootProvider.Create(_hwnd, root, Dispatcher.UIThread);
+                }
+
+                return WindowsUiaNativeMethods.ReturnRawElementProvider(
+                    _hwnd,
+                    wParam,
+                    lParam,
+                    _uiaAccessibilityObject);
             }
-
-            return WindowsUiaNativeMethods.ReturnRawElementProvider(
-                _hwnd,
-                wParam,
-                lParam,
-                _uiaAccessibilityObject);
+            catch (Exception exception)
+            {
+                // A managed exception must never cross the unmanaged WndProc callback. Keep the
+                // diagnostic value-free because accessibility properties can contain passwords.
+                Trace.TraceError(
+                    "ModernFormsNext UIA WM_GETOBJECT failed: {0}",
+                    exception.GetType().Name);
+                return IntPtr.Zero;
+            }
         }
 
         internal void TryRaiseUiaNotification(IPlatformAccessibleObject source, int eventId)
