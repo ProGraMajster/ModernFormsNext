@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Android\ModernFormsNext.WindowKit.Backend.Android.csproj" />
+    <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
   </ItemGroup>
 
 </Project>

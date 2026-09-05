@@ -317,6 +317,18 @@ public partial class Control
 
     private void NotifyPlatformAccessibilityClients(AccessibleEvents accEvent, int objectID, int childID)
     {
+        // Windowless Skia hosts use the same canonical notification path, but have no WindowBase
+        // on which to invoke the window service. Route only to their existing synthetic root.
+        Control root = this;
+        while (root.Parent is { } parent)
+            root = parent;
+        if (root is IControlSurfaceAccessibilitySink surface)
+        {
+            surface.NotifyAccessibility(PlatformAccessibleObjectAdapter.From(AccessibilityObject)!,
+                (int)accEvent, objectID, childID);
+            return;
+        }
+
         var service = AvaloniaGlobals.GetService<IPlatformAccessibilityService>();
         var owner = FindWindow();
 
@@ -337,4 +349,12 @@ public partial class Control
             service.NotifyClients(owner.window, (int)accEvent, objectID, childID);
         }
     }
+}
+
+/// <summary>Internal notification endpoint implemented by the existing Skia surface root.</summary>
+internal interface IControlSurfaceAccessibilitySink
+{
+    void NotifyAccessibility(
+        ModernFormsNext.WindowKit.Platform.Accessibility.IPlatformAccessibleObject source,
+        int eventId, int objectId, int childId);
 }

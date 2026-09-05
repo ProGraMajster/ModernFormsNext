@@ -1,5 +1,7 @@
 using System.Drawing;
 using SkiaSharp;
+using ModernFormsNext.Accessibility;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 
 namespace ModernFormsNext;
 
@@ -13,7 +15,7 @@ namespace ModernFormsNext;
 /// thread. The adapter borrows, but never disposes, <see cref="Root"/> so a host can preserve the
 /// application tree while recreating its native activity or surface.
 /// </remarks>
-public sealed class SkiaControlSurface : IDisposable
+public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost, IPlatformAccessibilitySurface
 {
     private readonly HashSet<Control> observedControls = [];
     private readonly Dictionary<int, PointerState> pointers = [];
@@ -34,6 +36,8 @@ public sealed class SkiaControlSurface : IDisposable
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
         this.pointerDiagnosticSink = pointerDiagnosticSink;
+        surfaceRoot.AccessibilityNotification = (source, eventId, objectId, childId) =>
+            accessibilityNotification?.Invoke(source, eventId, objectId, childId);
         surfaceRoot.Controls.Add(Root);
         surfaceRoot.CreateControl();
         ObserveTree(surfaceRoot);
@@ -44,6 +48,19 @@ public sealed class SkiaControlSurface : IDisposable
 
     /// <summary>Gets the borrowed root control.</summary>
     public Control Root { get; }
+
+    // The Android host borrows this existing adapter. Surface coordinates are logical pixels
+    // relative to the native surface, since this control tree has no WindowBase screen origin.
+    IPlatformAccessibleObject? IPlatformAccessibilityHost.AccessibilityRoot
+        => disposed || Root.IsDisposed ? null : PlatformAccessibleObjectAdapter.From(Root.AccessibilityObject);
+
+    private event Action<IPlatformAccessibleObject, int, int, int>? accessibilityNotification;
+
+    event Action<IPlatformAccessibleObject, int, int, int>? IPlatformAccessibilitySurface.AccessibilityNotification
+    {
+        add => accessibilityNotification += value;
+        remove => accessibilityNotification -= value;
+    }
 
     /// <summary>Gets the most recently assigned logical surface size.</summary>
     public Size LogicalSize { get; private set; }
@@ -480,6 +497,8 @@ public sealed class SkiaControlSurface : IDisposable
         observedControls.Clear();
         surfaceRoot.Controls.Remove(Root);
         surfaceRoot.Dispose();
+        accessibilityNotification = null;
+        surfaceRoot.AccessibilityNotification = null;
         Invalidated = null;
     }
 
@@ -720,8 +739,13 @@ public sealed class SkiaControlSurface : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
-    private sealed class SurfaceRootControl : Control
+    private sealed class SurfaceRootControl : Control, IControlSurfaceAccessibilitySink
     {
+        public Action<IPlatformAccessibleObject, int, int, int>? AccessibilityNotification { get; set; }
+
+        public void NotifyAccessibility(IPlatformAccessibleObject source, int eventId, int objectId, int childId)
+            => AccessibilityNotification?.Invoke(source, eventId, objectId, childId);
+
         public override bool Visible
         {
             get => true;

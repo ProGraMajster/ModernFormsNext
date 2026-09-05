@@ -15,14 +15,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend\ModernFormsNext.WindowKit.Backend.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.WindowKit\ModernFormsNext.WindowKit.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <PackageReference Include="SkiaSharp.Views" Version="3.119.2" />
   </ItemGroup>
 
-  <!-- The plain net10.0 target contains only deterministic permission mapping and queue logic.
-       It exists so those rules can be tested without an emulator. Native Android integration is
+  <!-- The plain net10.0 target contains deterministic backend mapping and lifecycle logic,
+       including accessibility over the existing WindowKit transport. Native Android integration is
        compiled exclusively into the net10.0-android target. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <Compile Remove="Platform\**\*.cs" />

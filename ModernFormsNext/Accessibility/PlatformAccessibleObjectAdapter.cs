@@ -13,7 +13,7 @@ namespace ModernFormsNext.Accessibility;
 /// contracts. Backend projects consume <see cref="IPlatformAccessibleObject"/> and do not need a
 /// reference back to the main ModernFormsNext assembly.
 /// </remarks>
-internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject
+internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject, IPlatformAccessibilityNotifications
 {
     private static readonly ConditionalWeakTable<AccessibleObject, PlatformAccessibleObjectAdapter> s_cache = new();
     private readonly AccessibleObject accessible_object;
@@ -21,7 +21,13 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleOb
     private PlatformAccessibleObjectAdapter(AccessibleObject accessibleObject)
     {
         accessible_object = accessibleObject;
+        // The adapter and peer have the same conditional-weak-table lifetime. Native providers
+        // unsubscribe when detached; no control or native view is retained by a global listener.
+        accessible_object.ClientNotification += (_, e) =>
+            AccessibilityNotification?.Invoke((int)e.EventId, e.ObjectId, e.ChildId);
     }
+
+    public event Action<int, int, int>? AccessibilityNotification;
 
     /// <summary>
     /// Gets or creates an adapter for the specified accessible object.
