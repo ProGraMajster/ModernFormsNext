@@ -30,6 +30,8 @@ internal sealed class AndroidAccessibilitySession : IDisposable
     internal IPlatformAccessibleObject? Root => attached && !disposed ? host.AccessibilityRoot : null;
     internal int CachedNodeCount => entries.Count;
 
+    internal void InvalidateGeometry() => Queue(HostId, 2048, 1);
+
     internal void Attach()
     {
         if (disposed || attached) return;
@@ -138,7 +140,8 @@ internal sealed class AndroidAccessibilitySession : IDisposable
         // per-node event slots. Actions that silently implement custom state still invalidate it.
         if (action == ActionFocus) Queue(id, 8);
         else if (action is ActionSelect or ActionClearSelection) Queue(id, 4);
-        else Queue(id, 2048, action == ActionSetText ? 2 : 64);
+        else Queue(id, 2048, action == ActionSetText
+            ? node.GetIsSensitive() || (node.State & Protected) != 0 ? 0 : 2 : 64);
         return true;
     }
 
@@ -183,6 +186,7 @@ internal sealed class AndroidAccessibilitySession : IDisposable
             Prune();
             Queue(id, 2048, 1);
         }
+        else if (eventId == PlatformAccessibilitySurfaceEvents.Invoked) Queue(id, 1);
         else if (eventId == 0x8005) Queue(id, 8);
         else if (eventId is >= 0x8006 and <= 0x8009) Queue(id, 4);
         else if (eventId == 0x800E)

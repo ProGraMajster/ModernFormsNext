@@ -13,7 +13,8 @@ namespace ModernFormsNext.Accessibility;
 /// contracts. Backend projects consume <see cref="IPlatformAccessibleObject"/> and do not need a
 /// reference back to the main ModernFormsNext assembly.
 /// </remarks>
-internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject, IPlatformAccessibilityNotifications
+internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject,
+    IPlatformAccessibilityNotifications, IPlatformAccessibilitySelection
 {
     private static readonly ConditionalWeakTable<AccessibleObject, PlatformAccessibleObjectAdapter> s_cache = new();
     private readonly AccessibleObject accessible_object;
@@ -28,6 +29,12 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleOb
     }
 
     public event Action<int, int, int>? AccessibilityNotification;
+
+    // Only the existing ListBox logical peer implements independent removal in its selection
+    // flags override. Do not infer that capability from a custom peer's role or class name.
+    public bool CanClearSelection => accessible_object.ControlType == AccessibleControlType.ListItem
+        && accessible_object.Parent is Control.ControlAccessibleObject
+        { Owner: ListBox { SelectionMode: SelectionMode.MultiSimple or SelectionMode.MultiExtended } };
 
     /// <summary>
     /// Gets or creates an adapter for the specified accessible object.

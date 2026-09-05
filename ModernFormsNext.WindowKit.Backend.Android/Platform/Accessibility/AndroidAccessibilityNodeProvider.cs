@@ -35,6 +35,8 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
 
     internal void Attach() => dispatch.Run(() => { session.Attach(); return true; }, false);
 
+    internal void InvalidateGeometry() => dispatch.Run(() => { session.InvalidateGeometry(); return true; }, false);
+
     internal void Detach() => dispatch.Run(() =>
     {
         generation++;
@@ -195,13 +197,20 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
                 if (!OperatingSystem.IsAndroidVersionAtLeast(24) || arguments?.ContainsKey(key) != true) return false;
                 parameter = (double)arguments.GetFloat(key, float.NaN);
             }
-            else if (arguments is not null && !arguments.IsEmpty) return false;
+            // Android services add routing metadata even to argument-free actions such as Click.
+            // Only documented action arguments become canonical parameters; ignore native extras.
             if (actionId == ActionFocus && (!Actions(node).Contains(actionId) || !host.RequestFocus())) return false;
-            return session.Perform(virtualViewId, actionId, parameter, Geometry(node).Visible);
+            bool performed = session.Perform(virtualViewId, actionId, parameter, Geometry(node).Visible);
+            // ViewRootImpl tracks the focused virtual descendant from this event. Deliver focus
+            // synchronously so a service's immediately following FindFocus sees the new target.
+            if (performed && actionId is ActionAccessibilityFocus or ActionClearAccessibilityFocus)
+                SendEvents();
+            return performed;
         }, false);
 
     public override AccessibilityNodeInfo? FindFocus(NodeFocus focus)
-        => dispatch.Run(() => disposed ? null : CreateNode(session.FindFocus(focus == NodeFocus.Accessibility)), null);
+        => dispatch.Run(() => disposed || focus == NodeFocus.Input && !host.HasFocus ? null
+            : CreateNode(session.FindFocus(focus == NodeFocus.Accessibility)), null);
 
     public override IList<AccessibilityNodeInfo>? FindAccessibilityNodeInfosByText(string? text, int virtualViewId)
         => dispatch.Run<IList<AccessibilityNodeInfo>?>(() =>
@@ -252,6 +261,8 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
     {
         using var visible = new NativeRect();
         if (!host.IsShown || !host.GetLocalVisibleRect(visible)) return default;
+        for (View? ancestor = host; ancestor is not null; ancestor = ancestor.Parent as View)
+            if (ancestor.Alpha <= 0) return default;
         double density = host.Density;
         return new(visible.Left / density, visible.Top / density, visible.Width() / density, visible.Height() / density);
     }

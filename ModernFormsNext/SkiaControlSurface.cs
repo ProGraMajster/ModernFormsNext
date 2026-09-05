@@ -532,6 +532,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         control.ControlAdded += OnControlAdded;
         control.ControlRemoved += OnControlRemoved;
         control.LostFocus += OnControlLostFocus;
+        control.Click += OnControlClick;
         foreach (var child in control.Controls.GetAllControls())
             ObserveTree(child);
     }
@@ -542,11 +543,19 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         control.ControlAdded -= OnControlAdded;
         control.ControlRemoved -= OnControlRemoved;
         control.LostFocus -= OnControlLostFocus;
+        control.Click -= OnControlClick;
         observedControls.Remove(control);
     }
 
     private void OnControlInvalidated(object? sender, EventArgs<Rectangle> e)
         => Invalidated?.Invoke(this, EventArgs.Empty);
+
+    private void OnControlClick(object? sender, MouseEventArgs e)
+    {
+        if (accessibilityNotification is not null && sender is Control control)
+            accessibilityNotification(PlatformAccessibleObjectAdapter.From(control.AccessibilityObject)!,
+                PlatformAccessibilitySurfaceEvents.Invoked, 0, 0);
+    }
 
     private void OnControlAdded(object? sender, EventArgs<Control> e)
         => ObserveTree(e.Value);

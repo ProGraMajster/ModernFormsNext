@@ -414,6 +414,14 @@ public sealed class AndroidSkiaHostView : SKCanvasView
 
         if (ResizeFromPhysicalPixels(width, height) && state.CanRender)
             PostInvalidateOnAnimation();
+        accessibilityProvider?.InvalidateGeometry();
+    }
+
+    /// <inheritdoc/>
+    protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
+    {
+        base.OnLayout(changed, left, top, right, bottom);
+        if (changed && !disposed) accessibilityProvider?.InvalidateGeometry();
     }
 
     /// <inheritdoc/>
@@ -460,6 +468,11 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
+        // Activity.OnDestroy precedes ViewRoot's final native detach. Remove the still-live view
+        // first, otherwise Android can call OnDetachedFromWindow after its managed peer was freed.
+        // This also disconnects virtual accessibility descendants before disposing their provider.
+        if (disposing && !disposed && Parent is ViewGroup parent)
+            parent.RemoveView(this);
         if (!disposed)
         {
             disposed = true;

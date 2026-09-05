@@ -84,8 +84,8 @@ internal static class AndroidAccessibilityMapper
         if (ClickAction(node) != 0) result.Add(ActionClick);
         if ((actions & Select) != 0) result.Add(ActionSelect);
         if (CanClearSelection(node)) result.Add(ActionClearSelection);
-        if ((actions & Expand) != 0) result.Add(ActionExpand);
-        if ((actions & Collapse) != 0) result.Add(ActionCollapse);
+        if ((actions & Expand) != 0 && (state & Expanded) == 0) result.Add(ActionExpand);
+        if ((actions & Collapse) != 0 && (state & Collapsed) == 0) result.Add(ActionCollapse);
         if ((actions & SetValue) != 0 && (state & ReadOnly) == 0)
         {
             if (type == 10) result.Add(ActionSetText);
@@ -113,7 +113,7 @@ internal static class AndroidAccessibilityMapper
     }
 
     private static bool CanClearSelection(IPlatformAccessibleObject node)
-        => node.GetControlType() == 13 && (node.State & Selected) != 0
+        => node is IPlatformAccessibilitySelection { CanClearSelection: true } && (node.State & Selected) != 0
             && (node.GetSupportedActions() & Select) != 0
             && node.Parent is { } parent && (parent.State & MultiSelectable) != 0;
 

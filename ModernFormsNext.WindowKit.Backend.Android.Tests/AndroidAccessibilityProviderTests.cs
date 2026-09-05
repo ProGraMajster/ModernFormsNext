@@ -209,6 +209,21 @@ public class AndroidAccessibilityProviderTests
     }
 
     [Fact]
+    public void NormalFrameworkClickProducesOneInvocationNotification()
+    {
+        using var root = new Panel();
+        var button = new Button(); root.Controls.Add(button);
+        using var surface = new SkiaControlSurface(root);
+        using var session = new AndroidAccessibilitySession(surface);
+        session.Attach(); session.DrainEvents();
+        button.PerformClick();
+        Assert.Equal(1, Assert.Single(session.DrainEvents()).Type);
+        int id = session.Register(Adapt(button.AccessibilityObject));
+        Assert.True(session.Perform(id, ActionClick, null, true));
+        Assert.Single(session.DrainEvents(), e => e.Type == 1);
+    }
+
+    [Fact]
     public void RealListBoxDuplicateOccurrencesHaveSeparateIdsAndSelectionWorks()
     {
         using var list = new ListBox { SelectionMode = SelectionMode.MultiSimple };
