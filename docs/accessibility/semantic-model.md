@@ -226,8 +226,9 @@ available for manual inspection; see [Windows UI Automation backend](windows-ui-
   automated real-HWND/client coverage are implemented. Accessibility Insights, Inspect.exe, and
   screen-reader validation remain manual.
 - **Phase 3 — Android:** `AccessibilityNodeProvider` mapping, native events/focus, deterministic
-  tests and emulator instrumentation are implemented; the full TalkBack checklist remains a manual
-  gate. See [Android accessibility backend](../android-accessibility.md).
+  tests and emulator instrumentation are implemented; the 20-point TalkBack gesture checklist passed
+  on Pixel_8/API 34. Physical-device and broader platform coverage remain deferred.
+  See [Android accessibility backend](../android-accessibility.md).
 - **Phase 4 — broader coverage:** deeper control and virtualized-item coverage, diagnostics,
   Developer Tools integration, samples, and platform validation matrices.
 

@@ -257,8 +257,9 @@ Execution method: an agent sent ordinary touchscreen events through the emulator
 double-tap, directional flick and the three-finger TalkBack menu gesture). These checks did not
 call AccessibilityNodeInfo.PerformAction as a substitute for TalkBack activation. Actual emulator
 audio was captured and transcribed locally; screenshots of TalkBack's own speech-output overlay
-and the rendered control state were inspected. Human listening/usability assessment was
-**NOT EXECUTED**. The transcriptions are qualitative evidence, not exact speech assertions.
+and the rendered control state were inspected. During finalization, the user also confirmed
+hearing TalkBack during this validation. No formal human usability assessment was performed.
+The transcriptions are qualitative evidence, not exact speech assertions.
 
 - `final-button-*`, `final-checkbox-*`, `final-radio-*`, `final-other-radio-*`, `final-switch-*`:
   correct roles/states; double-tap in an empty gutter invokes the focused virtual node. The normal
