@@ -279,6 +279,36 @@ public class AndroidAccessibilityProviderTests
     }
 
     [Fact]
+    public void CommandBackedButtonMapsAvailabilityAndInvokesThroughNormalAction()
+    {
+        using var root = new Panel();
+        bool allowed = false;
+        var calls = new List<string>();
+        var command = new DelegateCommand(parameter => calls.Add($"execute:{parameter}"), _ => allowed);
+        using var button = root.Controls.Add(new Button { Command = command, CommandParameter = "android" });
+        button.Click += (_, _) => calls.Add("click");
+        using var surface = new SkiaControlSurface(root);
+        using var session = new AndroidAccessibilitySession(surface);
+        session.Attach();
+        var peer = Adapt(button.AccessibilityObject);
+        int id = session.Register(peer);
+
+        Assert.False(Read(peer).Enabled);
+        Assert.False(session.Perform(id, ActionClick, null, true));
+        Assert.Empty(calls);
+        allowed = true;
+        command.RaiseCanExecuteChanged();
+        Assert.True(Read(peer).Enabled);
+        Assert.True(session.Perform(id, ActionClick, null, true));
+        Assert.Equal(new[] { "click", "execute:android" }, calls);
+        button.Enabled = false;
+        command.RaiseCanExecuteChanged();
+        Assert.False(Read(peer).Enabled);
+        Assert.False(session.Perform(id, ActionClick, null, true));
+        Assert.Equal(2, calls.Count);
+    }
+
+    [Fact]
     public void RealListBoxDuplicateOccurrencesHaveSeparateIdsAndSelectionWorks()
     {
         using var list = new ListBox { SelectionMode = SelectionMode.MultiSimple };

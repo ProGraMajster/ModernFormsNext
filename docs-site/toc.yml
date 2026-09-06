@@ -18,6 +18,8 @@
   href: content/docs/samples.md
 - name: Headless testing
   href: content/docs/testing/testhost.md
+- name: Commands and action sources
+  href: content/docs/commands.md
 - name: Accessibility semantic model
   href: content/docs/accessibility/semantic-model.md
 - name: Android accessibility backend

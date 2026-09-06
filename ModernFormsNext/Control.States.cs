@@ -21,6 +21,7 @@ public partial class Control
         IsHovering = 0x00000020,   // Modern.Forms addition
         IsImplicitControl = 0x00000040,   // Modern.Forms addition
         IsSelected = 0x00000080,   // Modern.Forms addition
+        CommandDisabled = 0x00000100,
         //Recreate                = 0x00000010,
         //Modal                   = 0x00000020,
         //AllowDrop               = 0x00000040,
