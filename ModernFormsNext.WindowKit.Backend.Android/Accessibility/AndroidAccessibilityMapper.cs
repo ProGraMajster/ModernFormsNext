@@ -116,7 +116,10 @@ internal static class AndroidAccessibilityMapper
     }
 
     private static bool CanClearSelection(IPlatformAccessibleObject node)
-        => node is IPlatformAccessibilitySelection { CanClearSelection: true } && (node.State & Selected) != 0
+        => SupportsIndependentSelection(node) && (node.State & Selected) != 0;
+
+    private static bool SupportsIndependentSelection(IPlatformAccessibleObject node)
+        => node is IPlatformAccessibilitySelection { CanClearSelection: true }
             && (node.GetSupportedActions() & Select) != 0
             && node.Parent is { } parent && (parent.State & MultiSelectable) != 0;
 
@@ -146,6 +149,15 @@ internal static class AndroidAccessibilityMapper
             ActionExpand => Expand, ActionCollapse => Collapse, ActionShowOnScreen => ScrollIntoView,
             ActionScrollForward => Increment, ActionScrollBackward => Decrement, _ => 0
         };
+        if (canonical == Select && SupportsIndependentSelection(node))
+        {
+            // The existing ListBox selection flags preserve other selected occurrences.
+            // ACTION_SELECT is idempotent; TalkBack's click toggles just this item, matching
+            // touch selection without requiring keyboard modifiers in a multi-select list.
+            bool selected = action != ActionClick || (node.State & Selected) == 0;
+            node.Select(selected ? 8 : 16);
+            return ((node.State & Selected) != 0) == selected;
+        }
         return canonical != 0 && node.PerformUiaAction(canonical);
     }
 

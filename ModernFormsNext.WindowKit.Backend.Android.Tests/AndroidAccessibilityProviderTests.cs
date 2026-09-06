@@ -318,6 +318,30 @@ public class AndroidAccessibilityProviderTests
         Assert.Null(session.Find(leafId));
     }
 
+    [Theory]
+    [InlineData(SelectionMode.MultiSimple)]
+    [InlineData(SelectionMode.MultiExtended)]
+    public void MultiSelectionAddsIndependentlyAndClickTogglesOnlyTheTarget(SelectionMode mode)
+    {
+        using var list = new ListBox { SelectionMode = mode };
+        using var surface = new SkiaControlSurface(list);
+        list.Items.Add("First"); list.Items.Add("Second");
+        using var session = new AndroidAccessibilitySession(surface);
+        session.Attach();
+        var ids = session.Children(session.Root!);
+        Assert.True(session.Perform(ids[0], ActionSelect, null, true));
+        Assert.True(session.Perform(ids[1], ActionSelect, null, true));
+        Assert.True(Read(session.Find(ids[0])!).Selected);
+        Assert.True(Read(session.Find(ids[1])!).Selected);
+        Assert.True(session.Perform(ids[0], ActionClick, null, true));
+        Assert.False(Read(session.Find(ids[0])!).Selected);
+        Assert.True(Read(session.Find(ids[1])!).Selected);
+        Assert.True(session.Perform(ids[0], ActionClick, null, true));
+        Assert.True(session.Perform(ids[0], ActionSelect, null, true));
+        Assert.True(Read(session.Find(ids[0])!).Selected);
+        Assert.True(Read(session.Find(ids[1])!).Selected);
+    }
+
     [Fact]
     public void RealTabsExposeSemanticHeadersAndSelection()
     {
