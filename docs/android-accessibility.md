@@ -142,7 +142,9 @@ Argument-free actions ignore Android routing metadata in Bundle; only documented
 are passed to the canonical API. Unsupported, stale, invalid, disabled, or detached requests return
 false. Clear input focus, general viewport scrolling and scroll-to-position are not advertised.
 ListBox/ListView/Tree/tab/radio selection uses the existing control state and single/multi-selection
-rules. Collections are supplied only for a flat canonical List made exclusively of ListItems;
+rules. For the existing ListBox multi-selection peers, Android Select adds an item without clearing
+other selections; Click toggles that item, and ClearSelection removes it. Single-selection lists
+retain their replace-selection behavior. Collections are supplied only for a flat canonical List made exclusively of ListItems;
 those children receive actual row indexes. No invented grid dimensions are attached to menus,
 trees or tabs. Invalid/nonfinite ranges are omitted, and read-only progress has no setter actions.
 
@@ -150,6 +152,9 @@ Keyboard focus and accessibility focus are independent. The latter lives only in
 Touch exploration routes Android hover events through canonical HitTest; it does not synthesize
 framework keyboard focus. Focus events are delivered synchronously after accessibility-focus
 actions because ViewRootImpl uses them to track the virtual focused descendant.
+Programmatic input focus also deselects the previous windowless input target. Expanded tree-item
+hit testing visits child rows outside the parent's own row rectangle, while the TreeView control
+continues to enforce its viewport boundary.
 
 Canonical Focus, selection, value, name/description, state, location and structure notifications
 map to ViewFocused, ViewSelected and WindowContentChanged with appropriate Text,
@@ -194,31 +199,33 @@ or physical-device behavior. Ordinary launches keep the existing sample page.
 
 ## TalkBack manual checklist
 
-Every row remains **NOT EXECUTED** until a person performs it with TalkBack. Record device/API,
-TalkBack version, density, and the tested commit. Check speech, focus location and resulting state.
+Record device/API, TalkBack version, density, tested commit and execution method. A focus rectangle
+or a direct provider-action test alone is insufficient: check actual TalkBack speech, gestures and
+resulting control state. The following statuses describe the agent-operated emulator run on
+2026-09-06, not a human usability assessment; see the evidence and method below.
 
 | Check | Expected observation | Manual status |
 | --- | --- | --- |
-| Button | Name, role, activation once | NOT EXECUTED |
-| CheckBox | Name, checked/mixed state, toggle | NOT EXECUTED |
-| RadioButton | Name, selection, mutual exclusion | NOT EXECUTED |
-| Switch | Name, checked state, toggle | NOT EXECUTED |
-| TextBox | Label distinct from text, editing | NOT EXECUTED |
-| Password | Password role, no plaintext speech/readback | NOT EXECUTED |
-| ComboBox | Name/value; unavailable Form popup action absent | NOT EXECUTED |
-| ListBox/ListView | Items, selected state, correct positions | NOT EXECUTED |
-| TreeView | Parent/child order, expand/collapse | NOT EXECUTED |
-| Tabs | Header order and selected page | NOT EXECUTED |
-| TrackBar | Range and adjustable value | NOT EXECUTED |
-| ProgressBar | Read-only range | NOT EXECUTED |
-| Menu | Command activation; unavailable native popup not advertised | NOT EXECUTED |
-| Logical children | Individually reachable without native Views | NOT EXECUTED |
-| Custom semantic child | Logical action reachable and invoked | NOT EXECUTED |
-| Focus | Touch exploration independent of keyboard focus | NOT EXECUTED |
-| Selection | Single/multi-selection behavior | NOT EXECUTED |
-| Expand/collapse | Accurate state and action availability | NOT EXECUTED |
-| Dynamic add/remove | Refreshes order; removed item no longer reachable | NOT EXECUTED |
-| Disabled/hidden | Disabled announced, Hidden omitted | NOT EXECUTED |
+| Button | Name, role, activation once | PASS |
+| CheckBox | Name, checked/unchecked state, toggle; mixed when offered | PASS |
+| RadioButton | Name, selection, mutual exclusion | PASS |
+| Switch | Name, checked state, toggle | PASS |
+| TextBox | Label distinct from text, editing | PASS |
+| Password | Password role, no plaintext speech/readback | PASS |
+| ComboBox | Name/value; unavailable Form popup action absent | PASS |
+| ListBox/ListView | Items, selected state, correct positions | PASS |
+| TreeView | Parent/child order, expand/collapse | PASS |
+| Tabs | Header order and selected page | PASS |
+| TrackBar | Range and adjustable value | PASS |
+| ProgressBar | Read-only range | PASS |
+| Menu | Command activation; unavailable native popup not advertised | PASS |
+| Logical children | Individually reachable without native Views | PASS |
+| Custom semantic child | Logical action reachable and invoked | PASS |
+| Focus | Touch exploration independent of keyboard focus | PASS |
+| Selection | Single/multi-selection behavior | PASS |
+| Expand/collapse | Accurate state and action availability | PASS |
+| Dynamic add/remove | Refreshes order; removed item no longer reachable | PASS |
+| Disabled/hidden | Disabled announced, Hidden omitted | PASS |
 
 The compact fixture includes representative controls; full framework-wide coverage, localization,
 diagnostics, virtualized controls (#97), full scroll and advanced Text/IME (#62) remain deferred.
@@ -237,3 +244,64 @@ for manual validation when automated checks pass, and is not declared COMPLETE w
 - Physical device: **NOT EXECUTED**.
 
 Local execution artifacts are kept under `artifacts/issue-59-phase3/` (not packaged or committed).
+
+### Recorded TalkBack gesture evidence (2026-09-06)
+
+The existing Pixel_8 AVD ran Android API 34 at 420 dpi (density 2.625), with TalkBack
+14.2.0.618048417 and English US speech. The run began at `e163c01` and the final runtime fixes
+were checked at `47283521b8b221f276228c3665d32740744fa099`. Evidence is in the local
+`artifacts/issue-59-phase3/manual-2026-09-06/` directory. The 20 rows above are the original
+acceptance list: 20 PASS, 0 FAIL, 0 NOT EXECUTED within this recorded emulator scope.
+
+Execution method: an agent sent ordinary touchscreen events through the emulator (exploration,
+double-tap, directional flick and the three-finger TalkBack menu gesture). These checks did not
+call AccessibilityNodeInfo.PerformAction as a substitute for TalkBack activation. Actual emulator
+audio was captured and transcribed locally; screenshots of TalkBack's own speech-output overlay
+and the rendered control state were inspected. Human listening/usability assessment was
+**NOT EXECUTED**. The transcriptions are qualitative evidence, not exact speech assertions.
+
+- `final-button-*`, `final-checkbox-*`, `final-radio-*`, `final-other-radio-*`, `final-switch-*`:
+  correct roles/states; double-tap in an empty gutter invokes the focused virtual node. The normal
+  Button callback increments once; radio selection excludes its sibling; Switch says off/on.
+- `final-editor-*`, `password-complete-readback*`, `password-final-*`, `focus-independent-switch*`:
+  Gboard enters real text, label and value stay separate, password readback contains no plaintext,
+  and the caret/keyboard stay in the editor while accessibility focus explores another control.
+  Password keyboard suggestions are absent. SetText itself is separately covered by native
+  instrumentation; an explicit TalkBack SetText command was not available in this interaction.
+- `final-list*`, `final-tab-*`, `latest-tree-*`: individually reachable logical rows, selection,
+  second-tab content, menu-driven expansion/collapse, and touch exploration of the expanded leaf.
+- `slider-flick-*`, `progress-focus*`, `final-progress-*`: current values and slider role are spoken;
+  adjustment changes 25 to 26 and back to 25. Native range limits and rejection of read-only
+  progress writes are checked by instrumentation and deterministic mapper tests.
+- `final-menu-*`, `final-custom-*`: normal Menu and custom logical-child callbacks update visible
+  counters. The latter remains a canonical child without its own native View.
+- `dynamic-*`, `reorder*`, `renamed-*`, `disabled-check-*`, `enabled-check-*`, `hidden-check-*`,
+  `shown-check-*`, `latest-multi-*`: add/remove, positions after reorder, name, enabled/visible
+  changes, independent multi-selection and per-item deselection all work without restarting.
+- `recreated-button-*` and `activity-recreation-evidence.log`: changing font scale triggers actual
+  Activity destruction/recreation in the same process; the new host accepts TalkBack focus and
+  double-tap. The temporary font-scale setting was restored. Native instrumentation independently
+  rejects stale identities after host replacement and Activity.Recreate.
+
+The gesture run found and fixed five issues: numeric Switch state announcements, retained old
+windowless input focus, password keyboard suggestions, expanded-child hit testing, and replacing
+multi-selection instead of changing only the target item. Regression tests reproduce each cause.
+The fixture adds visible callback counters and ordinary dynamic control operations; it adds no
+alternate semantic hierarchy. Mixed CheckBox state remains mapper-tested; this fixture toggles
+the ordinary two-state checkbox. Popup windows, advanced IME, full viewport scrolling, localization
+and physical-device validation remain outside this run. ComboBox/menu popup behavior is
+**BLOCKED BY DOCUMENTED LIMITATION**; their currently advertised semantics are what passed above.
+
+Final automated regression after the runtime fixes: 1,837/1,837 tests passed, including Android
+mapper 52, provider/session 30, Android total 154, core 909, Windows 64, Designer 622, Testing 46,
+cross-platform sample 16 and VSIX 26. Fresh Debug and Release APK instrumentation both passed
+49/49 assertions; Release used the existing trimming/AOT configuration. Both solution builds
+and both Android builds completed with zero warnings/errors. ApiCompat passed four backward
+comparisons; package validation passed 9 NuGet packages and 8 symbol packages without changing
+versions or dependencies.
+
+The final search found zero plaintext test-marker matches in this run's text logs, transcripts,
+instrumentation results and artifacts. Detailed IME diagnostics remained disabled. TalkBack
+Display speech output was restored to off; secure enabled_accessibility_services returned to
+absent (`null`) and accessibility_enabled to `0`. The temporary system font_scale entry also
+returned to absent. The task-started emulator and log collector were stopped after verification.

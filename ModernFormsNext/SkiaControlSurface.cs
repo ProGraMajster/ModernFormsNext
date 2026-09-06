@@ -14,8 +14,8 @@ namespace ModernFormsNext;
 /// native window and canvas. It does not create a native window and must be called on the owning UI
 /// thread. The adapter borrows, but never disposes, <see cref="Root"/> so a host can preserve the
 /// application tree while recreating its native activity or surface.
-/// Programmatic control selection and accessibility focus actions replace the previous keyboard
-/// input target. Screen-reader exploration alone does not change keyboard focus.
+/// Programmatic control selection, including accessibility requests for keyboard focus, replaces
+/// the previous input target. Screen-reader accessibility focus does not change keyboard focus.
 /// </remarks>
 public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost, IPlatformAccessibilitySurface
 {
