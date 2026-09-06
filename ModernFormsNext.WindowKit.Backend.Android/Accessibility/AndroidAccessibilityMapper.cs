@@ -54,7 +54,10 @@ internal static class AndroidAccessibilityMapper
         string? stateDescription = (state & Mixed) != 0 ? "Mixed"
             : (state & Expanded) != 0 ? "Expanded"
             : (state & Collapsed) != 0 ? "Collapsed" : null;
-        if (stateDescription is null && !edit && type is not (5 or 13 or 15 or 17 or 19)
+        // Checkable widgets already have localized Android state descriptions. In particular,
+        // Switch.Value is numeric; publishing "0"/"1" overrides TalkBack's native Off/On speech.
+        // Keep an explicit Mixed description for the canonical third state above.
+        if (stateDescription is null && !edit && type is not (5 or 7 or 8 or 9 or 13 or 15 or 17 or 19)
             && !string.IsNullOrEmpty(value) && value != label && node.GetRangeValue() is null)
             stateDescription = value;
         return new(ClassName(type), label, edit ? value : type == 5 ? label : null,

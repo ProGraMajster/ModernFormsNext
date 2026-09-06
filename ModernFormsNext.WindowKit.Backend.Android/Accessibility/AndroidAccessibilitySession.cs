@@ -193,7 +193,10 @@ internal sealed class AndroidAccessibilitySession : IDisposable
         else if (eventId == 0x800E)
         {
             // Payloads never contain values. Sensitive changes invalidate metadata only.
-            Queue(id, 2048, source.GetIsSensitive() || (source.State & Protected) != 0 ? 0 : 2);
+            // A switch/range value updates state, not editable text. Combining Text with
+            // StateDescription made TalkBack choose an empty text announcement after toggling.
+            Queue(id, 2048, source.GetIsSensitive() || (source.State & Protected) != 0 ? 0
+                : source.GetControlType() == 10 ? 2 : 64);
         }
         else Queue(id, 2048, eventId is 0x800C or 0x800D or 0x8010 ? 4 : eventId == 0x800B ? 1 : 64);
     }

@@ -166,7 +166,7 @@ public class AndroidAccessibilityProviderTests
     [Theory]
     [InlineData(AccessibleEvents.Focus, 8, 0)]
     [InlineData(AccessibleEvents.NameChange, 2048, 4)]
-    [InlineData(AccessibleEvents.ValueChange, 2048, 2)]
+    [InlineData(AccessibleEvents.ValueChange, 2048, 64)]
     [InlineData(AccessibleEvents.StateChange, 2048, 64)]
     [InlineData(AccessibleEvents.Selection, 4, 0)]
     [InlineData(AccessibleEvents.Reorder, 2048, 1)]
@@ -187,6 +187,27 @@ public class AndroidAccessibilityProviderTests
         session.DrainEvents();
         root.NotifyClients(AccessibleEvents.ValueChange);
         Assert.Equal(new AndroidAccessibilityEvent(-1, 2048, 0), Assert.Single(session.DrainEvents()));
+    }
+
+    [Fact]
+    public void EditableValueChangeStillReportsTextContent()
+    {
+        var root = new TestPeer { Type = AccessibleControlType.Edit };
+        using var session = Started(root);
+        session.DrainEvents();
+        root.NotifyClients(AccessibleEvents.ValueChange);
+        Assert.Equal(new AndroidAccessibilityEvent(-1, 2048, 2), Assert.Single(session.DrainEvents()));
+    }
+
+    [Fact]
+    public void SwitchValueAndStateChangesCoalesceWithoutTextContentFlag()
+    {
+        using var control = new Switch();
+        using var surface = new SkiaControlSurface(control);
+        using var session = new AndroidAccessibilitySession(surface);
+        session.Attach(); session.DrainEvents();
+        control.Toggle();
+        Assert.Equal(new AndroidAccessibilityEvent(-1, 2048, 64), Assert.Single(session.DrainEvents()));
     }
 
     [Fact]

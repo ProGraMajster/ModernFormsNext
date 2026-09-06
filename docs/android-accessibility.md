@@ -101,6 +101,9 @@ not a fabricated Android resource ID. Mixed, expanded/collapsed, and distinct re
 use StateDescription (API 30+, compatibility extra earlier). API 36 uses the three-state checked
 property; older Android uses Checked plus the mixed state description. The initial state words
 are English; localized framework-wide announcements remain a follow-up.
+Checkable widgets retain Android's native checked/on/off descriptions instead of exposing a
+numeric canonical Value as StateDescription. Their value changes invalidate state; only edits
+use the Text content-change flag, so a switch toggle does not become an empty text announcement.
 
 Sensitive/Protected nodes are marked Password, and API 34+ also receives AccessibilityDataSensitive.
 The mapper never calls their Value getter. No value is copied to Text, ContentDescription, range,

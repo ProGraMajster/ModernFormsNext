@@ -102,6 +102,21 @@ public class AndroidAccessibilityMapperTests
         Assert.True(state.Focused && state.Focusable && state.Selected && state.Enabled);
     }
 
+    [Fact]
+    public void SwitchUsesNativeOnOffStateInsteadOfItsNumericValue()
+    {
+        using var control = new Switch();
+        var peer = Adapt(control.AccessibilityObject);
+        Assert.Null(Read(peer).StateDescription);
+        Assert.False(Read(peer).Checked);
+        control.Toggle();
+        Assert.Null(Read(peer).StateDescription);
+        Assert.True(Read(peer).Checked);
+        control.Mode = SwitchMode.ThreeState;
+        control.Value = 0;
+        Assert.Equal("Mixed", Read(peer).StateDescription);
+    }
+
     [Theory]
     [InlineData(AccessibleActions.Invoke, ActionClick)]
     [InlineData(AccessibleActions.Toggle, ActionClick)]
