@@ -214,6 +214,7 @@ for bundle contents and local validation.
 - [UI animations and interaction effects](docs/animations.md)
 - [Markdown viewing](docs/markdown.md) and [Markdown editing](docs/markdown-editor.md)
 - [Data binding](docs/data-binding.md)
+- [Commands and action sources](docs/commands.md)
 - [Styling](docs/styling.md)
 - [Platform-specific architecture](docs/platform-specific-code.md) and
   [platform-specific features](docs/platform-specific-features.md)

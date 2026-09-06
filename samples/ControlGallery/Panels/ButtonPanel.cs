@@ -178,6 +178,31 @@ namespace ControlGallery.Panels
             RenderManager.SetRenderer<MyCustomRenderedButton> (new MyCustomRenderer ());
 
             Controls.Add (new Button { Text = "Text that is too long to fit in the button", Left = 350, Top = 300, AutoEllipsis = true });
+
+            // Two sources share one action, while each supplies its own parameter. Requery is
+            // explicit and updates both sources through the normal enabled-state path.
+            var availability = Controls.Add(new CheckBox {
+                Text = "Allow shared command", Left = 100, Top = 440, Width = 260, Checked = true
+            });
+            var status = Controls.Add(new Label {
+                Text = "Choose a document", Left = 100, Top = 520, Width = 500, Height = 32
+            });
+            var save = new DelegateCommand(
+                parameter => status.Text = $"Executed: {parameter}",
+                parameter => availability.Checked && parameter is string);
+            var saveFirst = Controls.Add(new Button {
+                Text = "Save first", Left = 100, Top = 480, Width = 140,
+                CommandParameter = "First document", Command = save
+            });
+            Controls.Add(new Button {
+                Text = "Save second", Left = 260, Top = 480, Width = 140,
+                CommandParameter = "Second document", Command = save
+            });
+            availability.CheckedChanged += (_, _) => save.RaiseCanExecuteChanged();
+            var locallyDisabled = Controls.Add(new CheckBox {
+                Text = "Explicitly disable first", Left = 390, Top = 440, Width = 260
+            });
+            locallyDisabled.CheckedChanged += (_, _) => saveFirst.Enabled = !locallyDisabled.Checked;
         }
     }
 
