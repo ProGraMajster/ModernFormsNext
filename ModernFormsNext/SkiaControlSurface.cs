@@ -14,6 +14,8 @@ namespace ModernFormsNext;
 /// native window and canvas. It does not create a native window and must be called on the owning UI
 /// thread. The adapter borrows, but never disposes, <see cref="Root"/> so a host can preserve the
 /// application tree while recreating its native activity or surface.
+/// Programmatic control selection and accessibility focus actions replace the previous keyboard
+/// input target. Screen-reader exploration alone does not change keyboard focus.
 /// </remarks>
 public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost, IPlatformAccessibilitySurface
 {
@@ -532,6 +534,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         control.ControlAdded += OnControlAdded;
         control.ControlRemoved += OnControlRemoved;
         control.LostFocus += OnControlLostFocus;
+        control.GotFocus += OnControlGotFocus;
         control.Click += OnControlClick;
         foreach (var child in control.Controls.GetAllControls())
             ObserveTree(child);
@@ -543,6 +546,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         control.ControlAdded -= OnControlAdded;
         control.ControlRemoved -= OnControlRemoved;
         control.LostFocus -= OnControlLostFocus;
+        control.GotFocus -= OnControlGotFocus;
         control.Click -= OnControlClick;
         observedControls.Remove(control);
     }
@@ -567,6 +571,15 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         if (e.Value is TextBox textBox)
             textBox.document.FinishComposition();
         UnobserveTree(e.Value);
+    }
+
+    private void OnControlGotFocus(object? sender, EventArgs e)
+    {
+        // Programmatic Select (including accessibility ACTION_FOCUS) has no window adapter
+        // to deselect the old editor. Keep the same single input target as pointer routing.
+        // Snapshot because focus-loss handlers may mutate the tree or redirect focus.
+        foreach (var previous in observedControls.Where(control => control.Selected && control != sender).ToArray())
+            previous.Deselect();
     }
 
     private void OnControlLostFocus(object? sender, EventArgs e)

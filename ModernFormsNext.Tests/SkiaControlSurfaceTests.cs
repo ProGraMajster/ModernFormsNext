@@ -6,6 +6,26 @@ namespace ModernFormsNext.Tests;
 public sealed class SkiaControlSurfaceTests
 {
     [Fact]
+    public void ProgrammaticFocusReplacesPreviousWindowlessFocus()
+    {
+        using var root = new Panel();
+        var button = new Button();
+        var editor = new TextBox();
+        root.Controls.AddRange([button, editor]);
+        using var surface = new SkiaControlSurface(root);
+        button.Select();
+        editor.Select();
+        Assert.False(button.Focused);
+        Assert.True(editor.Focused);
+        Assert.Same(editor.AccessibilityObject, root.AccessibilityObject.GetFocused());
+        surface.CommitText("entered");
+        Assert.Equal("entered", editor.Text);
+        button.Select();
+        Assert.False(editor.Focused);
+        Assert.Same(button, surface.SelectedControl);
+    }
+
+    [Fact]
     public void ResizeAndRenderUseBorrowedControlTree()
     {
         var root = new Control();
