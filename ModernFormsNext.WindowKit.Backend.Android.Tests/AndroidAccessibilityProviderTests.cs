@@ -202,7 +202,8 @@ public class AndroidAccessibilityProviderTests
     [Fact]
     public void SwitchValueAndStateChangesCoalesceWithoutTextContentFlag()
     {
-        using var control = new Switch();
+        // Semantic tests do not pump a UI frame clock or exercise visual transitions.
+        using var control = new Switch { Animate = false };
         using var surface = new SkiaControlSurface(control);
         using var session = new AndroidAccessibilitySession(surface);
         session.Attach(); session.DrainEvents();

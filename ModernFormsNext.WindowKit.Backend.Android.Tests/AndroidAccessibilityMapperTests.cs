@@ -105,7 +105,8 @@ public class AndroidAccessibilityMapperTests
     [Fact]
     public void SwitchUsesNativeOnOffStateInsteadOfItsNumericValue()
     {
-        using var control = new Switch();
+        // Semantic tests do not pump a UI frame clock or exercise visual transitions.
+        using var control = new Switch { Animate = false };
         var peer = Adapt(control.AccessibilityObject);
         Assert.Null(Read(peer).StateDescription);
         Assert.False(Read(peer).Checked);
