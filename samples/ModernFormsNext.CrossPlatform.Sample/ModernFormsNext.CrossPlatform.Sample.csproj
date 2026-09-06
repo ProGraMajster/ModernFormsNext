@@ -55,9 +55,6 @@
     <ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Android\ModernFormsNext.WindowKit.Backend.Android.csproj" />
     <!-- Override RichTextKit's legacy HarfBuzz runtime with Android 16-compatible native assets. -->
     <PackageReference Include="HarfBuzzSharp" Version="14.2.1.1" />
-    <!-- System.Drawing.Common references this assembly, but its Android AOT dependency is not
-         selected transitively. Keep the explicit reference until the upstream asset graph does. -->
-    <PackageReference Include="System.Formats.Nrbf" Version="10.0.10" />
     <Compile Remove="Platforms\Windows\**\*.cs" />
   </ItemGroup>
 

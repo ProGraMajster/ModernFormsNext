@@ -33,6 +33,15 @@ public sealed class MainActivity : Activity
             AndroidAppHost.EnableInputDiagnosticsIntentExtra,
             defaultValue: false) == true;
         host = new AndroidAppHost(this, application.SharedApp, enableInputDiagnostics);
+        if (Intent?.GetBooleanExtra("ACCESSIBILITY_DEMO", false) == true)
+        {
+            var root = application.SharedApp.Root;
+            if (!root.Controls.OfType<AccessibilityDemoPanel>().Any())
+            {
+                foreach (var child in root.Controls) child.Visible = false;
+                root.Controls.Add(new AccessibilityDemoPanel());
+            }
+        }
         SetContentView(host.View);
         application.SharedApp.NotifyLifecycle("Activity created");
     }

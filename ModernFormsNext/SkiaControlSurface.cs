@@ -1,5 +1,7 @@
 using System.Drawing;
 using SkiaSharp;
+using ModernFormsNext.Accessibility;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 
 namespace ModernFormsNext;
 
@@ -12,8 +14,10 @@ namespace ModernFormsNext;
 /// native window and canvas. It does not create a native window and must be called on the owning UI
 /// thread. The adapter borrows, but never disposes, <see cref="Root"/> so a host can preserve the
 /// application tree while recreating its native activity or surface.
+/// Programmatic control selection, including accessibility requests for keyboard focus, replaces
+/// the previous input target. Screen-reader accessibility focus does not change keyboard focus.
 /// </remarks>
-public sealed class SkiaControlSurface : IDisposable
+public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost, IPlatformAccessibilitySurface
 {
     private readonly HashSet<Control> observedControls = [];
     private readonly Dictionary<int, PointerState> pointers = [];
@@ -34,6 +38,8 @@ public sealed class SkiaControlSurface : IDisposable
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
         this.pointerDiagnosticSink = pointerDiagnosticSink;
+        surfaceRoot.AccessibilityNotification = (source, eventId, objectId, childId) =>
+            accessibilityNotification?.Invoke(source, eventId, objectId, childId);
         surfaceRoot.Controls.Add(Root);
         surfaceRoot.CreateControl();
         ObserveTree(surfaceRoot);
@@ -44,6 +50,19 @@ public sealed class SkiaControlSurface : IDisposable
 
     /// <summary>Gets the borrowed root control.</summary>
     public Control Root { get; }
+
+    // The Android host borrows this existing adapter. Surface coordinates are logical pixels
+    // relative to the native surface, since this control tree has no WindowBase screen origin.
+    IPlatformAccessibleObject? IPlatformAccessibilityHost.AccessibilityRoot
+        => disposed || Root.IsDisposed ? null : PlatformAccessibleObjectAdapter.From(Root.AccessibilityObject);
+
+    private event Action<IPlatformAccessibleObject, int, int, int>? accessibilityNotification;
+
+    event Action<IPlatformAccessibleObject, int, int, int>? IPlatformAccessibilitySurface.AccessibilityNotification
+    {
+        add => accessibilityNotification += value;
+        remove => accessibilityNotification -= value;
+    }
 
     /// <summary>Gets the most recently assigned logical surface size.</summary>
     public Size LogicalSize { get; private set; }
@@ -480,6 +499,8 @@ public sealed class SkiaControlSurface : IDisposable
         observedControls.Clear();
         surfaceRoot.Controls.Remove(Root);
         surfaceRoot.Dispose();
+        accessibilityNotification = null;
+        surfaceRoot.AccessibilityNotification = null;
         Invalidated = null;
     }
 
@@ -513,6 +534,8 @@ public sealed class SkiaControlSurface : IDisposable
         control.ControlAdded += OnControlAdded;
         control.ControlRemoved += OnControlRemoved;
         control.LostFocus += OnControlLostFocus;
+        control.GotFocus += OnControlGotFocus;
+        control.Click += OnControlClick;
         foreach (var child in control.Controls.GetAllControls())
             ObserveTree(child);
     }
@@ -523,11 +546,20 @@ public sealed class SkiaControlSurface : IDisposable
         control.ControlAdded -= OnControlAdded;
         control.ControlRemoved -= OnControlRemoved;
         control.LostFocus -= OnControlLostFocus;
+        control.GotFocus -= OnControlGotFocus;
+        control.Click -= OnControlClick;
         observedControls.Remove(control);
     }
 
     private void OnControlInvalidated(object? sender, EventArgs<Rectangle> e)
         => Invalidated?.Invoke(this, EventArgs.Empty);
+
+    private void OnControlClick(object? sender, MouseEventArgs e)
+    {
+        if (accessibilityNotification is not null && sender is Control control)
+            accessibilityNotification(PlatformAccessibleObjectAdapter.From(control.AccessibilityObject)!,
+                PlatformAccessibilitySurfaceEvents.Invoked, 0, 0);
+    }
 
     private void OnControlAdded(object? sender, EventArgs<Control> e)
         => ObserveTree(e.Value);
@@ -539,6 +571,15 @@ public sealed class SkiaControlSurface : IDisposable
         if (e.Value is TextBox textBox)
             textBox.document.FinishComposition();
         UnobserveTree(e.Value);
+    }
+
+    private void OnControlGotFocus(object? sender, EventArgs e)
+    {
+        // Programmatic Select (including accessibility ACTION_FOCUS) has no window adapter
+        // to deselect the old editor. Keep the same single input target as pointer routing.
+        // Snapshot because focus-loss handlers may mutate the tree or redirect focus.
+        foreach (var previous in observedControls.Where(control => control.Selected && control != sender).ToArray())
+            previous.Deselect();
     }
 
     private void OnControlLostFocus(object? sender, EventArgs e)
@@ -720,8 +761,13 @@ public sealed class SkiaControlSurface : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
-    private sealed class SurfaceRootControl : Control
+    private sealed class SurfaceRootControl : Control, IControlSurfaceAccessibilitySink
     {
+        public Action<IPlatformAccessibleObject, int, int, int>? AccessibilityNotification { get; set; }
+
+        public void NotifyAccessibility(IPlatformAccessibleObject source, int eventId, int objectId, int childId)
+            => AccessibilityNotification?.Invoke(source, eventId, objectId, childId);
+
         public override bool Visible
         {
             get => true;

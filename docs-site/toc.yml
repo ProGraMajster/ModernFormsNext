@@ -20,6 +20,8 @@
   href: content/docs/testing/testhost.md
 - name: Accessibility semantic model
   href: content/docs/accessibility/semantic-model.md
+- name: Android accessibility backend
+  href: content/docs/android-accessibility.md
 - name: Platform status
   href: content/docs/platform-specific-features.md
 - name: Known limitations

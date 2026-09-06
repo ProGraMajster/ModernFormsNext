@@ -7,6 +7,8 @@ using SkiaSharp.Views.Android;
 using System.Text.Json;
 using ICharSequence = Java.Lang.ICharSequence;
 using NativeKeyEvent = Android.Views.KeyEvent;
+using ModernFormsNext.WindowKit.Backend.Android.Accessibility;
+using ModernFormsNext.WindowKit.Platform.Accessibility;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 
@@ -32,6 +34,9 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     private long inputDiagnosticSequence;
     private bool inputStateNotificationPending;
     private bool disposed;
+    private IPlatformAccessibilityHost? accessibilityHost;
+    private AndroidAccessibilityNodeProvider? accessibilityProvider;
+    private int lastAccessibilityVirtualId;
 
     /// <summary>Creates a Skia host using the supplied Android context.</summary>
     /// <param name="context">The current activity context.</param>
@@ -51,6 +56,43 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         Focusable = true;
         FocusableInTouchMode = true;
     }
+
+    /// <summary>Gets or sets the borrowed canonical accessibility host for this Skia surface.</summary>
+    /// <remarks>
+    /// Set this on the Android main thread, normally to the existing SkiaControlSurface. The host
+    /// remains owned by the application. Replacing it disconnects all previous virtual node IDs.
+    /// The view supplies physical screen coordinates; the windowless host supplies surface-relative
+    /// logical bounds. No native child View is required for a semantic child.
+    /// </remarks>
+    public IPlatformAccessibilityHost? AccessibilityHost
+    {
+        get => accessibilityHost;
+        set
+        {
+            ThrowIfDisposed();
+            if (ReferenceEquals(accessibilityHost, value)) return;
+            // Android identifies a virtual node by native View plus integer ID. Replacing only
+            // the semantic host must keep the allocator advancing within that same native View.
+            if (accessibilityProvider is not null)
+                lastAccessibilityVirtualId = accessibilityProvider.LastAllocatedId;
+            accessibilityProvider?.Dispose();
+            accessibilityHost = value;
+            accessibilityProvider = value is null ? null : new AndroidAccessibilityNodeProvider(this, value, lastAccessibilityVirtualId);
+            ImportantForAccessibility = value is null ? ImportantForAccessibility.Auto : ImportantForAccessibility.Yes;
+            if (IsAttachedToWindow) accessibilityProvider?.Attach();
+        }
+    }
+
+    /// <inheritdoc/>
+    public override global::Android.Views.Accessibility.AccessibilityNodeProvider? AccessibilityNodeProvider
+        => accessibilityProvider ?? base.AccessibilityNodeProvider;
+
+    internal void InitializeAccessibilityHostNode(global::Android.Views.Accessibility.AccessibilityNodeInfo info)
+        => base.OnInitializeAccessibilityNodeInfo(info);
+
+    /// <inheritdoc/>
+    protected override bool DispatchHoverEvent(MotionEvent? e)
+        => accessibilityProvider?.DispatchHover(e) == true || base.DispatchHoverEvent(e);
 
     /// <summary>Occurs when the shared renderer should paint the logical surface.</summary>
     public event EventHandler<AndroidSkiaRenderEventArgs>? Render;
@@ -291,10 +333,15 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             return null;
 
         var inputState = GetTextInputState();
-        outAttrs.InputType = global::Android.Text.InputTypes.ClassText |
-            global::Android.Text.InputTypes.TextFlagCapSentences |
-            global::Android.Text.InputTypes.TextFlagMultiLine;
+        // Reuse the canonical focused peer's sensitivity. Masking rendered glyphs and
+        // accessibility nodes alone does not prevent an IME from suggesting the secret.
+        bool sensitive = accessibilityProvider?.IsInputSensitive == true;
+        outAttrs.InputType = global::Android.Text.InputTypes.ClassText | (sensitive
+            ? global::Android.Text.InputTypes.TextVariationPassword | global::Android.Text.InputTypes.TextFlagNoSuggestions
+            : global::Android.Text.InputTypes.TextFlagCapSentences | global::Android.Text.InputTypes.TextFlagMultiLine);
         outAttrs.ImeOptions = ImeFlags.NoExtractUi;
+        if (sensitive && OperatingSystem.IsAndroidVersionAtLeast(26))
+            outAttrs.ImeOptions |= ImeFlags.NoPersonalizedLearning;
         outAttrs.InitialSelStart = inputState.SelectionStart;
         outAttrs.InitialSelEnd = inputState.SelectionEnd;
         inputStateNotificationPending = false;
@@ -348,6 +395,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
 
         if (state.AttachSurface())
             PostInvalidateOnAnimation();
+        accessibilityProvider?.Attach();
         UpdateAnimationSurfaceRegistration();
         AndroidLogger.Write("Native Skia surface attached.", diagnosticSink);
     }
@@ -357,6 +405,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     {
         if (!disposed)
         {
+            accessibilityProvider?.Detach();
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.DetachSurface(), primaryPointerId);
             UpdateAnimationSurfaceRegistration();
@@ -375,6 +424,14 @@ public sealed class AndroidSkiaHostView : SKCanvasView
 
         if (ResizeFromPhysicalPixels(width, height) && state.CanRender)
             PostInvalidateOnAnimation();
+        accessibilityProvider?.InvalidateGeometry();
+    }
+
+    /// <inheritdoc/>
+    protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
+    {
+        base.OnLayout(changed, left, top, right, bottom);
+        if (changed && !disposed) accessibilityProvider?.InvalidateGeometry();
     }
 
     /// <inheritdoc/>
@@ -421,9 +478,17 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
+        // Activity.OnDestroy precedes ViewRoot's final native detach. Remove the still-live view
+        // first, otherwise Android can call OnDetachedFromWindow after its managed peer was freed.
+        // This also disconnects virtual accessibility descendants before disposing their provider.
+        if (disposing && !disposed && Parent is ViewGroup parent)
+            parent.RemoveView(this);
         if (!disposed)
         {
             disposed = true;
+            accessibilityProvider?.Dispose();
+            accessibilityProvider = null;
+            accessibilityHost = null;
             var primaryPointerId = state.PrimaryPointerId;
             EmitCancellations(state.Dispose(), primaryPointerId);
             animationSurfaceRegistration?.Dispose();

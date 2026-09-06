@@ -334,6 +334,28 @@ public sealed class AccessibilitySemanticTests
     }
 
     [Fact]
+    public void ExpandedTreeDescendantCanBeHitOutsideItsParentRow()
+    {
+        using var tree = new TreeView();
+        tree.Items.Add(new TreeViewItem("Branch", new TreeViewItem("Leaf")));
+        using var surface = new SkiaControlSurface(tree);
+        surface.Resize(320, 200);
+        var branch = tree.AccessibilityObject.GetChild(0)!;
+        var leaf = branch.GetChild(0)!;
+        Assert.True(branch.PerformAction(AccessibleActions.Expand));
+        using var bitmap = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(320, 200));
+        surface.Render(bitmap.Canvas);
+        var bounds = leaf.Bounds;
+        Assert.False(bounds.IsEmpty);
+        int x = bounds.Left + bounds.Width / 2, y = bounds.Top + bounds.Height / 2;
+        Assert.False(branch.Bounds.Contains(x, y));
+        Assert.Same(leaf, tree.AccessibilityObject.HitTest(x, y));
+        Assert.True(branch.PerformAction(AccessibleActions.Collapse));
+        surface.Render(bitmap.Canvas);
+        Assert.NotSame(leaf, tree.AccessibilityObject.HitTest(x, y));
+    }
+
+    [Fact]
     public void TabItemsExposeStableSelectionAndDetachOnRemoval()
     {
         using var root = new VisibleRootControl();
