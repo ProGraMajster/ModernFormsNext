@@ -581,6 +581,22 @@ public partial class Control
 
             public override AccessibleControlType ControlType => AccessibleControlType.TreeItem;
 
+            public override AccessibleObject? HitTest(int x, int y)
+            {
+                if (!IsAttached || Owner is not { Visible: true })
+                    return null;
+
+                // A tree item's bounds describe its own row, not a clipping viewport.
+                // Expanded descendants occupy following rows outside that rectangle. The
+                // containing TreeView still performs the normal control-boundary clipping.
+                if (Item?.Expanded == true)
+                    for (int i = GetChildCount() - 1; i >= 0; i--)
+                        if (GetChild(i)?.HitTest(x, y) is { } hit)
+                            return hit;
+
+                return base.HitTest(x, y);
+            }
+
             public override Rectangle Bounds
                 => IsAttached && Owner is { } owner && Item is { } item && owner.GetVisibleItems().Contains(item)
                     ? ToScreenBounds(owner, item.Bounds)
