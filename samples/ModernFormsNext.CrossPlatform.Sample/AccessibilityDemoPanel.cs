@@ -16,27 +16,57 @@ internal sealed class AccessibilityDemoPanel : Panel
     internal readonly TrackBar Slider = new() { AccessibleName = "Slider sample", Minimum = 0, Maximum = 100, Value = 25 };
     internal readonly Button Dynamic = new() { Text = "Add or remove item" };
     internal int Invocations;
+    private readonly Label feedback = new() { Text = "Actions: 0", AccessibilityView = AccessibilityView.Hidden };
+    private int mutationStep;
 
     internal AccessibilityDemoPanel()
     {
         Dock = DockStyle.Fill;
         AccessibleName = "Accessibility sample";
         BackColor = SkiaSharp.SKColors.White;
-        InvokeButton.Click += (_, _) => Invocations++;
+        // Visible feedback proves that TalkBack invoked the normal framework callback. Keep
+        // this diagnostic label out of speech so it does not obscure the control's own feedback.
+        InvokeButton.Click += (_, _) => RecordInvocation("Button");
         List.Items.Add("First item"); List.Items.Add("Second item");
         var branch = Tree.Items.Add("Branch item");
         branch.Items.Add("Leaf item");
         var tabs = new TabControl { AccessibleName = "Tabs sample" };
         tabs.TabPages.Add(new TabPage { Text = "First tab" });
         tabs.TabPages.Add(new TabPage { Text = "Second tab" });
+        tabs.TabPages[0].Controls.Add(new Label { Text = "First page", Dock = DockStyle.Fill });
+        tabs.TabPages[1].Controls.Add(new Label { Text = "Second page", Dock = DockStyle.Fill });
         var menu = new Menu { AccessibleName = "Menu sample" };
-        menu.Items.Add("Menu command", onClick: (_, _) => Invocations++);
+        menu.Items.Add("Menu command", onClick: (_, _) => RecordInvocation("Menu"));
         var listView = new ListView { AccessibleName = "ListView sample" };
         listView.Items.Add("ListView item");
         Dynamic.Click += (_, _) =>
         {
             if (List.Items.Count > 2) List.Items.RemoveAt(2);
             else List.Items.Add("Dynamic item");
+        };
+        var custom = new LogicalButton { Text = "Custom action", AccessibleName = "Custom group" };
+        custom.Click += (_, _) => RecordInvocation("Custom");
+        var mutate = new Button { Text = "Reorder items" };
+        mutate.Click += (_, _) =>
+        {
+            // Exercise ordinary public APIs on the existing controls. These are fixture
+            // operations, not a separate accessibility model or an alternate action path.
+            switch (mutationStep++ % 8)
+            {
+                case 0: List.Items.Move(0, 1); mutate.Text = "Rename editor"; break;
+                case 1: Editor.AccessibleName = "Renamed editor"; mutate.Text = "Disable check"; break;
+                case 2: Check.Enabled = false; mutate.Text = "Enable check"; break;
+                case 3: Check.Enabled = true; mutate.Text = "Hide check"; break;
+                case 4: Check.Visible = false; mutate.Text = "Show check"; break;
+                case 5: Check.Visible = true; mutate.Text = "Multi selection"; break;
+                case 6: List.SelectionMode = SelectionMode.MultiSimple; mutate.Text = "Reset properties"; break;
+                case 7:
+                    List.SelectionMode = SelectionMode.One;
+                    Editor.AccessibleName = "Editor sample";
+                    List.Items.Move(1, 0);
+                    mutate.Text = "Reorder items";
+                    break;
+            }
         };
         Controls.AddRange([
             InvokeButton, Check,
@@ -45,11 +75,13 @@ internal sealed class AccessibilityDemoPanel : Panel
             new ComboBox { AccessibleName = "Combo sample" }, new Button { Text = "Disabled sample", Enabled = false },
             List, Tree, tabs, listView, Slider,
             new ProgressBar { AccessibleName = "Progress sample", Value = 40 }, menu,
-            new LogicalButton { Text = "Custom action", AccessibleName = "Custom group" },
-            Dynamic, new Label { Text = "TalkBack: review each control" },
-            new Button { Text = "Hidden sample", AccessibilityView = AccessibilityView.Hidden }
+            custom, Dynamic, feedback,
+            new Button { Text = "Hidden sample", AccessibilityView = AccessibilityView.Hidden },
+            new RadioButton { Text = "Other radio" }, mutate
         ]);
     }
+
+    private void RecordInvocation(string source) => feedback.Text = $"{source} invoked: {++Invocations}";
 
     protected override void OnLayout(LayoutEventArgs e)
     {
