@@ -34,6 +34,66 @@ public sealed class CommandSourceTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void DelegateActivationEvaluatesOnceBeforeAndOnceAfterClick(bool tray)
+    {
+        using var source = new Source(tray);
+        var calls = new List<string>();
+        source.Command = new DelegateCommand(() => calls.Add("execute"), () => { calls.Add("query"); return true; });
+        source.OnClick(() => calls.Add("click"));
+        calls.Clear(); // Assignment has its own availability evaluation.
+        source.Invoke();
+        Assert.Equal(["query", "click", "query", "execute"], calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PostClickPredicateReplacementRejectsObsoleteExecution(bool tray)
+    {
+        using var source = new Source(tray);
+        bool clicked = false;
+        int executions = 0;
+        var replacement = new DelegateCommand(() => executions++);
+        source.Command = new DelegateCommand(() => executions++, () =>
+        {
+            if (clicked) source.Command = replacement;
+            return true;
+        });
+        source.OnClick(() => clicked = true);
+        source.Invoke();
+        Assert.Same(replacement, source.Command);
+        Assert.True(source.Enabled);
+        Assert.Equal(0, executions);
+        source.Invoke();
+        Assert.Equal(1, executions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PostClickPredicateExceptionFailsClosedAndCanRecover(bool tray)
+    {
+        using var source = new Source(tray);
+        var failure = new InvalidOperationException("post-click predicate failed");
+        bool fail = false;
+        bool failOnClick = true;
+        int executions = 0;
+        var command = new DelegateCommand(() => executions++, () => fail ? throw failure : true);
+        source.Command = command;
+        source.OnClick(() => fail = failOnClick);
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(source.Invoke));
+        Assert.False(source.Enabled);
+        Assert.Equal(0, executions);
+        fail = failOnClick = false;
+        command.RaiseCanExecuteChanged();
+        Assert.True(source.Enabled);
+        source.Invoke();
+        Assert.Equal(1, executions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void AvailabilityTransitionsAndParameterChangesReevaluate(bool tray)
     {
         using var source = new Source(tray);

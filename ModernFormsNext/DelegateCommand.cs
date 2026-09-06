@@ -80,8 +80,13 @@ public sealed class DelegateCommand : ICommand
     public void Execute(object? parameter)
     {
         if (CanExecute(parameter))
-            execute(parameter);
+            ExecuteCore(parameter);
     }
+
+    // Framework sources have just evaluated availability and verified their binding snapshot.
+    // Do not introduce another predicate callback after that guard. Direct ICommand callers
+    // still use Execute above and receive its availability check.
+    internal void ExecuteCore(object? parameter) => execute(parameter);
 
     /// <summary>
     /// Notifies subscribers that they should reevaluate <see cref="CanExecute"/>.

@@ -65,7 +65,15 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         object? currentParameter = parameter;
         int currentVersion = version;
         if (current is not null && Refresh() && currentVersion == version && owner.Enabled)
-            current.Execute(currentParameter);
+        {
+            // The sealed framework helper can consume this fresh guarded evaluation. Calling
+            // its public Execute would evaluate again outside our fail-closed/version guard.
+            // Arbitrary ICommand implementations retain their own normal Execute contract.
+            if (current is DelegateCommand delegateCommand)
+                delegateCommand.ExecuteCore(currentParameter);
+            else
+                current.Execute(currentParameter);
+        }
     }
 
     private bool Refresh()

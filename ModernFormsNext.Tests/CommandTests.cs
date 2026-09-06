@@ -52,6 +52,17 @@ public sealed class CommandTests
     }
 
     [Fact]
+    public void DirectExecutionEvaluatesPredicateOnce()
+    {
+        int queries = 0;
+        int executions = 0;
+        var command = new DelegateCommand(() => executions++, () => { queries++; return true; });
+        command.Execute(null);
+        Assert.Equal(1, queries);
+        Assert.Equal(1, executions);
+    }
+
+    [Fact]
     public void ExplicitRequeryUsesNormalEventSemantics()
     {
         var command = new DelegateCommand(() => { });

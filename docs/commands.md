@@ -81,8 +81,15 @@ accessibility Invoke converge on the same normal action path:
 
 Click handlers can replace/remove the command, change its parameter, disable or dispose the
 source. Those changes are respected. A Click handler that throws stops execution. A predicate
-that changes the binding during evaluation invalidates that evaluation; an obsolete binding is
-never executed. Predicates should not rely on such reentrancy as an application design pattern.
+that changes the binding during a source's evaluation invalidates that evaluation; the source
+does not execute its obsolete snapshot. Predicates should not rely on such reentrancy as an
+application design pattern. Application ICommand implementations remain responsible for callbacks
+and state changes inside their own Execute method.
+
+Click precedes execution to preserve the event-based action path and let handlers update or cancel
+the pending command. Executing first would make such changes too late; suppressing Click whenever
+a command is assigned would break event subscribers. Put a reusable application action in Command;
+do not perform the same action again in Click. The framework does not deduplicate application code.
 
 Only left-button activation executes Button commands. Existing right-click/context-menu behavior
 does not execute the command. Programmatic PerformClick does not require visibility; native input
@@ -91,10 +98,17 @@ now does nothing, closing the previous programmatic bypass of the normal disable
 No public member is removed or renamed. NotifyIconMenuItem.PerformClick retains its existing
 ObjectDisposedException behavior after disposal, and separators never activate.
 
-`DelegateCommand.Execute` also checks CanExecute for callers that invoke it directly. Sources
-check availability independently so arbitrary ICommand implementations work safely. Consequently
-a DelegateCommand predicate may run multiple times during activation. Neither the helper nor the
-source assumes an application ICommand finishes its external work when Execute returns.
+For an unchanged, available binding, the source evaluates CanExecute once before Click and once
+after Click. Assignments and notifications during Click can cause additional evaluations.
+`DelegateCommand.Execute` checks CanExecute once for callers that invoke it directly. Framework
+sources use an internal action entry point after their own fresh check, avoiding a redundant third
+evaluation outside the source's binding/exception guard. Arbitrary ICommand implementations receive
+the normal Execute call and may perform their own checks.
+
+The post-Click check closes the gap caused by synchronous Click mutations, including availability
+changes without a notification. It is not an atomic transaction with application state on other
+threads. Neither the helper nor the source assumes an application ICommand finishes its external
+work when Execute returns.
 
 ## Lifetime and exceptions
 
