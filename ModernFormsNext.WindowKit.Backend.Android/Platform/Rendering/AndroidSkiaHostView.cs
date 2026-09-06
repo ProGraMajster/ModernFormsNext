@@ -333,10 +333,15 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             return null;
 
         var inputState = GetTextInputState();
-        outAttrs.InputType = global::Android.Text.InputTypes.ClassText |
-            global::Android.Text.InputTypes.TextFlagCapSentences |
-            global::Android.Text.InputTypes.TextFlagMultiLine;
+        // Reuse the canonical focused peer's sensitivity. Masking rendered glyphs and
+        // accessibility nodes alone does not prevent an IME from suggesting the secret.
+        bool sensitive = accessibilityProvider?.IsInputSensitive == true;
+        outAttrs.InputType = global::Android.Text.InputTypes.ClassText | (sensitive
+            ? global::Android.Text.InputTypes.TextVariationPassword | global::Android.Text.InputTypes.TextFlagNoSuggestions
+            : global::Android.Text.InputTypes.TextFlagCapSentences | global::Android.Text.InputTypes.TextFlagMultiLine);
         outAttrs.ImeOptions = ImeFlags.NoExtractUi;
+        if (sensitive && OperatingSystem.IsAndroidVersionAtLeast(26))
+            outAttrs.ImeOptions |= ImeFlags.NoPersonalizedLearning;
         outAttrs.InitialSelStart = inputState.SelectionStart;
         outAttrs.InitialSelEnd = inputState.SelectionEnd;
         inputStateNotificationPending = false;

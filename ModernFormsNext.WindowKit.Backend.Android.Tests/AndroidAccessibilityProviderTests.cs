@@ -211,6 +211,24 @@ public class AndroidAccessibilityProviderTests
     }
 
     [Fact]
+    public void PasswordInputSensitivityFollowsKeyboardFocusNotAccessibilityFocus()
+    {
+        using var root = new Panel();
+        var editor = new TextBox();
+        var password = new TextBox { PasswordCharacter = '*' };
+        root.Controls.AddRange([editor, password]);
+        using var surface = new SkiaControlSurface(root);
+        using var session = new AndroidAccessibilitySession(surface);
+        session.Attach();
+        password.Select();
+        Assert.True(session.IsInputSensitive);
+        Assert.True(session.Perform(session.Register(Adapt(editor.AccessibilityObject)), ActionAccessibilityFocus, null, true));
+        Assert.True(session.IsInputSensitive);
+        editor.Select();
+        Assert.False(session.IsInputSensitive);
+    }
+
+    [Fact]
     public void WindowlessControlsNotifyWithoutWindowServiceAndDisposeStopsRouting()
     {
         using var root = new Panel();

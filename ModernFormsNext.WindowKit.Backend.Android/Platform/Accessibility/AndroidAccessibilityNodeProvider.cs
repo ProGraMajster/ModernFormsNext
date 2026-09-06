@@ -35,6 +35,9 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
 
     internal void Attach() => dispatch.Run(() => { session.Attach(); return true; }, false);
     internal int LastAllocatedId => session.LastAllocatedId;
+    // The native editor must follow keyboard focus, not the independently explored node.
+    // A failing custom peer conservatively disables suggestions and personalized learning.
+    internal bool IsInputSensitive => dispatch.Run(() => session.IsInputSensitive, true);
 
     internal void InvalidateGeometry() => dispatch.Run(() => { session.InvalidateGeometry(); return true; }, false);
 

@@ -111,6 +111,10 @@ state description, diagnostics, search results, or event payloads. Explicit Name
 are author-provided metadata: applications must not put secrets into those labels themselves.
 SetText is permitted for an enabled, writable password editor, through canonical SetValue, and
 readback remains redacted. ReadOnly/Enabled and normal TextChanged behavior are preserved.
+The existing Android input connection also uses the keyboard-focused canonical peer's sensitivity
+to request password input with no suggestions and, from API 26, no personalized learning. Otherwise
+an IME could expose masked input through its own suggestion nodes. This narrowly configures the
+existing editor connection; it does not introduce an additional text model or advanced IME support.
 
 States include enabled, focusable, input focused, selected, checkable/checked/mixed, editable,
 password, and actual visibility. Clickable and scrollable derive from supported actions;

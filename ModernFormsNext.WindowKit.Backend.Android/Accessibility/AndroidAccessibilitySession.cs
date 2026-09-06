@@ -30,6 +30,8 @@ internal sealed class AndroidAccessibilitySession : IDisposable
     internal IPlatformAccessibleObject? Root => attached && !disposed ? host.AccessibilityRoot : null;
     internal int CachedNodeCount => entries.Count;
     internal int LastAllocatedId => nextId;
+    internal bool IsInputSensitive => Root?.GetFocused() is { } focused
+        && (focused.GetIsSensitive() || (focused.State & Protected) != 0);
 
     internal void InvalidateGeometry() => Queue(HostId, 2048, 1);
 

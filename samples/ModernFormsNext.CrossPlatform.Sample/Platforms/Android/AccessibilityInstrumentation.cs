@@ -98,6 +98,28 @@ public sealed class AccessibilityInstrumentation : Instrumentation
             var matches = secretMatches!.FindAccessibilityNodeInfosByText(secret)!;
             Check(matches.Count == 0, "password excluded from text search");
             foreach (var match in matches) match.Dispose();
+            bool passwordType = false, passwordLearning = false, ordinaryType = false;
+            RunOnMainSync(() =>
+            {
+                var content = activity.FindViewById<global::Android.Views.ViewGroup>(global::Android.Resource.Id.Content)!;
+                var view = (ModernFormsNext.WindowKit.Backend.Android.Rendering.AndroidSkiaHostView)content.GetChildAt(0)!;
+                demo.Password.Select();
+                using var passwordInfo = new global::Android.Views.InputMethods.EditorInfo();
+                // The view owns its active input connection; do not dispose its borrowed result.
+                view.OnCreateInputConnection(passwordInfo);
+                var privateFlags = global::Android.Text.InputTypes.TextVariationPassword | global::Android.Text.InputTypes.TextFlagNoSuggestions;
+                passwordType = (passwordInfo.InputType & privateFlags) == privateFlags;
+                passwordLearning = !OperatingSystem.IsAndroidVersionAtLeast(26)
+                    || (passwordInfo.ImeOptions & global::Android.Views.InputMethods.ImeFlags.NoPersonalizedLearning) != 0;
+                demo.Editor.Select();
+                using var editorInfo = new global::Android.Views.InputMethods.EditorInfo();
+                view.OnCreateInputConnection(editorInfo);
+                ordinaryType = (editorInfo.InputType & privateFlags) == 0;
+            });
+            // Assert on the runner thread so a failure is reported without crashing Android's UI.
+            Check(passwordType, "password IME type and suggestions");
+            Check(passwordLearning, "password IME personalized learning");
+            Check(ordinaryType, "ordinary editor resets password IME flags");
             using var slider = Find("Slider sample");
             using var range = slider.GetRangeInfo();
             Check(range is not null && range.Min == 0 && range.Max == 100 && range.Current == 25, "range metadata");
