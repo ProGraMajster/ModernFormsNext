@@ -1,5 +1,7 @@
 using System;
 using System.ComponentModel;
+using System.Windows.Input;
+using ModernFormsNext.DataBinding;
 
 namespace ModernFormsNext
 {
@@ -16,13 +18,58 @@ namespace ModernFormsNext
     /// var item = new NotifyIconMenuItem("Open", (_, _) => mainForm.Show());
     /// </code>
     /// </example>
-    public class NotifyIconMenuItem : Component
+    public class NotifyIconMenuItem : Component, ICommandBindingTargetProvider
     {
         private bool checked_value;
         private bool enabled = true;
         private bool disposed;
         private NotifyIconMenuItemCollection? items;
         private string text = string.Empty;
+        private CommandSource? commandSource;
+        private bool commandEnabled = true;
+
+        /// <summary>
+        /// Gets or sets the command executed after <see cref="Click"/> on activation.
+        /// </summary>
+        /// <remarks>
+        /// Assign on the UI thread. Null preserves event-only behavior. The item shares Button's
+        /// command binding behavior: parameter-aware availability, background requery through the
+        /// UI dispatcher, and detach on replacement/removal/disposal. Predicate exceptions disable
+        /// the item and propagate unchanged; later requery or removal can recover it. The command
+        /// is not owned or disposed by the item. Open native menus retain their existing snapshot
+        /// behavior; activation still rechecks availability. Designer serialization is deferred.
+        /// </remarks>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public ICommand? Command {
+            get => commandSource?.Command;
+            set {
+                ThrowIfDisposed();
+                (commandSource ??= new CommandSource(this)).Command = value;
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the nullable parameter used to evaluate and execute <see cref="Command"/>.
+        /// </summary>
+        /// <remarks>
+        /// Assign on the UI thread. A different reference immediately reevaluates availability.
+        /// Mutating the same object requires the command's CanExecuteChanged notification.
+        /// Execution uses the current parameter after Click. Disposal releases, but does not
+        /// dispose, the parameter. Predicate exceptions follow <see cref="Command"/> semantics.
+        /// </remarks>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public object? CommandParameter {
+            get => commandSource?.Parameter;
+            set {
+                ThrowIfDisposed();
+                (commandSource ??= new CommandSource(this)).Parameter = value;
+            }
+        }
+
+        bool ICommandBindingTargetProvider.IsCommandSourceDisposed => disposed;
+        void ICommandBindingTargetProvider.SetCommandEnabled(bool value) => commandEnabled = value;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NotifyIconMenuItem"/> class.
@@ -69,8 +116,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets a value indicating whether the item can be selected.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. The setter records local intent; the getter combines it with
+        /// command availability. Requery never overwrites a locally assigned false value.
+        /// Native menus read this effective state when their snapshot is constructed.
+        /// </remarks>
         public bool Enabled {
-            get => enabled;
+            get => enabled && commandEnabled;
             set {
                 ThrowIfDisposed ();
                 enabled = value;
@@ -117,6 +169,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Programmatically raises the <see cref="Click"/> event when the item is enabled.
         /// </summary>
+        /// <remarks>
+        /// Call on the UI thread. Separators do nothing. An available command runs after Click,
+        /// using the current binding and parameter and a fresh CanExecute check. Click, predicate
+        /// and execute exceptions propagate unchanged. A Click exception prevents execution.
+        /// </remarks>
         public void PerformClick ()
         {
             ThrowIfDisposed ();
@@ -135,8 +192,10 @@ namespace ModernFormsNext
         /// </param>
         protected override void Dispose (bool disposing)
         {
-            if (disposing)
+            if (disposing) {
+                commandSource?.Dispose();
                 disposed = true;
+            }
 
             base.Dispose (disposing);
         }
@@ -145,7 +204,17 @@ namespace ModernFormsNext
         /// Raises the <see cref="Click"/> event.
         /// </summary>
         /// <param name="e">The event data.</param>
-        protected virtual void OnClick (EventArgs e) => Click?.Invoke (this, e);
+        protected virtual void OnClick (EventArgs e)
+        {
+            if (disposed || !Enabled || Separator)
+                return;
+            if (commandSource is not null && !commandSource.CanExecute())
+                return;
+
+            Click?.Invoke(this, e);
+            if (!disposed && Enabled)
+                commandSource?.Execute();
+        }
 
         private void ThrowIfDisposed ()
         {

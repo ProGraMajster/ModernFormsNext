@@ -727,10 +727,16 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets whether the control can be interacted with.
         /// </summary>
+        /// <remarks>
+        /// The setter records local enabled intent. The getter combines it with the parent's
+        /// effective enabled state and, for command sources, command availability. Command
+        /// reevaluation never overwrites a locally assigned false value. Set this property on
+        /// the UI thread; effective changes update input, focus, rendering and accessibility.
+        /// </remarks>
         public bool Enabled {
             get {
                 // If we aren't enabled, that's easy
-                if (!GetState (States.Enabled))
+                if (!GetState (States.Enabled) || GetState (States.CommandDisabled))
                     return false;
 
                 // If we don't have a Parent, then we're enabled
@@ -745,12 +751,25 @@ namespace ModernFormsNext
                 SetState (States.Enabled, value);
 
                 // See if the computed Enabled actually changed
-                if (old_value != value) {
-                    if (!value)
+                if (old_value != Enabled) {
+                    if (!Enabled)
                         SelectNextIfFocused ();
 
                     OnEnabledChanged (EventArgs.Empty);
                 }
+            }
+        }
+
+        // Keep availability separate from the local States.Enabled bit. Use the same normal
+        // notification path so focus, descendants, visual states and accessibility stay aligned.
+        internal void SetCommandEnabled(bool value)
+        {
+            bool previous = Enabled;
+            SetState(States.CommandDisabled, !value);
+            if (previous != Enabled) {
+                if (!Enabled)
+                    SelectNextIfFocused();
+                OnEnabledChanged(EventArgs.Empty);
             }
         }
 
@@ -1597,7 +1616,7 @@ namespace ModernFormsNext
         [EditorBrowsable (EditorBrowsableState.Advanced)]
         protected virtual void OnParentEnabledChanged (EventArgs e)
         {
-            if (GetState (States.Enabled))
+            if (GetState (States.Enabled) && !GetState (States.CommandDisabled))
                 OnEnabledChanged (e);
         }
 

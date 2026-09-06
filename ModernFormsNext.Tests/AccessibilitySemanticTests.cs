@@ -17,6 +17,34 @@ public sealed class AccessibilitySemanticCollection
 public sealed class AccessibilitySemanticTests
 {
     [Fact]
+    public void CommandBackedButtonUsesNormalInvokeAndUnavailableState()
+    {
+        using var root = new VisibleRootControl();
+        bool allowed = false;
+        var calls = new List<string>();
+        var command = new DelegateCommand(p => calls.Add($"execute:{p}"), _ => allowed);
+        using var button = root.Controls.Add(new Button { Command = command, CommandParameter = "save" });
+        button.Click += (_, _) => calls.Add("click");
+        AccessibleObject accessible = button.AccessibilityObject;
+
+        Assert.Equal(AccessibleControlType.Button, accessible.ControlType);
+        AssertHasFlag(accessible.State, AccessibleStates.Unavailable);
+        Assert.False(accessible.PerformAction(AccessibleActions.Invoke));
+        Assert.Empty(calls);
+        allowed = true;
+        command.RaiseCanExecuteChanged();
+        AssertDoesNotHaveFlag(accessible.State, AccessibleStates.Unavailable);
+        AssertHasFlag(accessible.SupportedActions, AccessibleActions.Invoke);
+        Assert.True(accessible.PerformAction(AccessibleActions.Invoke));
+        Assert.Equal(["click", "execute:save"], calls);
+        button.Enabled = false;
+        command.RaiseCanExecuteChanged();
+        AssertHasFlag(accessible.State, AccessibleStates.Unavailable);
+        Assert.False(accessible.PerformAction(AccessibleActions.Invoke));
+        Assert.Equal(2, calls.Count);
+    }
+
+    [Fact]
     public void ButtonExposesNameTypeAndNormalInvokeAction()
     {
         using var root = new VisibleRootControl();
