@@ -24,6 +24,11 @@ if (button is null)
 }
 
 string rootNameBeforeInvoke = root.Current.Name;
+AutomationElement? disabledButton = root.FindFirst(
+    TreeScope.Descendants,
+    new PropertyCondition(AutomationElement.AutomationIdProperty, "uia.integration.disabled-command"));
+if (disabledButton is null)
+    return 5;
 string buttonName = button.Current.Name;
 string automationId = button.Current.AutomationId;
 int rootControlType = root.Current.ControlType.Id;
@@ -43,6 +48,7 @@ var result = new
     AutomationId = automationId,
     RootControlType = rootControlType,
     ButtonControlType = buttonControlType,
+    DisabledCommandIsEnabled = disabledButton.Current.IsEnabled,
     HasKeyboardFocus = button.Current.HasKeyboardFocus
 };
 

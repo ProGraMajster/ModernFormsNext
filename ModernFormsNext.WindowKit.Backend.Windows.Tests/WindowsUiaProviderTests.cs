@@ -541,6 +541,7 @@ public sealed class WindowsUiaProviderTests
             Assert.Equal(50032, root.GetProperty("RootControlType").GetInt32());
             Assert.Equal(50000, root.GetProperty("ButtonControlType").GetInt32());
             Assert.True(root.GetProperty("HasKeyboardFocus").GetBoolean());
+            Assert.False(root.GetProperty("DisabledCommandIsEnabled").GetBoolean());
 
             Assert.Equal("INVOKED", await ReadLineStartingWithAsync(host, "INVOKED", timeout.Token));
         }

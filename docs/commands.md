@@ -143,6 +143,9 @@ This semantic path is the existing extension point for future #97 consumers.
 `CommandTests`, `CommandSourceTests`, the command regression in `AccessibilitySemanticTests`, and
 `CommandSourceHostTests` cover the public behavior. Host tests explicitly drain the existing
 dispatcher; no timing sleeps, GC timing assertions, input simulator or new TestHost API is used.
+The existing Windows HWND/UIA integration host also exercises a command-backed Button and a
+disabled command source. Android provider tests invoke a real Button through the existing shared
+surface/session adapter. These automated checks do not claim manual TalkBack or visual validation.
 
 Run `dotnet run --project samples/ControlGallery/ControlGallery.csproj` and open **Button**. The
 small command section has two buttons sharing one command, separate document parameters, a shared
