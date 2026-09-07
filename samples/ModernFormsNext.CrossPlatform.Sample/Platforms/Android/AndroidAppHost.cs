@@ -219,10 +219,16 @@ public sealed class AndroidAppHost : IDisposable
             _ => throw new ArgumentOutOfRangeException(nameof(e))
         };
 
+        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Control) != 0) key |= Keys.Control;
+        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Shift) != 0) key |= Keys.Shift;
+        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Alt) != 0) key |= Keys.Alt;
+        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Meta) != 0) key |= Keys.Meta;
+        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.AltGraph) != 0) key |= Keys.AltGraph;
+
         if (e.IsDown)
-            controlSurface.ProcessKeyDown(key);
+            controlSurface.ProcessKeyDown(key, isTextInput: !e.IsHardwareKey);
         else
-            controlSurface.ProcessKeyUp(key);
+            controlSurface.ProcessKeyUp(key, isTextInput: !e.IsHardwareKey);
         app.UpdateLastInput($"Key {e.Key} {(e.IsDown ? "down" : "up")}");
     }
 

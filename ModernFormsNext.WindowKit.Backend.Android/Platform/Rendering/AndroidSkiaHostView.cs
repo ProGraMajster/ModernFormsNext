@@ -9,6 +9,7 @@ using ICharSequence = Java.Lang.ICharSequence;
 using NativeKeyEvent = Android.Views.KeyEvent;
 using ModernFormsNext.WindowKit.Backend.Android.Accessibility;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
+using ModernFormsNext.WindowKit.Input;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 
@@ -585,7 +586,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         }
     }
 
-    private bool PublishKey(Keycode keyCode, bool isDown)
+    private bool PublishKey(Keycode keyCode, bool isDown, NativeKeyEvent? nativeEvent = null)
     {
         var translated = keyCode switch
         {
@@ -602,7 +603,20 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         if (translated is null)
             return false;
 
-        KeyInput?.Invoke(this, new AndroidInputKeyEvent(translated.Value, isDown));
+        var modifiers = KeyModifiers.None;
+        if (nativeEvent is not null)
+        {
+            if (nativeEvent.IsCtrlPressed) modifiers |= KeyModifiers.Control;
+            if (nativeEvent.IsShiftPressed) modifiers |= KeyModifiers.Shift;
+            if (nativeEvent.IsAltPressed) modifiers |= KeyModifiers.Alt;
+            if (nativeEvent.IsMetaPressed) modifiers |= KeyModifiers.Meta;
+            // As on Windows, right Alt is conservatively reserved for international input.
+            if ((nativeEvent.MetaState & MetaKeyStates.AltRightOn) != 0) modifiers |= KeyModifiers.AltGraph;
+        }
+        KeyInput?.Invoke(this, AndroidInputKeyEvent.FromSource(translated.Value, isDown, modifiers,
+            nativeEvent?.DeviceId ?? -1,
+            nativeEvent is not null && (nativeEvent.Flags & KeyEventFlags.SoftKeyboard) != 0,
+            fromInputConnection: nativeEvent is null));
         NotifyTextStateChanged();
         return true;
     }
@@ -670,12 +684,12 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         Func<bool> baseHandler)
     {
         if (!EnableInputConnectionDiagnostics)
-            return PublishKey(keyCode, isDown) || baseHandler();
+            return PublishKey(keyCode, isDown, keyEvent) || baseHandler();
 
         var before = GetTextInputState();
         var batchDepth = activeInputConnection?.BatchDepth ?? 0;
         var observation = ObserveKeyEvent(keyCode, isDown, "ViewKeyEvent");
-        var result = PublishKey(keyCode, isDown) || baseHandler();
+        var result = PublishKey(keyCode, isDown, keyEvent) || baseHandler();
         WriteInputDiagnostic(
             isDown ? "OnKeyDown" : "OnKeyUp",
             "ViewKeyEvent",
