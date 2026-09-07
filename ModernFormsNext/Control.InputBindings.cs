@@ -37,7 +37,9 @@ public partial class Control
     internal void ReleaseInputBindings()
     {
         InputBindingsInternal?.Release();
-        Properties.RemoveValue(s_inputBindingsProperty);
+        // This key only stores an object. Do not inspect/remove unrelated integer entries;
+        // other control cleanup paths likewise remove their specific object slots.
+        Properties.RemoveObject(s_inputBindingsProperty);
     }
 
     internal void ReleaseInputBindingsForSubtree()

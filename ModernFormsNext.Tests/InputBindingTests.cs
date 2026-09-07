@@ -552,6 +552,27 @@ public sealed class InputBindingTests : IDisposable
         Assert.Equal(1, command.Executions);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReleasingBindingsDoesNotInspectAnEmptiedIntegerPropertyStore(bool registered)
+    {
+        using var control = new Control();
+        InputBindingCollection? bindings = null;
+        if (registered)
+        {
+            bindings = control.InputBindings;
+            bindings.Add(Bind(() => Assert.Fail()));
+        }
+        // Removing the last integer property leaves an empty integer array in the existing
+        // store. Binding cleanup owns an object slot and must not search unrelated integers.
+        const int integerKey = 32000;
+        control.Properties.SetInteger(integerKey, 1);
+        control.Properties.RemoveInteger(integerKey);
+        control.ReleaseInputBindings();
+        if (bindings is not null) Assert.Empty(bindings);
+    }
+
     private sealed class DirectCommand : System.Windows.Input.ICommand
     {
         internal int Queries, Executions;
