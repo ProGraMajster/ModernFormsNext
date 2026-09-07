@@ -34,6 +34,8 @@ namespace ModernFormsNext
 
         public WindowBase ParentForm { get; }
 
+        internal override bool IsCommandRoutingRoot => true;
+
         /// <inheritdoc/>
         public IPlatformAccessibleObject? AccessibilityRoot => PlatformAccessibleObjectAdapter.From(AccessibilityObject);
 

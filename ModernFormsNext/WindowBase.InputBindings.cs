@@ -37,6 +37,7 @@ public abstract partial class WindowBase
     {
         if (InputBindingsClosed) return;
         InputBindingsClosed = true;
+        ReleaseCommandBindings();
         inputBindingResolver.Reset();
         inputBindings?.Release();
         inputBindings = null;

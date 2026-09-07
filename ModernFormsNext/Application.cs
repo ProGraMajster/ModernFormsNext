@@ -243,6 +243,7 @@ namespace ModernFormsNext
         {
             is_exiting = true;
             ReleaseInputBindings();
+            ReleaseCommandBindings();
 
             Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
 
@@ -338,6 +339,7 @@ namespace ModernFormsNext
             Dispatcher.UIThread.MainLoop(_mainLoopCancellationTokenSource.Token);
 
             ReleaseInputBindings();
+            ReleaseCommandBindings();
             Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
 
             if (!is_exiting)

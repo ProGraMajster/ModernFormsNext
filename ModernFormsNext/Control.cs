@@ -100,6 +100,7 @@ namespace ModernFormsNext
             if (previousParent is not null && value is null)
                 CancelOwnedControlAnimationsForSubtree();
             RefreshResourceBindingsForSubtree ();
+            RefreshRoutedCommandSourcesForSubtree();
             OnParentChanged (EventArgs.Empty);
 
             if (GetAnyDisposingInHierarchy ())
@@ -2598,6 +2599,7 @@ namespace ModernFormsNext
         {
             if (!disposedValue) {
                 ReleaseInputBindings();
+                ReleaseCommandBindings();
                 DisposeInteractionEffects ();
                 CancelOwnedControlAnimations();
                 DisposeLayoutTransitionConfiguration ();
