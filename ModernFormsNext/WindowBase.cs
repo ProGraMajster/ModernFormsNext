@@ -40,6 +40,7 @@ namespace ModernFormsNext
             window.Paint = DoPaint;
             window.Resized = OnResize;
             window.Closed = () => {
+                ReleaseInputBindings();
                 // A secondary window can close without shutting down the process-wide scheduler.
                 // Release every control-owned animation so callbacks cannot retain its detached
                 // visual tree. The operation is idempotent with the explicit Close path below.
@@ -103,7 +104,8 @@ namespace ModernFormsNext
             }
             
             adapter.CancelOwnedControlAnimationsForSubtree ();
-            window.Dispose (); 
+            ReleaseInputBindings();
+            window.Dispose ();
         }
 
         /// <summary>

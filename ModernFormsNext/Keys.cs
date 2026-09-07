@@ -990,5 +990,9 @@ namespace ModernFormsNext
         /// Control modifier. This flag distinguishes that sequence from a Control shortcut.
         /// </remarks>
         AltGraph = 0x00080000,
+
+        /// <summary>The platform meta modifier, such as the Windows key.</summary>
+        /// <remarks>Backend delivery is subject to shortcuts reserved by the operating system.</remarks>
+        Meta = 0x00100000,
     }
 }
