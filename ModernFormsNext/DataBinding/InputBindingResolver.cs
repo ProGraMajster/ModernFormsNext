@@ -22,6 +22,9 @@ internal sealed class InputBindingResolver
         }
 
         List<Candidate>? candidates = null;
+        // Existing focus bookkeeping can still point at a control detached/reparented by the
+        // application. A window must never execute bindings from another control tree.
+        if (focused is not null && !IsWithinRoot(focused, root)) focused = null;
         // Snapshot only matching registrations, before calling any application predicate. The
         // usual unmatched key does not allocate a candidate list or initialize empty scopes.
         for (Control? control = focused ?? root; control is not null; control = control.Parent)
@@ -35,23 +38,23 @@ internal sealed class InputBindingResolver
         if (candidates is not null)
             foreach (var candidate in candidates)
             {
-                if (!candidate.IsCurrent || !IsContextActive(root, window)) break;
+                if (!candidate.IsCurrent(root) || !IsContextActive(root, window)) break;
                 var binding = candidate.Binding;
                 ICommand? command = binding.Command;
                 object? parameter = binding.CommandParameter;
                 if (command is null)
                 {
                     candidate.Collection.Report(InputBindingDiagnosticKind.InvalidBinding, binding);
-                    if (!candidate.IsCurrent) break;
+                    if (!candidate.IsCurrent(root)) break;
                     continue;
                 }
 
                 bool available = command.CanExecute(parameter);
-                if (!candidate.IsCurrent || !IsContextActive(root, window)) break;
+                if (!candidate.IsCurrent(root) || !IsContextActive(root, window)) break;
                 if (!available)
                 {
                     candidate.Collection.Report(InputBindingDiagnosticKind.CommandUnavailable, binding);
-                    if (!candidate.IsCurrent) break;
+                    if (!candidate.IsCurrent(root)) break;
                     continue;
                 }
 
@@ -89,6 +92,13 @@ internal sealed class InputBindingResolver
     private static bool IsContextActive(Control root, WindowBase? window)
         => !root.IsDisposed && root.Visible && root.Enabled && window?.InputBindingsClosed != true && !Application.IsExiting;
 
+    private static bool IsWithinRoot(Control control, Control root)
+    {
+        for (Control? current = control; current is not null; current = current.Parent)
+            if (ReferenceEquals(current, root)) return true;
+        return false;
+    }
+
     private static void Collect(InputBindingCollection? collection, KeyEventArgs e, ref List<Candidate>? candidates)
     {
         if (collection is null || collection.Count == 0 || !collection.IsActive) return;
@@ -104,7 +114,8 @@ internal sealed class InputBindingResolver
 
     private readonly record struct Candidate(InputBinding Binding, int BindingVersion, InputBindingCollection Collection, int CollectionVersion)
     {
-        internal bool IsCurrent => Collection.IsActive && Collection.Version == CollectionVersion &&
-            Binding.Version == BindingVersion && ReferenceEquals(Binding.Owner, Collection);
+        internal bool IsCurrent(Control root) => Collection.IsActive && Collection.Version == CollectionVersion &&
+            Binding.Version == BindingVersion && ReferenceEquals(Binding.Owner, Collection) &&
+            (Collection.ControlScope is not Control control || IsWithinRoot(control, root));
     }
 }

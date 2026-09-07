@@ -573,6 +573,40 @@ public sealed class InputBindingTests : IDisposable
         if (bindings is not null) Assert.Empty(bindings);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StaleFocusCannotExecuteBindingsFromDetachedOrReparentedControls(bool reparent)
+    {
+        using var ui = new WindowFixture();
+        using var other = new WindowFixture();
+        ui.Focus.InputBindings.Add(Bind(() => Assert.Fail()));
+        ui.Parent.Controls.Remove(ui.Focus);
+        if (reparent) other.Parent.Controls.Add(ui.Focus);
+        int calls = 0;
+        ui.Form.InputBindings.Add(Bind(() => calls++));
+        Assert.True(ui.Press().Handled);
+        Assert.Equal(1, calls);
+        ui.Focus.Dispose();
+    }
+
+    [Fact]
+    public void PredicateCannotExecuteAControlBindingAfterDetachingItsScope()
+    {
+        using var ui = new WindowFixture();
+        ui.Focus.InputBindings.Add(Bind(() => Assert.Fail(), () => {
+            ui.Parent.Controls.Remove(ui.Focus);
+            return true;
+        }));
+        int calls = 0;
+        ui.Form.InputBindings.Add(Bind(() => calls++));
+        Assert.False(ui.Press().Handled);
+        Assert.Equal(0, calls);
+        Assert.True(ui.Press().Handled);
+        Assert.Equal(1, calls);
+        ui.Focus.Dispose();
+    }
+
     private sealed class DirectCommand : System.Windows.Input.ICommand
     {
         internal int Queries, Executions;

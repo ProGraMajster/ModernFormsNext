@@ -214,6 +214,8 @@ control dispatch occurs. Otherwise lookup runs before ordinary control KeyDown, 
 4. `Application.InputBindings`.
 
 With no focused control, lookup starts at the root and still checks window/application scopes.
+Stale focus references to controls detached or moved into another tree are treated as no focus;
+detaching a candidate's scope during CanExecute also invalidates that evaluation.
 Standalone `SkiaControlSurface` uses the same rules without a window scope. Inactive, hidden or
 disposed control scopes are skipped. Application bindings apply only to input delivered to a
 framework window/surface; they are not OS-global hotkeys.

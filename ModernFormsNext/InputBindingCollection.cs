@@ -23,6 +23,7 @@ public sealed class InputBindingCollection : Collection<InputBinding>
     public event EventHandler<InputBindingDiagnosticEventArgs>? Diagnostic;
 
     internal int Version { get; private set; }
+    internal Control? ControlScope => scope as Control;
     internal bool IsActive => !disposed && scope switch
     {
         Control control => !control.IsDisposed && control.Enabled && control.Visible,
