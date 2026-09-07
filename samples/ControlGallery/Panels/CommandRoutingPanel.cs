@@ -47,8 +47,8 @@ public sealed class CommandRoutingPanel : BasePanel
         });
         allowed.CheckedChanged += (_, _) => command.RaiseCanExecuteChanged();
         Controls.Add(new Label {
-            Text = "Click a Save button, or focus it and press Ctrl+S. Save locally handles first;\nSave via window falls back to the window. Uncheck Allow routed Save to disable both.",
-            Left = 36, Top = 288, Width = 740, Height = 72
+            Text = "Click either Save button, or focus it and press Ctrl+S.\nLocal overrides window. Uncheck Allow routed Save to disable both.",
+            Left = 36, Top = 288, Width = 740, Height = 72, Multiline = true
         });
     }
 
