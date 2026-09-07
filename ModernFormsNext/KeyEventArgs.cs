@@ -114,6 +114,8 @@ namespace ModernFormsNext
                 keys |= Keys.Shift;
             if (modifiers.HasFlag (RawInputModifiers.AltGraph))
                 keys |= Keys.AltGraph;
+            if (modifiers.HasFlag (RawInputModifiers.Meta))
+                keys |= Keys.Meta;
 
             return keys;
         }

@@ -26,7 +26,7 @@ namespace ModernFormsNext
     /// Application.Run(form);
     /// </code>
     /// </example>
-    public static class Application
+    public static partial class Application
     {
         private static CancellationTokenSource? _mainLoopCancellationTokenSource;
         private static bool is_exiting;
@@ -242,6 +242,7 @@ namespace ModernFormsNext
         public static void Exit()
         {
             is_exiting = true;
+            ReleaseInputBindings();
 
             Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
 
@@ -336,6 +337,7 @@ namespace ModernFormsNext
 
             Dispatcher.UIThread.MainLoop(_mainLoopCancellationTokenSource.Token);
 
+            ReleaseInputBindings();
             Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
 
             if (!is_exiting)

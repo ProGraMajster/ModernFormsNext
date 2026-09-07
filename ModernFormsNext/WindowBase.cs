@@ -40,6 +40,7 @@ namespace ModernFormsNext
             window.Paint = DoPaint;
             window.Resized = OnResize;
             window.Closed = () => {
+                ReleaseInputBindings();
                 // A secondary window can close without shutting down the process-wide scheduler.
                 // Release every control-owned animation so callbacks cannot retain its detached
                 // visual tree. The operation is idempotent with the explicit Close path below.
@@ -47,6 +48,7 @@ namespace ModernFormsNext
                 Closed?.Invoke (this, EventArgs.Empty);
             };
             window.Deactivated = () => {
+                inputBindingResolver.Reset();
                 // If we're clicking off the form, deactivate any active menus
                 Application.ClosePopups ();
                 Deactivated?.Invoke (this, EventArgs.Empty);
@@ -103,7 +105,8 @@ namespace ModernFormsNext
             }
             
             adapter.CancelOwnedControlAnimationsForSubtree ();
-            window.Dispose (); 
+            ReleaseInputBindings();
+            window.Dispose ();
         }
 
         /// <summary>
@@ -298,22 +301,30 @@ namespace ModernFormsNext
                 switch (ke.Type) {
                     case RawKeyEventType.KeyDown:
                         var kd_e = new KeyEventArgs(WindowKitExtensions.AddModifiers(WindowKitKeyMapper.ToFormsKey(ke.Key), ke.Modifiers));
-                        OnKeyDown (kd_e);
-
-                        if (kd_e.Handled)
-                            return;
-
-                        adapter.RaiseKeyDown (kd_e);
+                        try {
+                            OnKeyDown (kd_e);
+                            if (!kd_e.Handled && !InputBindingsClosed &&
+                                !inputBindingResolver.ProcessKeyDown(kd_e, adapter.SelectedControl, adapter, this))
+                                adapter.RaiseKeyDown (kd_e);
+                        }
+                        finally {
+                            // The backend already suppresses translated text/default OS input
+                            // for handled keys. Keep managed and raw consumption consistent.
+                            ke.Handled = kd_e.Handled;
+                        }
                         break;
                     case RawKeyEventType.KeyUp:
                         var ku_e = new KeyEventArgs(WindowKitExtensions.AddModifiers(WindowKitKeyMapper.ToFormsKey(ke.Key), ke.Modifiers));
 
-                        OnKeyUp (ku_e);
-
-                        if (ku_e.Handled)
-                            return;
-
-                        adapter.RaiseKeyUp (ku_e);
+                        bool consumedRelease = inputBindingResolver.ProcessKeyUp(ku_e);
+                        try {
+                            OnKeyUp (ku_e);
+                            if (!consumedRelease && !ku_e.Handled && !InputBindingsClosed)
+                                adapter.RaiseKeyUp (ku_e);
+                        }
+                        finally {
+                            ke.Handled = consumedRelease || ku_e.Handled;
+                        }
                         break;
                 }
             } else if (e is RawTextInputEventArgs te) {

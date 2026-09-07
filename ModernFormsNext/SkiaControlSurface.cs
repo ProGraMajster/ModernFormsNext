@@ -26,6 +26,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     private int pointerDragThreshold = 8;
     private int pointerDownRouteDepth;
     private bool disposed;
+    private readonly DataBinding.InputBindingResolver inputBindingResolver = new();
 
     /// <summary>
     /// Creates an adapter for a framework control tree.
@@ -454,25 +455,50 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     /// <summary>Routes a platform key-down transition to the selected framework control.</summary>
     /// <param name="key">The platform-neutral framework key.</param>
     public void ProcessKeyDown(Keys key)
+        => ProcessKeyDown(key, isTextInput: false);
+
+    /// <summary>Routes an existing key-down transition, distinguishing physical keyboard input from IME editing requests.</summary>
+    /// <param name="key">The framework key with any current modifier flags.</param>
+    /// <param name="isTextInput">True for software keyboard/IME editing requests, which must bypass shortcut lookup.</param>
+    /// <remarks>
+    /// Call on the owning UI thread. Hardware events resolve local/ancestor and application bindings
+    /// before normal control input. A standalone surface has no WindowBase scope. Repeats execute
+    /// once per delivered KeyDown; successful shortcuts consume their corresponding KeyUp.
+    /// Text/composition APIs continue to use the editing path and never evaluate shortcuts.
+    /// </remarks>
+    public void ProcessKeyDown(Keys key, bool isTextInput)
     {
         ThrowIfDisposed();
+        if (Root.IsDisposed) return;
         var selected = FindSelectedControl();
-        if (selected is null)
-            return;
-
         var args = new KeyEventArgs(key);
-        selected.RaiseKeyDown(args);
+        if (!isTextInput && inputBindingResolver.ProcessKeyDown(args, selected, Root, null))
+        {
+            Invalidated?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+        selected?.RaiseKeyDown(args);
         if (!args.SuppressKeyPress && key is Keys.Enter or Keys.Return)
-            selected.RaiseKeyPress(new KeyPressEventArgs("\r", key));
+            selected?.RaiseKeyPress(new KeyPressEventArgs("\r", key));
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Routes a platform key-up transition to the selected framework control.</summary>
     /// <param name="key">The platform-neutral framework key.</param>
     public void ProcessKeyUp(Keys key)
+        => ProcessKeyUp(key, isTextInput: false);
+
+    /// <summary>Routes a key-up transition without executing keyboard bindings again.</summary>
+    /// <param name="key">The framework key with any current modifiers.</param>
+    /// <param name="isTextInput">True for software keyboard/IME editing requests that bypass shortcut state.</param>
+    /// <remarks>Call on the owning UI thread. A consumed hardware press cannot activate a button again on release.</remarks>
+    public void ProcessKeyUp(Keys key, bool isTextInput)
     {
         ThrowIfDisposed();
-        FindSelectedControl()?.RaiseKeyUp(new KeyEventArgs(key));
+        if (Root.IsDisposed) return;
+        var args = new KeyEventArgs(key);
+        if (isTextInput || !inputBindingResolver.ProcessKeyUp(args))
+            FindSelectedControl()?.RaiseKeyUp(args);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -492,6 +518,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
 
         CancelAllPointers(invalidate: false);
         disposed = true;
+        inputBindingResolver.Reset();
         foreach (var textBox in observedControls.OfType<TextBox>())
             textBox.document.FinishComposition();
         foreach (var control in observedControls.ToArray())

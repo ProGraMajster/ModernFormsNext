@@ -2597,6 +2597,7 @@ namespace ModernFormsNext
         protected override void Dispose (bool disposing)
         {
             if (!disposedValue) {
+                ReleaseInputBindings();
                 DisposeInteractionEffects ();
                 CancelOwnedControlAnimations();
                 DisposeLayoutTransitionConfiguration ();

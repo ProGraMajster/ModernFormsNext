@@ -1,13 +1,14 @@
-# Commands (issue #56, Phase 1)
+# Commands and input bindings (issue #56, Phases 1 and 2)
 
 Commands represent reusable application actions. `System.Windows.Input.ICommand` is the contract:
 existing application implementations can be assigned directly. `ModernFormsNext.DelegateCommand`
 is the optional synchronous implementation provided by the framework. Events remain supported;
 an application can use `button.Click` without creating any command.
 
-This phase provides delegate commands, parameters, availability and two action sources: `Button`
-and `NotifyIconMenuItem`. Issue #56 remains open. Keyboard gestures, routed commands, scopes,
-async helpers and Designer integration are **not implemented by this phase**.
+Phase 1 provides delegate commands, parameters, availability and two action sources: `Button`
+and `NotifyIconMenuItem`. Phase 2 adds keyboard gestures and scoped input bindings to concrete
+commands. Issue #56 remains open: routed commands, async helpers and Designer integration are
+**not implemented**.
 
 ## Define once, reuse with different parameters
 
@@ -167,9 +168,164 @@ availability checkbox and an explicit-disable checkbox for the first button. Che
 hover, pressed and keyboard-focus rendering in the existing light/dark themes. This example does
 not modify DemoApp or the generated template experience.
 
+## Keyboard gestures and input bindings (Phase 2)
+
+`KeyGesture` is an immutable value containing the existing framework `Keys` key and
+`ModernFormsNext.WindowKit.Input.KeyModifiers` flags. Equality, hash codes and `Matches(KeyEventArgs)`
+compare the key and exact modifiers. Ctrl+S and Ctrl+Shift+S are distinct. Letters, digits, function
+and navigation keys are supported by the shared model. `ToString()` is for debugging (for example,
+`Ctrl+Shift+S`), not localization or parsing. There is no parser or chord sequence support.
+
+```csharp
+using ModernFormsNext;
+using ModernFormsNext.WindowKit.Input;
+
+var save = new DelegateCommand(
+    parameter => SaveDocument((string)parameter!),
+    parameter => CanSave && parameter is string);
+
+form.InputBindings.Add(new KeyBinding(save, new KeyGesture(Keys.S, KeyModifiers.Control)) {
+    CommandParameter = "current document"
+});
+editor.InputBindings.Add(new KeyBinding(save, new KeyGesture(Keys.S, KeyModifiers.Control | KeyModifiers.Shift)) {
+    CommandParameter = "selected document"
+});
+var refresh = new KeyBinding(new DelegateCommand(Refresh), new KeyGesture(Keys.F5));
+Application.InputBindings.Add(refresh);
+// Remove global bindings that capture short-lived windows before those windows close.
+Application.InputBindings.Remove(refresh);
+```
+
+`InputBinding` is the abstract shared model; `KeyBinding` is its concrete keyboard binding. Each
+holds a nullable `ICommand`, nullable `CommandParameter` and mutable `KeyGesture`. Parameter objects
+are passed unchanged. A missing command or `default(KeyGesture)` is an inactive registration.
+The gesture constructor rejects unknown/modifier-only keys, embedded modifier flags, AltGraph
+shortcuts, and unmodified/Shift-only printable keys. Configure Enter/navigation/function keys
+carefully: an available binding intentionally takes precedence over the control's default action.
+
+### Lookup order and conflicts
+
+The existing window KeyDown event keeps first refusal. If it sets Handled, no binding lookup or
+control dispatch occurs. Otherwise lookup runs before ordinary control KeyDown, in this order:
+
+1. Focused control's `InputBindings`.
+2. Its nearest ancestor, then each remaining ancestor up to the surface root.
+3. Owning `WindowBase.InputBindings` (including Form).
+4. `Application.InputBindings`.
+
+With no focused control, lookup starts at the root and still checks window/application scopes.
+Stale focus references to controls detached or moved into another tree are treated as no focus;
+detaching a candidate's scope during CanExecute also invalidates that evaluation.
+Standalone `SkiaControlSurface` uses the same rules without a window scope. Inactive, hidden or
+disposed control scopes are skipped. Application bindings apply only to input delivered to a
+framework window/surface; they are not OS-global hotkeys.
+
+Within a collection, the **first added available match** wins. Duplicates are allowed. A null
+command, invalid gesture or `CanExecute == false` allows later registrations and outer scopes
+to provide a fallback. If nothing executes, a fresh key press remains available to normal input.
+This is binding lookup through control ancestry, **not hierarchical command routing**. Every
+binding directly names its ICommand; there is no CommandTarget, CommandBinding or handler route.
+
+### Execution, consumption and mutation
+
+On KeyDown: match gesture, read the current command/parameter, evaluate CanExecute and execute.
+An unchanged DelegateCommand gets one predicate check; its existing internal action entry point
+avoids a redundant check. Other ICommand implementations receive ordinary Execute and can perform
+their own checks. Keyboard execution does not synthesize Button.Click. Assign the same command
+to a Button to share the domain action with pointer, normal button keyboard and accessibility Invoke.
+Button's Phase 1 guard/CanExecute/DialogResult/Click/fresh-CanExecute/Execute sequence is unchanged.
+
+A successful binding sets `SuppressKeyPress` (also Handled) before calling application code. On
+Windows the managed Handled flag now reaches the original raw event, allowing the existing backend
+to suppress resulting text. Its corresponding KeyUp is also consumed so changing focus to another
+Button cannot activate that button on release. Window KeyUp observers still see the event; clearing
+Handled there cannot forward an already consumed release to a control. KeyUp never executes a binding.
+Windows character suppression is reset for every new native KeyDown, including unmapped Unicode
+packet keys, so handling an earlier shortcut/editing key cannot discard a later text input sequence.
+
+Every delivered repeated KeyDown reevaluates current bindings and can execute once. Once a press
+executes, remaining repeats/release stay consumed even if the command becomes unavailable; available
+fallback bindings can still execute on later repeats. Native window deactivation/closure and surface
+disposal clear remembered presses. AltGraph input always bypasses bindings, including suppression
+left by an earlier shortcut with different modifiers.
+Repeated KeyDown events are separate command invocations, useful for navigation or volume changes.
+Actions such as Save should tolerate repetition or use CanExecute to reject input while unavailable;
+Phase 2 does not add per-gesture repeat flags or an execution lock.
+
+Matching registrations are snapshotted before application predicates run. Adding/removing bindings
+or changing focus during Execute cannot restart the current activation or execute another binding.
+Predicates must be fast and free of side effects. If a candidate's command/parameter/gesture,
+collection membership/version or lifetime changes during its predicate, the obsolete evaluation
+is abandoned for that event. Subsequent presses use the new state. Predicate/Execute exceptions
+propagate unchanged; an Execute exception still leaves the press consumed. No polling or
+CanExecuteChanged subscription is needed for input bindings: availability is checked on input.
+
+### Modifiers, text and platforms
+
+The existing KeyModifiers model supplies Control, Shift, Alt, Meta and AltGraph. Phase 2 adds only
+the missing `Keys.Meta` flag and raw Meta mapping; previous enum values remain unchanged. Meta
+means the backend's platform modifier, not an automatic Ctrl/Command-key alias.
+
+Windows already marks physical right Alt as AltGraph, even when Control+Alt are also present.
+**AltGraph never matches a gesture**, so Ctrl+Alt bindings do not steal Polish AltGr combinations.
+Plain and Shift-only printable gestures are rejected. Unbound editing keys/shortcuts and text
+commit/composition paths retain their existing behavior. A true Ctrl+Alt event without AltGraph
+can match. No new keyboard-layout detection, dead-key decoder, IME subsystem or #62 work is added.
+Tests of committed accented text do not establish native keyboard-layout or dead-key-device coverage.
+
+Windows uses the existing raw-key → WindowBase → control pipeline, without hooks or RegisterHotKey.
+Android preserves modifiers and source metadata on its existing `AndroidInputKeyEvent`. Only
+physical-device view events are eligible; InputConnection, soft-keyboard and virtual-device
+transitions stay editing input. Hosts forward `isTextInput: !e.IsHardwareKey` to the surface key
+overloads and include the event's modifiers. The cross-platform sample demonstrates this adapter.
+The original two-argument Android event constructor retains editing defaults and deconstruction.
+
+Android's native adapter currently forwards only Backspace/Delete/Enter/arrows. Letters, digits
+and function keys are supported by KeyGesture but **not forwarded by that adapter yet**. There is
+no claim of Windows/Android shortcut parity or physical Android-device verification. Right Alt is
+conservatively marked AltGraph on Android as well. Existing software text editing does not become
+a shortcut stream. TestHost gains no keyboard simulation API.
+
+### Ownership, threading, diagnostics and Designer
+
+Create bindings and first access scope collections on the owning UI thread, following Phase 1's
+command-source affinity policy. Collection mutation and binding property setters reject a different
+thread with InvalidOperationException; they do not dispatch automatically. Lookup/execution also
+runs on the UI thread. There is no background-safe collection or new synchronization policy.
+
+One binding instance can belong to one collection at a time; duplicate registration of that same
+object throws. Separate objects may share gestures, commands and parameters. Removing, replacing
+or clearing a registration releases collection ownership, and the detached binding can be reused.
+The binding itself retains its assigned command/parameter until changed or no longer referenced.
+Disposing a control, actually closing/disposing a window, or application shutdown clears owned
+collections and diagnostic subscribers. Cancelled window closure preserves them. Commands and
+parameters are application-owned and are never disposed by the collection. Application bindings
+retain their captures until removal/shutdown; remove short-lived captures explicitly. There are
+no static control dictionaries, per-frame scans or allocations for unmatched key lookup.
+The existing Application.Run contract still permits only one main loop per process. Phase 2 does
+not add application restart support: shutdown clears the global collection, and a new process
+starts without old registrations. Tests use the same internal cleanup path for isolated collections.
+
+Subscribe optionally to a collection's `Diagnostic` event for InvalidBinding, DuplicateGesture,
+CommandUnavailable and Executed outcomes. Observations are synchronous, allocate event args only
+when subscribed, and do not format parameter contents. Observers must not mutate input state;
+their exceptions propagate. This is minimal binding diagnostics; command-route diagnostics remain
+Phase 3. Collection changes do not trigger layout/rendering by themselves. Public InputBindings
+properties are hidden from Designer browsing/serialization and remain runtime-only.
+This public observer API lets applications explain conflicting registrations and unavailable
+shortcuts using their own logging. It exposes the binding and outcome, not resolver snapshots,
+scope traversal state or future command-route details.
+
+The existing ControlGallery **Button** section now supports Ctrl+1 / Ctrl+2 with the same save
+command and parameters as its buttons. With focus in the section, the panel's Ctrl+1 saves first
+and Ctrl+2 saves second. Focus **Save second**: its local Ctrl+1 overrides the panel and saves second.
+Uncheck **Allow shared command** to disable both command sources and shortcuts. **Explicitly disable
+first** affects that Button's local enabled intent; it does not change availability of the shared
+command for another source. `KeyGestureTests`, `InputBindingTests` and `AndroidKeyboardBindingTests`
+cover matching, lookup, input integration, mutation, lifecycle and source classification.
+
 ## Deferred work
 
-- Phase 2: KeyGesture, KeyBinding, InputBinding, shortcut precedence and window/application scopes.
 - Phase 3: command targets, hierarchical routing, CommandBinding and diagnostics.
 - Phase 4: task-aware async helpers, deeper menu/toolbar/context-menu integration, Designer
   assignment/serialization, and expanded examples/documentation.
@@ -177,5 +333,5 @@ not modify DemoApp or the generated template experience.
 MenuItem ownership/lifecycle requires separate work before safe event subscriptions can be added
 across Menu, ToolBar, Ribbon and ContextMenu. Command properties on the Phase 1 sources are hidden
 from design-time browsing/serialization. There is no Designer Ctrl+S fix, BindingNavigator port,
-Developer Tools integration, automation bridge, new keyboard shortcut system, release or version
-bump in this phase. See the [baseline audit](commands-phase1-audit.md).
+Developer Tools integration, automation bridge, release or version bump in this phase. See the
+[Phase 1 audit](commands-phase1-audit.md) and [Phase 2 keyboard audit](commands-phase2-audit.md).
