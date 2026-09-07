@@ -88,6 +88,26 @@ public sealed class InputBindingTests : IDisposable
         Assert.Equal(["inner"], calls);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void UnavailableInnerBindingsFallThroughToTheFirstAvailableOuterScope(int winningScope)
+    {
+        using var ui = new WindowFixture();
+        var queries = new List<int>();
+        int winner = -1;
+        InputBindingCollection[] scopes = [ui.Focus.InputBindings, ui.Parent.InputBindings, ui.Form.InputBindings, Application.InputBindings];
+        for (int i = 0; i < scopes.Length; i++)
+        {
+            int scope = i;
+            scopes[i].Add(Bind(() => winner = scope, () => { queries.Add(scope); return scope >= winningScope; }));
+        }
+        Assert.True(ui.Press().Handled);
+        Assert.Equal(winningScope, winner);
+        Assert.Equal(Enumerable.Range(0, winningScope + 1), queries);
+    }
+
     [Fact]
     public void FirstAddedAvailableDuplicateWinsAndRemovalRevealsNext()
     {
@@ -197,13 +217,20 @@ public sealed class InputBindingTests : IDisposable
     public void FocusChangeDoesNotRestartLookupAndReleaseCannotClickNewButton()
     {
         using var ui = new WindowFixture();
-        var second = ui.Parent.Controls.Add(new Button { Command = new DelegateCommand(() => Assert.Fail()) });
+        int buttonCalls = 0;
+        var second = ui.Parent.Controls.Add(new Button { Command = new DelegateCommand(() => buttonCalls++) });
         int calls = 0;
         ui.Focus.InputBindings.Add(new KeyBinding(new DelegateCommand(() => { calls++; second.Select(); }), new KeyGesture(Keys.Enter)));
         second.InputBindings.Add(new KeyBinding(new DelegateCommand(() => Assert.Fail()), new KeyGesture(Keys.Enter)));
         Assert.True(ui.Key(Key.Return).Handled);
         Assert.True(second.Selected);
+        ui.Form.KeyUp += (_, e) => e.Handled = false;
         Assert.True(ui.Key(Key.Return, down: false).Handled);
+        Assert.Equal(0, buttonCalls);
+        Assert.Equal(1, calls);
+        second.InputBindings.Clear();
+        ui.Press(Key.Return, RawInputModifiers.None);
+        Assert.Equal(1, buttonCalls); // The consumed release does not swallow a later normal press.
         Assert.Equal(1, calls);
     }
 
@@ -377,9 +404,46 @@ public sealed class InputBindingTests : IDisposable
         global.Diagnostic += (_, _) => Assert.Fail();
         Application.ReleaseInputBindings();
         Assert.Empty(global);
+        global.Report(InputBindingDiagnosticKind.Executed, binding); // Old diagnostic observers were detached.
         Assert.Throws<ObjectDisposedException>(() => global.Add(binding));
         using var control = new Control();
         control.InputBindings.Add(binding);
+    }
+
+    [Fact]
+    public void ApplicationCleanupDoesNotCarryBindingsIntoANewCollection()
+    {
+        using var ui = new WindowFixture();
+        var previous = Application.InputBindings;
+        previous.Add(Bind(() => Assert.Fail()));
+        Application.ReleaseInputBindings();
+        Assert.NotSame(previous, Application.InputBindings);
+        Assert.Empty(Application.InputBindings);
+        Assert.False(ui.Press().Handled);
+        int calls = 0;
+        Application.InputBindings.Add(Bind(() => calls++));
+        Assert.True(ui.Press().Handled);
+        Assert.Equal(1, calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExecutionMayDetachOrDisposeItsOwnerWithoutActivatingTheNewFocus(bool dispose)
+    {
+        using var ui = new WindowFixture();
+        var second = ui.Parent.Controls.Add(new Button { Command = new DelegateCommand(() => Assert.Fail()) });
+        int calls = 0;
+        ui.Focus.InputBindings.Add(new KeyBinding(new DelegateCommand(() => {
+            calls++;
+            if (dispose) ui.Focus.Dispose(); else ui.Parent.Controls.Remove(ui.Focus);
+            second.Select();
+        }), new KeyGesture(Keys.Enter)));
+        Assert.True(ui.Key(Key.Return).Handled);
+        Assert.True(second.Selected);
+        Assert.True(ui.Key(Key.Return, down: false).Handled);
+        Assert.Equal(1, calls);
+        ui.Focus.Dispose();
     }
 
     [Fact]
