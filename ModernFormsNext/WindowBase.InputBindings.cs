@@ -5,6 +5,7 @@ namespace ModernFormsNext;
 public abstract partial class WindowBase
 {
     private InputBindingCollection? inputBindings;
+    private readonly DataBinding.InputBindingResolver inputBindingResolver = new();
 
     /// <summary>Gets runtime keyboard bindings available throughout this window, including focused children.</summary>
     /// <remarks>
@@ -36,6 +37,7 @@ public abstract partial class WindowBase
     {
         if (InputBindingsClosed) return;
         InputBindingsClosed = true;
+        inputBindingResolver.Reset();
         inputBindings?.Release();
         inputBindings = null;
         adapter.ReleaseInputBindingsForSubtree();
