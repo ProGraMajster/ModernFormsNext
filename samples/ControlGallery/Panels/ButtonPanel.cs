@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ModernFormsNext;
 using ModernFormsNext.Renderers;
+using ModernFormsNext.WindowKit.Input;
 using SkiaSharp;
 
 namespace ControlGallery.Panels
@@ -194,9 +195,24 @@ namespace ControlGallery.Panels
                 Text = "Save first", Left = 100, Top = 480, Width = 140,
                 CommandParameter = "First document", Command = save
             });
-            Controls.Add(new Button {
+            var saveSecond = Controls.Add(new Button {
                 Text = "Save second", Left = 260, Top = 480, Width = 140,
                 CommandParameter = "Second document", Command = save
+            });
+            // Panel shortcuts share the buttons' domain action and parameters. The second
+            // button overrides Ctrl+1 locally to demonstrate nearest-scope precedence.
+            InputBindings.Add(new KeyBinding(save, new KeyGesture(Keys.D1, KeyModifiers.Control)) {
+                CommandParameter = "First document"
+            });
+            InputBindings.Add(new KeyBinding(save, new KeyGesture(Keys.D2, KeyModifiers.Control)) {
+                CommandParameter = "Second document"
+            });
+            saveSecond.InputBindings.Add(new KeyBinding(save, new KeyGesture(Keys.D1, KeyModifiers.Control)) {
+                CommandParameter = "Second document"
+            });
+            Controls.Add(new Label {
+                Text = "Ctrl+1: first; Ctrl+2: second. Focus Save second: Ctrl+1 uses its local binding.",
+                Left = 100, Top = 560, Width = 710, Height = 48
             });
             availability.CheckedChanged += (_, _) => save.RaiseCanExecuteChanged();
             var locallyDisabled = Controls.Add(new CheckBox {
