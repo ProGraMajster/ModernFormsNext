@@ -164,6 +164,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 case WindowsMessage.WM_KEYDOWN:
                 case WindowsMessage.WM_SYSKEYDOWN:
                     {
+                        // Suppression belongs to the preceding key's translated character only.
+                        // Unmapped keys such as VK_PACKET still start a new text input sequence
+                        // and must not inherit Handled from an earlier shortcut/editing key.
+                        _ignoreWmChar = false;
                         var key = KeyInterop.KeyFromVirtualKey(ToInt32(wParam), ToInt32(lParam));
 
                         if (key != Key.None)

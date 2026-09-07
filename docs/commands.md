@@ -240,6 +240,8 @@ Windows the managed Handled flag now reaches the original raw event, allowing th
 to suppress resulting text. Its corresponding KeyUp is also consumed so changing focus to another
 Button cannot activate that button on release. Window KeyUp observers still see the event; clearing
 Handled there cannot forward an already consumed release to a control. KeyUp never executes a binding.
+Windows character suppression is reset for every new native KeyDown, including unmapped Unicode
+packet keys, so handling an earlier shortcut/editing key cannot discard a later text input sequence.
 
 Every delivered repeated KeyDown reevaluates current bindings and can execute once. Once a press
 executes, remaining repeats/release stay consumed even if the command becomes unavailable; available
