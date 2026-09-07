@@ -246,6 +246,9 @@ executes, remaining repeats/release stay consumed even if the command becomes un
 fallback bindings can still execute on later repeats. Native window deactivation/closure and surface
 disposal clear remembered presses. AltGraph input always bypasses bindings, including suppression
 left by an earlier shortcut with different modifiers.
+Repeated KeyDown events are separate command invocations, useful for navigation or volume changes.
+Actions such as Save should tolerate repetition or use CanExecute to reject input while unavailable;
+Phase 2 does not add per-gesture repeat flags or an execution lock.
 
 Matching registrations are snapshotted before application predicates run. Adding/removing bindings
 or changing focus during Execute cannot restart the current activation or execute another binding.
@@ -297,6 +300,9 @@ collections and diagnostic subscribers. Cancelled window closure preserves them.
 parameters are application-owned and are never disposed by the collection. Application bindings
 retain their captures until removal/shutdown; remove short-lived captures explicitly. There are
 no static control dictionaries, per-frame scans or allocations for unmatched key lookup.
+The existing Application.Run contract still permits only one main loop per process. Phase 2 does
+not add application restart support: shutdown clears the global collection, and a new process
+starts without old registrations. Tests use the same internal cleanup path for isolated collections.
 
 Subscribe optionally to a collection's `Diagnostic` event for InvalidBinding, DuplicateGesture,
 CommandUnavailable and Executed outcomes. Observations are synchronous, allocate event args only
@@ -304,6 +310,9 @@ when subscribed, and do not format parameter contents. Observers must not mutate
 their exceptions propagate. This is minimal binding diagnostics; command-route diagnostics remain
 Phase 3. Collection changes do not trigger layout/rendering by themselves. Public InputBindings
 properties are hidden from Designer browsing/serialization and remain runtime-only.
+This public observer API lets applications explain conflicting registrations and unavailable
+shortcuts using their own logging. It exposes the binding and outcome, not resolver snapshots,
+scope traversal state or future command-route details.
 
 The existing ControlGallery **Button** section now supports Ctrl+1 / Ctrl+2 with the same save
 command and parameters as its buttons. With focus in the section, the panel's Ctrl+1 saves first
