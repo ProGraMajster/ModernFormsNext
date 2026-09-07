@@ -71,6 +71,25 @@ namespace ModernFormsNext
         bool ICommandBindingTargetProvider.IsCommandSourceDisposed => IsDisposed;
         void ICommandBindingTargetProvider.SetCommandEnabled(bool enabled) => SetCommandEnabled(enabled);
 
+        /// <summary>Gets or sets an explicit control target used only for RoutedCommand.</summary>
+        /// <remarks>
+        /// Null routes from this Button, regardless of focus. An explicit target must belong to the
+        /// same window or standalone surface. Invalid targets are unavailable. Ordinary ICommand
+        /// ignores this property. Set on the UI thread; changing a routed target requeries availability
+        /// and can update enabled, rendering and accessibility state. Designer serialization is deferred.
+        /// </remarks>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Control? CommandTarget {
+            get => commandSource?.Target;
+            set {
+                ObjectDisposedException.ThrowIf(IsDisposed, this);
+                (commandSource ??= new CommandSource(this)).Target = value;
+            }
+        }
+
+        internal override void RefreshRoutedCommandSource() => commandSource?.RefreshRouted();
+
         /// <summary>
         /// Initializes a new instance of the Button class.
         /// </summary>

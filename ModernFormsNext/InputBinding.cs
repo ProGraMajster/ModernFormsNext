@@ -5,7 +5,7 @@ namespace ModernFormsNext;
 
 /// <summary>Associates a concrete application command and parameter with one keyboard gesture.</summary>
 /// <remarks>
-/// This Phase 2 contract performs no command-target or handler routing. Create and mutate a binding
+/// Gesture lookup selects a concrete command; RoutedCommand handler routing is a separate stage. Create and mutate a binding
 /// on its UI thread. One binding belongs to at most one collection; share the ICommand between
 /// separate bindings instead. Removal releases ownership without disposing the command or parameter.
 /// There are no CanExecuteChanged subscriptions: keyboard availability is evaluated on activation.
@@ -17,6 +17,7 @@ public abstract class InputBinding
     private ICommand? command;
     private object? parameter;
     private KeyGesture gesture;
+    private Control? target;
 
     /// <summary>Initializes a binding to a concrete command and gesture.</summary>
     /// <param name="command">The command; null represents an inactive binding.</param>
@@ -41,6 +42,26 @@ public abstract class InputBinding
     {
         get => parameter;
         set { VerifyAccess(); if (ReferenceEquals(parameter, value)) return; parameter = value; Changed(); }
+    }
+
+    /// <summary>Gets or sets an explicit target used only when Command is a RoutedCommand.</summary>
+    /// <remarks>
+    /// Null selects valid focus, then the binding's control scope, then the keyboard entry root.
+    /// An explicit target outside that root, detached or disposed is unavailable without fallback.
+    /// Ordinary ICommand ignores this property. Set on the creating UI thread; no layout/rendering
+    /// is triggered. The binding retains this reference until changed or collected; removing it
+    /// from its owner releases the collection's reference to the binding.
+    /// </remarks>
+    public Control? CommandTarget
+    {
+        get => target;
+        set
+        {
+            VerifyAccess();
+            if (ReferenceEquals(target, value)) return;
+            target = value;
+            if (command is RoutedCommand) Changed();
+        }
     }
 
     /// <summary>Gets or sets the gesture. Its default value makes this binding inactive.</summary>

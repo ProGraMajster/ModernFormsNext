@@ -90,6 +90,7 @@ internal static class CommandRouting
                     var binding = node.Bindings[bindingIndex++];
                     if (!IsAlive(node)) return false;
                     Report(CommandRoutingDiagnosticKind.BindingFound, node, binding);
+                    if (!IsAlive(node)) return false;
                     var args = new CanExecuteCommandEventArgs(command, parameter, target, source);
                     try { binding.CanExecute?.Invoke(node.Owner, args); }
                     catch { ReportHandlerFailure(node, binding); throw; }
