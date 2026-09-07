@@ -1,4 +1,4 @@
-# Commands and input bindings (issue #56, Phases 1 and 2)
+# Commands, input bindings and routing (issue #56, Phases 1–3)
 
 Commands represent reusable application actions. `System.Windows.Input.ICommand` is the contract:
 existing application implementations can be assigned directly. `ModernFormsNext.DelegateCommand`
@@ -7,7 +7,8 @@ an application can use `button.Click` without creating any command.
 
 Phase 1 provides delegate commands, parameters, availability and two action sources: `Button`
 and `NotifyIconMenuItem`. Phase 2 adds keyboard gestures and scoped input bindings to concrete
-commands. Issue #56 remains open: routed commands, async helpers and Designer integration are
+commands. Phase 3 adds routed commands, control targets and hierarchical command handlers.
+Issue #56 remains open: Phase 4 async helpers and deeper control/Designer integration are
 **not implemented**.
 
 ## Define once, reuse with different parameters
@@ -224,7 +225,8 @@ Within a collection, the **first added available match** wins. Duplicates are al
 command, invalid gesture or `CanExecute == false` allows later registrations and outer scopes
 to provide a fallback. If nothing executes, a fresh key press remains available to normal input.
 This is binding lookup through control ancestry, **not hierarchical command routing**. Every
-binding directly names its ICommand; there is no CommandTarget, CommandBinding or handler route.
+binding directly names its ICommand. Phase 3 performs a separate handler-routing stage only when
+that command is a RoutedCommand; ordinary commands keep their direct execution behavior.
 
 ### Execution, consumption and mutation
 
@@ -309,12 +311,12 @@ starts without old registrations. Tests use the same internal cleanup path for i
 Subscribe optionally to a collection's `Diagnostic` event for InvalidBinding, DuplicateGesture,
 CommandUnavailable and Executed outcomes. Observations are synchronous, allocate event args only
 when subscribed, and do not format parameter contents. Observers must not mutate input state;
-their exceptions propagate. This is minimal binding diagnostics; command-route diagnostics remain
-Phase 3. Collection changes do not trigger layout/rendering by themselves. Public InputBindings
+their exceptions propagate. These binding diagnostics are separate from the Phase 3 route
+diagnostics below. InputBindings changes do not trigger layout/rendering by themselves. Public InputBindings
 properties are hidden from Designer browsing/serialization and remain runtime-only.
 This public observer API lets applications explain conflicting registrations and unavailable
 shortcuts using their own logging. It exposes the binding and outcome, not resolver snapshots,
-scope traversal state or future command-route details.
+scope traversal state or command-route details.
 
 The existing ControlGallery **Button** section now supports Ctrl+1 / Ctrl+2 with the same save
 command and parameters as its buttons. With focus in the section, the panel's Ctrl+1 saves first
@@ -324,9 +326,175 @@ first** affects that Button's local enabled intent; it does not change availabil
 command for another source. `KeyGestureTests`, `InputBindingTests` and `AndroidKeyboardBindingTests`
 cover matching, lookup, input integration, mutation, lifecycle and source classification.
 
+## Routed commands and command bindings (Phase 3)
+
+Use `RoutedCommand` when an action's implementation depends on the target's location in the UI.
+It implements `System.Windows.Input.ICommand`, has an immutable optional `Name`, and compares by
+reference identity. Two commands called `"Save"` are different actions. It captures no target,
+registers no global ID and introduces no dependency on WPF or a backend-specific type.
+
+`InputBinding` answers **which command this gesture selects**. `CommandBinding` answers **which
+handler on this target's route can execute that command**. A DelegateCommand or custom ICommand
+never enters the handler resolver, even when its source has a CommandTarget assigned.
+
+```csharp
+using ModernFormsNext;
+using ModernFormsNext.WindowKit.Input;
+
+var save = new RoutedCommand("Save");
+bool canSave = true;
+
+form.CommandBindings.Add(new CommandBinding(save,
+    executed: (_, e) => {
+        SaveDocument(e.Parameter);
+        e.Handled = true;
+    },
+    canExecute: (_, e) => e.CanExecute = canSave));
+
+var editor = form.Controls.Add(new TextBox());
+var saveButton = form.Controls.Add(new Button {
+    Text = "Save", Command = save, CommandTarget = editor, CommandParameter = document
+});
+form.InputBindings.Add(new KeyBinding(save, new KeyGesture(Keys.S, KeyModifiers.Control)) {
+    CommandTarget = editor, CommandParameter = document
+});
+
+canSave = false;
+save.RaiseCanExecuteChanged(); // Normal Button enabled/accessibility update.
+```
+
+CommandBinding's `Command`, `Executed` and optional `CanExecute` delegates are immutable. Replace
+the registration to change handlers. An absent CanExecute handler is **unavailable**, not an
+implicit permission to execute. All handlers are synchronous and receive the visited owner as
+sender. For the application terminal, sender is `typeof(Application)`.
+
+### Target resolution and boundaries
+
+| Entry | Target order | Boundary |
+| --- | --- | --- |
+| Button | Explicit CommandTarget, otherwise the source Button itself | Same window or standalone surface as the Button |
+| KeyBinding | Explicit CommandTarget, otherwise valid focus, binding control scope, then keyboard entry root | Existing input root; foreign/stale focus is ignored |
+| Direct target overload | Supplied Control | The target's own attached tree |
+| Parameter-only ICommand | No target/context; CanExecute false, Execute no-op | No global focus guessing |
+
+An invalid explicit target fails closed; it does not fall back to focus/source. Button target
+resolution deliberately does not follow focus: pointer activation can change focus, while a Save
+button often acts on a separate editor. Set CommandTarget explicitly for that editor. A Button's
+default route remains stable when some other control or window has focus.
+
+Use `save.CanExecute(parameter, target)` and `save.Execute(parameter, target)` for direct calls.
+The latter performs its own fresh query. `Control` is the target contract; there is no new public
+ICommandTarget abstraction. Targets must reach an existing native window adapter or standalone
+SkiaControlSurface root. Detached/disposed targets and closed windows are unavailable. A caller
+cannot use a detached Control merely to reach application fallback handlers.
+
+Routing itself resolves application availability; it does not select a control or synthesize input.
+Normal Button and keyboard-source input guards continue to enforce their effective enabled/input
+state. Direct programmatic target calls require an attached live target and use the handlers'
+CanExecute policy; they do not derive application permission from the target's cached command-enabled
+flag. This also allows a disabled command source to recover after a successful requery.
+
+The parent chain ends at its current window. Form.Owner and popup ownership do not cross that
+boundary. A standalone surface uses its borrowed root and has no WindowBase scope. Non-Control
+semantic accessibility nodes are not command targets or additional route nodes in this phase.
+
+### Route, CanExecute and Handled
+
+The resolver snapshots the current `target → Parent → ...` chain, followed by the owning window
+(if present) and `Application.CommandBindings` as a terminal fallback. The internal native root
+adapter is represented by the window; standalone surface infrastructure adds no handler scope.
+Every matching registration is captured in insertion order before invoking application code.
+No second tree, cached route graph, reflection lookup or static control dictionary is used.
+
+Only target-to-root traversal is implemented. There is no preview/tunnel command stage: the
+existing Window.KeyDown preview already gives input handlers first refusal, and Phase 3 does not
+introduce a general routed-event framework.
+
+Each binding gets fresh CanExecuteCommandEventArgs with Command, Parameter, Target, Source,
+CanExecute=false and Handled=false:
+
+| Query result | Effect |
+| --- | --- |
+| CanExecute=true | Select the first available binding |
+| CanExecute=false, Handled=false | Continue to the next registration/scope |
+| CanExecute=false, Handled=true | Veto the rest of this route |
+| No available registration | Command unavailable |
+
+Execution starts at that selected binding. ExecutedCommandEventArgs carries Command, Parameter,
+Target, Source and a fresh Handled=false. **Set Handled=true after handling an action** to stop.
+If left false, traversal continues; each later binding must pass its own CanExecute query before
+its execution handler runs. A query's Handled value does not implicitly handle execution. This
+permits duplicate registrations and explicit continuation without invoking unavailable handlers.
+
+```csharp
+editor.CommandBindings.Add(new CommandBinding(save,
+    (_, e) => { SaveEditorDocument(e.Parameter); e.Handled = true; },
+    (_, e) => e.CanExecute = editorHasDocument));
+// If editorHasDocument is false and the query is unhandled, the window handler can take over.
+```
+
+### Mutation, lifecycle, threading and exceptions
+
+Query and execution within one invocation share the captured nodes and registrations. Reparenting,
+removing a control, changing focus, adding/removing bindings or replacing a registration does not
+rebuild that route midway. Those changes affect the next invocation. Disposed owners/targets and
+closed windows stop the current traversal, including a close/dispose during CanExecute. Nested
+commands, including recursive calls to the same command, each own a separate invocation context.
+There is no shared mutable cursor or global reentrancy lock.
+
+Create RoutedCommand and CommandBinding on the UI thread. Route calls and collection mutations
+reject a different thread. RaiseCanExecuteChanged uses the existing Phase 1 notification policy:
+framework sources marshal background notifications through the application dispatcher. No new
+synchronization or scheduler is added. Predicates should be fast and free of side effects.
+Requery caused by collection mutation inside the same source's query does not recursively replace
+its in-progress snapshot; application state changes should be followed by explicit requery.
+
+Adding/removing/replacing/clearing CommandBindings requeries affected commands. Attaching or
+reparenting a source subtree refreshes routed Button availability. Other application state changes
+require `RaiseCanExecuteChanged`; there is no focus polling or command registry. Ordinary ICommand
+evaluation counts, Button Click ordering, local Enabled intent and NotifyIconMenuItem behavior
+remain unchanged. Button accessibility Invoke follows normal Button activation and command execution;
+CanExecute=false updates effective Enabled and accessibility availability through that same source.
+
+A CommandBinding has at most one collection owner. Removal releases ownership and permits re-add
+or transfer. Clearing collections does not dispose commands/delegate captures. Control disposal,
+actual window close/disposal and application shutdown release registrations; cancelled close
+preserves them. Application registrations retain captures until removed/shutdown: explicitly remove
+short-lived captures. Shutdown cleanup does not add support for a second Application.Run loop.
+
+Original CanExecute and Executed exceptions propagate unchanged. Each invocation's state is local,
+so an exception cannot corrupt a later route. Button retains Phase 1's fail-closed availability and
+recovery behavior. There are no async handlers, execution-state flags or cancellation helpers.
+
+### Opt-in route diagnostics
+
+Subscribe to `RoutedCommand.Diagnostic` to observe NodeVisited, BindingFound, CanExecuteEvaluated,
+Executed, Handled and Failed transitions. This per-command public event supports application logging
+and future tools without a Developer Tools UI. Owner identifies a Control, WindowBase or
+`typeof(Application)` terminal. Target and Binding are identities; CanExecute records query outcomes.
+FailureReason contains only framework-defined text. The internal route snapshot is not exposed.
+
+```csharp
+save.Diagnostic += (_, e) => {
+    // No parameter value or control text is formatted here.
+    Log($"{e.Kind}; owner type={e.Owner?.GetType().Name}; parameter type={e.ParameterType?.FullName}");
+};
+```
+
+Diagnostics never call parameter.ToString, copy control text/passwords, or include exception
+messages. ParameterType exposes only the CLR type. Do not retain owner/binding references longer
+than necessary. Without observers, no diagnostic event args are allocated. Observers execute
+synchronously on the UI thread and should not mutate UI state. Observer exceptions propagate,
+except that an original command-handler exception wins over a failure-reporting observer exception.
+
+The ControlGallery **Command routing** page shares one RoutedCommand between two Buttons and Ctrl+S.
+**Save locally** has a local override; **Save via window** reaches a real window CommandBinding.
+The status shows the executed owner and count. **Allow routed Save** updates both sources and
+keyboard availability. Unloading the page removes its window registration and short-lived captures.
+Runtime CommandBindings and Button.CommandTarget are hidden from Designer browsing/serialization.
+
 ## Deferred work
 
-- Phase 3: command targets, hierarchical routing, CommandBinding and diagnostics.
 - Phase 4: task-aware async helpers, deeper menu/toolbar/context-menu integration, Designer
   assignment/serialization, and expanded examples/documentation.
 
@@ -334,4 +502,5 @@ MenuItem ownership/lifecycle requires separate work before safe event subscripti
 across Menu, ToolBar, Ribbon and ContextMenu. Command properties on the Phase 1 sources are hidden
 from design-time browsing/serialization. There is no Designer Ctrl+S fix, BindingNavigator port,
 Developer Tools integration, automation bridge, release or version bump in this phase. See the
-[Phase 1 audit](commands-phase1-audit.md) and [Phase 2 keyboard audit](commands-phase2-audit.md).
+[Phase 1 audit](commands-phase1-audit.md), [Phase 2 keyboard audit](commands-phase2-audit.md) and
+[Phase 3 routing audit](commands-phase3-audit.md).
