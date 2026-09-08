@@ -5,8 +5,10 @@ namespace ModernFormsNext.Testing.Tests;
 
 public sealed class AsyncCommandHostTests
 {
-    [Fact]
-    public void PredicateReentrantStartCannotReplaceTheRunningInvocation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PredicateReentrantStartCannotReplaceTheRunningInvocation(bool taskAware)
     {
         using var host = ModernFormsTestHost.Create();
         var pending = new TaskCompletionSource();
@@ -15,7 +17,11 @@ public sealed class AsyncCommandHostTests
         int calls = 0;
         command = new AsyncCommand(() => { calls++; return pending.Task; }, () =>
         {
-            if (reenter) { reenter = false; command!.Execute(null); }
+            if (reenter)
+            {
+                reenter = false;
+                if (taskAware) _ = command!.ExecuteAsync(); else command!.Execute(null);
+            }
             return true;
         });
         var rejected = command.ExecuteAsync();
@@ -29,6 +35,100 @@ public sealed class AsyncCommandHostTests
         }
         finally { Complete(() => pending.SetResult()); }
         Assert.True(command.ExecutionTask!.IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public void PredicateNotificationAndMutationDoNotPublishAnExecution()
+    {
+        using var host = ModernFormsTestHost.Create();
+        AsyncCommand? command = null;
+        bool notify = true, available = true;
+        command = new AsyncCommand(() => { Assert.Fail(); return Task.CompletedTask; }, () =>
+        {
+            if (notify) { notify = false; command!.RaiseCanExecuteChanged(); }
+            return available;
+        });
+        command.CanExecuteChanged += (_, _) => { available = false; Assert.False(command.CanExecute(null)); };
+        Assert.True(command.ExecuteAsync().IsCompletedSuccessfully);
+        Assert.False(command.IsExecuting);
+        Assert.Null(command.ExecutionTask);
+    }
+
+    [Fact]
+    public void CompletionNotificationCanStartNextInvocationWithoutReplacingItsTask()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var first = new TaskCompletionSource();
+        var second = new TaskCompletionSource();
+        int calls = 0;
+        var command = new AsyncCommand(() => ++calls == 1 ? first.Task : second.Task);
+        Task? next = null;
+        command.CanExecuteChanged += (_, _) =>
+        {
+            if (!command.IsExecuting && calls == 1) next = command.ExecuteAsync();
+        };
+        var original = command.ExecuteAsync();
+        var context = SynchronizationContext.Current;
+        try { SynchronizationContext.SetSynchronizationContext(null); first.SetResult(); }
+        finally { SynchronizationContext.SetSynchronizationContext(context); }
+        Assert.True(original.IsCompletedSuccessfully);
+        Assert.Same(next, command.ExecutionTask);
+        Assert.True(command.IsExecuting);
+        Assert.Equal(2, calls);
+        Complete(() => second.SetResult());
+        Assert.True(next!.IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public void FaultDuringCancelPreservesOperationAndCancellationErrorsIndependently()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var pending = new TaskCompletionSource();
+        var operationError = new InvalidOperationException("operation");
+        var cancellationError = new ArgumentException("cancellation");
+        var command = new AsyncCommand((_, token) =>
+        {
+            token.Register(() => { pending.SetException(operationError); throw cancellationError; });
+            return pending.Task;
+        });
+        command.Diagnostic += (_, e) => { if (e.Kind == AsyncCommandDiagnosticKind.Faulted) throw new Exception("observer"); };
+        var task = command.ExecuteAsync();
+        var context = SynchronizationContext.Current;
+        try
+        {
+            SynchronizationContext.SetSynchronizationContext(null);
+            Assert.Same(cancellationError, Assert.Single(Assert.Throws<AggregateException>(command.Cancel).InnerExceptions));
+        }
+        finally { SynchronizationContext.SetSynchronizationContext(context); }
+        Assert.Same(operationError, task.Exception!.InnerException);
+        Assert.False(command.IsExecuting);
+        Assert.False(command.CanCancel);
+    }
+
+    [Fact]
+    public void DisposingOneButtonLeavesSharedButtonAndApplicationCancellationAlive()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var pending = new TaskCompletionSource();
+        CancellationToken token = default;
+        var command = new AsyncCommand((_, value) => { token = value; return pending.Task; });
+        var root = new Panel();
+        var first = root.Controls.Add(new Button { Command = command });
+        var second = root.Controls.Add(new Button { Command = command });
+        host.Show(root, 400, 200);
+        first.PerformClick();
+        first.Dispose();
+        int staleChanges = 0;
+        first.EnabledChanged += (_, _) => staleChanges++;
+        Assert.False(token.IsCancellationRequested);
+        Assert.False(second.Enabled);
+        command.Cancel(); // Explicit application ownership, not disposal of a source.
+        Assert.True(token.IsCancellationRequested);
+        Complete(() => pending.SetCanceled(token));
+        host.Dispatcher.Drain();
+        Assert.Equal(0, staleChanges);
+        Assert.True(second.Enabled);
+        Assert.True(command.ExecutionTask!.IsCanceled);
     }
 
     [Fact]
@@ -367,7 +467,7 @@ public sealed class AsyncCommandHostTests
         var command = new AsyncCommand(_ => pending.Task);
         var events = new List<AsyncCommandDiagnosticEventArgs>();
         command.Diagnostic += (_, e) => events.Add(e);
-        _ = command.ExecuteAsync("password-user-data");
+        _ = command.ExecuteAsync(new SensitiveParameter());
         Complete(() =>
         {
             if (outcome == "faulted") pending.SetException(new InvalidOperationException("private text"));
@@ -376,7 +476,7 @@ public sealed class AsyncCommandHostTests
         });
         _ = command.ExecutionTask!.Exception;
         Assert.Equal(new[] { AsyncCommandDiagnosticKind.Started, expected }, events.Select(e => e.Kind));
-        Assert.All(events, e => Assert.Equal(typeof(string), e.ParameterType));
+        Assert.All(events, e => Assert.Equal(typeof(SensitiveParameter), e.ParameterType));
         Assert.Equal(outcome == "faulted" ? typeof(InvalidOperationException) : null, events[1].ExceptionType);
         Assert.Equal(new[] { "ExceptionType", "Kind", "ParameterType" },
             typeof(AsyncCommandDiagnosticEventArgs).GetProperties().Select(p => p.Name).Order());
@@ -413,5 +513,10 @@ public sealed class AsyncCommandHostTests
         thread.Start();
         thread.Join();
         Assert.Null(failure);
+    }
+
+    private sealed class SensitiveParameter
+    {
+        public override string ToString() => throw new InvalidOperationException("Diagnostics must not inspect user content.");
     }
 }

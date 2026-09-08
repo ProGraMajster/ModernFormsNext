@@ -87,6 +87,7 @@ public sealed class AsyncCommand : ICommand
     /// <summary>Queries availability on the creating UI thread without starting work.</summary>
     /// <param name="parameter">The nullable application parameter.</param>
     /// <returns>False while executing; otherwise the predicate result, or true without a predicate.</returns>
+    /// <remarks>Predicates should be fast, free of side effects and tolerate repeated evaluation.</remarks>
     public bool CanExecute(object? parameter)
     {
         VerifyAccess();
