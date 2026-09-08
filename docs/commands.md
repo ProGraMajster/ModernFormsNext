@@ -377,7 +377,9 @@ sender. For the application terminal, sender is `typeof(Application)`.
 | Direct target overload | Supplied Control | The target's own attached tree |
 | Parameter-only ICommand | No target/context; CanExecute false, Execute no-op | No global focus guessing |
 
-An invalid explicit target fails closed; it does not fall back to focus/source. Button target
+An invalid explicit target fails closed; it does not fall back to focus/source. Keyboard fallback
+ignores disposed controls as implicit focus, even if native focus bookkeeping still retains their
+old Parent reference. Button target
 resolution deliberately does not follow focus: pointer activation can change focus, while a Save
 button often acts on a separate editor. Set CommandTarget explicitly for that editor. A Button's
 default route remains stable when some other control or window has focus.
@@ -437,8 +439,12 @@ editor.CommandBindings.Add(new CommandBinding(save,
 
 Query and execution within one invocation share the captured nodes and registrations. Reparenting,
 removing a control, changing focus, adding/removing bindings or replacing a registration does not
-rebuild that route midway. Those changes affect the next invocation. Disposed owners/targets and
-closed windows stop the current traversal, including a close/dispose during CanExecute. Nested
+rebuild that route midway. Those changes affect the next invocation. Disposal of the source, target
+or **any captured owner** stops the current traversal before another query/action callback, even
+when that owner was already visited or the live target has moved elsewhere. Closing the captured
+window or application shutdown also stops traversal. A close/dispose during CanExecute prevents
+the selected action from running; removing/reparenting alone does not. Diagnostic completion events
+may still describe the handler that just returned. Nested
 commands, including recursive calls to the same command, each own a separate invocation context.
 There is no shared mutable cursor or global reentrancy lock.
 
@@ -492,6 +498,12 @@ The ControlGallery **Command routing** page shares one RoutedCommand between two
 The status shows the executed owner and count. **Allow routed Save** updates both sources and
 keyboard availability. Unloading the page removes its window registration and short-lived captures.
 Runtime CommandBindings and Button.CommandTarget are hidden from Designer browsing/serialization.
+
+The routing regressions cover full owner traversal, lifetime aborts after reparenting, nested queries,
+recursive execution, diagnostic reentrancy and inner exceptions. Dedicated Windows UIA provider and
+Android accessibility session tests invoke a real routed Button through the canonical semantic path,
+verify query/Click/query/execution ordering, and reject activation after availability becomes false.
+These provider tests do not establish physical-device or screen-reader coverage.
 
 ## Deferred work
 

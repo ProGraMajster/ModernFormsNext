@@ -69,11 +69,26 @@ internal static class CommandRouting
 
         private bool IsAlive(Node? node = null)
         {
-            // Reparent/remove must not re-resolve Parent or focus. Lifetime is the exception:
-            // captured owners that have been disposed must never receive callbacks.
-            if (!target.IsDisposed && !target.Disposing && source?.IsDisposed != true && !root.IsDisposed &&
-                window?.InputBindingsClosed != true && !Application.IsExiting &&
-                node?.Collection?.IsReleased != true && node?.Owner is not Control { IsDisposed: true }) return true;
+            // Do not re-resolve Parent or focus. A handler can move the target elsewhere and then
+            // dispose an earlier or later captured ancestor without disposing the target itself.
+            // Check the whole snapshot without allocations before allowing further callbacks.
+            bool alive = !target.IsDisposed && !target.Disposing &&
+                source is not { IsDisposed: true } and not { Disposing: true } &&
+                !root.IsDisposed && !root.Disposing && window?.InputBindingsClosed != true && !Application.IsExiting;
+            if (alive)
+            {
+                foreach (var captured in nodes)
+                {
+                    if (captured.Collection?.IsReleased == true ||
+                        captured.Owner is Control { IsDisposed: true } or Control { Disposing: true })
+                    {
+                        alive = false;
+                        node = captured;
+                        break;
+                    }
+                }
+            }
+            if (alive) return true;
             Report(CommandRoutingDiagnosticKind.Failed, node, failureReason: "A captured target or owner was disposed or closed.");
             return false;
         }

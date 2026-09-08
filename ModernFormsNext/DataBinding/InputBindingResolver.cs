@@ -56,7 +56,10 @@ internal sealed class InputBindingResolver
                 if (command is RoutedCommand routed)
                 {
                     var source = candidate.Collection.ControlScope;
-                    var target = binding.CommandTarget ?? focused ?? source ?? root;
+                    // A disposed control can retain Parent and stale native focus bookkeeping.
+                    // It is not an implicit routed target; explicit targets still fail closed.
+                    var target = binding.CommandTarget ??
+                        (focused is { IsDisposed: false, Disposing: false } ? focused : null) ?? source ?? root;
                     invocation = CommandRouting.Prepare(routed, parameter, target, source, root);
                     available = invocation is not null;
                 }
