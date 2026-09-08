@@ -24,6 +24,7 @@ namespace ModernFormsNext
         private CommandSource? commandSource;
         private bool commandEnabled = true;
         private bool disposed;
+        private bool IsDisposedItem => disposed || Parent?.IsDisposedItem == true;
 
         /// <summary>Gets or sets the command executed after Click through the shared action-source path.</summary>
         /// <remarks>
@@ -70,7 +71,7 @@ namespace ModernFormsNext
 
         private Control? LogicalOwnerControl => this is MenuRootItem root ? root.Control : Parent?.LogicalOwnerControl;
         private Control? CommandContext => LogicalOwnerControl is MenuDropDown popup ? popup.CommandContext : LogicalOwnerControl;
-        bool ICommandBindingTargetProvider.IsCommandSourceDisposed => disposed;
+        bool ICommandBindingTargetProvider.IsCommandSourceDisposed => IsDisposedItem;
         bool ICommandBindingTargetProvider.IsCommandSourceActive =>
             LogicalOwnerControl is { IsDisposed: false, Disposing: false } &&
             CommandRouting.IsSourceActive(CommandContext);
@@ -104,7 +105,7 @@ namespace ModernFormsNext
             commandSource?.Dispose();
             if (items is not null)
                 foreach (var item in items.ToArray()) item.Dispose();
-            if (OwnerControl is { IsDisposed: false, Disposing: false } owner)
+            if (OwnerControl is { IsDisposed: false, Disposing: false } owner && CommandRouting.IsSourceActive(owner))
             {
                 owner.Invalidate();
                 owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
@@ -162,7 +163,7 @@ namespace ModernFormsNext
         /// Gets or sets a value indicating whether the menu item is enabled.
         /// </summary>
         public bool Enabled {
-            get => !disposed && enabled && commandEnabled && OwnerControl?.Enabled == true;
+            get => !IsDisposedItem && enabled && commandEnabled && OwnerControl?.Enabled == true;
             set {
                 if (enabled != value) {
                     enabled = value;

@@ -127,12 +127,14 @@ public sealed class AsyncCommand : ICommand
     {
         VerifyAccess();
         if (!cancellable || Volatile.Read(ref current) is not { } invocation) return;
+        Exception? callbackError = null;
         lock (invocation)
         {
             if (invocation.Completed || invocation.CancellationRequested) return;
             invocation.CancellationRequested = true;
             invocation.Cancelling = true;
             try { invocation.Cancellation!.Cancel(); }
+            catch (Exception error) { callbackError = error; }
             finally
             {
                 // A token callback may complete the operation inline inside Cancel. Defer CTS
@@ -141,7 +143,9 @@ public sealed class AsyncCommand : ICommand
                 if (invocation.Completed) invocation.Cancellation!.Dispose();
             }
         }
-        RaiseCanExecuteChanged();
+        try { RaiseCanExecuteChanged(); }
+        catch when (callbackError is not null) { } // Preserve the original cancellation failure.
+        if (callbackError is not null) ExceptionDispatchInfo.Capture(callbackError).Throw();
     }
 
     /// <summary>Notifies sources after application availability changes, without polling.</summary>
@@ -159,16 +163,19 @@ public sealed class AsyncCommand : ICommand
         Volatile.Write(ref current, invocation);
         Volatile.Write(ref executionTask, invocation.Completion.Task);
         Task operation;
+        bool invokingOperation = false;
         try
         {
             RaiseCanExecuteChanged();
             Report(AsyncCommandDiagnosticKind.Started, invocation.ParameterType);
+            invokingOperation = true;
             operation = execute(parameter, invocation.Cancellation?.Token ?? CancellationToken.None)
                 ?? throw new InvalidOperationException("An asynchronous command callback returned a null Task.");
         }
         catch (Exception error)
         {
-            Finish(invocation, error is OperationCanceledException ? null : error, error is OperationCanceledException);
+            bool cancelled = invokingOperation && error is OperationCanceledException;
+            Finish(invocation, cancelled ? null : error, cancelled);
             return invocation.Completion.Task;
         }
 

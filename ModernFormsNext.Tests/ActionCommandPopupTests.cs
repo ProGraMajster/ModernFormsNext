@@ -11,6 +11,32 @@ namespace ModernFormsNext.Tests;
 public sealed class ActionCommandPopupTests
 {
     [Fact]
+    public void KeyboardBindingStartsSameAsyncCommandAndParameterAsButton()
+    {
+        using var ui = new PopupFixture();
+        var pending = new TaskCompletionSource();
+        object? received = null;
+        int queries = 0;
+        var command = new AsyncCommand(p => { received = p; return pending.Task; }, _ => { queries++; return true; });
+        var button = ui.Origin.Controls.Add(new Button { Command = command, CommandParameter = "document" });
+        ui.Form.InputBindings.Add(new KeyBinding(command, new KeyGesture(Keys.S, WindowKit.Input.KeyModifiers.Control)) { CommandParameter = "document" });
+        button.Select();
+        queries = 0;
+        var key = new WindowKit.Input.Raw.RawKeyEventArgs(new WindowKit.Input.KeyboardDevice(), 0, ui.Form.adapter,
+            WindowKit.Input.Raw.RawKeyEventType.KeyDown, WindowKit.Input.Key.S, WindowKit.Input.RawInputModifiers.Control);
+        ((WindowProxy)(object)ui.Form.window).Input!(key);
+        Assert.True(key.Handled);
+        Assert.Equal("document", received);
+        Assert.Equal(1, queries);
+        Assert.False(button.Enabled);
+        var context = SynchronizationContext.Current;
+        try { SynchronizationContext.SetSynchronizationContext(null); pending.SetResult(); }
+        finally { SynchronizationContext.SetSynchronizationContext(context); }
+        Assert.True(command.ExecutionTask!.IsCompletedSuccessfully);
+        Assert.True(button.Enabled);
+    }
+
+    [Fact]
     public void ActualWindowCloseIgnoresAsyncCompletionBeforeControlDisposal()
     {
         using var ui = new PopupFixture();
@@ -175,8 +201,10 @@ public sealed class ActionCommandPopupTests
 
     private class WindowProxy : DispatchProxy
     {
+        internal Action<WindowKit.Input.Raw.RawInputEventArgs>? Input;
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
+            if (method?.Name == "set_Input") { Input = (Action<WindowKit.Input.Raw.RawInputEventArgs>?)args![0]; return null; }
             if (method?.Name == nameof(ITopLevelImpl.CreatePopup)) return DispatchProxy.Create<IPopupImpl, WindowProxy>();
             if (method?.Name is "get_RenderScaling" or "get_DesktopScaling") return 1d;
             return method?.ReturnType is { } type && type != typeof(void) && type.IsValueType ? Activator.CreateInstance(type) : null;

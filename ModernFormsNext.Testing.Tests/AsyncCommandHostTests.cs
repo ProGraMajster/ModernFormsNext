@@ -5,6 +5,54 @@ namespace ModernFormsNext.Testing.Tests;
 
 public sealed class AsyncCommandHostTests
 {
+    [Fact]
+    public void CancellationCallbackFailureStillRefreshesStateAndPreservesFailure()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var pending = new TaskCompletionSource();
+        var failure = new InvalidOperationException("cancel callback");
+        var command = new AsyncCommand((_, token) => { token.Register(() => throw failure); return pending.Task; });
+        int notifications = 0;
+        command.CanExecuteChanged += (_, _) => notifications++;
+        _ = command.ExecuteAsync();
+        var error = Assert.Throws<AggregateException>(command.Cancel);
+        Assert.Same(failure, Assert.Single(error.InnerExceptions));
+        Assert.Equal(2, notifications);
+        Assert.True(command.IsExecuting);
+        Assert.False(command.CanCancel);
+        Complete(() => pending.SetResult());
+        Assert.True(command.ExecutionTask!.IsCompletedSuccessfully); // Ignoring cancellation remains successful.
+    }
+
+    [Fact]
+    public void CancellationExceptionFromObserverIsAnObservedFaultNotOperationCancellation()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var failure = new OperationCanceledException("observer");
+        var command = new AsyncCommand(() => { Assert.Fail(); return Task.CompletedTask; });
+        command.Diagnostic += (_, e) => { if (e.Kind == AsyncCommandDiagnosticKind.Started) throw failure; };
+        var task = command.ExecuteAsync();
+        Assert.True(task.IsFaulted);
+        Assert.Same(failure, task.Exception!.InnerException);
+        Assert.False(command.IsExecuting);
+    }
+
+    [Fact]
+    public void AsyncButtonRetainsQueryClickFreshQueryOrderWithoutRedundantPredicate()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var pending = new TaskCompletionSource();
+        var calls = new List<string>();
+        var command = new AsyncCommand(() => { calls.Add("execute"); return pending.Task; }, () => { calls.Add("query"); return true; });
+        using var button = new Button { Command = command };
+        button.Click += (_, _) => calls.Add("click");
+        calls.Clear();
+        button.PerformClick();
+        Assert.Equal(new[] { "query", "click", "query", "execute" }, calls);
+        Complete(() => pending.SetResult());
+        host.Dispatcher.Drain();
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("document")]
