@@ -46,6 +46,8 @@ namespace ModernFormsNext
         // Shows the Menu.
         private void Activate ()
         {
+            // Click/command handlers may dispose this owner before activation resumes.
+            if (IsDisposed || Disposing) return;
             IsActivated = true;
 
             if (IsTopLevelMenu)

@@ -70,10 +70,12 @@ namespace ModernFormsNext
         }
 
         private Control? LogicalOwnerControl => this is MenuRootItem root ? root.Control : Parent?.LogicalOwnerControl;
+        internal MenuDropDown? CommandContextOwner => LogicalOwnerControl as MenuDropDown;
         private Control? CommandContext => LogicalOwnerControl is MenuDropDown popup ? popup.CommandContext : LogicalOwnerControl;
         bool ICommandBindingTargetProvider.IsCommandSourceDisposed => IsDisposedItem;
         bool ICommandBindingTargetProvider.IsCommandSourceActive =>
             LogicalOwnerControl is { IsDisposed: false, Disposing: false } &&
+            (CommandContextOwner is null || CommandContext is not null) &&
             CommandRouting.IsSourceActive(CommandContext);
         Control? ICommandBindingTargetProvider.CommandSourceControl => CommandContext;
         void ICommandBindingTargetProvider.SetCommandEnabled(bool value)

@@ -637,6 +637,12 @@ with a foreign Form fails closed for routed commands; it does not move the popup
 across windows. Reopening within the same Form can change the origin. No popup/window lifetime
 redesign or tray native snapshot ownership change is included.
 
+Hiding a context menu releases its captured origin and suspends command subscriptions until the
+next Show. During pointer activation, the popup still closes before Click; the origin survives
+only through that synchronous Click/command call and is released in finally, including for nested
+submenu actions. Disposal releases it immediately after owner cleanup. A menu/toolbar disposed by
+its own action cannot re-register itself as the active menu when that action returns.
+
 An unattached MenuItem does not query/subscribe to its command until inserted. Removing an item
 suspends its subscription and permits reuse. Disposing an item releases its command/parameter/target
 and owned child bindings; owning menu/toolbar disposal does the same. A submenu popup only borrows

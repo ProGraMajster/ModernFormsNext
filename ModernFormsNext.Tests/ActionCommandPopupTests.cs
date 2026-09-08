@@ -10,6 +10,81 @@ namespace ModernFormsNext.Tests;
 [Collection(InputBindingCollectionTests.Name)]
 public sealed class ActionCommandPopupTests
 {
+    [Theory]
+    [InlineData("hide")]
+    [InlineData("close-popups")]
+    [InlineData("native-owner-hide")]
+    public void HiddenContextReleasesOriginAndSuspendsCommandsUntilShownAgain(string transition)
+    {
+        using var ui = new PopupFixture();
+        int calls = 0;
+        ui.Item.Command = new DelegateCommand(() => calls++);
+        if (transition == "hide") ui.Menu.Hide();
+        else if (transition == "close-popups") Application.ClosePopups();
+        else Application.ActivePopupWindow!.Hide();
+        Assert.Null(ui.Menu.CommandContext);
+        Assert.False(ui.Item.Enabled);
+        ui.Item.Invoke();
+        Assert.Equal(0, calls);
+        ui.Menu.Show(ui.Origin, Point.Empty);
+        ui.Item.Invoke();
+        Assert.Equal(1, calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ContextClickRetainsLogicalOriginOnlyUntilActivationReturns(bool nested)
+    {
+        using var ui = new PopupFixture();
+        var item = nested ? ui.Item.Items.Add(new ActionItem { Text = "Nested" }) : ui.Item;
+        using var child = nested ? new MenuDropDown(ui.Item) : null;
+        var popup = child ?? ui.Menu;
+        child?.Show(ui.Menu, Point.Empty);
+        var order = new List<string>();
+        var command = new RoutedCommand();
+        ui.Origin.CommandBindings.Add(new(command, (_, e) =>
+        {
+            Assert.Same(ui.Origin, e.Source);
+            order.Add("execute");
+            e.Handled = true;
+        }, (_, e) => e.CanExecute = true));
+        item.Command = command;
+        item.Click += (_, _) => { Assert.False(ui.Menu.Visible); order.Add("click"); };
+        InvokeMenuClick(popup, item);
+        Assert.Equal(new[] { "click", "execute" }, order);
+        Assert.Null(ui.Menu.CommandContext);
+        Assert.False(item.Enabled);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposingMenuDuringClickCannotReregisterItsActiveSource(bool toolbar)
+    {
+        using var ui = new PopupFixture();
+        Application.ClosePopups();
+        using MenuBase menu = toolbar ? new ToolBar() : new Menu();
+        ui.Origin.Controls.Add(menu);
+        var item = menu.Items.Add(new ActionItem { Text = "Close" });
+        item.SetBounds(0, 0, 100, 25, BoundsSpecified.All);
+        item.Command = new DelegateCommand(menu.Dispose);
+        InvokeMenuClick(menu, item);
+        Assert.True(menu.IsDisposed);
+        Assert.False(menu.IsActivated);
+        Assert.Null(Application.ActiveMenu);
+    }
+
+    private static void InvokeMenuClick(MenuBase menu, MenuItem item)
+    {
+        item.SetBounds(0, 0, 100, 25, BoundsSpecified.All);
+        var point = new Point(item.Bounds.Left + 1, item.Bounds.Top + 1);
+        Assert.Same(item, menu.GetItemAtLocation(point));
+        Assert.True(item.Enabled);
+        menu.GetType().GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(menu, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, point) });
+    }
+
     [Fact]
     public void DisposingAnActiveContextMenuClearsOnlyItsOwnActiveRegistration()
     {
@@ -93,6 +168,7 @@ public sealed class ActionCommandPopupTests
     {
         using var ui = new PopupFixture();
         using var foreign = new PopupFixture();
+        ui.Menu.Show(ui.Origin, Point.Empty); // The second fixture closed the first popup.
         var target = ui.Origin.Controls.Add(new Button());
         var routed = new RoutedCommand();
         int calls = 0;
@@ -154,6 +230,7 @@ public sealed class ActionCommandPopupTests
         ui.Item.CommandParameter = new object();
         ui.Item.CommandTarget = ui.Origin;
         ui.Menu.Dispose();
+        Assert.Null(ui.Menu.CommandContext);
         Assert.Null(ui.Item.Command);
         Assert.Null(ui.Item.CommandParameter);
         Assert.Null(ui.Item.CommandTarget);
