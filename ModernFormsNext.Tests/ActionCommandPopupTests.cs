@@ -11,6 +11,18 @@ namespace ModernFormsNext.Tests;
 public sealed class ActionCommandPopupTests
 {
     [Fact]
+    public void DisposingAnActiveContextMenuClearsOnlyItsOwnActiveRegistration()
+    {
+        using var ui = new PopupFixture();
+        Assert.Same(ui.Menu, Application.ActiveMenu);
+        ui.Menu.Dispose();
+        Assert.Null(Application.ActiveMenu);
+        using var next = new PopupFixture();
+        ui.Menu.Dispose();
+        Assert.Same(next.Menu, Application.ActiveMenu);
+    }
+
+    [Fact]
     public void KeyboardBindingStartsSameAsyncCommandAndParameterAsButton()
     {
         using var ui = new PopupFixture();
@@ -186,12 +198,14 @@ public sealed class ActionCommandPopupTests
         internal ActionItem Item { get; }
         internal PopupFixture()
         {
+            Application.ClosePopups();
             Origin = Form.Controls.Add(new Panel());
             Item = Menu.Items.Add(new ActionItem { Text = "Run" });
             Menu.Show(Origin, Point.Empty);
         }
         public void Dispose()
         {
+            Application.ClosePopups();
             Menu.Hide();
             Menu.Dispose();
             Form.Dispose();

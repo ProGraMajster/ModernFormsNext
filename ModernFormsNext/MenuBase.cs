@@ -17,6 +17,9 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void Dispose(bool disposing)
         {
+            // Retiring an active command menu must not leave the application pointing to it.
+            // Reuse normal deactivation; popup ownership and construction remain unchanged.
+            if (disposing && ReferenceEquals(Application.ActiveMenu, this)) Deactivate();
             // Submenu popups borrow their parent's items. Only the logical menu owner releases
             // commands; closing or disposing a borrowed rendering host must not retire them.
             if (disposing && root_item is MenuRootItem root && ReferenceEquals(root.Control, this))
