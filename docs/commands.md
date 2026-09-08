@@ -1,15 +1,14 @@
-# Commands, input bindings and routing (issue #56, Phases 1–3)
+# Commands, input bindings and routing
 
 Commands represent reusable application actions. `System.Windows.Input.ICommand` is the contract:
 existing application implementations can be assigned directly. `ModernFormsNext.DelegateCommand`
 is the optional synchronous implementation provided by the framework. Events remain supported;
 an application can use `button.Click` without creating any command.
 
-Phase 1 provides delegate commands, parameters, availability and two action sources: `Button`
-and `NotifyIconMenuItem`. Phase 2 adds keyboard gestures and scoped input bindings to concrete
-commands. Phase 3 adds routed commands, control targets and hierarchical command handlers.
-Issue #56 remains open: Phase 4 async helpers and deeper control/Designer integration are
-**not implemented**.
+The system includes delegate and asynchronous commands, parameters, availability, keyboard
+gestures, scoped input bindings, routed commands and hierarchical handlers. `Button`, `MenuItem`
+(including Menu, ToolBar and ContextMenu actions) and `NotifyIconMenuItem` share the same
+command-source behavior. Commands remain code-first and independent of Designer tooling.
 
 ## Define once, reuse with different parameters
 
@@ -122,7 +121,7 @@ Disposal releases command and parameter references without disposing either obje
 command remains usable by the other sources. The command retains its own delegates/captures for
 its lifetime; application-owned event subscriptions retain normal .NET ownership semantics.
 
-Execute and Click exceptions propagate unchanged through the calling action path. CanExecute
+Synchronous Execute and Click exceptions propagate unchanged through the calling action path. CanExecute
 exceptions likewise propagate, but first make the receiving source unavailable. The command and
 parameter assignment remain installed; a successful later requery, different assignment or
 command removal restores a usable state. Enabled getters remain safe, cached state reads even
@@ -143,10 +142,107 @@ replacement or disposal are ignored. The helper does not synchronize application
 by predicates or action delegates; use the application's existing synchronization rules.
 
 `DelegateCommand` is synchronous. Do not pass async lambdas to its Action constructors: those
-would be async void. Task-aware commands, execution state, cancellation and async exception
-helpers belong to Phase 4. Existing application ICommand implementations can start tracked work,
-update their own availability and publish CanExecuteChanged; this foundation adds no execution
-lock, global execution state or dispatcher subsystem that such implementations must adopt.
+would be async void. Use `AsyncCommand` for Task-based work. Existing application ICommand
+implementations retain their own execution and exception contracts.
+
+### AsyncCommand
+
+One helper supports `Func<Task>`, `Func<object?, Task>` and
+`Func<object?, CancellationToken, Task>`, each with an optional availability predicate.
+The two-argument cancellation callback avoids ambiguous unary object/token lambdas.
+
+```csharp
+var load = new AsyncCommand(
+    async (parameter, token) => await repository.LoadAsync((Document)parameter!, token),
+    parameter => parameter is Document);
+var loadButton = new Button { Text = "Load", Command = load, CommandParameter = document };
+toolbar.Items.Add(new MenuItem("Load") { Command = load, CommandParameter = document });
+```
+
+Create, query, start and cancel on the creating UI thread. `IsExecuting`, `ExecutionTask`,
+`CanCancel` and `IsCancellationRequested` are safe to read from other threads. A running invocation
+makes CanExecute false for every source sharing the command. Single-flight protects against
+double activation and reentrant starts; rejected starts do nothing and do not replace ExecutionTask.
+`ExecuteAsync` returns a completed Task for a rejected start, not the already running task.
+Use `ExecutionTask` when application code needs to observe the current/latest invocation.
+
+Before the operation starts, IsExecuting becomes true and CanExecuteChanged is raised. On success,
+fault or cancellation the slot is released and the event is raised again. There is no polling.
+Sources retain their local Enabled=false intent throughout. The sealed helper's internal source
+entry point preserves Button's query → DialogResult → Click → fresh query → Execute order.
+State changes can legitimately cause extra availability queries in other bound controls.
+
+The original operation Task is observed explicitly, with no async-void supervisor and no discarded
+supervisor Task. Two entry points have deliberately different exception ownership:
+
+| Entry point | Completion and exception policy |
+| --- | --- |
+| `ExecuteAsync(parameter)` | Returns the invocation Task. Await/catch it in application code; no duplicate dispatcher exception. |
+| `ICommand.Execute(parameter)` / framework source | Observes execution faults and posts the original exception to the existing UI dispatcher exception path. ExecutionTask retains that outcome. |
+| `CanExecute` / initial predicate / thread-affinity validation | Exceptions propagate synchronously. Source predicates retain the existing fail-closed behavior. |
+| Cancellation | A cancelled operation produces a cancelled invocation Task, not an unhandled dispatcher error. |
+
+```csharp
+// Inside a Task-returning application operation (not a DelegateCommand async lambda):
+try { await load.ExecuteAsync(document); }
+catch (OperationCanceledException) { /* Application cancellation policy. */ }
+catch (IOException) { /* Application recovery policy. */ }
+```
+
+CanExecuteChanged and Diagnostic use synchronous event semantics and may originate on a background
+completion thread. Framework command sources marshal their guarded refresh through the existing
+dispatcher; custom observers must marshal any UI work themselves. Observer failures become execution
+failures, with an original operation failure taking precedence. Do not block the UI thread waiting
+for a Task. Complete/await or explicitly cancel application-owned work before ending the UI loop if
+its UI updates or dispatcher exception delivery must be processed; stopped dispatchers cannot run
+queued work. No new SynchronizationContext, scheduler or global execution state is introduced.
+
+### Cooperative cancellation and lifetime
+
+The token overload creates one token source per accepted invocation. `Cancel()` requests cancellation
+once and sets IsCancellationRequested; it does not force an operation to stop. CanCancel is false
+without a cancellable running invocation or after its first request. State resets when the operation
+actually finishes. A callback that ignores its token and completes successfully is still successful.
+Cancellation-callback failures propagate to the Cancel caller.
+
+```csharp
+var cancel = new DelegateCommand(load.Cancel, () => load.CanCancel);
+EventHandler refreshCancel = (_, _) => cancel.RaiseCanExecuteChanged();
+load.CanExecuteChanged += refreshCancel;
+cancelButton.Command = cancel;
+// The application owner must detach refreshCancel when it no longer needs this relationship.
+```
+
+Commands are reusable and ownerless. Disposing one Button/item, removing a binding or closing one
+window never automatically cancels/disposes a command shared with another source. Disposed, removed,
+replaced and closed-window sources ignore stale notifications. The application that owns an operation
+decides its cancellation/shutdown policy. ExecutionTask intentionally retains the most recent result
+or exception until another invocation starts or the command becomes unreachable.
+
+### Composing routing with asynchronous work
+
+Routing remains synchronous; a routed handler starts a helper and marks the route handled.
+There is no separate AsyncRoutedCommand and no asynchronous traversal of a changing control tree.
+
+```csharp
+var save = new RoutedCommand("Save");
+var saveWork = new AsyncCommand(parameter => repository.SaveAsync((Document)parameter!));
+editor.CommandBindings.Add(new CommandBinding(save,
+    (_, e) => { saveWork.Execute(e.Parameter); e.Handled = true; },
+    (_, e) => e.CanExecute = saveWork.CanExecute(e.Parameter)));
+EventHandler refreshRoute = (_, _) => save.RaiseCanExecuteChanged();
+saveWork.CanExecuteChanged += refreshRoute;
+// Detach refreshRoute when the application registration is released.
+```
+
+### Async diagnostics
+
+Subscribe to `AsyncCommand.Diagnostic` for Started, Completed, Faulted and Cancelled outcomes.
+`AsyncCommandDiagnosticEventArgs` contains only Kind, ParameterType and ExceptionType; sender is
+the command. It never contains the parameter value, user/control/password text, exception object,
+exception message, Task or cancellation internals. Do not add those values in application logging.
+No event args are allocated when nobody subscribes. The existing input-binding and routed-command
+diagnostics described below remain the APIs for lookup, conflicts and route failure.
 
 ## Accessibility, testing and samples
 
@@ -505,14 +601,89 @@ Android accessibility session tests invoke a real routed Button through the cano
 verify query/Click/query/execution ordering, and reject activation after availability becomes false.
 These provider tests do not establish physical-device or screen-reader coverage.
 
-## Deferred work
+## Menu and other action controls
 
-- Phase 4: task-aware async helpers, deeper menu/toolbar/context-menu integration, Designer
-  assignment/serialization, and expanded examples/documentation.
+`MenuItem.Command`, `CommandParameter` and `CommandTarget` reuse Button's command source helper.
+Menu, ToolBar and ContextMenu already share this item model. Existing Ribbon items inherit that
+behavior too; Ribbon remains an incomplete control and this work does not expand its feature set.
+Separators never activate. A derived MenuItem must call base.OnClick to preserve the command path.
 
-MenuItem ownership/lifecycle requires separate work before safe event subscriptions can be added
-across Menu, ToolBar, Ribbon and ContextMenu. Command properties on the Phase 1 sources are hidden
-from design-time browsing/serialization. There is no Designer Ctrl+S fix, BindingNavigator port,
-Developer Tools integration, automation bridge, release or version bump in this phase. See the
-[Phase 1 audit](commands-phase1-audit.md), [Phase 2 keyboard audit](commands-phase2-audit.md) and
-[Phase 3 routing audit](commands-phase3-audit.md).
+| Source | Default routed target/source context | Explicit target |
+| --- | --- | --- |
+| Button | The Button | Must belong to the same source tree |
+| Menu / ToolBar / existing Ribbon item | The logical owning control, including for nested submenu items | Must belong to the same logical owner's tree |
+| ContextMenu / standalone MenuDropDown | Control passed to Show | Must belong to that origin's tree |
+| NotifyIconMenuItem | None; no ambient focus/window lookup | Required for RoutedCommand; routes within the target's attached tree |
+
+Ordinary ICommand, DelegateCommand and AsyncCommand ignore CommandTarget completely. It never
+changes their parameter or availability. Routed event args expose the logical Control as Source;
+a tray item's Source is null. Internal lifetime guards also track the non-Control action item.
+
+```csharp
+menu.Items.Add(new MenuItem("Save") {
+    Command = save, CommandParameter = document, CommandTarget = editor
+});
+contextMenu.Items.Add(new MenuItem("Save here") { Command = save, CommandParameter = document });
+contextMenu.Show(editor, editor.PointToScreen(new System.Drawing.Point(0, editor.Height)));
+var traySave = new NotifyIconMenuItem("Save") {
+    Command = save, CommandParameter = document, CommandTarget = editor
+};
+```
+
+Physical popup parenting does not change a menu's logical route and routing never follows Form.Owner.
+ContextMenu.Show captures its origin and refreshes availability. Existing native popup ownership
+still belongs to the first Form: use a separate context menu instance per Form. Reusing that popup
+with a foreign Form fails closed for routed commands; it does not move the popup or create a route
+across windows. Reopening within the same Form can change the origin. No popup/window lifetime
+redesign or tray native snapshot ownership change is included.
+
+An unattached MenuItem does not query/subscribe to its command until inserted. Removing an item
+suspends its subscription and permits reuse. Disposing an item releases its command/parameter/target
+and owned child bindings; owning menu/toolbar disposal does the same. A submenu popup only borrows
+its parent's items. Caller-owned images and command objects are not disposed. Removing an entire
+experimental Ribbon group/page retains the existing Ribbon ownership rules; explicitly dispose
+removed item instances when retiring them. General ownership redesign remains #63.
+
+Existing menu semantic Invoke uses this same guarded action path. Async availability changes update
+the existing unavailable state and preserve accessible-object identity; no second semantic tree or
+new platform provider is involved.
+
+## Designer boundary
+
+Command, CommandParameter and CommandTarget on action sources, and Control/Window InputBindings and
+CommandBindings, have Browsable(false) and DesignerSerializationVisibility.Hidden metadata.
+The framework metadata reader marks them hidden/nonserializable and the PropertyGrid omits them.
+Runtime delegates, arbitrary object parameters, target references and handler collections do not
+have a declarative .mfdesign representation. Assign them in code-behind after InitializeComponent,
+or through the existing runtime binding path. Do not put them into generated InitializeComponent.
+
+No new command editor/markup is needed to open command-capable controls, save/reopen a document,
+copy/paste, undo/redo, generate code or reverse-parse generated code. These operations use the design
+model and never execute runtime commands. `CommandDesignerTests` covers the metadata and each of
+those document paths. Discoverable declarative command editing remains future tooling, as allowed
+by #56's longer-term Designer direction. Visual Studio Ctrl+S is outside this command work.
+Safe declarative editing is tracked by [#108](https://github.com/ProGraMajster/ModernFormsNext/issues/108).
+
+## Final showcase and validation scope
+
+The **Command routing** gallery page also includes a toolbar action with an explicit local target,
+a DelegateCommand reset action, a context menu, and a cancellable AsyncCommand shared by Button and
+toolbar. Run async task shows busy/disabled state, completion and cancellation; both sources recover.
+The sample delay is illustrative only. Unloading explicitly cancels the page-owned demo operation,
+detaches custom observers and removes its window registration.
+
+`AsyncCommandHostTests`, `ActionCommandHostTests`, `ActionCommandPopupTests` and `CommandDesignerTests`
+cover deterministic completion/fault/cancellation, shared sources, disposal/replacement/actual
+window close, routing, popup origins, accessibility and Designer boundaries. They use manually
+completed Tasks and existing dispatcher/window substitutes, without sleeps or new TestHost APIs.
+Native ControlGallery and Designer smoke evidence is recorded separately from headless tests.
+
+The existing Android hardware-key forwarding subset, physical-device parity and advanced IME
+limitations remain as documented in the keyboard section. There is no BindingNavigator port,
+Developer Tools UI, automation bridge, new platform, release or version bump here. See the
+[Phase 1 audit](commands-phase1-audit.md), [Phase 2 audit](commands-phase2-audit.md),
+[Phase 3 audit](commands-phase3-audit.md) and [Phase 4 audit](commands-phase4-audit.md).
+Android hardware shortcut forwarding/modifier parity is tracked by
+[#109](https://github.com/ProGraMajster/ModernFormsNext/issues/109); composition and device evidence
+remain under [#62](https://github.com/ProGraMajster/ModernFormsNext/issues/62) and
+[#69](https://github.com/ProGraMajster/ModernFormsNext/issues/69).
