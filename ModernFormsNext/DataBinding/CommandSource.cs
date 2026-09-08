@@ -96,6 +96,8 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
                 invocation.Execute();
             else if (current is DelegateCommand delegateCommand)
                 delegateCommand.ExecuteCore(currentParameter);
+            else if (current is AsyncCommand asyncCommand)
+                asyncCommand.ExecuteCore(currentParameter);
             else
                 current.Execute(currentParameter);
         }
