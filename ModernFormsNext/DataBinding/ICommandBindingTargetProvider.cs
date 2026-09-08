@@ -10,5 +10,9 @@ internal interface ICommandBindingTargetProvider
     object? CommandParameter { get; set; }
     bool Enabled { get; }
     bool IsCommandSourceDisposed { get; }
+    // Menu items are logical action sources, even when a popup temporarily renders them.
+    Control? CommandSourceControl => this as Control;
+    bool IsCommandSourceActive => CommandRouting.IsSourceActive(this as Control);
+    bool SupportsTargetOnlyRouting => false;
     void SetCommandEnabled(bool enabled);
 }

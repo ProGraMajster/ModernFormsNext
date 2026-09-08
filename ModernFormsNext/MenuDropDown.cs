@@ -13,6 +13,34 @@ namespace ModernFormsNext
         private PopupWindow? popup;
         private int width = 400;
         private int height = 400;
+        // Separate the Show origin from the popup's physical Control.Parent hierarchy.
+        internal Control? CommandContext { get; private set; }
+        private int commandActivationDepth;
+        private bool releaseCommandContext;
+
+        // Popup hiding precedes Click. Keep the logical origin only for that synchronous
+        // activation (including borrowed submenu items), then detach it even if a handler fails.
+        private void ReleaseCommandContext()
+        {
+            releaseCommandContext = true;
+            if (commandActivationDepth != 0 || CommandContext is null) return;
+            CommandContext = null;
+            RefreshRoutedCommandSource();
+        }
+
+        /// <inheritdoc/>
+        protected override void OnParentVisibleChanged(EventArgs e)
+        {
+            if (popup is { Visible: false }) ReleaseCommandContext();
+            base.OnParentVisibleChanged(e);
+        }
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            try { base.Dispose(disposing); }
+            finally { if (disposing) CommandContext = null; }
+        }
 
         /// <summary>
         /// Initializes a new instance of the MenuDropDown class.
@@ -66,6 +94,7 @@ namespace ModernFormsNext
         public new void Hide ()
         {
             popup?.Hide ();
+            ReleaseCommandContext();
         }
 
         /// <inheritdoc/>
@@ -92,10 +121,16 @@ namespace ModernFormsNext
             if (clicked_item != null && !clicked_item.HasItems) {
 
                 if (!clicked_item.HasItems) {
-                    Application.ClosePopups ();
-
-                    clicked_item.OnClick (e);
-                    OnItemClicked (e, clicked_item);
+                    var owner = clicked_item.CommandContextOwner;
+                    if (owner is not null) owner.commandActivationDepth++;
+                    try {
+                        Application.ClosePopups ();
+                        clicked_item.OnClick (e);
+                        OnItemClicked (e, clicked_item);
+                    } finally {
+                        if (owner is not null && --owner.commandActivationDepth == 0 && owner.releaseCommandContext)
+                            owner.ReleaseCommandContext();
+                    }
                 }
             }
         }
@@ -130,6 +165,7 @@ namespace ModernFormsNext
         /// </summary>
         public virtual void Show (Control parent, Point location)
         {
+            ArgumentNullException.ThrowIfNull(parent);
             if (popup == null) {
                 if (parent.FindForm () is not Form parent_form)
                     throw new InvalidOperationException ("Control 'parent' must belong to a Form.");
@@ -138,6 +174,12 @@ namespace ModernFormsNext
                 popup = new PopupWindow (parent_form);
                 popup.Controls.Add (this);
             }
+
+            // Existing popups retain their first native owner. Do not route commands into a
+            // foreign window if application code reuses that popup there; use one menu per Form.
+            CommandContext = ReferenceEquals(parent.FindForm(), parent_form) ? parent : null;
+            releaseCommandContext = false;
+            RefreshRoutedCommandSource();
 
             LayoutItems ();
             popup.Size = ScaleSize (new Size (width, height), 1 / (float)Scaling, 1 / (float)Scaling);

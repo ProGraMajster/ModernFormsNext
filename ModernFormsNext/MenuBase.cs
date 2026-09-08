@@ -12,6 +12,21 @@ namespace ModernFormsNext
     {
         private readonly MenuItem root_item;
 
+        internal override void RefreshRoutedCommandSource() => root_item?.RefreshCommandContext();
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            // Retiring an active command menu must not leave the application pointing to it.
+            // Reuse normal deactivation; popup ownership and construction remain unchanged.
+            if (disposing && ReferenceEquals(Application.ActiveMenu, this)) Deactivate();
+            // Submenu popups borrow their parent's items. Only the logical menu owner releases
+            // commands; closing or disposing a borrowed rendering host must not retire them.
+            if (disposing && root_item is MenuRootItem root && ReferenceEquals(root.Control, this))
+                root_item.Dispose();
+            base.Dispose(disposing);
+        }
+
         /// <summary>
         /// Initializes a new instance of the MenuBase class.
         /// </summary>
@@ -31,6 +46,8 @@ namespace ModernFormsNext
         // Shows the Menu.
         private void Activate ()
         {
+            // Click/command handlers may dispose this owner before activation resumes.
+            if (IsDisposed || Disposing) return;
             IsActivated = true;
 
             if (IsTopLevelMenu)

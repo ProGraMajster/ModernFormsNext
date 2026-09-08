@@ -28,7 +28,7 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
             subscription = null;
             command = value;
             version++;
-            if (value is not null)
+            if (value is not null && owner.IsCommandSourceActive)
                 subscription = new Subscription(this, value, ownerThreadId);
             Refresh();
         }
@@ -70,6 +70,22 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         if (command is RoutedCommand && !disposed && !refreshingRouted) Refresh();
     }
 
+    // A logical menu owner can change independently of Control.Parent. Suspend subscriptions
+    // while removed, invalidate pending guarded executions, and resume on attachment.
+    internal void RefreshOwner()
+    {
+        if (disposed || owner.IsCommandSourceDisposed) return;
+        version++;
+        if (!owner.IsCommandSourceActive)
+        {
+            subscription?.Dispose();
+            subscription = null;
+        }
+        else if (subscription is null && command is not null)
+            subscription = new Subscription(this, command, ownerThreadId);
+        Refresh();
+    }
+
     internal bool CanExecute()
     {
         VerifyAccess();
@@ -96,6 +112,8 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
                 invocation.Execute();
             else if (current is DelegateCommand delegateCommand)
                 delegateCommand.ExecuteCore(currentParameter);
+            else if (current is AsyncCommand asyncCommand)
+                asyncCommand.ExecuteCore(currentParameter);
             else
                 current.Execute(currentParameter);
         }
@@ -108,6 +126,11 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         invocation = null;
         if (disposed || owner.IsCommandSourceDisposed)
             return false;
+        if (!owner.IsCommandSourceActive)
+        {
+            owner.SetCommandEnabled(false);
+            return false;
+        }
 
         int currentVersion = version;
         bool available;
@@ -121,10 +144,10 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
                 refreshingRouted = true;
                 try
                 {
-                    var source = owner as Control;
-                    var root = CommandRouting.FindRoot(source);
-                    invocation = source is not null && root is not null
-                        ? CommandRouting.Prepare(routed, parameter, target ?? source, source, root)
+                    var source = owner.CommandSourceControl;
+                    var root = CommandRouting.FindRoot(source ?? (owner.SupportsTargetOnlyRouting ? target : null));
+                    invocation = root is not null
+                        ? CommandRouting.Prepare(routed, parameter, target ?? source, source, root, owner)
                         : null;
                     available = invocation is not null;
                 }
@@ -142,18 +165,18 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
             throw;
         }
 
-        if (disposed || owner.IsCommandSourceDisposed || version != currentVersion)
+        if (disposed || owner.IsCommandSourceDisposed || !owner.IsCommandSourceActive || version != currentVersion)
             return false;
 
         owner.SetCommandEnabled(available);
-        return available && !disposed && !owner.IsCommandSourceDisposed && version == currentVersion;
+        return available && !disposed && !owner.IsCommandSourceDisposed && owner.IsCommandSourceActive && version == currentVersion;
     }
 
     private void Requery(Subscription sender)
     {
         // Event invocation lists and dispatcher queues can outlive detach. Identity, not the
         // command's Equals implementation or event sender, identifies the current attachment.
-        if (disposed || owner.IsCommandSourceDisposed || !ReferenceEquals(subscription, sender))
+        if (disposed || owner.IsCommandSourceDisposed || !owner.IsCommandSourceActive || !ReferenceEquals(subscription, sender))
             return;
         if (refreshingRouted) return;
         VerifyAccess();

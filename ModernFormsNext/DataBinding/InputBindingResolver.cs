@@ -81,6 +81,8 @@ internal sealed class InputBindingResolver
                     invocation.Execute();
                 else if (command is DelegateCommand delegated)
                     delegated.ExecuteCore(parameter);
+                else if (command is AsyncCommand asynchronous)
+                    asynchronous.ExecuteCore(parameter);
                 else
                     command.Execute(parameter);
                 candidate.Collection.Report(InputBindingDiagnosticKind.Executed, binding);

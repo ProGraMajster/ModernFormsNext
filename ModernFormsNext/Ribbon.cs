@@ -14,6 +14,24 @@ namespace ModernFormsNext
         private readonly TabStrip tab_strip;
         private MenuItem? mouse_in_item;
 
+        internal override void RefreshRoutedCommandSource()
+        {
+            if (TabPages is null) return; // Base construction may trigger an attachment refresh.
+            foreach (var page in TabPages)
+                foreach (var group in page.Groups)
+                    foreach (var item in group.Items.ToArray()) item.RefreshCommandContext();
+        }
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                foreach (var page in TabPages)
+                    foreach (var group in page.Groups)
+                        foreach (var item in group.Items.ToArray()) item.Dispose();
+            base.Dispose(disposing);
+        }
+
         /// <summary>
         /// Initializes a new instance of the Ribbon class.
         /// </summary>

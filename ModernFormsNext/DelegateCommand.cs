@@ -11,7 +11,7 @@ namespace ModernFormsNext;
 /// <see cref="RaiseCanExecuteChanged"/> after availability changes. There is no automatic polling.
 /// A command can be shared by several sources with different parameters. The command owns its
 /// delegate references, but does not own or dispose the objects captured by those delegates.
-/// Do not pass async lambdas to the action constructors; task-aware helpers are deferred.
+/// Do not pass async lambdas to the action constructors; use <see cref="AsyncCommand"/> for Task-based work.
 /// </remarks>
 /// <example>
 /// <code>
