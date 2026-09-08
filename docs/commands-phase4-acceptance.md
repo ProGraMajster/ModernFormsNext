@@ -63,4 +63,18 @@ and `artifacts/issue-56-phase4` validation records. They are separate from imple
 
 The implemented scope covers the original core acceptance direction. Final READY TO CLOSE versus
 KEEP OPEN is gated by the exact-HEAD validation report and review, not merely by this Phase 4 table.
-This local work does not push a branch, create a PR, merge, close #56, release, tag or change versions.
+Publication and issue closure require the separately authorized finalization gate: a final API and
+lifecycle review, exact-HEAD validation, green PR checks, normal merge and post-merge verification.
+No release, tag or version change is part of command-system completion.
+
+The final lifecycle review additionally covers hidden context-origin release, nested activation
+across popup hiding and menu/toolbar disposal inside their own actions. Async regressions cover
+both reentrant entry points, notification-driven predicate mutation, starting a later invocation
+from completion, independent operation/cancellation failures, two shared Buttons during disposal,
+and parameters whose ToString must never be called by diagnostics.
+
+The original issue explicitly describes Designer assignment/serialization tooling as longer-term
+and says the initial runtime must not depend on it. #108 therefore does not block core completion.
+The shared modifier/key model and Windows runtime meet the shortcut criteria; the issue does not
+require full Android hardware parity. #109 remains a documented backend enhancement, not an
+unimplemented shared command criterion. Neither follow-up justifies claiming untested device parity.
