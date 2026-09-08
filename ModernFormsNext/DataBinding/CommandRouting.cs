@@ -4,6 +4,10 @@ namespace ModernFormsNext.DataBinding;
 // query cursor and arguments, including nested/recursive calls. There is no shared route state.
 internal static class CommandRouting
 {
+    internal static bool IsSourceActive(Control? control) =>
+        control is not { IsDisposed: true } and not { Disposing: true } &&
+        FindRoot(control) is not ControlAdapter { ParentForm.InputBindingsClosed: true };
+
     internal static Control? FindRoot(Control? control)
     {
         for (var current = control; current is not null; current = current.Parent)
@@ -19,7 +23,7 @@ internal static class CommandRouting
     }
 
     internal static Invocation? Prepare(RoutedCommand command, object? parameter, Control? target,
-        Control? source = null, Control? boundary = null)
+        Control? source = null, Control? boundary = null, ICommandBindingTargetProvider? actionSource = null)
     {
         command.VerifyAccess();
         var root = FindRoot(target);
@@ -41,7 +45,7 @@ internal static class CommandRouting
         WindowBase? window = (root as ControlAdapter)?.ParentForm;
         if (window is not null) nodes.Add(Capture(window, window.CommandBindingsInternal, command));
         nodes.Add(Capture(typeof(Application), Application.CommandBindingsInternal, command));
-        var invocation = new Invocation(command, parameter, target, source, root, window, nodes.ToArray());
+        var invocation = new Invocation(command, parameter, target, source, root, window, nodes.ToArray(), actionSource);
         return invocation.FindNextAvailable() ? invocation : null;
     }
 
@@ -57,15 +61,16 @@ internal static class CommandRouting
         private readonly Control root;
         private readonly WindowBase? window;
         private readonly Node[] nodes;
+        private readonly ICommandBindingTargetProvider? actionSource;
         private int nodeIndex, bindingIndex;
         private Node? selectedNode;
         private CommandBinding? selectedBinding;
         private bool executed;
 
         internal Invocation(RoutedCommand command, object? parameter, Control target, Control? source,
-            Control root, WindowBase? window, Node[] nodes)
-            => (this.command, this.parameter, this.target, this.source, this.root, this.window, this.nodes) =
-                (command, parameter, target, source, root, window, nodes);
+            Control root, WindowBase? window, Node[] nodes, ICommandBindingTargetProvider? actionSource)
+            => (this.command, this.parameter, this.target, this.source, this.root, this.window, this.nodes, this.actionSource) =
+                (command, parameter, target, source, root, window, nodes, actionSource);
 
         private bool IsAlive(Node? node = null)
         {
@@ -73,6 +78,7 @@ internal static class CommandRouting
             // dispose an earlier or later captured ancestor without disposing the target itself.
             // Check the whole snapshot without allocations before allowing further callbacks.
             bool alive = !target.IsDisposed && !target.Disposing &&
+                actionSource is not { IsCommandSourceDisposed: true } and not { IsCommandSourceActive: false } &&
                 source is not { IsDisposed: true } and not { Disposing: true } &&
                 !root.IsDisposed && !root.Disposing && window?.InputBindingsClosed != true && !Application.IsExiting;
             if (alive)

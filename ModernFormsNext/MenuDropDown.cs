@@ -13,6 +13,8 @@ namespace ModernFormsNext
         private PopupWindow? popup;
         private int width = 400;
         private int height = 400;
+        // Separate the Show origin from the popup's physical Control.Parent hierarchy.
+        internal Control? CommandContext { get; private set; }
 
         /// <summary>
         /// Initializes a new instance of the MenuDropDown class.
@@ -130,6 +132,7 @@ namespace ModernFormsNext
         /// </summary>
         public virtual void Show (Control parent, Point location)
         {
+            ArgumentNullException.ThrowIfNull(parent);
             if (popup == null) {
                 if (parent.FindForm () is not Form parent_form)
                     throw new InvalidOperationException ("Control 'parent' must belong to a Form.");
@@ -138,6 +141,11 @@ namespace ModernFormsNext
                 popup = new PopupWindow (parent_form);
                 popup.Controls.Add (this);
             }
+
+            // Existing popups retain their first native owner. Do not route commands into a
+            // foreign window if application code reuses that popup there; use one menu per Form.
+            CommandContext = ReferenceEquals(parent.FindForm(), parent_form) ? parent : null;
+            RefreshRoutedCommandSource();
 
             LayoutItems ();
             popup.Size = ScaleSize (new Size (width, height), 1 / (float)Scaling, 1 / (float)Scaling);

@@ -12,6 +12,18 @@ namespace ModernFormsNext
     {
         private readonly MenuItem root_item;
 
+        internal override void RefreshRoutedCommandSource() => root_item?.RefreshCommandContext();
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            // Submenu popups borrow their parent's items. Only the logical menu owner releases
+            // commands; closing or disposing a borrowed rendering host must not retire them.
+            if (disposing && root_item is MenuRootItem root && ReferenceEquals(root.Control, this))
+                root_item.Dispose();
+            base.Dispose(disposing);
+        }
+
         /// <summary>
         /// Initializes a new instance of the MenuBase class.
         /// </summary>

@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Drawing;
 using System.Linq;
+using System.ComponentModel;
+using System.Windows.Input;
+using ModernFormsNext.DataBinding;
 using ModernFormsNext.Renderers;
 using SkiaSharp;
 
@@ -9,7 +12,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a MenuItem menu item.
     /// </summary>
-    public class MenuItem : ILayoutable
+    public class MenuItem : ILayoutable, IDisposable, ICommandBindingTargetProvider
     {
         private MenuItemCollection? items;
         private MenuDropDown? dropdown;
@@ -17,6 +20,97 @@ namespace ModernFormsNext
         private bool enabled = true;
         private bool selected;
         private string text = string.Empty;
+        private MenuItem? parent;
+        private CommandSource? commandSource;
+        private bool commandEnabled = true;
+        private bool disposed;
+
+        /// <summary>Gets or sets the command executed after Click through the shared action-source path.</summary>
+        /// <remarks>
+        /// Assign on the UI thread. Null preserves event-only use. Effective Enabled combines local
+        /// intent, the owning control and CanExecute; changes invalidate rendering/accessibility.
+        /// Activation queries before Click and queries the current binding again after Click.
+        /// Commands are borrowed: removing/disposing an item never cancels or disposes shared work.
+        /// Assign delegates in code-behind; Designer does not serialize this runtime-only property.
+        /// </remarks>
+        /// <example><code>
+        /// menu.Items.Add(new MenuItem("Save") { Command = save, CommandParameter = document });
+        /// </code></example>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public ICommand? Command {
+            get => commandSource?.Command;
+            set { ObjectDisposedException.ThrowIf(disposed, this); (commandSource ??= new(this)).Command = value; }
+        }
+
+        /// <summary>Gets or sets the nullable parameter passed unchanged to CanExecute and Execute.</summary>
+        /// <remarks>
+        /// Assign on the UI thread. Changing the reference refreshes availability; in-place changes
+        /// require CanExecuteChanged. The current value after Click is used. Runtime-only in Designer.
+        /// </remarks>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public object? CommandParameter {
+            get => commandSource?.Parameter;
+            set { ObjectDisposedException.ThrowIf(disposed, this); (commandSource ??= new(this)).Parameter = value; }
+        }
+
+        /// <summary>Gets or sets a borrowed explicit target for RoutedCommand; ordinary ICommand ignores it.</summary>
+        /// <remarks>
+        /// Set on the UI thread. The target must be within the logical owner's tree. Menus and toolbars
+        /// default to that owner; context menus default to their Show origin. Popup controls never
+        /// become an implicit route across windows. Runtime-only in Designer.
+        /// </remarks>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Control? CommandTarget {
+            get => commandSource?.Target;
+            set { ObjectDisposedException.ThrowIf(disposed, this); (commandSource ??= new(this)).Target = value; }
+        }
+
+        private Control? LogicalOwnerControl => this is MenuRootItem root ? root.Control : Parent?.LogicalOwnerControl;
+        private Control? CommandContext => LogicalOwnerControl is MenuDropDown popup ? popup.CommandContext : LogicalOwnerControl;
+        bool ICommandBindingTargetProvider.IsCommandSourceDisposed => disposed;
+        bool ICommandBindingTargetProvider.IsCommandSourceActive =>
+            LogicalOwnerControl is { IsDisposed: false, Disposing: false } &&
+            CommandRouting.IsSourceActive(CommandContext);
+        Control? ICommandBindingTargetProvider.CommandSourceControl => CommandContext;
+        void ICommandBindingTargetProvider.SetCommandEnabled(bool value)
+        {
+            if (commandEnabled == value) return;
+            commandEnabled = value;
+            OwnerControl?.Invalidate();
+            OwnerControl?.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
+        }
+
+        internal void RefreshCommandContext()
+        {
+            commandSource?.RefreshOwner();
+            if (items is not null)
+                foreach (var item in items.ToArray()) item.RefreshCommandContext();
+        }
+
+        /// <summary>Releases this item's command bindings and those of its currently owned children.</summary>
+        /// <remarks>
+        /// Call on the UI thread. Idempotent; activation is disabled afterwards. Owning menu/tool bar
+        /// disposal also releases its items. Removed items remain reusable until explicitly disposed.
+        /// Commands, parameters, targets and caller-owned images are never disposed or cancelled.
+        /// This does not change the existing popup/window ownership model.
+        /// </remarks>
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            commandSource?.Dispose();
+            if (items is not null)
+                foreach (var item in items.ToArray()) item.Dispose();
+            if (OwnerControl is { IsDisposed: false, Disposing: false } owner)
+            {
+                owner.Invalidate();
+                owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
+            }
+            GC.SuppressFinalize(this);
+        }
 
         /// <summary>
         /// Initializes a new instance of the MenuItem class.
@@ -68,7 +162,7 @@ namespace ModernFormsNext
         /// Gets or sets a value indicating whether the menu item is enabled.
         /// </summary>
         public bool Enabled {
-            get => enabled && OwnerControl?.Enabled == true;
+            get => !disposed && enabled && commandEnabled && OwnerControl?.Enabled == true;
             set {
                 if (enabled != value) {
                     enabled = value;
@@ -161,11 +255,14 @@ namespace ModernFormsNext
         public Padding Margin { get; set; } = Padding.Empty;
 
         /// <summary>
-        /// Raises the Click event.
+        /// Activates the item, raising Click before executing its current command.
         /// </summary>
+        /// <remarks>Derived implementations must call base to retain enabled guards and command routing.</remarks>
         protected internal virtual void OnClick (MouseEventArgs e)
         {
+            if (this is MenuSeparatorItem || !Enabled || (commandSource is not null && !commandSource.CanExecute())) return;
             Click?.Invoke (this, e);
+            if (!disposed && Enabled) commandSource?.Execute();
         }
 
         // The Control that owns this menu item.
@@ -193,7 +290,16 @@ namespace ModernFormsNext
         /// <summary>
         /// The parent menu item this item belongs to, if any.
         /// </summary>
-        public MenuItem? Parent { get; internal set; }
+        public MenuItem? Parent {
+            get => parent;
+            internal set {
+                if (ReferenceEquals(parent, value)) return;
+                parent = value;
+                // A previously displayed popup is only a rendering host, not a logical owner.
+                ParentControl = null;
+                RefreshCommandContext();
+            }
+        }
 
         // The control this MenuItem is parented to, for example a MenuDropDown or a Menu
         internal Control? ParentControl { get; set; }

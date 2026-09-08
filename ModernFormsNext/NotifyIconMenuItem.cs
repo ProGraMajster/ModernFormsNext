@@ -68,6 +68,23 @@ namespace ModernFormsNext
             }
         }
 
+        /// <summary>Gets or sets the explicit target required by a routed tray command.</summary>
+        /// <remarks>
+        /// Set on the UI thread. A tray item has no ambient control/focus context: routed commands
+        /// require a live attached target and route within its tree. Ordinary ICommand ignores this
+        /// property. The target is borrowed and never disposed by the item. Runtime-only in Designer.
+        /// </remarks>
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Control? CommandTarget {
+            get => commandSource?.Target;
+            set {
+                ThrowIfDisposed();
+                (commandSource ??= new CommandSource(this)).Target = value;
+            }
+        }
+
+        bool ICommandBindingTargetProvider.SupportsTargetOnlyRouting => true;
         bool ICommandBindingTargetProvider.IsCommandSourceDisposed => disposed;
         void ICommandBindingTargetProvider.SetCommandEnabled(bool value) => commandEnabled = value;
 
