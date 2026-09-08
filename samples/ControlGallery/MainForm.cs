@@ -21,6 +21,7 @@ namespace ControlGallery
 
             tree.Items.Add ("Accessibility", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Button", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Command routing", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Animations", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("Animated layout", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("Layout-aware visual states", ImageLoader.Get ("swatches.png"));
@@ -122,6 +123,8 @@ namespace ControlGallery
                     return new AnimationsAndInteractionEffectsPanel ();
                 case "Button":
                     return new ButtonPanel ();
+                case "Command routing":
+                    return new CommandRoutingPanel(this);
                 case "CheckBox":
                     return new CheckBoxPanel ();
                 case "CheckedListBox":

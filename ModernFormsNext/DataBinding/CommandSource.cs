@@ -12,6 +12,8 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
     private Subscription? subscription;
     private int version;
     private bool disposed;
+    private Control? target;
+    private bool refreshingRouted;
 
     internal ICommand? Command
     {
@@ -47,6 +49,27 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         }
     }
 
+    internal Control? Target
+    {
+        get => target;
+        set
+        {
+            VerifyAccess();
+            if (ReferenceEquals(target, value)) return;
+            target = value;
+            if (command is RoutedCommand)
+            {
+                version++;
+                Refresh();
+            }
+        }
+    }
+
+    internal void RefreshRouted()
+    {
+        if (command is RoutedCommand && !disposed && !refreshingRouted) Refresh();
+    }
+
     internal bool CanExecute()
     {
         VerifyAccess();
@@ -64,20 +87,25 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         ICommand? current = command;
         object? currentParameter = parameter;
         int currentVersion = version;
-        if (current is not null && Refresh() && currentVersion == version && owner.Enabled)
+        if (current is not null && Refresh(out var invocation) && currentVersion == version && owner.Enabled)
         {
             // The sealed framework helper can consume this fresh guarded evaluation. Calling
             // its public Execute would evaluate again outside our fail-closed/version guard.
             // Arbitrary ICommand implementations retain their own normal Execute contract.
-            if (current is DelegateCommand delegateCommand)
+            if (invocation is not null)
+                invocation.Execute();
+            else if (current is DelegateCommand delegateCommand)
                 delegateCommand.ExecuteCore(currentParameter);
             else
                 current.Execute(currentParameter);
         }
     }
 
-    private bool Refresh()
+    private bool Refresh() => Refresh(out _);
+
+    private bool Refresh(out CommandRouting.Invocation? invocation)
     {
+        invocation = null;
         if (disposed || owner.IsCommandSourceDisposed)
             return false;
 
@@ -85,7 +113,25 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         bool available;
         try
         {
-            available = command?.CanExecute(parameter) ?? true;
+            if (command is RoutedCommand routed)
+            {
+                // Collection edits in a predicate can synchronously notify this same source.
+                // Keep the current snapshot; never overwrite it with shared/reentrant route state.
+                if (refreshingRouted) return false;
+                refreshingRouted = true;
+                try
+                {
+                    var source = owner as Control;
+                    var root = CommandRouting.FindRoot(source);
+                    invocation = source is not null && root is not null
+                        ? CommandRouting.Prepare(routed, parameter, target ?? source, source, root)
+                        : null;
+                    available = invocation is not null;
+                }
+                finally { refreshingRouted = false; }
+            }
+            else
+                available = command?.CanExecute(parameter) ?? true;
         }
         catch
         {
@@ -109,6 +155,7 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         // command's Equals implementation or event sender, identifies the current attachment.
         if (disposed || owner.IsCommandSourceDisposed || !ReferenceEquals(subscription, sender))
             return;
+        if (refreshingRouted) return;
         VerifyAccess();
         Refresh();
     }
@@ -130,6 +177,7 @@ internal sealed class CommandSource(ICommandBindingTargetProvider owner) : IDisp
         subscription = null;
         command = null;
         parameter = null;
+        target = null;
     }
 
     private sealed class Subscription

@@ -181,6 +181,46 @@ public sealed class WindowsUiaProviderTests
         Assert.Equal(ActionInvoke, node.LastAction);
     }
 
+    [Fact]
+    public void RoutedCommandButtonInvokeUsesNormalActivationAndAvailabilityRecovery()
+    {
+        using var root = new Panel();
+        var command = new RoutedCommand("Save");
+        var parameter = new object();
+        var calls = new List<string>();
+        bool allowed = false;
+        root.CommandBindings.Add(new(command, (_, e) => {
+            Assert.Same(parameter, e.Parameter);
+            calls.Add("execute");
+            e.Handled = true;
+        }, (_, e) => { calls.Add("query"); e.CanExecute = allowed; }));
+        var button = root.Controls.Add(new Button { Command = command, CommandParameter = parameter });
+        button.Click += (_, _) => calls.Add("click");
+        using var surface = new SkiaControlSurface(root);
+        using var provider = WindowsUiaRootProvider.Create(new IntPtr(42),
+            ((IPlatformAccessibilityHost)surface).AccessibilityRoot!, new InlineDispatcher());
+        var action = Assert.IsType<WindowsUiaProvider>(provider.Navigate(NavigateDirection.FirstChild));
+        calls.Clear();
+
+        Assert.Equal(false, action.GetPropertyValue(WindowsUiaIds.IsEnabledProperty));
+        Assert.Throws<WindowsUiaElementNotEnabledException>(() => ((IInvokeProvider)action).Invoke());
+        Assert.Empty(calls);
+        allowed = true;
+        command.RaiseCanExecuteChanged();
+        calls.Clear();
+        Assert.Equal(true, action.GetPropertyValue(WindowsUiaIds.IsEnabledProperty));
+        Assert.Same(action, action.GetPatternProvider(WindowsUiaIds.InvokePattern));
+        ((IInvokeProvider)action).Invoke();
+        Assert.Equal(["query", "click", "query", "execute"], calls);
+
+        allowed = false;
+        command.RaiseCanExecuteChanged();
+        calls.Clear();
+        Assert.Equal(false, action.GetPropertyValue(WindowsUiaIds.IsEnabledProperty));
+        Assert.Throws<WindowsUiaElementNotEnabledException>(() => ((IInvokeProvider)action).Invoke());
+        Assert.Empty(calls);
+    }
+
     [Theory]
     [InlineData(0, 0)]
     [InlineData(StateChecked, 1)]

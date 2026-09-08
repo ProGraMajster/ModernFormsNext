@@ -49,7 +49,22 @@ internal sealed class InputBindingResolver
                     continue;
                 }
 
-                bool available = command.CanExecute(parameter);
+                // Gesture precedence ends here. Routed commands receive this input context, while
+                // ordinary ICommand retains the Phase 1/2 direct call and evaluation count.
+                CommandRouting.Invocation? invocation = null;
+                bool available;
+                if (command is RoutedCommand routed)
+                {
+                    var source = candidate.Collection.ControlScope;
+                    // A disposed control can retain Parent and stale native focus bookkeeping.
+                    // It is not an implicit routed target; explicit targets still fail closed.
+                    var target = binding.CommandTarget ??
+                        (focused is { IsDisposed: false, Disposing: false } ? focused : null) ?? source ?? root;
+                    invocation = CommandRouting.Prepare(routed, parameter, target, source, root);
+                    available = invocation is not null;
+                }
+                else
+                    available = command.CanExecute(parameter);
                 if (!candidate.IsCurrent(root) || !IsContextActive(root, window)) break;
                 if (!available)
                 {
@@ -62,7 +77,9 @@ internal sealed class InputBindingResolver
                 // change or self-removal must not let KeyUp activate another button afterwards.
                 (consumedKeys ??= []).Add(key);
                 e.SuppressKeyPress = true;
-                if (command is DelegateCommand delegated)
+                if (invocation is not null)
+                    invocation.Execute();
+                else if (command is DelegateCommand delegated)
                     delegated.ExecuteCore(parameter);
                 else
                     command.Execute(parameter);

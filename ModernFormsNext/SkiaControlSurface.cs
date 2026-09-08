@@ -790,6 +790,8 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
 
     private sealed class SurfaceRootControl : Control, IControlSurfaceAccessibilitySink
     {
+        internal override bool IsCommandRoutingRoot => true;
+
         public Action<IPlatformAccessibleObject, int, int, int>? AccessibilityNotification { get; set; }
 
         public void NotifyAccessibility(IPlatformAccessibleObject source, int eventId, int objectId, int childId)
