@@ -6,6 +6,32 @@ namespace ModernFormsNext.Testing.Tests;
 public sealed class AsyncCommandHostTests
 {
     [Fact]
+    public void PredicateReentrantStartCannotReplaceTheRunningInvocation()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var pending = new TaskCompletionSource();
+        AsyncCommand? command = null;
+        bool reenter = true;
+        int calls = 0;
+        command = new AsyncCommand(() => { calls++; return pending.Task; }, () =>
+        {
+            if (reenter) { reenter = false; command!.Execute(null); }
+            return true;
+        });
+        var rejected = command.ExecuteAsync();
+        try
+        {
+            Assert.Equal(1, calls);
+            Assert.True(rejected.IsCompletedSuccessfully);
+            Assert.NotSame(rejected, command.ExecutionTask);
+            Assert.True(command.IsExecuting);
+            Assert.False(command.CanExecute(null));
+        }
+        finally { Complete(() => pending.SetResult()); }
+        Assert.True(command.ExecutionTask!.IsCompletedSuccessfully);
+    }
+
+    [Fact]
     public void CancellationCallbackFailureStillRefreshesStateAndPreservesFailure()
     {
         using var host = ModernFormsTestHost.Create();

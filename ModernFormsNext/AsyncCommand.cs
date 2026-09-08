@@ -90,7 +90,11 @@ public sealed class AsyncCommand : ICommand
     public bool CanExecute(object? parameter)
     {
         VerifyAccess();
-        return !IsExecuting && (canExecute?.Invoke(parameter) ?? true);
+        if (IsExecuting) return false;
+        bool available = canExecute?.Invoke(parameter) ?? true;
+        // A predicate can start this command reentrantly. Never let its earlier availability
+        // result replace that running invocation or report an available source while it is busy.
+        return available && !IsExecuting;
     }
 
     /// <summary>Starts a supervised invocation for an ICommand source.</summary>
