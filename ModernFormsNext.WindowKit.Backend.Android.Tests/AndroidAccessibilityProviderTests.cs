@@ -309,6 +309,46 @@ public class AndroidAccessibilityProviderTests
     }
 
     [Fact]
+    public void RoutedCommandButtonInvokeUsesNormalActivationAndAvailabilityRecovery()
+    {
+        using var root = new Panel();
+        var command = new RoutedCommand("Save");
+        var parameter = new object();
+        var calls = new List<string>();
+        bool allowed = false;
+        root.CommandBindings.Add(new(command, (_, e) => {
+            Assert.Same(parameter, e.Parameter);
+            calls.Add("execute");
+            e.Handled = true;
+        }, (_, e) => { calls.Add("query"); e.CanExecute = allowed; }));
+        var button = root.Controls.Add(new Button { Command = command, CommandParameter = parameter });
+        button.Click += (_, _) => calls.Add("click");
+        using var surface = new SkiaControlSurface(root);
+        using var session = new AndroidAccessibilitySession(surface);
+        session.Attach();
+        var peer = Adapt(button.AccessibilityObject);
+        int id = session.Register(peer);
+        calls.Clear();
+
+        Assert.False(Read(peer).Enabled);
+        Assert.False(session.Perform(id, ActionClick, null, true));
+        Assert.Empty(calls);
+        allowed = true;
+        command.RaiseCanExecuteChanged();
+        calls.Clear();
+        Assert.True(Read(peer).Enabled);
+        Assert.True(session.Perform(id, ActionClick, null, true));
+        Assert.Equal(["query", "click", "query", "execute"], calls);
+
+        allowed = false;
+        command.RaiseCanExecuteChanged();
+        calls.Clear();
+        Assert.False(Read(peer).Enabled);
+        Assert.False(session.Perform(id, ActionClick, null, true));
+        Assert.Empty(calls);
+    }
+
+    [Fact]
     public void RealListBoxDuplicateOccurrencesHaveSeparateIdsAndSelectionWorks()
     {
         using var list = new ListBox { SelectionMode = SelectionMode.MultiSimple };
