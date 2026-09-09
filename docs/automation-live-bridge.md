@@ -244,6 +244,19 @@ wait/request, and the server releases the controlling slot after canonical clean
 may briefly report Busy while that cleanup completes. Client disconnect completion denotes local
 stream closure, not a remote acknowledgement of UI cleanup.
 
+The caller owns each client returned by `ConnectAsync` and should use `await using` or await
+`DisposeAsync`. Disconnect/disposal is idempotent and permanent for that object: subsequent
+requests report `SessionEnded`. Reconnection requires a new `ConnectAsync` call and a new client.
+After a process restart, discover a fresh descriptor; an old descriptor cannot select the new
+instance. A server-reported `OutcomeUnknown` can leave the connection usable, whereas loss of
+the response closes the client. Neither case authorizes replay: read current application state
+or use application-specific recovery before deciding on further mutations.
+
+Ordinary requests use the negotiated `MaxDeadlineMilliseconds`; the client allows two additional
+seconds for the response. Use a cancellation token for a shorter caller deadline. Wait options
+bound the semantic predicate independently and cannot extend the transport deadline. There is
+no automatic retry of a request, including after reconnect.
+
 Server shutdown cancels listeners, connections and waits, removes discovery/auth files, and waits
 for cleanup while retaining the borrowed core session. Clients see `SessionEnded` or
 `ApplicationUnavailable` if the connection disappears; mutations retain OutcomeUnknown when

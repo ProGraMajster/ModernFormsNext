@@ -13,6 +13,10 @@ namespace ModernFormsNext.Automation.Windows;
 /// queue is retained. Cancellation is sent as a separate control frame. A mutation whose response is
 /// lost returns OutcomeUnknown through AutomationTransportException and is never retried automatically.
 /// Dispose/disconnect ends only this client; the server and its borrowed semantic session remain alive.
+/// The caller owns the returned client and should await DisposeAsync. Disconnect is permanent for
+/// this object: later requests report SessionEnded. ConnectAsync always returns a new client.
+/// Connection loss closes this client. A server-reported OutcomeUnknown may leave it connected;
+/// either way, reconcile observed application state and never automatically replay the mutation.
 /// </remarks>
 public sealed class WindowsAutomationClient : IAsyncDisposable
 {
@@ -147,6 +151,7 @@ public sealed class WindowsAutomationClient : IAsyncDisposable
         => Protocol.Read<AutomationErrorCode>(await Call(RequestKind.Checkpoint, new(), cancellationToken).ConfigureAwait(false));
 
     /// <summary>Closes this connection and cancels its outstanding work without stopping the application server.</summary>
+    /// <remarks>Repeated calls are safe. This object cannot reconnect; use ConnectAsync to obtain a new client.</remarks>
     /// <returns>A task completed after the local stream closes; server-side wait cleanup follows EOF on its dispatcher.</returns>
     public async Task DisconnectAsync()
     {
