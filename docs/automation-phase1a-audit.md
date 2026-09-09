@@ -47,7 +47,8 @@ canonical children and discards temporary peer references before returning immut
 
 Traversal is depth-first preorder, child indices ascending, roots in registration order. Every
 visit/child attempt counts against a budget; a huge child count never allocates a matching array.
-Parent pointers are validated against the traversed edge, never recursively followed. Duplicate
+Parent pointers are validated against the traversed edge with bounded canonical parent-chain
+hops for omitted implementation peers (FormClientArea), never projected as additional nodes. Duplicate
 RuntimeId and repeated references are errors (RuntimeId is nonvirtual, so genuine duplicates
 require corrupt peers; tests may simulate corruption). Incomplete queries cannot certify unique
 matches or absence. Actions fail closed when reachability cannot be fully validated.
