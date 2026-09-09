@@ -64,7 +64,11 @@ public sealed class LifetimeTests
         await client.DisconnectAsync();
         var error = await Assert.ThrowsAsync<AutomationTransportException>(() => pending);
         Assert.Contains(error.Error, new[] { AutomationTransportError.SessionEnded, AutomationTransportError.ApplicationUnavailable });
+        await client.DisposeAsync(); await client.DisconnectAsync();
+        Assert.Equal(AutomationTransportError.SessionEnded,
+            (await Assert.ThrowsAsync<AutomationTransportException>(() => client.GetRootsAsync())).Error);
         await using var next = await Reconnect(host);
+        Assert.Equal(client.Info.SessionId, next.Info.SessionId);
         Assert.Equal(AutomationErrorCode.None, (await next.GetRootsAsync()).Error);
     }
 
@@ -93,14 +97,21 @@ public sealed class LifetimeTests
         Assert.False(File.Exists(AutomationDiscovery.DescriptorPath(host.Application!.InstanceId)));
     }
 
-    [Fact]
-    public async Task ActionWhichKillsProcessHasUnknownOutcomeAndIsNeverRetried()
+    [Theory]
+    [InlineData(AccessibleActions.Invoke)]
+    [InlineData(AccessibleActions.SetValue)]
+    public async Task ActionWhichKillsProcessHasUnknownOutcomeAndIsNeverRetried(AccessibleActions action)
     {
-        await using var host = await ProcessFixture.Start(); await using var client = await host.Connect();
-        var button = (await client.FindOneAsync(host.RootId, new() { AutomationId = "crash-action" })).Value!;
-        var error = await Assert.ThrowsAsync<AutomationTransportException>(() => client.PerformActionAsync(host.RootId, button.Handle, AccessibleActions.Invoke));
+        await using var host = await ProcessFixture.Start("--crash-setvalue"); await using var client = await host.Connect();
+        var target = (await client.FindOneAsync(host.RootId, new()
+        { AutomationId = action == AccessibleActions.Invoke ? "crash-action" : "crash-value" })).Value!;
+        var error = await Assert.ThrowsAsync<AutomationTransportException>(() => client.PerformActionAsync(host.RootId, target.Handle, action,
+            action == AccessibleActions.SetValue ? AutomationActionValue.FromText("UNKNOWN-OUTCOME-PRIVATE-97") : null));
         Assert.Equal(AutomationTransportError.OutcomeUnknown, error.Error);
         await host.Process.WaitForExitAsync(); Assert.Single(host.Output, x => x == "ACTION-ENTERED");
+        Assert.DoesNotContain("UNKNOWN-OUTCOME-PRIVATE-97", string.Join("", host.Output));
+        Assert.Equal(AutomationTransportError.SessionEnded,
+            (await Assert.ThrowsAsync<AutomationTransportException>(() => client.GetRootsAsync())).Error);
         await AutomationDiscovery.DiscoverAsync();
     }
 

@@ -128,6 +128,31 @@ public sealed class WaitTests
         Assert.Equal(AutomationErrorCode.CapabilityDenied, result.Error);
     }
 
+    [Fact]
+    public void AmbiguousQueryFailsWithoutChoosingATargetOrSubscribing()
+    {
+        using var f = new AutomationFixture();
+        f.Add(new Button { AccessibleAutomationId = "duplicate" });
+        f.Add(new Button { AccessibleAutomationId = "duplicate" });
+        var result = f.Session.WaitForConditionAsync(f.Root.RootId,
+            new() { Query = new() { AutomationId = "duplicate" } }).Completed();
+        Assert.Equal(AutomationWaitStatus.Failed, result.Status);
+        Assert.Equal(AutomationErrorCode.AmbiguousMatch, result.Error);
+        Assert.Null(result.Snapshot);
+        Assert.Null(typeof(AutomationSession).GetField("lifetimeChanged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(f.Session));
+    }
+
+    [Fact]
+    public void ZeroTimeoutStillChecksAbsenceWithoutSubscribing()
+    {
+        using var f = new AutomationFixture();
+        var result = f.Session.WaitForConditionAsync(f.Root.RootId,
+            new() { Query = new() { AutomationId = "absent" } }, new() { Timeout = TimeSpan.Zero }).Completed();
+        Assert.Equal(AutomationWaitStatus.TimedOut, result.Status);
+        Assert.Equal(AutomationErrorCode.None, result.Error);
+        Assert.Null(typeof(AutomationSession).GetField("lifetimeChanged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(f.Session));
+    }
+
     [Theory]
     [InlineData(-1)]
     [InlineData(60001)]

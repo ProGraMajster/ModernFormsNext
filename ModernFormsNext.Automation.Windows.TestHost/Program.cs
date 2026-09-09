@@ -30,6 +30,7 @@ if (args.Contains("--privacy"))
     form.Controls.Add(new PrivateControl());
     form.Controls.Add(new FaultControl());
 }
+if (args.Contains("--crash-setvalue")) form.Controls.Add(new CrashValueControl());
 AutomationSession? semantic = null; AutomationRootRegistration? root = null; AutomationRootRegistration? otherRoot = null;
 WindowsAutomationServer? server = null;
 form.Shown += (_, _) =>
@@ -120,5 +121,19 @@ internal sealed class FaultControl : Control
         public override AccessibleActions SupportedActions => AccessibleActions.SetValue;
         public override bool PerformAction(AccessibleActions action, object? parameter = null)
             => throw new InvalidOperationException("ACTION-MARKER-97:" + parameter);
+    }
+}
+
+// Proves a canonical SetValue can enter application code and lose its response without
+// exposing its parameter or relying on transport-specific failure injection.
+internal sealed class CrashValueControl : Control
+{
+    protected override AccessibleObject CreateAccessibilityInstance() => new Peer(this);
+    private sealed class Peer(Control owner) : ControlAccessibleObject(owner)
+    {
+        public override string? AutomationId => "crash-value";
+        public override AccessibleActions SupportedActions => AccessibleActions.SetValue;
+        public override bool PerformAction(AccessibleActions action, object? parameter = null)
+        { Console.WriteLine("ACTION-ENTERED"); Environment.Exit(97); return true; }
     }
 }

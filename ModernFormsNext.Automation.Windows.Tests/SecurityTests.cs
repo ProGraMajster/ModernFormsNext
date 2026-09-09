@@ -142,4 +142,33 @@ public sealed class SecurityTests
         Assert.Equal(AutomationTransportError.ApplicationUnavailable,
             (await Assert.ThrowsAsync<AutomationTransportException>(() => WindowsAutomationClient.ConnectAsync(stale))).Error);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MalformedDiscoveryCannotRedirectCleanupToAnotherFile(bool absolutePath)
+    {
+        await using var host = await ProcessFixture.Start();
+        string nonce = Guid.NewGuid().ToString("N");
+        var user = PipeSecurityPolicy.CurrentUser();
+        var counterfeit = host.Application! with { InstanceId = nonce, ProcessStartUtcTicks = "1",
+            EndpointName = AutomationDiscovery.Endpoint(host.Process.Id, nonce) };
+        AutomationDiscovery.Publish(counterfeit, new byte[32], user);
+        string target = AutomationDiscovery.DescriptorPath(host.Application.InstanceId);
+        string before = await File.ReadAllTextAsync(target);
+        try
+        {
+            string injected = absolutePath ? target : "../v1/" + host.Application.InstanceId;
+            await File.WriteAllTextAsync(AutomationDiscovery.DescriptorPath(nonce),
+                System.Text.Json.JsonSerializer.Serialize(counterfeit with { InstanceId = injected, EndpointName = target }, Protocol.Json));
+            Assert.DoesNotContain(await AutomationDiscovery.DiscoverAsync(), app => app.InstanceId == nonce);
+            AutomationDiscovery.Remove(injected);
+            Assert.Equal(before, await File.ReadAllTextAsync(target));
+            Assert.True(File.Exists(AutomationDiscovery.AuthPath(host.Application.InstanceId)));
+            Assert.True(File.Exists(AutomationDiscovery.DescriptorPath(nonce)));
+            await using var client = await host.Connect();
+            Assert.Equal(AutomationErrorCode.None, (await client.GetRootsAsync()).Error);
+        }
+        finally { AutomationDiscovery.Remove(nonce); }
+    }
 }
