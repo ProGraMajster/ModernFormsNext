@@ -23,6 +23,7 @@ if ([string]::IsNullOrWhiteSpace($ExpectedVersion)) {
 $packageSpecs = @(
     [pscustomobject]@{ Id = "ModernFormsNext"; Frameworks = @("net10.0", "net10.0-windows"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Automation"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
+    [pscustomobject]@{ Id = "ModernFormsNext.Automation.Windows"; Frameworks = @("net10.0-windows"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.CodeGeneration"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Designer"; Frameworks = @("net10.0-windows"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Designing"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
@@ -172,6 +173,9 @@ function Assert-PackageArchive {
             $dependencyVersion = $dependency.GetAttribute('version')
             if ($Spec.Id -ceq 'ModernFormsNext.Automation' -and $dependencyId -cne 'ModernFormsNext') {
                 throw "Automation must depend only on the neutral ModernFormsNext core; found '$dependencyId'."
+            }
+            if ($Spec.Id -ceq 'ModernFormsNext.Automation.Windows' -and $dependencyId -cne 'ModernFormsNext.Automation') {
+                throw "Automation.Windows must depend only on Automation; found '$dependencyId'."
             }
             if ($dependencyId -ceq 'Microsoft.VisualStudio.SDK' -or ($dependencyId -ceq 'MessagePack' -and $dependencyVersion -match '2\.5\.192')) {
                 throw "Package '$Path' contains forbidden dependency '$dependencyId' version '$dependencyVersion'."

@@ -7,6 +7,9 @@ The runtime package depends only on the platform-neutral ModernFormsNext target,
 Windows/Android backends or MCP. Existing application startup and accessibility behavior remain
 unchanged when this package is omitted.
 
+Phase 1b adds neutral live waits and a dispatcher checkpoint to this core, plus a separately
+referenced [Windows live bridge](automation-live-bridge.md) for external clients.
+
 This is an in-process API. It opens no endpoint, enumerates no processes, and implements no
 discovery, authentication, IPC, CLI, event stream or MCP adapter. The whole #97
 issue remains open. A session ID identifies a semantic lifetime; it is **not an authentication

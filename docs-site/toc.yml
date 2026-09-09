@@ -22,6 +22,8 @@
   href: content/docs/commands.md
 - name: In-process semantic automation
   href: content/docs/automation.md
+- name: Windows live automation bridge
+  href: content/docs/automation-live-bridge.md
 - name: Accessibility semantic model
   href: content/docs/accessibility/semantic-model.md
 - name: Android accessibility backend
