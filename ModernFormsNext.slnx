@@ -14,6 +14,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="ModernFormsNext.Automation.Tests/ModernFormsNext.Automation.Tests.csproj" />
+    <Project Path="ModernFormsNext.Automation.Windows.TestHost/ModernFormsNext.Automation.Windows.TestHost.csproj" />
+    <Project Path="ModernFormsNext.Automation.Windows.Tests/ModernFormsNext.Automation.Windows.Tests.csproj" />
     <Project Path="ModernFormsNext.CrossPlatform.Sample.Tests/ModernFormsNext.CrossPlatform.Sample.Tests.csproj" />
     <Project Path="ModernFormsNext.Designer.Tests/ModernFormsNext.Designer.Tests.csproj" />
     <Project Path="ModernFormsNext.Testing.Tests/ModernFormsNext.Testing.Tests.csproj" />
@@ -25,6 +27,7 @@
     <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="ModernFormsNext.Automation.Windows/ModernFormsNext.Automation.Windows.csproj" />
     <Project Path="ModernFormsNext.Automation/ModernFormsNext.Automation.csproj" />
     <Project Path="ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj" />
     <Project Path="ModernFormsNext.Designer/ModernFormsNext.Designer.csproj" />

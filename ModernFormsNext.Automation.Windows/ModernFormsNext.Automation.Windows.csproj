@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>ModernFormsNext.Automation.Windows</PackageId>
+    <Title>ModernFormsNext Windows Automation</Title>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Product>ModernFormsNext.Automation.Windows</Product>
+    <Description>Explicitly enabled local Windows development automation over the canonical ModernFormsNext semantic core.</Description>
+    <PackageTags>ui;automation;windows;named-pipes;development;modernforms</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <ProjectReference Include="..\ModernFormsNext.Automation\ModernFormsNext.Automation.csproj" />
+    <InternalsVisibleTo Include="ModernFormsNext.Automation.Windows.Tests" />
+  </ItemGroup>
+</Project>
