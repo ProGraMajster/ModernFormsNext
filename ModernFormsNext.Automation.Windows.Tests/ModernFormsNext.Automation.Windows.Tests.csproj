@@ -13,5 +13,6 @@
     <PackageReference Include="coverlet.collector" Version="6.0.0"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="..\ModernFormsNext.Automation.Windows\ModernFormsNext.Automation.Windows.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Automation.Windows.TestHost\ModernFormsNext.Automation.Windows.TestHost.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\ModernFormsNext.Automation.Cli\ModernFormsNext.Automation.Cli.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

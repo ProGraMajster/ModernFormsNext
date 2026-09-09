@@ -27,6 +27,7 @@
     <Project Path="ModernFormsNext.Tests/ModernFormsNext.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="ModernFormsNext.Automation.Cli/ModernFormsNext.Automation.Cli.csproj" />
     <Project Path="ModernFormsNext.Automation.Windows/ModernFormsNext.Automation.Windows.csproj" />
     <Project Path="ModernFormsNext.Automation/ModernFormsNext.Automation.csproj" />
     <Project Path="ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj" />
