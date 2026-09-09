@@ -260,4 +260,43 @@ public sealed class QueryTests
         Assert.Contains("\"Value\":[]", System.Text.Json.JsonSerializer.Serialize(roots));
     }
 
+    [Fact]
+    public void FormClientAreaIsValidatedButNeverProjected()
+    {
+        using var f = new AutomationFixture(); var b = f.Add(new Button());
+        var canonicalParent = b.AccessibilityObject.Parent!;
+        Assert.NotSame(f.Form.AccessibilityObject, canonicalParent);
+        Assert.Same(f.Form.AccessibilityObject, canonicalParent.Parent);
+        var result = f.Find(new());
+        Assert.Equal(AutomationErrorCode.None, result.Error);
+        Assert.DoesNotContain(result.Value, n => n.RuntimeId == canonicalParent.RuntimeId.ToString());
+        Assert.Equal(f.Handle(f.Form.AccessibilityObject).RuntimeId,
+            Assert.Single(result.Value, n => n.Handle == f.Handle(b)).ParentRuntimeId);
+    }
+
+    [Theory]
+    [InlineData("detached", AutomationErrorCode.MalformedTree)]
+    [InlineData("cycle", AutomationErrorCode.CycleDetected)]
+    [InlineData("depth", AutomationErrorCode.LimitExceeded)]
+    public void OmittedParentChainsMustReachTraversedParentWithinBudget(string kind, AutomationErrorCode expected)
+    {
+        using var f = new AutomationFixture(new() { MaxDepth = 4 }); var c = f.Add(new SemanticControl());
+        _ = c.AccessibilityObject;
+        var omitted = new ScriptPeer(); c.Child.ParentValue = omitted;
+        if (kind == "cycle") omitted.ParentValue = c.Child;
+        if (kind == "depth")
+        {
+            var current = omitted;
+            for (int i = 0; i < 6; i++) { var next = new ScriptPeer(); current.ParentValue = next; current = next; }
+            current.ParentValue = c.AccessibilityObject;
+        }
+        var result = f.Find(new());
+        Assert.Contains(result.Issues, i => i.Code == expected && i.Property == AutomationProperty.Parent);
+        Assert.DoesNotContain(result.Value, n => n.Handle == f.Handle(c.Child));
+        int actions = 0; c.Child.Action = (_, _) => { actions++; return true; };
+        Assert.NotEqual(AutomationActionStatus.Accepted,
+            f.Session.PerformActionAsync(f.Root.RootId, f.Handle(c.Child), AccessibleActions.Invoke).Completed().Status);
+        Assert.Equal(0, actions);
+    }
+
 }
