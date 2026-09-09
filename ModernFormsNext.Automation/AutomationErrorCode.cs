@@ -19,7 +19,7 @@ public enum AutomationErrorCode
     ActionRejected,
     /// <summary>The request has an invalid type, value, range, scope, or flag combination.</summary>
     InvalidArgument,
-    /// <summary>A canonical action threw; its private exception data is not returned.</summary>
+    /// <summary>A live operation or dispatcher call failed; private exception data is not returned.</summary>
     ApplicationError,
     /// <summary>The semantic session has stopped.</summary>
     SessionEnded,
@@ -31,7 +31,7 @@ public enum AutomationErrorCode
     GetterFault,
     /// <summary>A child, parent edge, or child count violates the canonical tree contract.</summary>
     MalformedTree,
-    /// <summary>A child edge points back to an ancestor.</summary>
+    /// <summary>A child edge or parent chain contains a cycle.</summary>
     CycleDetected,
     /// <summary>A runtime ID or canonical object occurs more than once in a root traversal.</summary>
     DuplicateRuntimeId

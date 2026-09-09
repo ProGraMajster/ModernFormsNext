@@ -64,6 +64,23 @@ on unregister/stop. There are no semantic-change subscriptions in Phase 1a. Stop
 invalidates every handle. `Stop`, `Dispose`, `RegisterRoot`, and registration `IsRegistered`/`Dispose`
 are UI-thread-affine. `StopAsync` marshals cleanup for a background caller.
 
+One session captures one `WindowKit.Threading.Dispatcher.UIThread` for its entire lifetime.
+Current Windows windows and windowless surfaces use that application dispatcher, so multiple roots
+do not require multiple dispatchers. Initialization is an application precondition: `VerifyAccess`
+checks thread access, not whether a real backend was initialized. Do not construct the session
+before platform startup or carry it across replacement/shutdown of its dispatcher. A future live
+server can call the async methods from its own I/O threads without owning a UI dispatcher.
+
+The Android backend also has a separate `IPlatformDispatcher` service. Phase 1a does not adapt that
+service or claim Android-host automation parity. A future Android bridge must verify scheduling
+and activity/surface lifetime explicitly; registering a surface alone is not proof of that integration.
+No speculative dispatcher-injection or multiple-dispatcher API is introduced here.
+
+A background `StopAsync` request takes effect when its queued cleanup executes. It cannot interrupt
+the current synchronous getter or action. Once cleanup has executed, queued operations cannot act.
+Cancellation is checked before/after returning capture getters and immediately before dispatching
+an action. A cancellation request does not undo already executed application work.
+
 ## Identity, scope and lifetime
 
 Every session gets a random nonce independent of PID. An `AutomationNodeHandle` contains exactly
@@ -75,6 +92,12 @@ Each operation also requires the root registration ID. There is no cross-root or
 fallback. Re-registering the same window produces a new root ID, while its canonical peer may keep
 the same runtime ID. `AutomationId` is an exact ordinal locator, may fall back to Control.Name,
 may be null for logical items, and may match multiple nodes.
+
+The pair `root.RootId` and `snapshot.Handle` is the required operation scope. The snapshot/root
+descriptor already carries both, so clients need not infer IDs. Keeping registration scope separate
+from canonical identity lets the same peer participate in independently permitted registrations;
+neither a composite handle nor a second identity counter is needed. Transport adapters may wrap
+these existing values in a request envelope without changing semantic identity.
 
 Every query/action re-traverses the allowed active canonical tree. Temporary peer/edge maps exist
 only during that UI operation. They are discarded before DTOs leave the dispatcher; there is no
@@ -168,6 +191,10 @@ It suppresses Value, RangeValue, Name and AutomationId for sensitive nodes and t
 including untrusted custom peers. Payload getters are skipped when privacy is already sensitive
 or unknown. Failed privacy/state getters cause conservative redaction. Privacy is rechecked during
 capture; an escalation discards already captured payload.
+
+`PrivacyUnknown` specifically means a failing privacy/state getter. An ordinary custom
+`AccessibleObject` inherits `IsSensitive == false` and remains queryable without an extra marker.
+Fault tracking remains effective even after the bounded diagnostic collection fills up.
 
 This conservative policy intentionally omits even labels/locators on a password node. An application
 can address such a node by a known runtime handle or an unambiguous type/state query, for example

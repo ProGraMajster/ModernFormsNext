@@ -11,6 +11,8 @@ namespace ModernFormsNext.Automation;
 /// captured production dispatcher. Await them; do not block the UI thread on queued operations.
 /// This package starts no listener and provides no transport authentication. Omit it from applications
 /// that do not need development automation. Dispose the session before shutting down its dispatcher.
+/// The application must initialize that dispatcher before construction; VerifyAccess checks thread
+/// access, not backend readiness. All roots in a session must belong to that same dispatcher.
 /// </remarks>
 /// <example><code>
 /// using var automation = new AutomationSession();
@@ -29,7 +31,7 @@ public sealed partial class AutomationSession : IDisposable
     /// <summary>Creates a new session on the current production UI dispatcher.</summary>
     /// <param name="capabilities">Explicitly allowed operations; unknown flags are rejected.</param>
     /// <param name="limits">Immutable limits applying to every traversal; null selects bounded defaults.</param>
-    /// <exception cref="InvalidOperationException">The caller is not on the initialized UI dispatcher.</exception>
+    /// <exception cref="InvalidOperationException">The caller is not on the captured UI dispatcher.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Capabilities or limits are invalid.</exception>
     public AutomationSession(AutomationCapability capabilities = AllCapabilities, AutomationQueryOptions? limits = null)
     {
@@ -54,6 +56,8 @@ public sealed partial class AutomationSession : IDisposable
     /// <param name="root">The live window explicitly allowed for automation; it may be registered before Show.</param>
     /// <param name="capabilities">The requested root policy, intersected with session capabilities.</param>
     /// <returns>A disposable registration that never owns or closes the window.</returns>
+    /// <exception cref="ArgumentNullException">The root is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Capabilities contain unknown flags.</exception>
     /// <exception cref="ObjectDisposedException">The session or window has ended.</exception>
     /// <exception cref="InvalidOperationException">The root is already registered or the caller is not on the UI thread.</exception>
     public AutomationRootRegistration RegisterRoot(WindowBase root, AutomationCapability capabilities = AllCapabilities)
@@ -69,6 +73,8 @@ public sealed partial class AutomationSession : IDisposable
     /// <param name="root">The live surface. Its canonical Root remains the only semantic source.</param>
     /// <param name="capabilities">The requested root policy, intersected with session capabilities.</param>
     /// <returns>A disposable registration; surface/root disposal is checked on each live operation.</returns>
+    /// <exception cref="ArgumentNullException">The root is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Capabilities contain unknown flags.</exception>
     /// <exception cref="ObjectDisposedException">The session, surface or root has ended.</exception>
     /// <exception cref="InvalidOperationException">The surface is already registered or the caller is not on the UI thread.</exception>
     public AutomationRootRegistration RegisterRoot(SkiaControlSurface root, AutomationCapability capabilities = AllCapabilities)
@@ -92,6 +98,7 @@ public sealed partial class AutomationSession : IDisposable
 
     /// <summary>Marshals session cleanup to its production UI dispatcher.</summary>
     /// <returns>A task completed after subscriptions are removed and every handle is invalidated.</returns>
+    /// <remarks>A background request is queued. It does not preempt a running getter or action; session end occurs when cleanup executes.</remarks>
     public Task StopAsync()
     {
         if (stopped) return Task.CompletedTask;

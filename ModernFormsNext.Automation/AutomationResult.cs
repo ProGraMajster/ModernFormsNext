@@ -13,7 +13,7 @@ public sealed class AutomationResult<T>
         Value = value; Error = error; CaptureId = captureId; Truncated = truncated;
         Issues = issues.IsDefault ? [] : issues;
     }
-    /// <summary>Gets detached captured data; absent when an operation could not produce a value.</summary>
+    /// <summary>Gets detached captured data; failures without data return null for a single DTO or an initialized empty immutable array.</summary>
     public T? Value { get; }
     /// <summary>Gets the primary result code; None means complete capture without faults.</summary>
     public AutomationErrorCode Error { get; }
