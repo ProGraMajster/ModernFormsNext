@@ -11,6 +11,7 @@ public sealed class ReleaseVersionConsistencyTests
     [
         "ModernFormsNext/ModernFormsNext.csproj",
         "ModernFormsNext.Automation/ModernFormsNext.Automation.csproj",
+        "ModernFormsNext.Automation.Windows/ModernFormsNext.Automation.Windows.csproj",
         "ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj",
         "ModernFormsNext.Designer/ModernFormsNext.Designer.csproj",
         "ModernFormsNext.Designing/ModernFormsNext.Designing.csproj",

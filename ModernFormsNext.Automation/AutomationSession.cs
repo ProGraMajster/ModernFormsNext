@@ -94,6 +94,7 @@ public sealed partial class AutomationSession : IDisposable
         stopped = true;
         foreach (var root in roots) root.Detach();
         roots.Clear();
+        lifetimeChanged?.Invoke();
     }
 
     /// <summary>Marshals session cleanup to its production UI dispatcher.</summary>
@@ -110,7 +111,11 @@ public sealed partial class AutomationSession : IDisposable
     public void Dispose() => Stop();
 
     internal void VerifyAccess() => dispatcher.VerifyAccess();
-    internal void Remove(AutomationRootRegistration root) { root.Detach(); roots.Remove(root); }
+    internal void Remove(AutomationRootRegistration root)
+    {
+        root.Detach();
+        if (roots.Remove(root)) lifetimeChanged?.Invoke();
+    }
     internal bool IsLive(AutomationRootRegistration root)
     {
         if (root.IsAlive) return true;
