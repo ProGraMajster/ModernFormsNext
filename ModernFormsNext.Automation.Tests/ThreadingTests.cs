@@ -73,4 +73,86 @@ public sealed class ThreadingTests
         CompletedTaskAssertions.Worker(() => failure = Record.Exception(() => f.Session.RegisterRoot(f.Form)));
         Assert.IsType<InvalidOperationException>(failure);
     }
+
+    [Fact]
+    public void StopBeforeQueuedQueryPreventsSemanticReads()
+    {
+        using var f = new AutomationFixture(); var c = f.Add(new SemanticControl());
+        int reads = 0; c.Child.NameGetter = () => { reads++; return "child"; };
+        Task<AutomationResult<AutomationNodeSnapshot>>? pending = null;
+        CompletedTaskAssertions.Worker(() => pending = f.Session.FindOneAsync(f.Root.RootId, new()));
+        f.Session.Stop(); f.Host.Dispatcher.Drain();
+        Assert.Equal(AutomationErrorCode.SessionEnded, CompletedTaskAssertions.Finish(pending!).Error);
+        Assert.Equal(0, reads);
+    }
+
+    [Theory]
+    [InlineData("close")]
+    [InlineData("dispose")]
+    [InlineData("unregister")]
+    public void EndingRootBeforeQueuedActionPreventsMutation(string end)
+    {
+        using var f = new AutomationFixture(); var b = f.Add(new Button());
+        int clicks = 0; b.Click += (_, _) => clicks++;
+        var handle = f.Handle(b); Task<AutomationActionResult>? pending = null;
+        CompletedTaskAssertions.Worker(() => pending = f.Session.PerformActionAsync(f.Root.RootId, handle, AccessibleActions.Invoke));
+        if (end == "close") f.Form.Close(); else if (end == "dispose") f.Form.Dispose(); else f.Root.Dispose();
+        f.Host.Dispatcher.Drain();
+        Assert.Equal(AutomationErrorCode.StaleNode, CompletedTaskAssertions.Finish(pending!).Error);
+        Assert.Equal(0, clicks);
+    }
+
+    [Fact]
+    public void BackgroundStopDuringGetterCompletesAfterCurrentDispatcherTurn()
+    {
+        using var f = new AutomationFixture(); var c = f.Add(new SemanticControl());
+        Task? stopped = null;
+        c.Child.NameGetter = () =>
+        {
+            CompletedTaskAssertions.Worker(() => stopped = f.Session.StopAsync());
+            Assert.False(stopped!.IsCompleted); Assert.False(f.Session.IsStopped);
+            return "child";
+        };
+        Assert.Equal(AutomationErrorCode.None, f.Session.FindOneAsync(f.Root.RootId, new() { Name = "child" }).Completed().Error);
+        f.Host.Dispatcher.Drain();
+        Assert.True(stopped!.IsCompletedSuccessfully); Assert.True(f.Session.IsStopped);
+        Assert.False(f.Root.IsRegistered);
+    }
+
+    [Fact]
+    public void CancellationAndStopBeforeQueuedActionNeverMutate()
+    {
+        using var f = new AutomationFixture(); var b = f.Add(new Button());
+        int clicks = 0; b.Click += (_, _) => clicks++;
+        using var cancellation = new CancellationTokenSource();
+        var handle = f.Handle(b); Task<AutomationActionResult>? pending = null;
+        CompletedTaskAssertions.Worker(() => pending = f.Session.PerformActionAsync(f.Root.RootId, handle, AccessibleActions.Invoke, cancellationToken: cancellation.Token));
+        cancellation.Cancel(); f.Session.Stop(); f.Session.Dispose(); f.Host.Dispatcher.Drain();
+        Assert.ThrowsAny<OperationCanceledException>(() => CompletedTaskAssertions.Finish(pending!));
+        Assert.Equal(0, clicks); Assert.True(f.Session.IsStopped);
+    }
+
+    [Fact]
+    public void CancellationDuringGetterStopsBeforeNextPayloadRead()
+    {
+        using var f = new AutomationFixture(); var c = f.Add(new SemanticControl());
+        using var cancellation = new CancellationTokenSource(); int valueReads = 0;
+        c.Child.NameGetter = () => { cancellation.Cancel(); return "child"; };
+        c.Child.ValueGetter = () => { valueReads++; return "value"; };
+        var pending = f.Session.InspectAsync(f.Root.RootId, f.Handle(c.Child), cancellation.Token);
+        Assert.ThrowsAny<OperationCanceledException>(() => CompletedTaskAssertions.Finish(pending));
+        Assert.Equal(0, valueReads);
+    }
+
+    [Fact]
+    public void CancellationDuringFinalActionGetterPreventsMutation()
+    {
+        using var f = new AutomationFixture(); var c = f.Add(new SemanticControl());
+        using var cancellation = new CancellationTokenSource(); int actions = 0, reads = 0;
+        c.Child.ActionsGetter = () => { if (++reads == 2) cancellation.Cancel(); return AccessibleActions.Invoke; };
+        c.Child.Action = (_, _) => { actions++; return true; };
+        var pending = f.Session.PerformActionAsync(f.Root.RootId, f.Handle(c.Child), AccessibleActions.Invoke, cancellationToken: cancellation.Token);
+        Assert.ThrowsAny<OperationCanceledException>(() => CompletedTaskAssertions.Finish(pending));
+        Assert.Equal(0, actions);
+    }
 }

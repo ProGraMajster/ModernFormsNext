@@ -101,6 +101,8 @@ public sealed partial class AutomationSession
         if ((peer.SupportedActions & action) == 0) return ActionResult(AutomationErrorCode.ActionUnsupported);
         if (stopped) return ActionResult(AutomationErrorCode.SessionEnded);
         if (!root!.IsRegistered) return ActionResult(AutomationErrorCode.StaleNode);
+        // The last state/action getter may itself request cancellation.
+        token.ThrowIfCancellationRequested();
         return peer.PerformAction(action, parameter)
             ? new(AutomationActionStatus.Accepted, AutomationErrorCode.None)
             : ActionResult(AutomationErrorCode.ActionRejected);

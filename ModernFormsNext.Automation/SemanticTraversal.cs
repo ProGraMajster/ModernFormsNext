@@ -12,6 +12,7 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
     private readonly HashSet<AccessibleObject> seen = new(ReferenceEqualityComparer.Instance);
     private readonly List<AutomationIssue> issues = [];
     private int attempts;
+    private long getterFaults;
     internal List<Entry> Entries { get; } = [];
     internal bool Truncated { get; private set; }
     internal AutomationErrorCode Error => issues.Count > 0 ? issues[0].Code
@@ -79,21 +80,21 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
 
         // Read privacy first, fail closed, and propagate it to custom descendants. Payload
         // getters are never called for a sensitive node or an unknown privacy classification.
-        int before = issues.Count;
+        long before = getterFaults;
         bool sensitive = Read(entry, AutomationProperty.IsSensitive, () => peer.IsSensitive, true);
         // A custom ControlAccessibleObject must not be able to negate its known password owner
         // merely by overriding IsSensitive/State. Unknown custom owners still use the canonical markers.
         sensitive |= peer is Control.ControlAccessibleObject { Owner: TextBox { PasswordCharacter: not null } };
         entry.States = Read(entry, AutomationProperty.States, () => peer.State, AccessibleStates.Unavailable);
         entry.Redaction = parent?.Redaction ?? AutomationRedaction.None;
-        if (issues.Count != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+        if (getterFaults != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
         if (sensitive || (entry.States & AccessibleStates.Protected) != 0) entry.Redaction |= AutomationRedaction.Sensitive;
         var view = Read(entry, AutomationProperty.View, () => peer.View, AccessibilityView.Hidden);
         if (view == AccessibilityView.Hidden || (entry.States & AccessibleStates.Invisible) != 0) return null;
 
-        before = issues.Count;
+        before = getterFaults;
         entry.ActualParent = Read(entry, AutomationProperty.Parent, () => peer.Parent, null);
-        if (issues.Count != before) return null;
+        if (getterFaults != before) return null;
         if (parent is not null && !ValidateParent(entry, parent)) return null;
         byId.Add(peer.RuntimeId, entry);
         Entries.Add(entry);
@@ -162,11 +163,11 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
 
     private void RefreshPrivacy(Entry entry)
     {
-        int before = issues.Count;
+        long before = getterFaults;
         bool sensitive = Read(entry, AutomationProperty.IsSensitive, () => entry.Peer.IsSensitive, true);
         var state = Read(entry, AutomationProperty.States, () => entry.Peer.State, AccessibleStates.Unavailable);
         entry.Redaction |= entry.Parent?.Redaction ?? AutomationRedaction.None;
-        if (issues.Count != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+        if (getterFaults != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
         if (sensitive || (state & AccessibleStates.Protected) != 0
             || entry.Peer is Control.ControlAccessibleObject { Owner: TextBox { PasswordCharacter: not null } })
             entry.Redaction |= AutomationRedaction.Sensitive;
@@ -181,12 +182,21 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
 
     internal T Read<T>(Entry entry, AutomationProperty property, Func<T> getter, T fallback)
     {
-        try { return getter(); }
+        token.ThrowIfCancellationRequested();
+        T value;
+        try { value = getter(); }
         catch (Exception)
         {
+            // Fault detection must survive a full diagnostic budget, especially for privacy.
+            // The bounded exported issue collection cannot serve as a success/failure counter.
+            getterFaults++;
             Add(AutomationErrorCode.GetterFault, entry, property);
-            return fallback;
+            value = fallback;
         }
+        // Cancellation is cooperative: observe it after a returning getter, outside the catch
+        // that sanitizes application failures, before invoking another application callback.
+        token.ThrowIfCancellationRequested();
+        return value;
     }
 
     internal void Limit(Entry? entry = null, AutomationProperty property = AutomationProperty.Node)

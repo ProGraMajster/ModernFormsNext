@@ -168,6 +168,25 @@ public sealed class PrivacyTests
     }
 
     private static void NoSecret<T>(T value) => Assert.DoesNotContain(Secret, JsonSerializer.Serialize(value), StringComparison.Ordinal);
+
+    [Fact]
+    public void PrivacyFailureStillRedactsWhenDiagnosticBudgetIsFull()
+    {
+        using var f = new AutomationFixture(new() { MaxNodes = 4 });
+        var c = f.Add(new SemanticControl());
+        int stateReads = 0;
+        c.Child.StateGetter = () => ++stateReads >= 3 ? throw new Exception(Secret) : AccessibleStates.None;
+        c.Child.AutomationId = Secret;
+        c.Child.NameGetter = () => throw new Exception(Secret);
+        c.Child.ValueGetter = () => throw new Exception(Secret);
+        c.Child.RangeGetter = () => throw new Exception(Secret);
+        c.Child.ActionsGetter = () => throw new Exception(Secret);
+        var result = f.Session.InspectAsync(f.Root.RootId, f.Handle(c.Child)).Completed();
+        Assert.Equal(4, result.Issues.Length);
+        Assert.True(result.Truncated);
+        Assert.True((result.Value!.Redaction & AutomationRedaction.PrivacyUnknown) != 0);
+        Assert.False(JsonSerializer.Serialize(result).Contains(Secret, StringComparison.Ordinal));
+    }
     private sealed class HostileParameter
     {
         internal int StringCalls;
