@@ -81,6 +81,9 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
         // getters are never called for a sensitive node or an unknown privacy classification.
         int before = issues.Count;
         bool sensitive = Read(entry, AutomationProperty.IsSensitive, () => peer.IsSensitive, true);
+        // A custom ControlAccessibleObject must not be able to negate its known password owner
+        // merely by overriding IsSensitive/State. Unknown custom owners still use the canonical markers.
+        sensitive |= peer is Control.ControlAccessibleObject { Owner: TextBox { PasswordCharacter: not null } };
         entry.States = Read(entry, AutomationProperty.States, () => peer.State, AccessibleStates.Unavailable);
         entry.Redaction = parent?.Redaction ?? AutomationRedaction.None;
         if (issues.Count != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
@@ -91,16 +94,33 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
         before = issues.Count;
         entry.ActualParent = Read(entry, AutomationProperty.Parent, () => peer.Parent, null);
         if (issues.Count != before) return null;
-        if (parent is not null && !ReferenceEquals(entry.ActualParent, parent.Peer))
-        {
-            Add(ReferenceEquals(entry.ActualParent, peer) ? AutomationErrorCode.CycleDetected : AutomationErrorCode.MalformedTree,
-                entry, AutomationProperty.Parent);
-            return null;
-        }
+        if (parent is not null && !ValidateParent(entry, parent)) return null;
         byId.Add(peer.RuntimeId, entry);
         Entries.Add(entry);
         parent?.Children.Add(entry);
         return entry;
+    }
+
+    private bool ValidateParent(Entry entry, Entry expected)
+    {
+        // Canonical Form children intentionally omit FormClientArea although their Parent points
+        // through that implementation peer. Validate the bounded canonical parent chain without
+        // projecting these omitted peers or enumerating a second control/visual tree.
+        var parents = new HashSet<AccessibleObject>(ReferenceEqualityComparer.Instance) { entry.Peer };
+        var current = entry.ActualParent;
+        int depth = 0;
+        while (current is not null)
+        {
+            if (!parents.Add(current)) { Add(AutomationErrorCode.CycleDetected, entry, AutomationProperty.Parent); return false; }
+            if (ReferenceEquals(current, expected.Peer)) return true;
+            if (++depth > limits.MaxDepth || attempts >= limits.MaxNodes) { Limit(entry, AutomationProperty.Parent); return false; }
+            attempts++;
+            token.ThrowIfCancellationRequested();
+            var next = current;
+            current = Read(entry, AutomationProperty.Parent, () => next.Parent, null);
+        }
+        Add(AutomationErrorCode.MalformedTree, entry, AutomationProperty.Parent);
+        return false;
     }
 
     private void Push(Entry entry, Stack<Frame> stack)
@@ -117,6 +137,7 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
     {
         token.ThrowIfCancellationRequested();
         var peer = entry.Peer;
+        RefreshPrivacy(entry);
         string? automationId = null, name = null, value = null;
         AccessibleRangeValue? range = null;
         if (entry.Redaction == AutomationRedaction.None)
@@ -130,9 +151,25 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
         var type = Read(entry, AutomationProperty.ControlType, () => peer.ControlType, AccessibleControlType.Custom);
         var actions = Read(entry, AutomationProperty.SupportedActions, () => peer.SupportedActions, AccessibleActions.None);
         var bounds = Read(entry, AutomationProperty.Bounds, () => peer.Bounds, System.Drawing.Rectangle.Empty);
+        // A getter can reenter application code. Discard captured payload if privacy became
+        // sensitive/unknown during capture instead of returning a value classified earlier.
+        RefreshPrivacy(entry);
+        if (entry.Redaction != AutomationRedaction.None) { automationId = null; name = null; value = null; range = null; }
         return new(new(sessionId, entry.Id), rootId, automationId, name, role, type, entry.States,
             actions, value, range, new(bounds.X, bounds.Y, bounds.Width, bounds.Height, coordinates),
             entry.Parent?.Id, entry.Children.Select(child => child.Id).ToImmutableArray(), entry.Redaction, captureId, entry.Truncated);
+    }
+
+    private void RefreshPrivacy(Entry entry)
+    {
+        int before = issues.Count;
+        bool sensitive = Read(entry, AutomationProperty.IsSensitive, () => entry.Peer.IsSensitive, true);
+        var state = Read(entry, AutomationProperty.States, () => entry.Peer.State, AccessibleStates.Unavailable);
+        entry.Redaction |= entry.Parent?.Redaction ?? AutomationRedaction.None;
+        if (issues.Count != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+        if (sensitive || (state & AccessibleStates.Protected) != 0
+            || entry.Peer is Control.ControlAccessibleObject { Owner: TextBox { PasswordCharacter: not null } })
+            entry.Redaction |= AutomationRedaction.Sensitive;
     }
 
     private string? Text(Entry entry, AutomationProperty property, Func<string?> getter)

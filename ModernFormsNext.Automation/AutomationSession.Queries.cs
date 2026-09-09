@@ -10,21 +10,29 @@ public sealed partial class AutomationSession
     public Task<AutomationResult<ImmutableArray<AutomationRootInfo>>> GetRootsAsync(CancellationToken cancellationToken = default)
         => Dispatch(captureId =>
         {
-            if (stopped) return new AutomationResult<ImmutableArray<AutomationRootInfo>>(default, AutomationErrorCode.SessionEnded, captureId);
+            if (stopped) return new AutomationResult<ImmutableArray<AutomationRootInfo>>([], AutomationErrorCode.SessionEnded, captureId);
             if ((Capabilities & AutomationCapability.Inspect) == 0)
-                return new(default, AutomationErrorCode.CapabilityDenied, captureId);
+                return new([], AutomationErrorCode.CapabilityDenied, captureId);
             PruneRoots();
             var result = ImmutableArray.CreateBuilder<AutomationRootInfo>();
+            var issues = ImmutableArray.CreateBuilder<AutomationIssue>();
             bool truncated = false;
-            foreach (var root in roots)
+            foreach (var root in roots.ToArray())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if ((root.Capabilities & AutomationCapability.Inspect) == 0 || !root.TryGetPeer(out var peer)) continue;
+                if ((root.Capabilities & AutomationCapability.Inspect) == 0) continue;
                 if (result.Count == Limits.MaxResults) { truncated = true; break; }
-                result.Add(new(root.RootId, new(SessionId, Id(peer!.RuntimeId)), root.Capabilities, root.CoordinateSpace));
+                try
+                {
+                    if (root.TryGetPeer(out var peer))
+                        result.Add(new(root.RootId, new(SessionId, Id(peer!.RuntimeId)), root.Capabilities, root.CoordinateSpace));
+                }
+                catch (Exception) { issues.Add(new(AutomationErrorCode.GetterFault, null, AutomationProperty.Node)); }
             }
-            return new(result.ToImmutable(), truncated ? AutomationErrorCode.LimitExceeded : AutomationErrorCode.None, captureId, truncated);
-        }, cancellationToken);
+            if (stopped) return new([], AutomationErrorCode.SessionEnded, captureId);
+            return new(result.ToImmutable(), issues.Count > 0 ? AutomationErrorCode.GetterFault
+                : truncated ? AutomationErrorCode.LimitExceeded : AutomationErrorCode.None, captureId, truncated, issues.ToImmutable());
+        }, cancellationToken, ImmutableArray<AutomationRootInfo>.Empty);
 
     /// <summary>Captures a handle currently reachable from the specified registered root.</summary>
     /// <param name="rootId">The exact root registration identity; no cross-root fallback occurs.</param>
@@ -46,19 +54,19 @@ public sealed partial class AutomationSession
         {
             var error = ValidateHandle(handle);
             if (error != AutomationErrorCode.None)
-                return new AutomationResult<ImmutableArray<AutomationNodeSnapshot>>(default, error, captureId);
+                return new AutomationResult<ImmutableArray<AutomationNodeSnapshot>>([], error, captureId);
             error = Begin(rootId, AutomationCapability.Query, cancellationToken, out var root, out var traversal);
-            if (error != AutomationErrorCode.None) return new(default, error, captureId);
+            if (error != AutomationErrorCode.None) return new([], error, captureId);
             var entry = traversal!.Find(handle.RuntimeId);
-            if (entry is null) return new(default, Missing(traversal), captureId, traversal.Truncated, traversal.Issues);
+            if (entry is null) return new([], Missing(traversal), captureId, traversal.Truncated, traversal.Issues);
             var result = ImmutableArray.CreateBuilder<AutomationNodeSnapshot>();
             foreach (var child in entry.Children)
             {
                 if (result.Count == Limits.MaxResults) { traversal.Limit(); break; }
                 result.Add(traversal.Capture(child, SessionId, rootId, root!.CoordinateSpace, captureId));
             }
-            return Result(result.ToImmutable(), traversal, captureId);
-        }, cancellationToken);
+            return Result(result.ToImmutable(), traversal, rootId, captureId, ImmutableArray<AutomationNodeSnapshot>.Empty);
+        }, cancellationToken, ImmutableArray<AutomationNodeSnapshot>.Empty);
 
     /// <summary>Finds matches by depth-first preorder within one root, including the root itself.</summary>
     /// <param name="rootId">The exact allowed root registration identity.</param>
@@ -67,7 +75,7 @@ public sealed partial class AutomationSession
     /// <returns>Up to MaxResults matches. Limits/faults explicitly prevent a completeness guarantee.</returns>
     public Task<AutomationResult<ImmutableArray<AutomationNodeSnapshot>>> FindAllAsync(string rootId, AutomationQuery query,
         CancellationToken cancellationToken = default)
-        => Dispatch(captureId => FindCore(rootId, query, false, captureId, cancellationToken), cancellationToken);
+        => Dispatch(captureId => FindCore(rootId, query, false, captureId, cancellationToken), cancellationToken, ImmutableArray<AutomationNodeSnapshot>.Empty);
 
     /// <summary>Requires exactly one match in a complete root traversal; never guesses among duplicate locators.</summary>
     /// <param name="rootId">The exact allowed root registration identity.</param>
@@ -95,7 +103,7 @@ public sealed partial class AutomationSession
         var entry = traversal!.Find(handle.RuntimeId);
         if (entry is null) return new(null, Missing(traversal), captureId, traversal.Truncated, traversal.Issues);
         var snapshot = traversal.Capture(entry, SessionId, rootId, root!.CoordinateSpace, captureId);
-        return Result(snapshot, traversal, captureId);
+        return Result(snapshot, traversal, rootId, captureId);
     }
 
     private AutomationResult<ImmutableArray<AutomationNodeSnapshot>> FindCore(string rootId, AutomationQuery query,
@@ -117,7 +125,7 @@ public sealed partial class AutomationSession
             if (result.Count == Limits.MaxResults) { traversal.Limit(); break; }
             result.Add(snapshot);
         }
-        return Result(result.ToImmutable(), traversal, captureId);
+        return Result(result.ToImmutable(), traversal, rootId, captureId, ImmutableArray<AutomationNodeSnapshot>.Empty);
     }
 
     private AutomationErrorCode Begin(string rootId, AutomationCapability capability, CancellationToken token,
@@ -126,7 +134,9 @@ public sealed partial class AutomationSession
         traversal = null;
         var error = ResolveRoot(rootId, capability, out root);
         if (error != AutomationErrorCode.None) return error;
-        if (!root!.TryGetPeer(out var peer)) return AutomationErrorCode.NodeUnavailable;
+        Accessibility.AccessibleObject? peer;
+        try { if (!root!.TryGetPeer(out peer)) return AutomationErrorCode.NodeUnavailable; }
+        catch (Exception) { return AutomationErrorCode.GetterFault; }
         traversal = new(Limits, token);
         traversal.Walk(peer!);
         if (stopped) return AutomationErrorCode.SessionEnded;
@@ -137,7 +147,8 @@ public sealed partial class AutomationSession
     private static AutomationErrorCode Missing(SemanticTraversal traversal)
         => traversal.Error == AutomationErrorCode.None ? AutomationErrorCode.NodeUnavailable : traversal.Error;
 
-    private AutomationResult<T> Result<T>(T value, SemanticTraversal traversal, string captureId)
-        => stopped ? new(default, AutomationErrorCode.SessionEnded, captureId)
+    private AutomationResult<T> Result<T>(T value, SemanticTraversal traversal, string rootId, string captureId, T? empty = default)
+        => stopped ? new(empty, AutomationErrorCode.SessionEnded, captureId)
+        : !roots.Any(r => r.RootId == rootId && r.IsAlive) ? new(empty, AutomationErrorCode.StaleNode, captureId)
         : new(value, traversal.Error, captureId, traversal.Truncated, traversal.Issues);
 }

@@ -317,6 +317,7 @@ if (Test-Path -LiteralPath $workingRoot) {
 try {
     $apiAssemblies = @(
         [pscustomobject]@{ Id = 'ModernFormsNext'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Automation'; Tfm = 'net10.0' },
         [pscustomobject]@{ Id = 'ModernFormsNext.CodeGeneration'; Tfm = 'net10.0' },
         [pscustomobject]@{ Id = 'ModernFormsNext.Designer'; Tfm = 'net10.0-windows' },
         [pscustomobject]@{ Id = 'ModernFormsNext.Designing'; Tfm = 'net10.0' },

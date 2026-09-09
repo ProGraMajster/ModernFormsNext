@@ -30,7 +30,9 @@ public sealed partial class AutomationSession
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (dispatcher.CheckAccess()) return PerformCore(rootId, handle, action, value, cancellationToken);
+            // Invoke's same-thread path also installs the production dispatcher context. Async
+            // commands must capture that context, including when invoked from a TestHost caller.
+            if (dispatcher.CheckAccess()) return dispatcher.Invoke(() => PerformCore(rootId, handle, action, value, cancellationToken));
             return await dispatcher.InvokeAsync(() => PerformCore(rootId, handle, action, value, cancellationToken),
                 DispatcherPriority.Default, cancellationToken).GetTask().ConfigureAwait(false);
         }

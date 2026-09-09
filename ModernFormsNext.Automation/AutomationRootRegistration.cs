@@ -53,7 +53,7 @@ public sealed class AutomationRootRegistration : IDisposable
     internal bool TryGetPeer(out Accessibility.AccessibleObject? peer)
     {
         peer = null;
-        if (removed) return false;
+        if (!IsAlive) return false;
         if (window?.TryGetTarget(out var w) == true)
         {
             // This existing flag is set on actual close/disposal, but not a cancelled close.
@@ -65,6 +65,11 @@ public sealed class AutomationRootRegistration : IDisposable
             peer = s.Root.AccessibilityObject;
         return peer is not null;
     }
+
+    // Lifetime observation must not invoke an application's custom peer factory/getters.
+    internal bool IsAlive => !removed &&
+        ((window?.TryGetTarget(out var w) == true && !w.InputBindingsClosed)
+        || (surface?.TryGetTarget(out var s) == true && !s.IsDisposed && !s.Root.IsDisposed));
 
     /// <summary>Unregisters and removes lifetime subscriptions on the owning UI thread. Repeated calls are safe.</summary>
     public void Dispose()

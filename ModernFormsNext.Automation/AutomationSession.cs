@@ -106,7 +106,7 @@ public sealed partial class AutomationSession : IDisposable
     internal void Remove(AutomationRootRegistration root) { root.Detach(); roots.Remove(root); }
     internal bool IsLive(AutomationRootRegistration root)
     {
-        if (root.TryGetPeer(out _)) return true;
+        if (root.IsAlive) return true;
         Remove(root);
         return false;
     }
@@ -130,7 +130,7 @@ public sealed partial class AutomationSession : IDisposable
     private void PruneRoots()
     {
         for (int index = roots.Count - 1; index >= 0; index--)
-            if (!roots[index].TryGetPeer(out _)) Remove(roots[index]);
+            if (!roots[index].IsAlive) Remove(roots[index]);
     }
 
     private AutomationErrorCode ResolveRoot(string rootId, AutomationCapability capability, out AutomationRootRegistration? root)
@@ -156,21 +156,21 @@ public sealed partial class AutomationSession : IDisposable
 
     private static string Id(long value) => value.ToString(CultureInfo.InvariantCulture);
 
-    private async Task<AutomationResult<T>> Dispatch<T>(Func<string, AutomationResult<T>> action, CancellationToken token)
+    private async Task<AutomationResult<T>> Dispatch<T>(Func<string, AutomationResult<T>> action, CancellationToken token, T? empty = default)
     {
         string captureId = Guid.NewGuid().ToString("N");
-        if (stopped) return new(default, AutomationErrorCode.SessionEnded, captureId);
+        if (stopped) return new(empty, AutomationErrorCode.SessionEnded, captureId);
         try
         {
             token.ThrowIfCancellationRequested();
-            if (dispatcher.CheckAccess()) return action(captureId);
+            if (dispatcher.CheckAccess()) return dispatcher.Invoke(() => action(captureId));
             return await dispatcher.InvokeAsync(() => action(captureId), DispatcherPriority.Default, token).GetTask().ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception)
         {
             // Never forward arbitrary application exception messages, inner exceptions or ToString.
-            return new(default, stopped ? AutomationErrorCode.SessionEnded : AutomationErrorCode.ApplicationError, captureId);
+            return new(empty, stopped ? AutomationErrorCode.SessionEnded : AutomationErrorCode.ApplicationError, captureId);
         }
     }
 }
