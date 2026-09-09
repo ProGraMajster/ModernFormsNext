@@ -61,6 +61,20 @@ public sealed class ProtocolPolicyTests
     }
 
     [Fact]
+    public async Task CompletedRepliesPermitImmediateSequentialRequests()
+    {
+        await using var host = await ProcessFixture.Start(); await using var raw = await RawClient.Connect(host.Application!);
+        await raw.Handshake(host.Application!);
+        // Responses exceed the native pipe buffer, exercising asynchronous writer completion
+        // while the client immediately begins the next request. No delay masks the handoff.
+        for (long id = 2; id <= 251; id++)
+        {
+            var reply = await raw.Request(id, RequestKind.FindAll, new Operation { RootId = host.RootId, Query = new() });
+            Assert.Equal(id, reply.Id); Assert.Equal(AutomationTransportError.None, reply.Error);
+        }
+    }
+
+    [Fact]
     public async Task ReplayingCompletedRequestIdIsRejected()
     {
         await using var host = await ProcessFixture.Start(); await using var raw = await RawClient.Connect(host.Application!);

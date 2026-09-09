@@ -137,6 +137,9 @@ client receives `Busy`. That client may have one outstanding semantic request; `
 separate control frame and does not require another slot. Public client concurrent calls report
 `Busy` instead of accumulating an unbounded queue. At most seven connections are being served,
 plus one pending listener instance. Handshakes have a five-second deadline.
+Response writes also have a five-second I/O deadline, so a peer that stops reading cannot retain
+an unfinished writer indefinitely. After semantic work finishes, the next request may wait for
+that bounded response write to finish; it does not run concurrently with prior semantic work.
 
 | Budget | Default | Allowed server configuration |
 | --- | --- | --- |

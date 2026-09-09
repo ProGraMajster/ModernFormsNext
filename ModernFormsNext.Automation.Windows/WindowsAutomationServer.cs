@@ -147,7 +147,7 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
         {
             bool ownsClient = false; long lastId = 0, activeRequestId = 0;
             Task? pending = null; CancellationTokenSource? requestCancellation = null;
-            int responseLimit = options.MaxResponseBytes;
+            int responseLimit = options.MaxResponseBytes, responseStarted = 0;
             async Task Reply(long id, AutomationTransportError error, object? result = null)
             {
                 // Serialize the detached result directly into a capped buffer, without a second
@@ -155,9 +155,20 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                 byte[] bytes;
                 try { bytes = Protocol.Encode(new { Version = Protocol.Version, Id = id, Error = error, Result = result }, responseLimit); }
                 catch (AutomationTransportException) { bytes = Protocol.Encode(new Response(Protocol.Version, id, AutomationTransportError.PayloadTooLarge, null), responseLimit); }
-                await writeLock.WaitAsync(disconnected.Token).ConfigureAwait(false);
-                try { await Protocol.WriteFrame(pipe, bytes, disconnected.Token).ConfigureAwait(false); }
-                finally { writeLock.Release(); }
+                using var writeDeadline = CancellationTokenSource.CreateLinkedTokenSource(disconnected.Token);
+                writeDeadline.CancelAfter(TimeSpan.FromSeconds(5));
+                try
+                {
+                    await writeLock.WaitAsync(writeDeadline.Token).ConfigureAwait(false);
+                    try { await Protocol.WriteFrame(pipe, bytes, writeDeadline.Token).ConfigureAwait(false); }
+                    finally { writeLock.Release(); }
+                }
+                catch
+                {
+                    // A partial frame cannot be repaired by appending another error response.
+                    // Close this connection instead; mutating clients retain OutcomeUnknown.
+                    disconnected.Cancel(); throw;
+                }
             }
             try
             {
@@ -197,12 +208,20 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                     if (request.Id <= lastId) { await Reply(request.Id, AutomationTransportError.InvalidRequest); break; }
                     lastId = request.Id;
                     if (request.Kind == RequestKind.Disconnect) break;
-                    if (pending is { IsCompleted: false }) { await Reply(request.Id, AutomationTransportError.Busy); continue; }
+                    if (pending is { IsCompleted: false })
+                    {
+                        if (Volatile.Read(ref responseStarted) == 0) { await Reply(request.Id, AutomationTransportError.Busy); continue; }
+                        // The peer can consume the reply before the writer's async continuation
+                        // completes. Finish that bounded write before admitting its next request;
+                        // semantic work is already done, so this is not a second operation slot.
+                        await pending.ConfigureAwait(false);
+                    }
                     if (request.DeadlineMilliseconds < 1 || request.DeadlineMilliseconds > options.MaxDeadlineMilliseconds)
                     { await Reply(lastId, AutomationTransportError.InvalidRequest); continue; }
                     requestCancellation?.Dispose();
                     requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected.Token);
                     activeRequestId = request.Id;
+                    Volatile.Write(ref responseStarted, 0);
                     pending = Execute(request, info, requestCancellation.Token);
                 }
 
@@ -212,23 +231,28 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                     using var combined = CancellationTokenSource.CreateLinkedTokenSource(manualCancellation, requestDeadline.Token);
                     var token = combined.Token;
                     bool Expired() => requestDeadline.IsCancellationRequested;
+                    Task Outcome(AutomationTransportError error, object? value = null)
+                    {
+                        Volatile.Write(ref responseStarted, 1);
+                        return Reply(operation.Id, error, value);
+                    }
                     try
                     {
                         object result = await Dispatch(operation, connection, token).ConfigureAwait(false);
                         if (result is AutomationWaitResult { Status: AutomationWaitStatus.Cancelled } && Expired())
-                            await Reply(operation.Id, AutomationTransportError.DeadlineExceeded).ConfigureAwait(false);
-                        else await Reply(operation.Id, AutomationTransportError.None, result).ConfigureAwait(false);
+                            await Outcome(AutomationTransportError.DeadlineExceeded).ConfigureAwait(false);
+                        else await Outcome(AutomationTransportError.None, result).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested)
                     {
                         // A cancelled action response cannot certify whether canonical mutation was
                         // already entered. Conservatively preserve ambiguity at this boundary.
-                        await Reply(operation.Id, operation.Kind == RequestKind.PerformAction ? AutomationTransportError.OutcomeUnknown
+                        await Outcome(operation.Kind == RequestKind.PerformAction ? AutomationTransportError.OutcomeUnknown
                             : disconnected.IsCancellationRequested ? AutomationTransportError.SessionEnded
                             : Expired() ? AutomationTransportError.DeadlineExceeded : AutomationTransportError.Cancelled).ConfigureAwait(false);
                     }
-                    catch (AutomationTransportException error) { await Reply(operation.Id, error.Error).ConfigureAwait(false); }
-                    catch (Exception) { await Reply(operation.Id, AutomationTransportError.ApplicationError).ConfigureAwait(false); }
+                    catch (AutomationTransportException error) { await Outcome(error.Error).ConfigureAwait(false); }
+                    catch (Exception) { await Outcome(AutomationTransportError.ApplicationError).ConfigureAwait(false); }
                 }
             }
             // An invalid frame has no validated correlation ID; zero explicitly denotes an
