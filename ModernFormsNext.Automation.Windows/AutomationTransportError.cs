@@ -40,6 +40,8 @@ public sealed class AutomationTransportException : Exception
     /// <summary>Constructs a safe transport exception with no inner application exception.</summary>
     /// <param name="error">The controlled failure code.</param>
     public AutomationTransportException(AutomationTransportError error) : base($"Automation transport: {error}.") => Error = error;
+    internal AutomationTransportException(AutomationTransportError error, bool serverResponse) : this(error) => IsServerResponse = serverResponse;
+    internal bool IsServerResponse { get; }
     /// <summary>Gets the structured transport failure.</summary>
     public AutomationTransportError Error { get; }
 }

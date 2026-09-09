@@ -20,6 +20,8 @@ var invoke = new Button { AccessibleAutomationId = "invoke", Text = "Invoke", Bo
 var asyncButton = new Button { AccessibleAutomationId = "async", Text = "Async", Bounds = new(190, 105, 150, 36),
     Command = new AsyncCommand(async () => { status.Text = "Pending"; await gate.Task; status.Text = "Completed"; }) };
 form.Controls.Add(status); form.Controls.Add(input); form.Controls.Add(password); form.Controls.Add(invoke); form.Controls.Add(asyncButton);
+form.Controls.Add(new Button { AccessibleAutomationId = "crash-action", Text = "Crash action", Bounds = new(360, 105, 150, 36),
+    Command = new DelegateCommand(() => { Console.WriteLine("ACTION-ENTERED"); Environment.Exit(97); }) });
 form.Controls.Add(new CheckBox { AccessibleAutomationId = "check", Text = "Check", Bounds = new(20, 155, 150, 32) });
 var list = new ListBox { AccessibleAutomationId = "list", Bounds = new(20, 200, 250, 150) }; list.Items.Add("One"); list.Items.Add("Two"); form.Controls.Add(list);
 var tree = new TreeView { AccessibleAutomationId = "tree", Bounds = new(290, 200, 250, 150) }; tree.Items.Add(new TreeViewItem("Parent", new TreeViewItem("Child"))); form.Controls.Add(tree);

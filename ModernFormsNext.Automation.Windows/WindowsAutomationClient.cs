@@ -190,13 +190,22 @@ public sealed class WindowsAutomationClient : IAsyncDisposable
             cancelSignal.Cancel();
             return await response.ConfigureAwait(false);
         }
-        catch (AutomationTransportException) { throw; }
+        catch (AutomationTransportException error)
+        {
+            if (writeStarted && !error.IsServerResponse)
+            {
+                await DisconnectAsync().ConfigureAwait(false);
+                if (kind == RequestKind.PerformAction) throw new AutomationTransportException(AutomationTransportError.OutcomeUnknown);
+            }
+            throw;
+        }
         catch (OperationCanceledException)
         {
+            bool wasDisconnected = disconnected.IsCancellationRequested;
             if (writeStarted) await DisconnectAsync().ConfigureAwait(false);
             throw new AutomationTransportException(writeStarted && kind == RequestKind.PerformAction ? AutomationTransportError.OutcomeUnknown
                 : token.IsCancellationRequested ? AutomationTransportError.Cancelled
-                : disconnected.IsCancellationRequested ? AutomationTransportError.SessionEnded : AutomationTransportError.DeadlineExceeded);
+                : wasDisconnected ? AutomationTransportError.SessionEnded : AutomationTransportError.DeadlineExceeded);
         }
         catch (Exception)
         {
@@ -215,7 +224,7 @@ public sealed class WindowsAutomationClient : IAsyncDisposable
             ?? throw new AutomationTransportException(AutomationTransportError.InvalidRequest);
         if (response.Version != Protocol.Version) throw new AutomationTransportException(AutomationTransportError.ProtocolMismatch);
         if (response.Id != id || !Enum.IsDefined(response.Error)) throw new AutomationTransportException(AutomationTransportError.InvalidRequest);
-        if (response.Error != AutomationTransportError.None) throw new AutomationTransportException(response.Error);
+        if (response.Error != AutomationTransportError.None) throw new AutomationTransportException(response.Error, true);
         return response.Result ?? throw new AutomationTransportException(AutomationTransportError.InvalidRequest);
     }
 }

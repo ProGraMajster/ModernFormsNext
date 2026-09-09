@@ -146,6 +146,7 @@ public static class AutomationDiscovery
     internal static void ValidateFile(string path, SecurityIdentifier user)
     {
         var file = new FileInfo(path);
+        if (!file.Exists) throw new FileNotFoundException();
         if ((file.Attributes & FileAttributes.ReparsePoint) != 0) throw new AutomationTransportException(AutomationTransportError.UnsafeDiscovery);
         ValidateAcl(file.GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner), user);
     }

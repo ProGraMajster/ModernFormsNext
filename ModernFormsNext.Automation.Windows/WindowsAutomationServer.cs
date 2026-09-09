@@ -102,9 +102,9 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                 try { listener = PipeSecurityPolicy.Create(Application.EndpointName, user, false); }
                 catch { connected.Dispose(); slots.Release(); throw; }
                 int id = Interlocked.Increment(ref nextConnection);
-                var task = Serve(connected); connections[id] = task;
-                _ = task.ContinueWith(_ => { connections.TryRemove(id, out var ignored); slots.Release(); },
-                    CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                connections[id] = completion.Task;
+                _ = ServeTracked(connected, id, completion);
             }
         }
         catch (Exception) { shutdown.Cancel(); }
@@ -114,6 +114,17 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
             await Task.WhenAll(connections.Values).ConfigureAwait(false);
             AutomationDiscovery.Remove(Application.InstanceId);
         }
+
+        async Task ServeTracked(NamedPipeServerStream connected, int id, TaskCompletionSource completion)
+        {
+            try { await Serve(connected).ConfigureAwait(false); }
+            catch (Exception) { /* Connection faults never become unobserved application exceptions. */ }
+            finally
+            {
+                // Release before removing tracking so listener disposal cannot race this semaphore.
+                slots.Release(); connections.TryRemove(id, out _); completion.TrySetResult();
+            }
+        }
     }
 
     private async Task Serve(NamedPipeServerStream pipe)
@@ -122,7 +133,7 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
         using (var disconnected = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token))
         using (var writeLock = new SemaphoreSlim(1, 1))
         {
-            bool ownsClient = false; long lastId = 0;
+            bool ownsClient = false; long lastId = 0, activeRequestId = 0;
             Task? pending = null; CancellationTokenSource? requestCancellation = null;
             int responseLimit = options.MaxResponseBytes;
             async Task Reply(long id, AutomationTransportError error, object? result = null)
@@ -168,30 +179,40 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                     if (request.Version != Protocol.Version) { await Reply(request.Id, AutomationTransportError.ProtocolMismatch); break; }
                     if (request.Kind == RequestKind.Cancel)
                     {
-                        if (request.Id == lastId) requestCancellation?.Cancel();
+                        if (request.Id == activeRequestId) requestCancellation?.Cancel();
                         continue;
                     }
                     if (request.Id <= lastId) { await Reply(request.Id, AutomationTransportError.InvalidRequest); break; }
+                    lastId = request.Id;
                     if (request.Kind == RequestKind.Disconnect) break;
                     if (pending is { IsCompleted: false }) { await Reply(request.Id, AutomationTransportError.Busy); continue; }
-                    lastId = request.Id;
                     if (request.DeadlineMilliseconds < 1 || request.DeadlineMilliseconds > options.MaxDeadlineMilliseconds)
                     { await Reply(lastId, AutomationTransportError.InvalidRequest); continue; }
                     requestCancellation?.Dispose();
                     requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected.Token);
                     requestCancellation.CancelAfter(request.DeadlineMilliseconds);
+                    activeRequestId = request.Id;
                     pending = Execute(request, info, requestCancellation.Token);
                 }
 
                 async Task Execute(Request operation, AutomationConnectionInfo connection, CancellationToken token)
                 {
-                    try { await Reply(operation.Id, AutomationTransportError.None, await Dispatch(operation, connection, token).ConfigureAwait(false)).ConfigureAwait(false); }
+                    long started = Stopwatch.GetTimestamp();
+                    bool Expired() => Stopwatch.GetElapsedTime(started).TotalMilliseconds >= operation.DeadlineMilliseconds;
+                    try
+                    {
+                        object result = await Dispatch(operation, connection, token).ConfigureAwait(false);
+                        if (result is AutomationWaitResult { Status: AutomationWaitStatus.Cancelled } && Expired())
+                            await Reply(operation.Id, AutomationTransportError.DeadlineExceeded).ConfigureAwait(false);
+                        else await Reply(operation.Id, AutomationTransportError.None, result).ConfigureAwait(false);
+                    }
                     catch (OperationCanceledException) when (token.IsCancellationRequested)
                     {
                         // A cancelled action response cannot certify whether canonical mutation was
                         // already entered. Conservatively preserve ambiguity at this boundary.
                         await Reply(operation.Id, operation.Kind == RequestKind.PerformAction ? AutomationTransportError.OutcomeUnknown
-                            : disconnected.IsCancellationRequested ? AutomationTransportError.SessionEnded : AutomationTransportError.Cancelled).ConfigureAwait(false);
+                            : disconnected.IsCancellationRequested ? AutomationTransportError.SessionEnded
+                            : Expired() ? AutomationTransportError.DeadlineExceeded : AutomationTransportError.Cancelled).ConfigureAwait(false);
                     }
                     catch (AutomationTransportException error) { await Reply(operation.Id, error.Error).ConfigureAwait(false); }
                     catch (Exception) { await Reply(operation.Id, AutomationTransportError.ApplicationError).ConfigureAwait(false); }
