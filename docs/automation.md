@@ -8,7 +8,7 @@ Windows/Android backends or MCP. Existing application startup and accessibility 
 unchanged when this package is omitted.
 
 This is an in-process API. It opens no endpoint, enumerates no processes, and implements no
-discovery, authentication, IPC, CLI, event stream, wait service or MCP adapter. The whole #97
+discovery, authentication, IPC, CLI, event stream or MCP adapter. The whole #97
 issue remains open. A session ID identifies a semantic lifetime; it is **not an authentication
 token** or a security boundary against application code already running in the same process.
 
@@ -255,14 +255,44 @@ TreeView and custom semantic children. It verifies actual state changes, canonic
 bounded malformed peers, privacy, root/session lifetime and background dispatch with explicit
 dispatcher drains and controlled task completion.
 
-No public WaitCondition is published speculatively. Phase 1b can use existing immutable filters,
-states, capture metadata, root-scoped handles, safe errors and completeness flags. It must separately
-design condition evaluation, notification subscription/reconciliation, cancellation/deadlines and
-narrow idle checkpoints. ClientNotification is not assumed to cover all custom changes.
+### Live predicates and checkpoint (Phase 1b)
+
+`WaitForConditionAsync(rootId, condition, options, cancellationToken)` evaluates canonical state
+immediately. Supply exactly one root-scoped `Handle` or unique `Query`. Supported predicates are
+`NodeExists`, `NodeNotExposed`, `Enabled`, `Exposed`, `Focused`, `Selected`, `ValueEquals` and
+`StateContains`. `RootEnded` takes neither target and observes the registration ending (including
+explicit unregistration); it does not distinguish that from physical window closure.
+
+```csharp
+var completed = await automation.WaitForConditionAsync(root.RootId, new()
+{
+    Kind = AutomationWaitKind.ValueEquals,
+    Query = new() { AutomationId = "status" },
+    Value = "Completed"
+}, new() { Timeout = TimeSpan.FromSeconds(10) }, cancellationToken);
+if (completed.Status == AutomationWaitStatus.Satisfied)
+    Console.WriteLine(completed.Snapshot?.Value);
+```
+
+Waits subscribe to bounded canonical peers on the UI dispatcher and reread before waiting.
+Notifications are wake hints, not an authoritative event stream. Reconciliation defaults to 100 ms
+(allowed 20 ms–1 s); elapsed time/deadlines are monotonic. Timeout defaults to 10 s, is bounded to
+60 s, and zero still performs the initial check. At most 64 waits observe a session concurrently.
+All weak subscriptions and pending timers are removed on success, failure, timeout, cancellation,
+root end or session stop. Await cleanup while the dispatcher is still running.
+
+Incomplete traversals cannot prove absence or uniqueness. Redacted values cannot be tested with
+`ValueEquals`; the result is `CapabilityDenied`. `Exposed` describes the canonical projection, not
+screen occlusion. `Enabled` means exposed and lacking the canonical `Unavailable` state.
+
+`CheckpointAsync` always queues a normal-priority dispatcher turn. Previously queued normal-priority
+UI work has run when that turn completes. It makes no guarantee about future timers, network I/O,
+GPU rendering or arbitrary Tasks, and is not global idle. An AsyncCommand accepted by Invoke can
+remain pending; wait for an application-exposed postcondition such as the example above.
 
 Future named-pipe/other transport adapters call these same async methods. No Stream/Socket, JSON
 attribute, wire protocol version, auth handshake or MCP type is present in the core contract.
-Phase 1b still needs Windows IPC, discovery/authentication, live waits and a minimal client; actual
+Phase 1b adds Windows IPC, discovery/authentication and a minimal client outside this core; actual
 external-client acceptance follows separately. Events, screenshots, MCP and broader diagnostics
 remain their later scope. No #64 Phase 2 or #61/#62/#63/#72/#108/#109 work is part of this package.
 

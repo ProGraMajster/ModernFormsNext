@@ -2,7 +2,9 @@
 
 Optional development-time **in-process semantic core**, issue #97 Phase 1a. It consumes the
 canonical `AccessibleObject` tree and production UI dispatcher. No Testing dependency, listener,
-IPC, discovery, authentication, MCP, screenshot, input simulation, or wait service is included.
+IPC, discovery, authentication, MCP, screenshot or input simulation is included.
+Phase 1b adds bounded semantic waits and a narrow dispatcher checkpoint to this neutral core.
+Windows IPC remains in the separately referenced Automation.Windows adapter.
 
 Create a session on the initialized application UI thread, explicitly register allowed windows or
 Skia surfaces, and await its semantic query/action methods. Dispose registrations/session before
