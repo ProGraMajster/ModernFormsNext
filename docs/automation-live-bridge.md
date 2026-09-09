@@ -193,6 +193,10 @@ is lost, the client reports **`OutcomeUnknown`**. It never automatically retries
 mutation. Inspect application state or seek application-specific resolution before deciding what
 to do next. Even cancellation may leave a mutation ambiguous.
 
+Numeric action input must be finite. `NaN` and infinities cannot be represented by protocol JSON;
+the client rejects them locally with `InvalidRequest` before sending an action and keeps the
+connection usable. Canonical finite range/type validation remains in the semantic core.
+
 Password/protected/sensitive values stay redacted through JSON, client DTOs and CLI output. Custom
 getter exceptions are reported as safe semantic codes. Action parameters are not echoed. For
 ordinary unmarked controls, the existing semantic value is intentionally observable; applications

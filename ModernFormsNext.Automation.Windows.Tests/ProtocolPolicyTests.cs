@@ -7,6 +7,21 @@ namespace ModernFormsNext.Automation.Windows.Tests;
 public sealed class ProtocolPolicyTests
 {
     [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public async Task NonFiniteActionNumberFailsLocallyWithoutLosingTheConnection(double number)
+    {
+        await using var host = await ProcessFixture.Start(); await using var client = await host.Connect();
+        var input = (await client.FindOneAsync(host.RootId, new() { AutomationId = "input" })).Value!;
+        var error = await Assert.ThrowsAsync<AutomationTransportException>(() => client.PerformActionAsync(host.RootId,
+            input.Handle, AccessibleActions.SetValue, AutomationActionValue.FromNumber(number)));
+        Assert.Equal(AutomationTransportError.InvalidRequest, error.Error);
+        Assert.Equal(AutomationErrorCode.None, (await client.GetRootsAsync()).Error);
+        Assert.Equal("Initial", (await client.InspectAsync(host.RootId, input.Handle)).Value!.Value);
+    }
+
+    [Theory]
     [InlineData("--inspect-session")]
     [InlineData("--inspect-server")]
     public async Task ServerAndSessionPoliciesRestrictNegotiation(string policy)

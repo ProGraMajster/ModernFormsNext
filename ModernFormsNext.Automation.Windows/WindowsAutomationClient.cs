@@ -125,9 +125,10 @@ public sealed class WindowsAutomationClient : IAsyncDisposable
     /// <param name="rootId">The registration scope.</param>
     /// <param name="handle">The full target handle.</param>
     /// <param name="action">One advertised canonical action.</param>
-    /// <param name="value">Optional bounded text or numeric action value; never logged.</param>
+    /// <param name="value">Optional bounded text or finite numeric action value; never logged.</param>
     /// <param name="cancellationToken">Cancels work; an ambiguous mutation produces OutcomeUnknown.</param>
     /// <returns>The canonical action acceptance result.</returns>
+    /// <exception cref="AutomationTransportException">InvalidRequest for a non-finite number, rejected before sending without closing the connection; other safe transport failures may also occur.</exception>
     public async Task<AutomationActionResult> PerformActionAsync(string rootId, AutomationNodeHandle handle, AccessibleActions action,
         AutomationActionValue? value = null, CancellationToken cancellationToken = default)
         => Protocol.Read<AutomationActionResult>(await Call(RequestKind.PerformAction,
@@ -173,6 +174,10 @@ public sealed class WindowsAutomationClient : IAsyncDisposable
         try
         {
             token.ThrowIfCancellationRequested();
+            // Protocol JSON has no NaN/infinity representation. Reject these caller values
+            // before encoding/writing instead of misclassifying a serializer failure as EOF.
+            if (payload.Number is double number && !double.IsFinite(number))
+                throw new AutomationTransportException(AutomationTransportError.InvalidRequest);
             long id = Interlocked.Increment(ref nextId);
             bytes = Protocol.Encode(new { Version = Protocol.Version, Id = id, Kind = kind,
                 DeadlineMilliseconds = Info.MaxDeadlineMilliseconds, Payload = payload }, Info.MaxRequestBytes);
