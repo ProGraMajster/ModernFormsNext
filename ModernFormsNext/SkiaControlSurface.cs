@@ -52,6 +52,10 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     /// <summary>Gets the borrowed root control.</summary>
     public Control Root { get; }
 
+    // Borrowing semantic services must observe surface disposal without retaining the surface or
+    // consulting a platform accessibility adapter. This is a lifetime seam, not another tree.
+    internal bool IsDisposed => disposed;
+
     // The Android host borrows this existing adapter. Surface coordinates are logical pixels
     // relative to the native surface, since this control tree has no WindowBase screen origin.
     IPlatformAccessibleObject? IPlatformAccessibilityHost.AccessibilityRoot

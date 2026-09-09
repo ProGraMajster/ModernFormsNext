@@ -10,6 +10,7 @@ public sealed class ReleaseVersionConsistencyTests
     private static readonly string[] PackableProjects =
     [
         "ModernFormsNext/ModernFormsNext.csproj",
+        "ModernFormsNext.Automation/ModernFormsNext.Automation.csproj",
         "ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj",
         "ModernFormsNext.Designer/ModernFormsNext.Designer.csproj",
         "ModernFormsNext.Designing/ModernFormsNext.Designing.csproj",

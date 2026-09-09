@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>ModernFormsNext.Automation</PackageId>
+    <Title>ModernFormsNext Automation</Title>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Product>ModernFormsNext.Automation</Product>
+    <Description>Optional in-process semantic inspection and canonical actions for development-time ModernFormsNext automation.</Description>
+    <PackageTags>ui;automation;accessibility;development;forms;framework;modernforms</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
+  </ItemGroup>
+</Project>

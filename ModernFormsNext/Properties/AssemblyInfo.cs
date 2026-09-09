@@ -4,4 +4,5 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("ModernFormsNext.WindowKit.Backend.Android.Tests")]
 [assembly: InternalsVisibleTo("ModernFormsNext.Designer")]
 [assembly: InternalsVisibleTo("ModernFormsNext.Testing")]
+[assembly: InternalsVisibleTo("ModernFormsNext.Automation")]
 [assembly: InternalsVisibleTo("ModernFormsNext.VisualStudioDesignerHost")]
