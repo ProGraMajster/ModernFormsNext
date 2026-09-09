@@ -92,6 +92,7 @@ internal static class Cli
                 return SemanticExit(captured.Error);
             }
             AutomationNodeHandle? handle = Get("--node") is { } runtime && Get("--session") is { } session ? new(session, runtime) : null;
+            if ((Get("--node") is null) != (Get("--session") is null)) return Error("FullHandleRequired", 2);
             if (command == "inspect")
             {
                 if (handle is null) return Error("FullHandleRequired", 2);

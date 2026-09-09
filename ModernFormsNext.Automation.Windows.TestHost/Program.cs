@@ -36,16 +36,27 @@ form.Shown += (_, _) =>
 {
     try
     {
-        semantic = new(); root = semantic.RegisterRoot(form);
+        semantic = args.Contains("--inspect-session") ? new(AutomationCapability.Inspect) : new();
+        root = semantic.RegisterRoot(form, args.Contains("--inspect-root") ? AutomationCapability.Inspect
+            : AutomationCapability.Inspect | AutomationCapability.Query | AutomationCapability.Actions);
         secondary.Show(); otherRoot = semantic.RegisterRoot(secondary);
         if (!args.Contains("--no-server")) server = WindowsAutomationServer.Start(semantic, new()
         {
             ApplicationName = "ModernFormsNext bridge test host",
+            Capabilities = args.Contains("--inspect-server") ? AutomationCapability.Inspect
+                : AutomationCapability.Inspect | AutomationCapability.Query | AutomationCapability.Actions,
             MaxResponseBytes = args.Contains("--small-response") ? 4096 : 4 * 1024 * 1024
         });
+        bool duplicateRejected = false;
+        if (args.Contains("--double-start"))
+        {
+            try { _ = WindowsAutomationServer.Start(semantic); }
+            catch (AutomationTransportException error) when (error.Error == AutomationTransportError.Busy) { duplicateRejected = true; }
+        }
         Console.WriteLine("READY:" + JsonSerializer.Serialize(new
         {
             ProcessId = Environment.ProcessId, Application = server?.Application,
+            DuplicateRejected = duplicateRejected,
             RootId = root.RootId, OtherRootId = otherRoot.RootId,
             Password = new AutomationNodeHandle(semantic.SessionId, password.AccessibilityObject.RuntimeId.ToString())
         }));

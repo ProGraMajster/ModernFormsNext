@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text.Json;
@@ -17,6 +18,9 @@ namespace ModernFormsNext.Automation.Windows;
 /// </remarks>
 public sealed class WindowsAutomationServer : IAsyncDisposable
 {
+    // A weak session-keyed lease prevents duplicate controlling endpoints over the same core.
+    // The lease is released only after shutdown cleanup, so two listeners cannot overlap.
+    private static readonly ConditionalWeakTable<AutomationSession, WindowsAutomationServer> servers = new();
     private readonly AutomationSession session;
     private readonly WindowsAutomationOptions options;
     private readonly SecurityIdentifier user;
@@ -50,7 +54,7 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
     /// <param name="session">The application's existing initialized semantic session, borrowed until shutdown.</param>
     /// <param name="options">Explicit immutable application policy; null selects bounded defaults.</param>
     /// <returns>The started server, which the application must stop before its dispatcher shuts down.</returns>
-    /// <remarks>May be called on any thread after session initialization. Every call creates a distinct instance, never restarts an ended server.</remarks>
+    /// <remarks>May be called on any thread after session initialization. A session can have one server; duplicate Start returns Busy until StopAsync finishes. A later Start creates a fresh instance and credential.</remarks>
     /// <exception cref="AutomationTransportException">Secure discovery or endpoint startup failed.</exception>
     /// <example><code>
     /// using var semantic = new AutomationSession();
@@ -61,7 +65,14 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(session); options ??= new(); options.Validate();
         if (session.IsStopped) throw new AutomationTransportException(AutomationTransportError.SessionEnded);
-        try { return new(session, options); }
+        try
+        {
+            lock (servers)
+            {
+                if (servers.TryGetValue(session, out _)) throw new AutomationTransportException(AutomationTransportError.Busy);
+                var server = new WindowsAutomationServer(session, options); servers.Add(session, server); return server;
+            }
+        }
         catch (AutomationTransportException) { throw; }
         catch (Exception) { throw new AutomationTransportException(AutomationTransportError.ApplicationUnavailable); }
     }
@@ -82,6 +93,7 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
         await listenerTask.ConfigureAwait(false);
         await Task.WhenAll(connections.Values).ConfigureAwait(false);
         CryptographicOperations.ZeroMemory(secret);
+        lock (servers) servers.Remove(session);
         // Keep the cancelled CTS readable for idempotent IsStopped/StopAsync after disposal.
     }
 
@@ -190,15 +202,16 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                     { await Reply(lastId, AutomationTransportError.InvalidRequest); continue; }
                     requestCancellation?.Dispose();
                     requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(disconnected.Token);
-                    requestCancellation.CancelAfter(request.DeadlineMilliseconds);
                     activeRequestId = request.Id;
                     pending = Execute(request, info, requestCancellation.Token);
                 }
 
-                async Task Execute(Request operation, AutomationConnectionInfo connection, CancellationToken token)
+                async Task Execute(Request operation, AutomationConnectionInfo connection, CancellationToken manualCancellation)
                 {
-                    long started = Stopwatch.GetTimestamp();
-                    bool Expired() => Stopwatch.GetElapsedTime(started).TotalMilliseconds >= operation.DeadlineMilliseconds;
+                    using var requestDeadline = new CancellationTokenSource(operation.DeadlineMilliseconds);
+                    using var combined = CancellationTokenSource.CreateLinkedTokenSource(manualCancellation, requestDeadline.Token);
+                    var token = combined.Token;
+                    bool Expired() => requestDeadline.IsCancellationRequested;
                     try
                     {
                         object result = await Dispatch(operation, connection, token).ConfigureAwait(false);
@@ -218,8 +231,10 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
                     catch (Exception) { await Reply(operation.Id, AutomationTransportError.ApplicationError).ConfigureAwait(false); }
                 }
             }
-            catch (AutomationTransportException error) { try { await Reply(lastId, error.Error).ConfigureAwait(false); } catch (Exception) { } }
-            catch (JsonException) { try { await Reply(lastId, AutomationTransportError.InvalidRequest).ConfigureAwait(false); } catch (Exception) { } }
+            // An invalid frame has no validated correlation ID; zero explicitly denotes an
+            // uncorrelated terminal rejection instead of misattributing it to the prior request.
+            catch (AutomationTransportException error) { try { await Reply(0, error.Error).ConfigureAwait(false); } catch (Exception) { } }
+            catch (JsonException) { try { await Reply(0, AutomationTransportError.InvalidRequest).ConfigureAwait(false); } catch (Exception) { } }
             catch (Exception) { }
             finally
             {
