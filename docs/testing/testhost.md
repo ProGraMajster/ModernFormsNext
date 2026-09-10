@@ -47,8 +47,8 @@ For a complete serialized xUnit fixture, see the [application test template](tes
 
 ## Architecture
 
-The host scopes the existing window factory, UI dispatcher, default animation scheduler and
-platform registries. It does not copy layout, hit testing, focus, commands, animation scheduling,
+The host scopes the existing window factory, UI dispatcher, application runtime, default animation
+scheduler and platform registries. It does not copy layout, hit testing, focus, commands, animation scheduling,
 resource resolution, data binding or rendering logic. The native handle remains zero with the
 `HEADLESS` descriptor. Ordinary hosting exposes no framebuffer. Explicit capture temporarily
 provides an `IFramebufferPlatformSurface` to the normal `WindowBase` paint callback.
@@ -149,6 +149,36 @@ Production dispatcher timers can have inactive operations waiting for a future c
 not advance time or run dormant timers early. Neither idle nor a dispatcher checkpoint means that
 arbitrary application I/O, thread-pool continuations or async business operations have finished.
 
+### Test the real application loop
+
+`Application.Run` uses this same production dispatcher with its controlled run-loop backend.
+Create the host first and queue a close or exit action before entering the loop:
+
+```csharp
+using ModernFormsNext;
+using ModernFormsNext.Testing;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
+using Xunit;
+
+using var host = ModernFormsTestHost.Create();
+using var form = new Form();
+int exits = 0;
+Application.OnExit += (_, _) => exits++;
+host.Dispatcher.Post(Application.Exit);
+Application.Run(form, ApplicationLifetimeMode.Explicit);
+
+Assert.Equal(1, exits);
+Assert.Equal(PlatformApplicationPhase.Exited, Application.Lifecycle.Snapshot.Phase);
+Assert.Empty(host.Dispatcher.UnhandledExceptions);
+```
+
+This exercises actual startup, lifetime policy, lifecycle callbacks, cancellation and shutdown.
+The backend runs ready work one operation at a time and checks cancellation between operations.
+It shares a 4096-operation budget across nested frames and allows at most 64 nested frames. A loop
+that runs out of ready work before exit fails with a diagnostic; it never waits or advances time
+automatically. Queue explicit `host.Clock.Advance` work if a scenario needs elapsed time.
+`Application.Run` is still allowed only once in a host's runtime; create a new host for another run.
+
 ## Layout, viewport and scale
 
 `PerformLayout` runs the real Form adapter, client owner and descendant layout paths.
@@ -205,9 +235,11 @@ this clock. Arbitrary user async continuations are not an idle guarantee.
 - `Clipboard` implements `IClipboard`; normal framework copy/paste never accesses the OS clipboard.
   It copies string, byte-array, string-array and supported immutable scalar values. Unsupported CLR
   object graphs fail atomically. It does not serialize/deserialise arbitrary application objects.
-- `Lifecycle.SetState` publishes existing Unknown/Foreground/Background/NoHost states; the initial
-  state is Foreground. This exercises production scheduler pause/rebase. It is not an implementation
-  of future activation, URI launch, state restoration or Android Activity recreation.
+- `Lifecycle` uses the same `PlatformApplicationLifecyclePublisher` as production adapters. It
+  starts in Running/Foreground, active, with one host and generation 1. Its inherited `Publish`,
+  `Activate`, `RequestSaveState` and `RestoreState` methods drive normalized phase, activation and
+  explicit state handoff. `SetState` remains the convenience helper for existing
+  Unknown/Foreground/Background/NoHost states and production scheduler pause/rebase.
 - `ThemeSettings` supplies preferences read on the next normal ThemeManager apply. It does not
   simulate future platform appearance-change notifications.
 - `AnimationSettings.SetPreferences` publishes production reduced-motion, enabled and duration-scale
@@ -218,6 +250,48 @@ this clock. Arbitrary user async continuations are not an idle guarantee.
 DataBindings, BindingSource, dynamic resources, Application.Resources and ThemeManager continue
 using their production implementations. Follow their usual binding activation and UI-thread rules;
 no special binding engine or per-control resource test listener is installed.
+
+### Lifecycle, host replacement and insets
+
+Applications consume `Application.Lifecycle`; tests can supply backend transitions through
+`host.Services.Lifecycle`. Public facade `DeliverActivation`, `SaveState` and `RestoreState` use
+that same scoped provider. There is no parallel test activation or persistence runtime.
+
+```csharp
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
+
+var lifecycle = Application.Lifecycle;
+PlatformActivationKind? received = null;
+lifecycle.ActivationReceived += (_, e) => received = e.Activation.Kind;
+host.Services.Lifecycle.Activate(new PlatformApplicationActivation(
+    PlatformActivationKind.Protocol, uri: new Uri("example://document/42")));
+Assert.Equal(PlatformActivationKind.Protocol, received);
+
+var current = host.Services.Lifecycle.Snapshot;
+host.Services.Lifecycle.Publish(new PlatformApplicationLifecycleSnapshot(
+    PlatformApplicationPhase.Suspended, PlatformApplicationLifecycleState.NoHost,
+    hostGeneration: current.HostGeneration));
+host.Services.Lifecycle.Publish(new PlatformApplicationLifecycleSnapshot(
+    PlatformApplicationPhase.Running, PlatformApplicationLifecycleState.Foreground,
+    isActive: true, hostCount: 1, hostGeneration: current.HostGeneration + 1));
+```
+
+Use explicit versioned `PlatformApplicationStateData` to test save/restore as described in the
+[application lifecycle guide](../application-lifecycle.md). These publications test shared
+application semantics; they do not create, destroy or recreate an Android Activity. Publishing
+`Exiting` or `Exited` requests graceful exit of the current application runtime, including an
+active `Application.Run` loop. Reentrant exit cleanup occurs after the current notification;
+drain ready work when testing it outside a running loop.
+
+`window.SetActive(bool)` sends the ordinary backend window-activation callback. It changes that
+window's `IsActive`, independently of the provider's application `Snapshot.IsActive`. A popup or
+window focus test does not emulate an operating system's foreground policy.
+
+`window.SetInsets(new WindowInsets(...))` supplies the backend's inset feature and raises the real
+Form `InsetsChanged` event. Window insets are informational. `SkiaControlSurface.Insets.SafeArea`
+constrains its borrowed root through normal layout, preserving root padding; `Ime` remains an
+application keyboard-avoidance policy. Values are logical pixels and do not read a physical
+display. See the lifecycle guide for native fitting and density rules.
 
 ## Rendering and snapshots
 
@@ -250,16 +324,24 @@ may contain application data; callers decide when and where to save them.
 Closing a TestWindowHost authoritatively cleans up its owned tree, even if a normal Form close is
 canceled or throws. Host disposal closes all windows, cancels owned scheduler work, restores the
 active theme/application resources, revokes service/factory scopes and restores the prior default
-scheduler/dispatcher. Cleanup proceeds through independent steps and reports failures. Retained
-host/input/service APIs fail after disposal; detached tree/image snapshots remain usable under their
-own ownership rules.
+scheduler/dispatcher. It also restores borrowed application loop/lifetime state, `OpenForms`,
+`OnExit` subscribers, global input/command bindings, active menu/popup references, the lifecycle
+facade and synchronization context. Scoped exit never releases the borrowed application's bindings.
+If disposal occurs inside a Run callback, the local loop is canceled before restoration; its later
+cleanup cannot exit the restored runtime.
+
+Cleanup proceeds through independent steps and reports failures. Retained host/input/service APIs
+and the scoped lifecycle facade fail after disposal; their subscriptions and captured service
+references are revoked. Detached tree/image/lifecycle diagnostics remain usable under their own
+ownership rules. Create a new host rather than reuse controls or a facade from an expired scope.
 
 ## Phase 1 boundaries
 
 Phase 1 was merged in PR #93 and must not be reimplemented. The current continuation adds input,
-clock, rendering and existing-contract service integration on that foundation. Future touch/drag
-helpers, activation/state restoration (#63), navigation (#12) and shared virtualization (#55)
-coverage require their production contracts. Shared modal/popup behavior is testable; this package
+clock, rendering and existing-contract service integration on that foundation. The lifecycle
+continuation (#63) adds shared phase/activation/restoration and real application lifetime tests.
+Future touch/drag helpers, navigation (#12) and shared virtualization (#55) coverage require their
+production contracts. Shared modal/popup behavior is testable; this package
 does not emulate OS foreground behavior, IME services, platform accessibility, GPU or native view
 hosting.
 
