@@ -82,7 +82,7 @@ templates contain the requested localization integration.
 
 Technical route: extend the canonical resources model through a localization-owned namespace and
 explicit provider lifetime. Keep ordinary application overrides authoritative. Formatting culture
-and UI culture must be documented separately. Test with [DynamicResourceTests](../../ModernFormsNext.Tests/DynamicResourceTests.cs)
+and UI culture must be documented separately. Test with [DynamicResourceTests](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Tests/DynamicResourceTests.cs)
 and ThemeManager's existing atomic publication patterns. No breaking API or new large dependency
 has been justified. Windows/Android rendered text and culture switching, interactive Designer and
 template smoke remain **NOT EXECUTED** in this audit.
@@ -93,9 +93,9 @@ Issue: [#89](https://github.com/ProGraMajster/ModernFormsNext/issues/89). Initia
 (production engines exist; inherited RTL semantics and complete behavior missing).
 
 There is an explicit `FlowDirection.RightToLeft` proxy, not a complete inherited control direction
-system. [FlowLayout.ContainerProxy](../../ModernFormsNext/Layout/FlowLayout.ContainerProxy.cs)
+system. [FlowLayout.ContainerProxy](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Layout/FlowLayout.ContainerProxy.cs)
 hardcodes `_isContainerRTL = false` and retains commented scrolling corrections.
-[TableLayout.SetElementBounds](../../ModernFormsNext/Layout/TableLayout.cs) similarly initializes
+[TableLayout.SetElementBounds](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Layout/TableLayout.cs) similarly initializes
 `isContainerRTL` to false with the `control.RightToLeft` read commented out. Runtime source has no
 live `Control.RightToLeft` property; references in these paths are commented. Thus the issue's
 reference to selected inherited direction behavior must not be read as a complete public inheritance
@@ -108,12 +108,12 @@ than replacing.
 | Flow order, wrap, alignment, margins, auto-scroll coordinates | PARTIAL | Complete proxy transforms and scrolling origin policy in the production FlowLayout/ScrollableControl path. |
 | Table visual ordering, alignment, spans, nested containers | PARTIAL | Activate and verify production RTL positioning, logical column indexing and visual mapping. |
 | Preserve Dock/Anchor/Padding/Margin, DPI, hit testing, keyboard navigation | PARTIAL | Existing infrastructure must be regression-tested under RTL and mixed-direction trees. |
-| Runtime/Designer parity cases | PARTIAL | Extend the existing [parity suite](../../ModernFormsNext.Designer.Tests/DesignerRuntimeLayoutParityTests.cs); current scenarios cover LTR/top-down/wrap and explicitly exclude full RTL. |
+| Runtime/Designer parity cases | PARTIAL | Extend the existing [parity suite](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Designer.Tests/DesignerRuntimeLayoutParityTests.cs); current scenarios cover LTR/top-down/wrap and explicitly exclude full RTL. |
 | Localized text and accessibility directionality | PARTIAL | Add Arabic/Hebrew examples, keyboard focus and semantic bounds/order checks; do not infer full bidi text support from geometry tests. |
 
-Use existing [FlowLayoutPanel](../../ModernFormsNext/FlowLayoutPanel.cs),
-[TableLayoutPanel](../../ModernFormsNext/TableLayoutPanel.cs),
-[ScrollableControl](../../ModernFormsNext/ScrollableControl.cs), Designer projections and
+Use existing [FlowLayoutPanel](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/FlowLayoutPanel.cs),
+[TableLayoutPanel](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/TableLayoutPanel.cs),
+[ScrollableControl](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/ScrollableControl.cs), Designer projections and
 [parity guidance](../architecture/designer-runtime-layout-parity.md). Add ControlGallery cases to
 the existing Flow/Table panels. #14 supplies culture-to-direction opt-in integration; #42 is already
 closed; accessibility backends already provide the canonical semantics to validate. Runtime and
@@ -124,13 +124,13 @@ Windows/Android observation and monitor-derived DPI checks remain **NOT EXECUTED
 
 Issue: [#45](https://github.com/ProGraMajster/ModernFormsNext/issues/45). Initial status: **PARTIAL**.
 
-Already implemented: [IPlatformThemeSettings](../../ModernFormsNext.WindowKit.Backend/PlatformThemeSettings.cs)
-and [WindowsPlatformThemeSettings](../../ModernFormsNext.WindowKit.Backend.Windows/WindowsPlatformThemeSettings.cs)
+Already implemented: [IPlatformThemeSettings](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.WindowKit.Backend/PlatformThemeSettings.cs)
+and [WindowsPlatformThemeSettings](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.WindowKit.Backend.Windows/WindowsPlatformThemeSettings.cs)
 read application light/dark on demand and reuse Windows animation settings. ThemeManager commits
 resource snapshots atomically with override precedence, diagnostics and optional shared-scheduler
-transitions. There is also an existing [PlatformColorValues](../../ModernFormsNext.WindowKit/PlatformColorValues.cs)
+transitions. There is also an existing [PlatformColorValues](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.WindowKit/PlatformColorValues.cs)
 contract and WindowKit color-change event infrastructure. The Windows
-[Win32PlatformSettings](../../ModernFormsNext.WindowKit.Backend.Windows/Avalonia.Win32/Win32PlatformSettings.cs)
+[Win32PlatformSettings](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.WindowKit.Backend.Windows/Avalonia.Win32/Win32PlatformSettings.cs)
 live color implementation is commented out and `GetColorValues()` returns the default fallback.
 It must not be mistaken for working Windows accent observation.
 
@@ -142,7 +142,7 @@ It must not be mistaken for working Windows accent observation.
 | System light/dark updates when enabled | PARTIAL | On-demand preference reading exists; automatic theme reapplication does not. |
 | Custom themes/colors override system values | PARTIAL | Current resource/ThemeManager precedence is reusable; granular system follow/override policy is missing. |
 | Repeated changes avoid leaks/uncontrolled redraws | PARTIAL | Existing atomic apply/invalidation batching helps; notification lifecycle and subscriber disposal need deterministic tests. |
-| ControlGallery and documentation | PARTIAL | Extend [ThemeManagerPanel](../../samples/ControlGallery/Panels/ThemeManagerPanel.cs) and theme guide with capabilities, seven-color palette mapping, opt-out, fallback and platform limits. |
+| ControlGallery and documentation | PARTIAL | Extend [ThemeManagerPanel](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/samples/ControlGallery/Panels/ThemeManagerPanel.cs) and theme guide with capabilities, seven-color palette mapping, opt-out, fallback and platform limits. |
 
 Technical route: audit both existing WindowKit color values and `IPlatformThemeSettings` before
 choosing an additive observable contract. A new disconnected theme service would duplicate existing
@@ -158,10 +158,10 @@ explicitly conceptual.
 Issue: [#77](https://github.com/ProGraMajster/ModernFormsNext/issues/77). Initial status: **PARTIAL**.
 
 No Android `IPlatformThemeSettings` registration exists in
-[AndroidWindowKitBackend](../../ModernFormsNext.WindowKit.Backend.Android/Platform/AndroidWindowKitBackend.cs).
+[AndroidWindowKitBackend](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.WindowKit.Backend.Android/Platform/AndroidWindowKitBackend.cs).
 ThemeManager still selects its explicit System fallback. Existing Android activity tracking,
 surface configuration refresh and main-Looper dispatcher must be reused. Existing
-[AndroidPlatformAnimationSettings](../../ModernFormsNext.WindowKit.Backend.Android/Platform/AndroidPlatformAnimationSettings.cs)
+[AndroidPlatformAnimationSettings](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.WindowKit.Backend.Android/Platform/AndroidPlatformAnimationSettings.cs)
 already observes animator-duration scale and contributes reduced-motion policy. A claim that Android
 has no reduced-motion infrastructure is outdated; a claim that it lacks system light/dark theme
 observation remains accurate.
@@ -188,9 +188,9 @@ environment is confirmed unavailable; their absence cannot be converted into a P
 Issue: [#73](https://github.com/ProGraMajster/ModernFormsNext/issues/73). Initial status: **PARTIAL**
 (substantial behavior and tests already exist; broader policy decision/contract remains).
 
-[LayoutTransition](../../ModernFormsNext/Animations/LayoutTransition.cs),
+[LayoutTransition](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Animations/LayoutTransition.cs),
 [animated-layout architecture](../architecture/animated-layout.md), and
-[AnimatedLayoutTests](../../ModernFormsNext.Tests/AnimatedLayoutTests.cs) already define per-control
+[AnimatedLayoutTests](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Tests/AnimatedLayoutTests.cs) already define per-control
 ownership, owner/key replacement, source retargeting, detach/disposal/hide/window-close cancellation,
 ancestor clipping and child transition suppression when a parent resizes. Zero-area endpoints
 deterministically snap. This issue explicitly permits either bounded inherited/enter-exit support
@@ -215,12 +215,12 @@ the existing Animated layout ControlGallery page. New rendered/nested Windows/An
 
 Issue: [#74](https://github.com/ProGraMajster/ModernFormsNext/issues/74). Initial status: **PARTIAL**.
 
-[Control.VisualStates](../../ModernFormsNext/Control.VisualStates.cs) already owns one visual snapshot
+[Control.VisualStates](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Control.VisualStates.cs) already owns one visual snapshot
 and scheduler entry for color, brush, transform, padding and border widths. Its layout-metric change
 path groups layout/cache invalidation and suppresses descendant double animation. Style font and
 border radius properties exist but are not part of that interpolation snapshot. The
 [current metric contract](../architecture/layout-aware-visual-state-metrics.md) explicitly excludes
-other metrics, and [LayoutAwareVisualStateMetricTests](../../ModernFormsNext.Tests/LayoutAwareVisualStateMetricTests.cs)
+other metrics, and [LayoutAwareVisualStateMetricTests](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Tests/LayoutAwareVisualStateMetricTests.cs)
 cover the existing safe subset extensively.
 
 | Acceptance criterion | Initial result | Work still required |
@@ -243,11 +243,11 @@ allocation, rendered, DPI, Android and interactive Designer checks are **NOT EXE
 
 Issue: [#76](https://github.com/ProGraMajster/ModernFormsNext/issues/76). Initial status: **PARTIAL**.
 
-[BrushAnimationPlan](../../ModernFormsNext/Animations/BrushAnimationPlan.cs) already prepares immutable
+[BrushAnimationPlan](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Animations/BrushAnimationPlan.cs) already prepares immutable
 endpoint snapshots, normalizes nonempty gradient stops once, promotes solids to gradient geometry,
 reuses one working brush, and returns exact endpoint references. ThemeManager and visual states
 consume that same planner. [Brush matrix](../architecture/brush-interpolation.md) and
-[compatibility tests](../../ModernFormsNext.Tests/BrushInterpolationCompatibilityTests.cs) already
+[compatibility tests](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Tests/BrushInterpolationCompatibilityTests.cs) already
 cover hard stops, duplicate offsets, unequal stop counts, every gradient kind, fallback, alpha,
 resource rendering, rapid retarget, zero duration and allocation-free prepared intermediate frames.
 The missing pieces in #76 remain: selected broader mappings/policies and explicit color space.
@@ -265,7 +265,7 @@ Preserve the distinction between value-style local plans and in-place `Brush.Ani
 destination identity and structure cannot change arbitrarily. Default color behavior must remain
 source-compatible. Geometry mapping requires a defensible visual model, not an arbitrary conversion.
 No reflection or custom constructors in Designer. Extend
-[BrushInterpolationPanel](../../samples/ControlGallery/Panels/BrushInterpolationPanel.cs), docs and
+[BrushInterpolationPanel](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/samples/ControlGallery/Panels/BrushInterpolationPanel.cs), docs and
 measured allocation tests. #27 is closed; #46 GPU is merely related future work and **must not block
 this issue**. Render snapshots, new allocation checks and Windows/Android visual evidence remain
 **NOT EXECUTED** in this audit.
@@ -274,14 +274,14 @@ this issue**. Render snapshots, new allocation checks and Windows/Android visual
 
 Issue: [#78](https://github.com/ProGraMajster/ModernFormsNext/issues/78). Initial status: **PARTIAL**.
 
-Existing [ThemeTypography](../../ModernFormsNext/Theming/ThemeValues.cs) already validates and stores
+Existing [ThemeTypography](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Theming/ThemeValues.cs) already validates and stores
 positive finite line-height multipliers and finite letter spacing in logical pixels; font size is
 in points. Theme JSON round-trips these values with tests. `ToFont()` drops those extra metrics.
-[TextMeasurer](../../ModernFormsNext/TextMeasurer.cs) and
-[SkiaTextExtensions](../../ModernFormsNext/Extensions/SkiaTextExtensions.cs) are central shared
+[TextMeasurer](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/TextMeasurer.cs) and
+[SkiaTextExtensions](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Extensions/SkiaTextExtensions.cs) are central shared
 measurement/rendering integration points and currently do not apply them globally.
 There is no shared shadow token/model. Individual shadows do exist, for example
-[GroupBoxRenderer.RenderShadow](../../ModernFormsNext/Renderers/GroupBoxRenderer.cs) uses scoped
+[GroupBoxRenderer.RenderShadow](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Renderers/GroupBoxRenderer.cs) uses scoped
 Skia paint/mask-filter/path resources with DPI conversion and custom clipping. Reuse/extract
 appropriate semantics; do not claim no shadow rendering exists anywhere.
 
@@ -298,7 +298,7 @@ The risk is measurement/rendering mismatch across editors, document controls, ba
 selection, line wrapping and DPI, plus native filter/cache lifetime. Avoid a cache keyed only by a
 mutable brush or shadow object without size/DPI/version tracking. Windows and Android share text
 and Skia code; device parity requires observation. Use #58 instrumentation and existing
-[ThemeJsonSerializerTests](../../ModernFormsNext.Tests/Theming/ThemeJsonSerializerTests.cs),
+[ThemeJsonSerializerTests](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Tests/Theming/ThemeJsonSerializerTests.cs),
 theme refresh tests and text/document tests. New runtime, rendered, allocation, Designer and
 Android observations are **NOT EXECUTED** here. #7 is closed and GPU #46 is not required.
 
@@ -306,10 +306,10 @@ Android observations are **NOT EXECUTED** here. #7 is closed and GPU #46 is not 
 
 Issue: [#88](https://github.com/ProGraMajster/ModernFormsNext/issues/88). Initial status: **PARTIAL**.
 
-[ToolTip](../../ModernFormsNext/ToolTip.cs) is a real Skia popup component with delay/auto-pop timers,
+[ToolTip](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/ToolTip.cs) is a real Skia popup component with delay/auto-pop timers,
 hover attachment, placement, owner-draw, styling and disposal. `UseAnimation`, `UseFading`, and
 `ShowAlways` only store booleans; no show/hide animation consumes them.
-[PopupWindow](../../ModernFormsNext/PopupWindow.cs) subscribes to owning-form deactivation using an
+[PopupWindow](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/PopupWindow.cs) subscribes to owning-form deactivation using an
 anonymous handler that hides the popup. This is a concrete activation/handler-lifetime integration
 point to audit when #88 is implemented. ToolTip clears the active interactive-popup marker after
 showing, preserving passive tooltip behavior, but this alone is not evidence of complete focus
@@ -322,12 +322,12 @@ against adding per-tooltip animation timers, not against preserving those existi
 | ShowAlways inactive owner, app deactivation, multiple windows, unsupported platforms | PARTIAL | Define separate owner/application activation semantics through #63 and existing popup contracts; preserve defaults for interactive popups. |
 | Delay/placement/lifetime and no activation stealing | PARTIAL | Existing delay/placement code works as foundation; test with transition cancellation, replacement, close, ownership changes and passive native popup behavior. |
 | Accessibility announcements and supported contrast/motion | PARTIAL | ToolTipPopupControl lacks dedicated announcement integration; extend canonical #59 semantics and existing motion policy. |
-| Deterministic scheduler, ownership, lifecycle, rendered validation | PARTIAL | [ToolTipTests](../../ModernFormsNext.Tests/ToolTipTests.cs) currently cover API/delays/caption/style/validation, not scheduler/native activation. Extend appropriate headless and backend fixtures. |
+| Deterministic scheduler, ownership, lifecycle, rendered validation | PARTIAL | [ToolTipTests](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Tests/ToolTipTests.cs) currently cover API/delays/caption/style/validation, not scheduler/native activation. Extend appropriate headless and backend fixtures. |
 | Document any permanent compatibility no-op | PARTIAL | Current [tooltip guide](../tooltips.md) states limitations; record final permanent scope and supported native behavior after design/implementation. |
 
 Technical route: keep content/popup ownership explicit and animate through `AnimationScheduler`,
 retaining exact placement, cancellation and disposal; do not animate native window activation.
-Extend [ToolTipPanel](../../samples/ControlGallery/Panels/ToolTipPanel.cs). #63 and #59 supply contracts,
+Extend [ToolTipPanel](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/samples/ControlGallery/Panels/ToolTipPanel.cs). #63 and #59 supply contracts,
 but their open umbrella status alone is not an external blocker. Windows inactive-window, multiple
 windows, screen-reader announcements, clipping/DPI and Android popup capability observation remain
 **NOT EXECUTED**. A physical device or screen reader PASS cannot be inferred from deterministic tests.

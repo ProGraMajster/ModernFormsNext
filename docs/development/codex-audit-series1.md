@@ -9,10 +9,10 @@ This is an initial scope/dependency audit, not implementation acceptance.
 
 Sources: [issue and comments](https://github.com/ProGraMajster/ModernFormsNext/issues/64),
 [PR #93](https://github.com/ProGraMajster/ModernFormsNext/pull/93),
-[host](../../ModernFormsNext.Testing/ModernFormsTestHost.cs),
-[window](../../ModernFormsNext.Testing/TestWindowHost.cs),
-[dispatcher](../../ModernFormsNext.Testing/UiTestDispatcher.cs),
-[guide](../testing/testhost.md), [tests](../../ModernFormsNext.Testing.Tests).
+[host](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Testing/ModernFormsTestHost.cs),
+[window](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Testing/TestWindowHost.cs),
+[dispatcher](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Testing/UiTestDispatcher.cs),
+[guide](../testing/testhost.md), [tests](https://github.com/ProGraMajster/ModernFormsNext/tree/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Testing.Tests).
 
 Already: Phase 1 real Form/control hosting, scoped window factory and dispatcher, layout, viewport,
 scale, immutable structural snapshots, bounded drain, exception diagnostics and resilient cleanup.

@@ -41,8 +41,8 @@ Shared inspection covered [Designer architecture](../designer-architecture.md),
 [recovery](../designer-autosave-and-recovery.md), [host](../visual-studio-designer-host.md),
 [animation editors](../designer-animation-effects.md), [dynamic resources](../dynamic-resources.md),
 [commands](../commands.md), and the corresponding source/test projects. The appropriate manual
-Designer sample is [DesignerPlayground](../../samples/ModernFormsNext.DesignerPlayground/);
-runtime animation/command demonstrations already exist in [ControlGallery](../../samples/ControlGallery/).
+Designer sample is [DesignerPlayground](https://github.com/ProGraMajster/ModernFormsNext/tree/ba396f95adab82564a0681bc922096599ba8c1ca/samples/ModernFormsNext.DesignerPlayground);
+runtime animation/command demonstrations already exist in [ControlGallery](https://github.com/ProGraMajster/ModernFormsNext/tree/ba396f95adab82564a0681bc922096599ba8c1ca/samples/ControlGallery).
 The template reference app is not a testing playground.
 
 ## #40 — Add safe design-time execution and control isolation
@@ -57,10 +57,10 @@ out-of-process Visual Studio host. Reopening and cache refresh after `.mfdesign`
 The request to investigate an out-of-process host is outdated as a greenfield task.
 
 Important current gaps in
-[DesignerSurfaceRenderer](../../ModernFormsNext.Designer/Surface/DesignerSurfaceRenderer.cs):
+[DesignerSurfaceRenderer](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Designer/Surface/DesignerSurfaceRenderer.cs):
 `DrawRuntimeControl` creates framework controls but does not dispose them on success or failure,
 and does not install a design-time `Site`. Its property application can set
-[PictureBox.ImageLocation](../../ModernFormsNext/PictureBox.cs), whose production setter starts
+[PictureBox.ImageLocation](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/PictureBox.cs), whose production setter starts
 asynchronous URL/file loading and can start a GIF timer. Restricting constructors to the framework
 assembly therefore does not by itself meet the no-network/no-runtime-services scope. Error strings
 currently retain exception type/message rather than a structured source/stack trace. There is no
@@ -86,7 +86,7 @@ Windows host changes stay in host/backend code; shared preview behavior must rem
 Source: [issue #68](https://github.com/ProGraMajster/ModernFormsNext/issues/68).
 Baseline status: **PARTIAL**. The user's queue requires #40 first.
 
-[DesignerProjectUserControlDiscovery](../../ModernFormsNext.Designer/Services/DesignerProjectUserControlDiscovery.cs)
+[DesignerProjectUserControlDiscovery](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Designer/Services/DesignerProjectUserControlDiscovery.cs)
 parses project source, follows project-local inheritance, and admits public concrete non-generic
 top-level UserControls. `DesignerToolboxService` reflects only the already-loaded framework
 assembly and appends source descriptors. Project custom controls deliberately do not expose their
@@ -115,7 +115,7 @@ fixtures proving module initializers, constructors, attributes, converters, and 
 Source: [issue #35](https://github.com/ProGraMajster/ModernFormsNext/issues/35).
 Baseline status: **PARTIAL** foundations, multi-selection itself missing.
 
-[DesignerSelectionService](../../ModernFormsNext.Designing/Hosting/DesignerSelectionService.cs)
+[DesignerSelectionService](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Designing/Hosting/DesignerSelectionService.cs)
 has only `SelectedNode`; null means root selection. `DesignerSession`, mouse controller, outline,
 PropertyGrid, selection adorner, and clipboard operations consume this canonical single-node
 contract. Existing typed transactions can group multiple changes but do not supply a second
@@ -165,7 +165,7 @@ The Events view, event-field double-click, handler-name persistence, delegate pa
 and subscriptions exist. `DesignerPropertyGridState.TryCreateDefaultEventHandler` and
 `CommitSelectedEvent` **already wrap model edits in transactions**. The issue's blanket statement
 that transaction integration remains missing is outdated for those paths. However,
-[DesignerFileService.EnsureEventHandlerMethod](../../ModernFormsNext.Designer/Services/DesignerFileService.cs)
+[DesignerFileService.EnsureEventHandlerMethod](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Designer/Services/DesignerFileService.cs)
 runs afterward, checks existing methods by name only, and the PropertyGrid merely logs its result.
 There is no code-navigation service in `IDesignerHostEnvironment`, no compatible-method picker,
 and no control-default-event surface activation. Binding/file success and diagnostics must be
@@ -189,7 +189,7 @@ interactive evidence.
 Source: [issue #81](https://github.com/ProGraMajster/ModernFormsNext/issues/81).
 Baseline status: **PARTIAL**, including a concrete diagnostic/import risk.
 
-[CSharpDesignerParser](../../ModernFormsNext.CodeGeneration/Reverse/CSharpDesignerParser.cs)
+[CSharpDesignerParser](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.CodeGeneration/Reverse/CSharpDesignerParser.cs)
 uses Roslyn syntax only. It already handles generated initialization, layout, enums, events,
 known brushes/geometry/effects/transitions and selected initializers. Diagnostics already carry
 line, column and syntax; source-range/recovery presentation is incomplete. #41 imports supported
@@ -271,7 +271,7 @@ distinct from Designer preview and device observations.
 Source: [issue #84](https://github.com/ProGraMajster/ModernFormsNext/issues/84).
 Baseline status: **PARTIAL**. No hard open dependency identified.
 
-[Control.Resources](../../ModernFormsNext/Control.Resources.cs) caches reflected `PropertyInfo`
+[Control.Resources](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext/Control.Resources.cs) caches reflected `PropertyInfo`
 by runtime type/property name; `ResourceReferenceBinding` invokes get/set and handles fallback and
 runtime errors. Missing/non-writable properties already produce useful argument errors, but no
 trimming metadata contract was found at that boundary. `ResourceDictionary` is a flat dictionary;
@@ -300,7 +300,7 @@ Source: [issue #38](https://github.com/ProGraMajster/ModernFormsNext/issues/38).
 Baseline status: **PARTIAL / BLOCKED for complete editor implementation** by actual contracts.
 
 An image picker already enumerates up to 500 image files and displays relative list labels, but
-[DesignerImagePickerDialog](../../ModernFormsNext.Designer/Properties/DesignerImagePickerDialog.cs)
+[DesignerImagePickerDialog](https://github.com/ProGraMajster/ModernFormsNext/blob/ba396f95adab82564a0681bc922096599ba8c1ca/ModernFormsNext.Designer/Properties/DesignerImagePickerDialog.cs)
 stores the full selected filesystem path; `DesignerPropertyDialogEditors.ImageLocation` persists
 that raw value. Runtime PictureBox resolves paths/URLs directly. This is not a stable project
 asset identifier, import/build-action manager, font/icon catalog, or Designer/runtime resolver.
