@@ -1,5 +1,6 @@
 using Android.App;
 using Android.Content.PM;
+using Android.Content;
 using ModernFormsNext.WindowKit.Backend.Android.Permissions;
 
 namespace ModernFormsNext.WindowKit.Backend.Android;
@@ -81,6 +82,21 @@ public static class AndroidWindowKit
     /// </remarks>
     public static void ObserveHostActivity(Activity activity)
         => Current.ActivityTracker.ObserveHostActivity(activity);
+
+    /// <summary>Publishes a new Intent as normalized activation without recreating the application.</summary>
+    /// <param name="activity">The activity receiving OnNewIntent.</param>
+    /// <param name="intent">The newly delivered intent; null represents ordinary activation.</param>
+    /// <remarks>
+    /// Call on the Android main thread in OnNewIntent. Native intent objects are not retained by
+    /// shared data; URI/content grants remain owned by Android. Initial activation and saved-state
+    /// callbacks are observed automatically. Events from unknown or destroyed activities are ignored;
+    /// a known paused activity can receive a new Intent. Application state restoration runs only
+    /// for the first Activity created in a process, preserving newer live state during recreation.
+    /// Invalid payloads and observer failures are reported
+    /// through backend diagnostics without retaining payload contents or interrupting native callbacks.
+    /// </remarks>
+    public static void HandleNewIntent(Activity activity, Intent? intent)
+        => Current.ActivityTracker.HandleNewIntent(activity, intent);
 
     /// <summary>
     /// Forwards an activity permission callback to the central request coordinator.

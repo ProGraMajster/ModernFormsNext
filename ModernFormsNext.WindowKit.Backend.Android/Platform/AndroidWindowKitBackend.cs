@@ -48,6 +48,10 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
     /// </summary>
     public AndroidActivityTracker ActivityTracker { get; private set; } = null!;
 
+    /// <summary>Gets the normalized lifecycle and activation source shared with framework consumers.</summary>
+    /// <remarks>Access after initialization on the Android UI thread.</remarks>
+    public IPlatformApplicationLifecycleNotifications Lifecycle => ActivityTracker.Publisher;
+
     /// <summary>
     /// Gets the Android main-thread dispatcher after initialization.
     /// </summary>
@@ -119,14 +123,14 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             PlatformInfo = new AndroidPlatformInfo();
 
             ApplicationContext.Application.RegisterActivityLifecycleCallbacks(ActivityTracker);
-            IPlatformApplicationLifecycle lifecycle = ActivityTracker;
+            IPlatformApplicationLifecycle lifecycle = ActivityTracker.Publisher;
             lifecycle.StateChanged += HandleApplicationLifecycleChanged;
             animationSettings.SetHostActive(lifecycle.State == PlatformApplicationLifecycleState.Foreground);
 
             // Register only services that are genuinely implemented. In particular, there is no
             // IWindowingPlatform or clipboard registration until Android UI/rendering support exists.
             PlatformServiceRegistry.Register<IPlatformDispatcher>(Dispatcher);
-            PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(ActivityTracker);
+            PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(lifecycle);
             PlatformServiceRegistry.Register<IPlatformAnimationSettings>(animationSettings);
             PlatformServiceRegistry.Register<IPlatformAnimationFrameSource>(animationFrameSource);
             PlatformServiceRegistry.Register<IPermissionService>(Permissions);

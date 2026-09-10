@@ -34,6 +34,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             var message = (WindowsMessage)msg;
             switch (message)
             {
+                case WindowsMessage.WM_ACTIVATEAPP:
+                    Win32Platform.Instance.ApplicationLifecycle?.ApplicationActivated(wParam != IntPtr.Zero);
+                    break;
                 case WindowsMessage.WM_ACTIVATE:
                     {
                         var wa = (WindowActivate)(ToInt32(wParam) & 0xffff);
@@ -87,54 +90,71 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 case WindowsMessage.WM_DESTROY:
                     {
+                        Win32Platform.Instance.ApplicationLifecycle?.WindowDestroyed(hWnd);
                         WindowsUiaRootProvider? uiaAccessibilityObject = _uiaAccessibilityObject;
                         _uiaAccessibilityObject = null;
-                        uiaAccessibilityObject?.Dispose();
-
-                        // The first and foremost thing to do - notify the TopLevel
-                        Closed?.Invoke();
-                        
-                        //if (UiaCoreTypesApi.IsNetComInteropAvailable)
-                        //{
-                        //    UiaCoreProviderApi.UiaReturnRawElementProvider(_hwnd, IntPtr.Zero, IntPtr.Zero, null);
-                        //}
-
-                        //// We need to release IMM context and state to avoid leaks.
-                        //if (Imm32InputMethod.Current.Hwnd == _hwnd)
-                        //{
-                        //    Imm32InputMethod.Current.ClearLanguageAndWindow();
-                        //}
-                        
-                        // Cleanup render targets
-                        (_gl as IDisposable)?.Dispose();
-
-                        //if (_dropTarget != null)
-                        //{
-                        //    OleContext.Current?.UnregisterDragDrop(Handle);
-                        //    _dropTarget.Dispose();
-                        //    _dropTarget = null;
-                        //}
-
-                        _framebuffer.Dispose();
-
-                        //Window doesn't exist anymore
-                        _hwnd = IntPtr.Zero;
-                        _msaaAccessibilityObject = null;
-                        //Remove root reference to this class, so unmanaged delegate can be collected
-                        s_instances.Remove(this);
-
-                        _mouseDevice.Dispose();
-                        _touchDevice.Dispose();
-                        //Free other resources
-                        Dispose();
-
-                        // Schedule cleanup of anything that requires window to be destroyed
-                        Dispatcher.UIThread.Post(AfterCloseCleanup);
-                        if (uiaAccessibilityObject is not null)
+                        try
                         {
-                            // UiaDisconnectProvider performs an outbound COM call and must not run
-                            // inside an inbound SendMessage callback such as WM_DESTROY.
-                            Dispatcher.UIThread.Post(uiaAccessibilityObject.Disconnect);
+                            uiaAccessibilityObject?.Dispose();
+                            // Notify TopLevel before releasing native rendering/input ownership.
+                            Closed?.Invoke();
+                        }
+                        finally
+                        {
+                            //if (UiaCoreTypesApi.IsNetComInteropAvailable)
+                            //{
+                            //    UiaCoreProviderApi.UiaReturnRawElementProvider(_hwnd, IntPtr.Zero, IntPtr.Zero, null);
+                            //}
+
+                            //// We need to release IMM context and state to avoid leaks.
+                            //if (Imm32InputMethod.Current.Hwnd == _hwnd)
+                            //{
+                            //    Imm32InputMethod.Current.ClearLanguageAndWindow();
+                            //}
+
+                            // User Closed/capture handlers may throw. Nested finally blocks keep
+                            // every native release mandatory without swallowing that exception or
+                            // changing the existing policy for failures escaping the native WndProc.
+                            try { (_gl as IDisposable)?.Dispose(); }
+                            finally
+                            {
+                                //if (_dropTarget != null)
+                                //{
+                                //    OleContext.Current?.UnregisterDragDrop(Handle);
+                                //    _dropTarget.Dispose();
+                                //    _dropTarget = null;
+                                //}
+
+                                try { _framebuffer.Dispose(); }
+                                finally
+                                {
+                                    // The HWND is already being destroyed. Reentrant Dispose must
+                                    // see that committed state, even after a resource release failed.
+                                    _hwnd = IntPtr.Zero;
+                                    _msaaAccessibilityObject = null;
+                                    s_instances.Remove(this);
+                                    try { _mouseDevice.Dispose(); }
+                                    finally
+                                    {
+                                        try { _touchDevice.Dispose(); }
+                                        finally
+                                        {
+                                            try { Dispose(); }
+                                            finally
+                                            {
+                                                try { Dispatcher.UIThread.Post(AfterCloseCleanup); }
+                                                finally
+                                                {
+                                                    // Outbound COM disconnection must stay outside
+                                                    // inbound SendMessage/WM_DESTROY callbacks.
+                                                    if (uiaAccessibilityObject is not null)
+                                                        Dispatcher.UIThread.Post(uiaAccessibilityObject.Disconnect);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         return IntPtr.Zero;
                     }

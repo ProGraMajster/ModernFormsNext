@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.Content.Res;
 using Android.OS;
@@ -14,12 +15,15 @@ namespace ModernFormsNext.CrossPlatform.Sample;
     Label = "ModernFormsNext Cross-Platform Sample",
     MainLauncher = true,
     Exported = true,
+    LaunchMode = LaunchMode.SingleTop,
     ScreenOrientation = ScreenOrientation.Unspecified,
     ConfigurationChanges = ConfigChanges.Orientation |
         ConfigChanges.ScreenSize |
         ConfigChanges.SmallestScreenSize |
         ConfigChanges.UiMode |
         ConfigChanges.Density)]
+[IntentFilter([Intent.ActionView], Categories = [Intent.CategoryDefault, Intent.CategoryBrowsable],
+    DataScheme = "modernformsnext-sample")]
 public sealed class MainActivity : Activity
 {
     private AndroidAppHost? host;
@@ -66,17 +70,23 @@ public sealed class MainActivity : Activity
     /// <inheritdoc/>
     protected override void OnPause()
     {
-        host?.Pause();
-        ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity paused");
-        base.OnPause();
+        try
+        {
+            host?.Pause();
+            ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity paused");
+        }
+        finally { base.OnPause(); }
     }
 
     /// <inheritdoc/>
     protected override void OnStop()
     {
-        host?.Stop();
-        ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity stopped");
-        base.OnStop();
+        try
+        {
+            host?.Stop();
+            ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity stopped");
+        }
+        finally { base.OnStop(); }
     }
 
     /// <inheritdoc/>
@@ -90,11 +100,20 @@ public sealed class MainActivity : Activity
     /// <inheritdoc/>
     protected override void OnDestroy()
     {
-        ((SampleApplication)Application!).SharedApp.NotifyLifecycle(
-            IsChangingConfigurations ? "Activity destroyed for recreation" : "Activity destroyed");
-        host?.Dispose();
+        var previousHost = host;
         host = null;
-        base.OnDestroy();
+        try
+        {
+            ((SampleApplication)Application!).SharedApp.NotifyLifecycle(
+                IsChangingConfigurations ? "Activity destroyed for recreation" : "Activity destroyed");
+        }
+        finally
+        {
+            // Detach ownership before user callbacks can reenter destruction; Android's base
+            // lifecycle still completes if shared cancellation or resource cleanup fails.
+            try { previousHost?.Dispose(); }
+            finally { base.OnDestroy(); }
+        }
     }
 
     /// <inheritdoc/>
@@ -102,5 +121,13 @@ public sealed class MainActivity : Activity
     {
         if (!AndroidWindowKit.HandleRequestPermissionsResult(requestCode, permissions, grantResults))
             base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    /// <inheritdoc/>
+    protected override void OnNewIntent(Intent? intent)
+    {
+        base.OnNewIntent(intent);
+        Intent = intent;
+        AndroidWindowKit.HandleNewIntent(this, intent);
     }
 }

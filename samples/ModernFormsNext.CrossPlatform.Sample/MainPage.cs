@@ -26,6 +26,8 @@ public sealed class MainPage : Control
     private readonly Label dispatcherLabel;
     private readonly Label hostLabel;
     private readonly Label lifecycleLabel;
+    private readonly Label applicationLifecycleLabel;
+    private readonly Label activationLabel;
     private readonly Label surfaceLabel;
     private readonly Label densityLabel;
     private readonly Label renderLabel;
@@ -85,6 +87,8 @@ public sealed class MainPage : Control
         dispatcherLabel = CreateLabel(string.Empty);
         hostLabel = CreateLabel(string.Empty);
         lifecycleLabel = CreateLabel(string.Empty);
+        applicationLifecycleLabel = CreateLabel(string.Empty);
+        activationLabel = CreateLabel(string.Empty);
         surfaceLabel = CreateLabel(string.Empty);
         densityLabel = CreateLabel(string.Empty);
         renderLabel = CreateLabel(string.Empty);
@@ -200,6 +204,8 @@ public sealed class MainPage : Control
             dispatcherLabel,
             hostLabel,
             lifecycleLabel,
+            applicationLifecycleLabel,
+            activationLabel,
             surfaceLabel,
             densityLabel,
             renderLabel,
@@ -311,6 +317,9 @@ public sealed class MainPage : Control
         dispatcherLabel.Text = $"Dispatcher callbacks: {app.State.DispatcherCount}; UI access: {platform.Dispatcher.CheckAccess()}";
         hostLabel.Text = $"Backend host: {platform.HostState}";
         lifecycleLabel.Text = $"Activity/window lifecycle: {app.State.LifecycleStatus}";
+        var lifecycle = Application.Lifecycle.GetDiagnostics();
+        applicationLifecycleLabel.Text = $"Application: {lifecycle.Snapshot.Phase} / {lifecycle.Snapshot.State}; host generation: {lifecycle.Snapshot.HostGeneration}";
+        activationLabel.Text = $"Last activation: {lifecycle.LastActivationKind?.ToString() ?? "none"}";
         surfaceLabel.Text =
             $"Logical surface: {app.State.SurfaceWidth} × {app.State.SurfaceHeight}; " +
             $"attached: {app.State.SurfaceAttached}; pointers: {app.State.ActivePointerCount}";
