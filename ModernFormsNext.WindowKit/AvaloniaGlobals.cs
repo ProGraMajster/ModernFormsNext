@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using ModernFormsNext.WindowKit.Compatibility;
 using ModernFormsNext.WindowKit.Controls.Platform;
 using ModernFormsNext.WindowKit.Input.Platform;
@@ -18,6 +19,7 @@ namespace ModernFormsNext.WindowKit
     public static class AvaloniaGlobals
     {
         private static Dictionary<Type, object> services = new Dictionary<Type, object>();
+        private static readonly AsyncLocal<TestingServiceScope?> testingServices = new();
 
         static AvaloniaGlobals()
         {
@@ -54,6 +56,9 @@ namespace ModernFormsNext.WindowKit
         /// <exception cref="ApplicationException">Thrown when no service is registered for <typeparamref name="T"/>.</exception>
         public static T GetRequiredService<T>() where T : class
         {
+            if (GetTestingService<T>() is { } scoped)
+                return scoped;
+
             if (services.TryGetValue(typeof(T), out var implementation))
                 return (T)implementation;
 
@@ -67,10 +72,49 @@ namespace ModernFormsNext.WindowKit
         /// <returns>The registered service implementation, or <see langword="null"/> when it is not registered.</returns>
         public static T? GetService<T>() where T : class
         {
+            if (GetTestingService<T>() is { } scoped)
+                return scoped;
+
             if (services.TryGetValue(typeof(T), out var implementation))
                 return (T)implementation;
 
             return null;
+        }
+
+        // Tests override the existing resolver only in their execution context. The revocable
+        // holder, rather than a captured service dictionary, prevents a queued async context from
+        // retaining or resolving expired fake services after its host has been disposed.
+        internal static IDisposable PushServiceForTesting<T>(T service) where T : class
+        {
+            ArgumentNullException.ThrowIfNull(service);
+            var scope = new TestingServiceScope(typeof(T), service, testingServices.Value);
+            testingServices.Value = scope;
+            return scope;
+        }
+
+        private static T? GetTestingService<T>() where T : class
+        {
+            for (var scope = testingServices.Value; scope is not null; scope = scope.Previous)
+            {
+                if (scope.ServiceType == typeof(T) && Volatile.Read(ref scope.Service) is T service)
+                    return service;
+            }
+
+            return null;
+        }
+
+        private sealed class TestingServiceScope(Type serviceType, object service, TestingServiceScope? previous) : IDisposable
+        {
+            internal readonly Type ServiceType = serviceType;
+            internal readonly TestingServiceScope? Previous = previous;
+            internal object? Service = service;
+
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref Service, null);
+                if (ReferenceEquals(testingServices.Value, this))
+                    testingServices.Value = Previous;
+            }
         }
 
         /*private static void InitializeLinux()

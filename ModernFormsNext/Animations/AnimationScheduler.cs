@@ -91,7 +91,12 @@ public sealed partial class AnimationScheduler : IDisposable
     /// <summary>
     /// Gets the process-wide scheduler used by ModernFormsNext controls and shared backends.
     /// </summary>
-    public static AnimationScheduler Default => DefaultInstance.Value;
+    /// <remarks>
+    /// A deterministic headless test host temporarily supplies this same production scheduler
+    /// implementation with its own clock and tick source. Do not retain that host-owned instance
+    /// after disposing the host. Ordinary application resolution is unchanged outside that scope.
+    /// </remarks>
+    public static AnimationScheduler Default => GetTestingDefault() ?? DefaultInstance.Value;
 
     /// <summary>
     /// Gets the central reduced-motion and duration policy for this scheduler.
@@ -452,18 +457,19 @@ public sealed partial class AnimationScheduler : IDisposable
 
     internal static void CancelOwnedIfInitialized(object owner)
     {
-        if (DefaultInstance.IsValueCreated)
-            DefaultInstance.Value.CancelAll(owner);
+        GetDefaultIfInitialized()?.CancelAll(owner);
     }
 
     internal static void ShutdownDefaultIfInitialized()
     {
-        if (DefaultInstance.IsValueCreated)
-            DefaultInstance.Value.Shutdown();
+        GetDefaultIfInitialized()?.Shutdown();
     }
 
     internal static AnimationSchedulerDiagnostics? GetDefaultDiagnosticsIfInitialized()
-        => DefaultInstance.IsValueCreated ? DefaultInstance.Value.GetDiagnostics() : null;
+        => GetDefaultIfInitialized()?.GetDiagnostics();
+
+    private static AnimationScheduler? GetDefaultIfInitialized()
+        => GetTestingDefault() ?? (DefaultInstance.IsValueCreated ? DefaultInstance.Value : null);
 
     internal void Cancel(AnimationEntry entry)
     {

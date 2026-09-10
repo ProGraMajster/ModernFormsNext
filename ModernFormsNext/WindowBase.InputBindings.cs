@@ -47,7 +47,17 @@ public abstract partial class WindowBase
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
-        ReleaseInputBindings();
-        base.Dispose(disposing);
+        try
+        {
+            // Component can finalize a Form whose backend factory threw before WindowBase's
+            // constructor ran. Finalizers must not touch its incomplete adapter or invoke managed
+            // control/command callbacks on the finalizer thread, even for a completed constructor.
+            if (disposing)
+                ReleaseInputBindings();
+        }
+        finally
+        {
+            base.Dispose(disposing);
+        }
     }
 }

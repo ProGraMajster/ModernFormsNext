@@ -4,6 +4,7 @@ internal sealed class AnimationEntry
 {
     private readonly TaskCompletionSource<AnimationState> completion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly AnimationCompletion<AnimationState> frameworkCompletion = new();
     private readonly CancellationTokenSource cancellation = new();
     private int state = (int)AnimationState.Created;
     private Exception? exception;
@@ -61,6 +62,11 @@ internal sealed class AnimationEntry
 
     public Task<AnimationState> Completion => completion.Task;
 
+    // Only framework composition and theme bookkeeping may await this signal. Publishing it outside
+    // scheduler locks lets those continuations schedule their next production leg at the same
+    // monotonic frame time. Public consumers keep the asynchronous Completion task above.
+    internal AnimationCompletion<AnimationState> FrameworkCompletion => frameworkCompletion;
+
     public Exception? Exception => Volatile.Read(ref exception);
 
     public CancellationToken CancellationToken => cancellation.Token;
@@ -115,7 +121,15 @@ internal sealed class AnimationEntry
         Volatile.Write(ref update, null);
         Volatile.Write(ref easing, null);
         Volatile.Write(ref owner, null);
-        completion.TrySetResult(terminalState);
-        cancellation.Dispose();
+        try
+        {
+            frameworkCompletion.TrySetResult(terminalState);
+        }
+        finally
+        {
+            // A dispatcher failure in internal bookkeeping must not strand a public handle.
+            completion.TrySetResult(terminalState);
+            cancellation.Dispose();
+        }
     }
 }

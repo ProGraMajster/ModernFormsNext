@@ -191,7 +191,7 @@ public abstract class AnimationDefinition
 
     internal virtual bool HasSchedulableWork => true;
 
-    internal virtual async Task<AnimationExecutionResult> ExecuteAsync(AnimationExecutionScope scope, bool reverse = false)
+    internal virtual async AnimationCompletion<AnimationExecutionResult> ExecuteAsync(AnimationExecutionScope scope, bool reverse = false)
     {
         if (repeatsForever && !HasSchedulableWork)
         {
@@ -205,13 +205,13 @@ public abstract class AnimationDefinition
         while (repeatsForever || iteration < repeatCount)
         {
             scope.CancellationToken.ThrowIfCancellationRequested();
-            AnimationExecutionResult forward = await ExecuteCoreAsync(scope, reverse).ConfigureAwait(false);
+            AnimationExecutionResult forward = await ExecuteCoreAsync(scope, reverse).On(scope.Scheduler);
             if (forward.State != AnimationState.Completed || forward.WasIgnored)
                 return forward;
 
             if (autoReverse)
             {
-                AnimationExecutionResult backward = await ExecuteCoreAsync(scope, !reverse).ConfigureAwait(false);
+                AnimationExecutionResult backward = await ExecuteCoreAsync(scope, !reverse).On(scope.Scheduler);
                 if (backward.State != AnimationState.Completed || backward.WasIgnored)
                     return backward;
             }
@@ -224,7 +224,7 @@ public abstract class AnimationDefinition
         return AnimationExecutionResult.Completed;
     }
 
-    internal virtual Task<AnimationExecutionResult> ExecuteCoreAsync(
+    internal virtual AnimationCompletion<AnimationExecutionResult> ExecuteCoreAsync(
         AnimationExecutionScope scope,
         bool reverse)
     {
@@ -233,7 +233,7 @@ public abstract class AnimationDefinition
         return ScheduleAsync(scope, target, ResolveKey(), reverse, Update);
     }
 
-    internal Task<AnimationExecutionResult> ScheduleAsync(
+    internal AnimationCompletion<AnimationExecutionResult> ScheduleAsync(
         AnimationExecutionScope scope,
         Control target,
         string key,
@@ -284,41 +284,35 @@ public abstract class AnimationDefinition
                 token,
                 string.Empty,
                 new object())),
-            cancellationToken);
+            cancellationToken,
+            scheduler);
         return run;
     }
 
-    internal static async Task<AnimationExecutionResult> AwaitLeafAsync(
+    internal static async AnimationCompletion<AnimationExecutionResult> AwaitLeafAsync(
         AnimationHandle handle,
         AnimationContext? context,
         CancellationToken cancellationToken,
         bool cancelHandleOnCancellation = true)
     {
-        TaskCompletionSource? ignoredRunCancellation = null;
+        AnimationCompletion<AnimationState> completion = handle.FrameworkCompletion;
+        // An ignored run may cancel its own wait without canceling the existing shared handle.
+        // Dispose the relay registration after either outcome so the canceled run retains nothing.
+        AnimationCompletion<AnimationState>? ignoredCompletion =
+            !cancelHandleOnCancellation && cancellationToken.CanBeCanceled ? new() : null;
+        using IDisposable? relay = ignoredCompletion is not null
+            ? completion.Register(() => ignoredCompletion.TrySetResult(completion.GetResult()))
+            : null;
         using CancellationTokenRegistration registration = cancellationToken.CanBeCanceled
             ? cancellationToken.Register(
                 cancelHandleOnCancellation
                     ? handle.Cancel
-                    : () => ignoredRunCancellation?.TrySetResult())
+                    : () => ignoredCompletion!.TrySetResult(AnimationState.Canceled))
             : default;
 
         try
         {
-            Task<AnimationState> completion = handle.Completion;
-            if (!cancelHandleOnCancellation && cancellationToken.CanBeCanceled && !completion.IsCompleted)
-            {
-                ignoredRunCancellation =
-                    new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                if (cancellationToken.IsCancellationRequested)
-                    ignoredRunCancellation.TrySetResult();
-                Task finished = await Task.WhenAny(
-                    completion,
-                    ignoredRunCancellation.Task).ConfigureAwait(false);
-                if (!ReferenceEquals(finished, completion))
-                    return AnimationExecutionResult.Canceled;
-            }
-
-            AnimationState state = await completion.ConfigureAwait(false);
+            AnimationState state = await (ignoredCompletion ?? completion).On(handle.Scheduler);
             return state switch
             {
                 AnimationState.Completed => cancelHandleOnCancellation

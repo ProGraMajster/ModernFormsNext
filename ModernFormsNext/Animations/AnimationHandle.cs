@@ -29,6 +29,10 @@ public sealed class AnimationHandle : IDisposable
     /// </summary>
     public Task<AnimationState> Completion => entry.Completion;
 
+    internal AnimationCompletion<AnimationState> FrameworkCompletion => entry.FrameworkCompletion;
+
+    internal AnimationScheduler Scheduler => scheduler;
+
     /// <summary>
     /// Gets the exception that faulted the animation, or <see langword="null"/> otherwise.
     /// </summary>

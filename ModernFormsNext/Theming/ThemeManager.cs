@@ -41,7 +41,7 @@ public sealed class ThemeManager
 
     private readonly object sync = new();
     private readonly Dictionary<string, ThemeDefinition> registeredThemes = new(StringComparer.Ordinal);
-    private readonly AnimationScheduler scheduler;
+    private readonly Func<AnimationScheduler> schedulerProvider;
     private readonly IThemeDispatcher dispatcher;
     private readonly IThemeEnvironment environment;
     private readonly IThemeLegacyStore legacyStore;
@@ -61,7 +61,7 @@ public sealed class ThemeManager
 
     private ThemeManager()
         : this(
-            AnimationScheduler.Default,
+            static () => AnimationScheduler.Default,
             new DefaultThemeDispatcher(),
             new DefaultThemeEnvironment(),
             new ThemeSecurityLimits(),
@@ -79,8 +79,20 @@ public sealed class ThemeManager
         ResourceDictionary? resources = null,
         IThemeLegacyStore? legacyStore = null,
         bool initializeBuiltIn = false)
+        : this(CreateSchedulerProvider(scheduler), dispatcher, environment, limits, resources, legacyStore, initializeBuiltIn)
     {
-        this.scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
+    }
+
+    private ThemeManager(
+        Func<AnimationScheduler> schedulerProvider,
+        IThemeDispatcher dispatcher,
+        IThemeEnvironment environment,
+        ThemeSecurityLimits limits,
+        ResourceDictionary? resources,
+        IThemeLegacyStore? legacyStore,
+        bool initializeBuiltIn)
+    {
+        this.schedulerProvider = schedulerProvider;
         this.dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         this.environment = environment ?? throw new ArgumentNullException(nameof(environment));
         this.legacyStore = legacyStore ?? new DefaultThemeLegacyStore();
@@ -104,6 +116,12 @@ public sealed class ThemeManager
             Dictionary<string, object> legacy = this.legacyStore.GetSnapshot();
             this.legacyStore.Replace(ThemeLegacyProjector.Create(resolution.Snapshot, legacy));
         }
+    }
+
+    private static Func<AnimationScheduler> CreateSchedulerProvider(AnimationScheduler scheduler)
+    {
+        ArgumentNullException.ThrowIfNull(scheduler);
+        return () => scheduler;
     }
 
     /// <summary>Gets the process-wide application ThemeManager.</summary>
@@ -371,6 +389,11 @@ public sealed class ThemeManager
 
         Dictionary<object, object?> targetResources = snapshot.CreateResourceEntries();
         Dictionary<string, object> targetLegacy = ThemeLegacyProjector.Create(snapshot, oldLegacy);
+        // The application singleton outlives serialized headless hosts. Resolve its current
+        // production scheduler at apply time so neither a prewarmed manager bypasses TestClock
+        // nor a manager first initialized in a host retains that host's disposed scheduler.
+        // Internally injected managers deliberately keep their explicitly supplied scheduler.
+        AnimationScheduler scheduler = schedulerProvider();
         bool transitionEnabled = options.Transition.Enabled &&
             options.Transition.Duration > TimeSpan.Zero &&
             !environment.IsDesignMode &&
@@ -482,7 +505,13 @@ public sealed class ThemeManager
     {
         ThemeTransitionRuntime? runtime;
         lock (sync)
+        {
             runtime = currentTransition;
+            // A completed animation can still have its final theme callback queued. Detach the
+            // old runtime before replacement so that callback cannot reapply its old resources
+            // after an immediate apply or headless-host restoration.
+            currentTransition = null;
+        }
         if (runtime is null)
             return;
         runtime.SnapOnCancel = false;
@@ -504,8 +533,26 @@ public sealed class ThemeManager
 
     private async Task ObserveTransitionAsync(ThemeTransitionRuntime runtime)
     {
-        AnimationState animationState = await runtime.Animation.Completion.ConfigureAwait(false);
-        dispatcher.Post(() => CompleteTransition(runtime, animationState));
+        try
+        {
+            AnimationState animationState = await runtime.Animation.FrameworkCompletion.On(runtime.Animation.Scheduler);
+            dispatcher.Post(() => CompleteTransition(runtime, animationState));
+        }
+        catch when (!runtime.PublicHandle.Completion.IsCompleted)
+        {
+            // Dispatcher rejection leaves no safe thread on which to apply resources or notify
+            // application observers. Still detach bookkeeping and release the public completion.
+            lock (sync)
+            {
+                if (ReferenceEquals(currentTransition, runtime))
+                {
+                    currentTransition = null;
+                    transitionState = ThemeTransitionStatus.Failed;
+                }
+                failedSwitches++;
+            }
+            runtime.PublicHandle.Complete(ThemeTransitionStatus.Failed);
+        }
     }
 
     private void CompleteTransition(ThemeTransitionRuntime runtime, AnimationState animationState)

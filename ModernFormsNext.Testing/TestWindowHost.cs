@@ -7,9 +7,10 @@ namespace ModernFormsNext.Testing;
 /// <remarks>
 /// Layout, ownership, visibility, invalidation, and close behavior use production framework paths.
 /// The only substituted component is the WindowKit top-level implementation, which records state
-/// and never creates a platform handle or rendering surface.
+/// and never creates a native platform handle. Explicit snapshots use a temporary off-screen
+/// framebuffer; ordinary hosting does not retain a rendering surface.
 /// </remarks>
-public sealed class TestWindowHost : IDisposable
+public sealed partial class TestWindowHost : IDisposable
 {
     private const int DefaultLayoutPassLimit = 16;
     private readonly ModernFormsTestHost owner;
@@ -18,19 +19,46 @@ public sealed class TestWindowHost : IDisposable
     private readonly Control? controlRoot;
     private TestViewport viewport;
     private bool closed;
+    private bool closing;
 
     internal TestWindowHost(
         ModernFormsTestHost owner,
         Form hostedForm,
         HeadlessWindowImpl backend,
         Control? controlRoot,
-        TestViewport viewport)
+        TestViewport viewport,
+        TestWindowHost? modalOwner = null)
     {
         this.owner = owner;
         this.hostedForm = hostedForm;
         this.backend = backend;
         this.controlRoot = controlRoot;
         this.viewport = viewport;
+        ModalOwner = modalOwner;
+        Input = new TestInput(this);
+        hostedForm.InputClock = () => owner.Clock.CurrentTime;
+    }
+
+    /// <summary>Gets input helpers that route through this window's production backend input callback.</summary>
+    public TestInput Input { get; }
+
+    /// <summary>Gets the original production dialog-result task, or null for a nonmodal window.</summary>
+    /// <remarks>
+    /// The task completes when Form modal cleanup runs. A canceled Form.Close keeps it pending;
+    /// explicit test-window/host disposal still forces deterministic cleanup. A DialogResult set
+    /// before ShowDialog returns an already completed task without displaying the Form.
+    /// </remarks>
+    public Task<DialogResult>? DialogCompletion { get; private set; }
+
+    /// <summary>Gets the canonical keyboard focus owner of this window on the test UI thread.</summary>
+    /// <remarks>Focus belongs to each window; this does not emulate operating-system foreground activation.</remarks>
+    public Control? FocusedControl
+    {
+        get
+        {
+            ThrowIfClosed();
+            return owner.Dispatcher.Run(() => hostedForm.adapter.SelectedControl);
+        }
     }
 
     /// <summary>Gets the directly hosted Form, or null when a control root uses an internal Form wrapper.</summary>
@@ -45,8 +73,9 @@ public sealed class TestWindowHost : IDisposable
     /// <summary>Gets whether this host deliberately has no native window or visible desktop surface.</summary>
     public bool IsHeadless => true;
 
-    /// <summary>Gets whether the hosted tree has been deterministically closed and disposed.</summary>
-    public bool IsClosed => closed;
+    /// <summary>Gets whether the window has begun closing or was closed by application code or host cleanup.</summary>
+    /// <remarks>The host still releases managed tree resources during cleanup after an application closes its Form.</remarks>
+    public bool IsClosed => closing || closed || backend.IsDisposed;
 
     /// <summary>Runs one explicit production layout pass over the complete hosted tree.</summary>
     public void PerformLayout()
@@ -81,7 +110,7 @@ public sealed class TestWindowHost : IDisposable
 
                 ControlTreeSnapshot snapshot = CaptureTreeCore();
                 string signature = snapshot.GetStabilitySignature();
-                if (signature == previousSignature && owner.Dispatcher.PendingWorkCount == 0)
+                if (signature == previousSignature && !owner.Dispatcher.HasReadyWork)
                     return pass;
                 previousSignature = signature;
             }
@@ -162,12 +191,14 @@ public sealed class TestWindowHost : IDisposable
     /// <summary>Closes and disposes the complete hosted tree deterministically.</summary>
     /// <remarks>
     /// Test-host ownership is authoritative: cleanup completes even if a Form Closing handler would
-    /// cancel a normal user close. Modal/focus/cancellation semantics are outside Phase 1.
+    /// cancel a normal user close. Reentrant Close/Dispose calls do not repeat close callbacks.
+    /// A callback may request host disposal; it takes effect after the current window's independent
+    /// cleanup steps finish. This does not emulate native modal-window activation.
     /// </remarks>
     /// <exception cref="Exception">An application close handler failed after deterministic cleanup completed.</exception>
     public void Close()
     {
-        if (closed)
+        if (closed || closing)
             return;
         owner.Dispatcher.Run(CloseCore);
     }
@@ -177,14 +208,48 @@ public sealed class TestWindowHost : IDisposable
 
     internal HeadlessWindowImpl Backend => backend;
 
+    internal Form HostedForm => hostedForm;
+
+    internal UiTestDispatcher Dispatcher => owner.Dispatcher;
+
+    internal TestWindowHost? ModalOwner { get; }
+
+    internal ulong InputTimestamp => (ulong)owner.Clock.CurrentTime.TotalMilliseconds;
+
+    internal void VerifyInputAccess()
+    {
+        ThrowIfClosed();
+        owner.Dispatcher.VerifyAccess();
+    }
+
+    internal bool CanReceiveInput => backend.IsShown && backend.IsEnabled && hostedForm.Visible;
+
     internal void Show()
+    {
+        PrepareViewport();
+        hostedForm.Show();
+        if (!IsClosed)
+            LayoutUntilStable();
+    }
+
+    internal void ShowDialog()
+    {
+        PrepareViewport();
+        DialogCompletion = hostedForm.ShowDialog(ModalOwner!.HostedForm);
+        // Shown handlers can close the Form or dispose the entire host. Keep the original result
+        // task, release a directly closed Form's remaining test resources, and avoid further layout.
+        if (IsClosed)
+            Close();
+        else if (backend.IsShown)
+            LayoutUntilStable();
+    }
+
+    private void PrepareViewport()
     {
         backend.SetRenderScale(viewport.RenderScale);
         hostedForm.ClientSize = new Size(viewport.Width, viewport.Height);
         if (controlRoot is not null)
             controlRoot.Bounds = new Rectangle(0, 0, viewport.Width, viewport.Height);
-        hostedForm.Show();
-        LayoutUntilStable();
     }
 
     private void PerformLayoutCore()
@@ -205,7 +270,7 @@ public sealed class TestWindowHost : IDisposable
             ? ControlTreeSnapshotCapture.Capture(hostedForm, viewport.RenderScale)
             : ControlTreeSnapshotCapture.Capture(controlRoot, viewport.RenderScale);
 
-    private bool Contains(Control candidate)
+    internal bool Contains(Control candidate)
     {
         Control? current = candidate;
         Control root = controlRoot ?? hostedForm.Controls.Owner;
@@ -221,25 +286,40 @@ public sealed class TestWindowHost : IDisposable
 
     private void CloseCore()
     {
-        if (closed)
+        if (closed || closing)
             return;
 
         var failures = new List<Exception>();
-        TryCleanup(hostedForm.Close, failures);
-
-        // Normal Close may be canceled or a Closing handler may fail. Test-host ownership remains
-        // authoritative, so every independent cleanup step still runs and releases its references.
-        TryCleanup(() => Application.OpenForms.Remove(hostedForm), failures);
-        TryCleanup(hostedForm.adapter.CancelOwnedControlAnimationsForSubtree, failures);
-        TryCleanup(() =>
+        closing = true;
+        owner.BeginWindowClose();
+        try
         {
+            TryCleanup(() => owner.CloseOwnedDialogs(this), failures);
             if (!backend.IsDisposed)
-                backend.Dispose();
-        }, failures);
-        TryCleanup(hostedForm.adapter.Dispose, failures);
-        TryCleanup(hostedForm.Dispose, failures);
-        closed = true;
-        TryCleanup(() => owner.NotifyWindowClosed(this), failures);
+                TryCleanup(hostedForm.Close, failures);
+
+            // Normal Close may be canceled or a Closing handler may fail. Test-host ownership
+            // remains authoritative, and a reentrant host Dispose waits for this cleanup boundary.
+            TryCleanup(() => Application.OpenForms.Remove(hostedForm), failures);
+            TryCleanup(hostedForm.adapter.CancelOwnedControlAnimationsForSubtree, failures);
+            TryCleanup(() =>
+            {
+                if (!backend.IsDisposed)
+                    backend.Dispose();
+            }, failures);
+            TryCleanup(hostedForm.CompleteDialogClose, failures);
+            TryCleanup(hostedForm.adapter.Dispose, failures);
+            TryCleanup(hostedForm.Dispose, failures);
+            hostedForm.InputClock = null;
+            TryCleanup(Input.Dispose, failures);
+        }
+        finally
+        {
+            closed = true;
+            closing = false;
+            TryCleanup(() => owner.NotifyWindowClosed(this), failures);
+            TryCleanup(owner.EndWindowClose, failures);
+        }
 
         if (failures.Count == 1)
             ExceptionDispatchInfo.Capture(failures[0]).Throw();
@@ -257,7 +337,7 @@ public sealed class TestWindowHost : IDisposable
     private void ThrowIfClosed()
     {
         owner.ThrowIfDisposed();
-        ObjectDisposedException.ThrowIf(closed, this);
+        ObjectDisposedException.ThrowIf(closing || closed || backend.IsDisposed, this);
     }
 
     private static void TryCleanup(Action action, ICollection<Exception> failures)

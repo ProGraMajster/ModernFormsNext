@@ -8,9 +8,9 @@ using SkiaSharp;
 namespace ModernFormsNext.Testing;
 
 /// <summary>
-/// Implements the existing WindowKit top-level contract without creating a native window or surface.
+/// Implements the existing WindowKit top-level contract without a native window or persistent surface.
 /// </summary>
-internal sealed class HeadlessWindowImpl : IWindowImpl
+internal sealed partial class HeadlessWindowImpl : IWindowImpl
 {
     private readonly HeadlessPlatformHandle handle = new();
     private readonly HeadlessScreenImpl screen;
@@ -35,7 +35,7 @@ internal sealed class HeadlessWindowImpl : IWindowImpl
 
     public double RenderScaling => renderScaling;
 
-    public IEnumerable<object> Surfaces => Array.Empty<object>();
+    public IEnumerable<object> Surfaces => renderingSurfaces;
 
     public Action<RawInputEventArgs>? Input { get; set; }
 
@@ -136,7 +136,7 @@ internal sealed class HeadlessWindowImpl : IWindowImpl
     {
     }
 
-    public IPopupImpl? CreatePopup() => null;
+    public IPopupImpl? CreatePopup() => CreateHeadlessPopup();
 
     public void SetTransparencyLevelHint(IReadOnlyList<WindowTransparencyLevel> transparencyLevels)
     {
@@ -272,21 +272,29 @@ internal sealed class HeadlessWindowImpl : IWindowImpl
         IsDisposed = true;
         IsShown = false;
         pendingInvalidationCount = 0;
-        Closed?.Invoke();
-        Input = null;
-        Paint = null;
-        Resized = null;
-        ScalingChanged = null;
-        TransparencyLevelChanged = null;
-        Closed = null;
-        LostFocus = null;
-        PositionChanged = null;
-        Deactivated = null;
-        Activated = null;
-        WindowStateChanged = null;
-        GotInputWhenDisabled = null;
-        Closing = null;
-        ExtendClientAreaToDecorationsChanged = null;
+        try
+        {
+            DisposeOwnedPopupsAndNotifyClosed();
+        }
+        finally
+        {
+            // Application Closed callbacks can throw or reenter disposal. Always detach backend
+            // delegates even then; an in-flight capture still owns its surface until its finally.
+            Input = null;
+            Paint = null;
+            Resized = null;
+            ScalingChanged = null;
+            TransparencyLevelChanged = null;
+            Closed = null;
+            LostFocus = null;
+            PositionChanged = null;
+            Deactivated = null;
+            Activated = null;
+            WindowStateChanged = null;
+            GotInputWhenDisabled = null;
+            Closing = null;
+            ExtendClientAreaToDecorationsChanged = null;
+        }
     }
 
     internal void SetRenderScale(double scale)

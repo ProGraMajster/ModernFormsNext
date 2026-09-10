@@ -43,11 +43,11 @@ public sealed class ParallelAnimation : AnimationDefinition
     {
     }
 
-    internal override async Task<AnimationExecutionResult> ExecuteCoreAsync(
+    internal override async AnimationCompletion<AnimationExecutionResult> ExecuteCoreAsync(
         AnimationExecutionScope scope,
         bool reverse)
     {
-        var tasks = new Task<AnimationExecutionResult>[children.Length];
+        var tasks = new AnimationCompletion<AnimationExecutionResult>[children.Length];
         for (int index = 0; index < children.Length; index++)
         {
             AnimationExecutionScope childScope = preserveChildChannels
@@ -56,11 +56,13 @@ public sealed class ParallelAnimation : AnimationDefinition
             tasks[index] = ExecuteChildAsync(children[index], childScope, reverse);
         }
 
-        AnimationExecutionResult[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
         List<Exception>? faults = null;
         bool canceled = false;
-        foreach (AnimationExecutionResult result in results)
+        // All children are already running; observing in declaration order preserves deterministic
+        // fault ordering without routing their terminal bookkeeping through Task.WhenAll.
+        foreach (AnimationCompletion<AnimationExecutionResult> task in tasks)
         {
+            AnimationExecutionResult result = await task.On(scope.Scheduler);
             if (result.State == AnimationState.Faulted)
                 (faults ??= []).Add(result.Exception!);
             else if (result.State == AnimationState.Canceled)
@@ -72,14 +74,14 @@ public sealed class ParallelAnimation : AnimationDefinition
         return canceled ? AnimationExecutionResult.Canceled : AnimationExecutionResult.Completed;
     }
 
-    private static async Task<AnimationExecutionResult> ExecuteChildAsync(
+    private static async AnimationCompletion<AnimationExecutionResult> ExecuteChildAsync(
         AnimationDefinition child,
         AnimationExecutionScope scope,
         bool reverse)
     {
         try
         {
-            return await child.ExecuteAsync(scope, reverse).ConfigureAwait(false);
+            return await child.ExecuteAsync(scope, reverse).On(scope.Scheduler);
         }
         catch (OperationCanceledException) when (scope.CancellationToken.IsCancellationRequested)
         {

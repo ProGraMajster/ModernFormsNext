@@ -73,7 +73,10 @@ public sealed class AnimationRun : IDisposable
     /// <summary>Cancels the run. Disposal is idempotent.</summary>
     public void Dispose() => Cancel();
 
-    internal void Start(Func<CancellationToken, Task<AnimationExecutionResult>> execute, CancellationToken externalToken)
+    internal void Start(
+        Func<CancellationToken, AnimationCompletion<AnimationExecutionResult>> execute,
+        CancellationToken externalToken,
+        AnimationScheduler scheduler)
     {
         ArgumentNullException.ThrowIfNull(execute);
         if (Interlocked.Exchange(ref started, 1) != 0)
@@ -87,12 +90,13 @@ public sealed class AnimationRun : IDisposable
         }
 
         Volatile.Write(ref state, (int)AnimationState.Running);
-        _ = ExecuteAsync(execute, externalToken);
+        _ = ExecuteAsync(execute, externalToken, scheduler);
     }
 
     private async Task ExecuteAsync(
-        Func<CancellationToken, Task<AnimationExecutionResult>> execute,
-        CancellationToken externalToken)
+        Func<CancellationToken, AnimationCompletion<AnimationExecutionResult>> execute,
+        CancellationToken externalToken,
+        AnimationScheduler scheduler)
     {
         using CancellationTokenRegistration registration =
             externalToken.CanBeCanceled ? externalToken.Register(Cancel) : default;
@@ -100,7 +104,7 @@ public sealed class AnimationRun : IDisposable
         AnimationExecutionResult result;
         try
         {
-            result = await execute(cancellation.Token).ConfigureAwait(false);
+            result = await execute(cancellation.Token).On(scheduler);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested || externalToken.IsCancellationRequested)
         {

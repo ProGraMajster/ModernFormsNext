@@ -15,7 +15,9 @@ public sealed class TestHostDiagnostics
         int pendingInvalidationCount,
         int activeAnimationCount,
         IEnumerable<ControlTreeSnapshot> controlTrees,
-        IEnumerable<Exception> dispatcherExceptions)
+        IEnumerable<Exception> dispatcherExceptions,
+        IEnumerable<string> focusedControlNames,
+        IEnumerable<string> recentInputEvents)
     {
         HostedWindowCount = hostedWindowCount;
         PendingDispatcherWorkCount = pendingDispatcherWorkCount;
@@ -23,12 +25,15 @@ public sealed class TestHostDiagnostics
         ActiveAnimationCount = activeAnimationCount;
         this.controlTrees = Array.AsReadOnly(controlTrees.ToArray());
         this.dispatcherExceptions = Array.AsReadOnly(dispatcherExceptions.ToArray());
+        FocusedControlNames = Array.AsReadOnly(focusedControlNames.ToArray());
+        RecentInputEvents = Array.AsReadOnly(recentInputEvents.ToArray());
     }
 
     /// <summary>Gets the number of windows still owned by the host.</summary>
     public int HostedWindowCount { get; }
 
-    /// <summary>Gets the number of queued UI-dispatcher work items.</summary>
+    /// <summary>Gets the number of queued UI-dispatcher work items, including dormant timers.</summary>
+    /// <remarks>A nonzero value does not imply ready work; future timers wait for the host clock.</remarks>
     public int PendingDispatcherWorkCount { get; }
 
     /// <summary>Gets the number of headless visual invalidations awaiting explicit processing.</summary>
@@ -43,6 +48,13 @@ public sealed class TestHostDiagnostics
     /// <summary>Gets captured exceptions from fire-and-forget dispatcher work.</summary>
     public IReadOnlyList<Exception> DispatcherExceptions => dispatcherExceptions;
 
+    /// <summary>Gets the focused control name per open window; an empty name represents no named focus owner.</summary>
+    public IReadOnlyList<string> FocusedControlNames { get; }
+
+    /// <summary>Gets recent input kinds, grouped by window and bounded to 64 entries per window.</summary>
+    /// <remarks>Key values and committed text are deliberately excluded.</remarks>
+    public IReadOnlyList<string> RecentInputEvents { get; }
+
     /// <summary>Returns a readable diagnostic report including every captured tree.</summary>
     /// <returns>The complete host diagnostic dump.</returns>
     public string Dump()
@@ -52,7 +64,9 @@ public sealed class TestHostDiagnostics
             .Append("; PendingDispatcherWork=").Append(PendingDispatcherWorkCount)
             .Append("; PendingInvalidations=").Append(PendingInvalidationCount)
             .Append("; ActiveAnimations=").Append(ActiveAnimationCount)
-            .Append("; DispatcherExceptions=").Append(DispatcherExceptions.Count);
+            .Append("; DispatcherExceptions=").Append(DispatcherExceptions.Count)
+            .Append("; FocusedControls=").Append(string.Join(",", FocusedControlNames))
+            .Append("; RecentInput=").Append(string.Join(",", RecentInputEvents));
         foreach (ControlTreeSnapshot tree in controlTrees)
         {
             builder.AppendLine();
