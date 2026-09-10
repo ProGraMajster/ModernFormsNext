@@ -53,7 +53,10 @@ public abstract partial class WindowBase
             // constructor ran. Finalizers must not touch its incomplete adapter or invoke managed
             // control/command callbacks on the finalizer thread, even for a completed constructor.
             if (disposing)
-                ReleaseInputBindings();
+            {
+                try { ReleaseInputBindings(); }
+                finally { DetachInsetsProvider(); }
+            }
         }
         finally
         {

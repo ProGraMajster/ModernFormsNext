@@ -26,6 +26,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     private int pointerDragThreshold = 8;
     private int pointerDownRouteDepth;
     private bool disposed;
+    private WindowKit.WindowInsets insets;
     private readonly DataBinding.InputBindingResolver inputBindingResolver = new();
 
     /// <summary>
@@ -72,6 +73,31 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     /// <summary>Gets the most recently assigned logical surface size.</summary>
     public Size LogicalSize { get; private set; }
 
+    /// <summary>Gets or sets native occlusion overlapping this surface, in logical pixels.</summary>
+    /// <remarks>
+    /// Set on the owning UI thread after native inset or density changes. SafeArea constrains
+    /// the existing content root and triggers layout and rendering; application Padding is
+    /// preserved. Fractional sides round outward and clamp to the surface size. Ime is reported
+    /// for application keyboard-avoidance policy and does not resize content automatically.
+    /// Input, rendering and accessibility continue to use the same surface coordinate system.
+    /// </remarks>
+    public WindowKit.WindowInsets Insets
+    {
+        get => insets;
+        set
+        {
+            ThrowIfDisposed();
+            if (insets == value)
+                return;
+            insets = value;
+            LayoutContent();
+            InsetsChanged?.Invoke(this, new WindowKit.WindowInsetsChangedEventArgs(value));
+        }
+    }
+
+    /// <summary>Occurs after inset-driven content layout on the owning UI thread.</summary>
+    public event EventHandler<WindowKit.WindowInsetsChangedEventArgs>? InsetsChanged;
+
     /// <summary>Gets or sets the drag distance, in logical pixels, that cancels a tap.</summary>
     /// <remarks>
     /// A scrollable ancestor may take ownership after this distance is exceeded. Values are
@@ -112,7 +138,21 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
 
         LogicalSize = size;
         surfaceRoot.Size = size;
-        Root.SetBounds(0, 0, width, height);
+        LayoutContent();
+    }
+
+    private void LayoutContent()
+    {
+        var safe = insets.SafeArea;
+        var left = (int)Math.Min(LogicalSize.Width, Math.Ceiling(safe.Left));
+        var top = (int)Math.Min(LogicalSize.Height, Math.Ceiling(safe.Top));
+        var right = (int)Math.Min(LogicalSize.Width - left, Math.Ceiling(safe.Right));
+        var bottom = (int)Math.Min(LogicalSize.Height - top, Math.Ceiling(safe.Bottom));
+        // Reuse the real surface parent so Dock/Anchor, rendering offsets, hit testing and
+        // accessibility all see identical geometry. User-owned root Padding is never changed.
+        surfaceRoot.ContentRectangle = new Rectangle(left, top,
+            LogicalSize.Width - left - right, LogicalSize.Height - top - bottom);
+        Root.Bounds = surfaceRoot.ContentRectangle;
         surfaceRoot.PerformLayout();
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -515,24 +555,43 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     }
 
     /// <summary>Detaches event handlers without disposing the borrowed control tree.</summary>
+    /// <remarks>
+    /// Call on the owning UI thread. Disposal is reentrant and idempotent. Pointer/composition
+    /// callback failures do not suppress the remaining cleanup; one failure is rethrown and multiple
+    /// failures are aggregated after detaching the borrowed root. Public operations then reject access.
+    /// </remarks>
     public void Dispose()
     {
         if (disposed)
             return;
 
-        CancelAllPointers(invalidate: false);
         disposed = true;
-        inputBindingResolver.Reset();
-        foreach (var textBox in observedControls.OfType<TextBox>())
-            textBox.document.FinishComposition();
-        foreach (var control in observedControls.ToArray())
-            Unobserve(control);
-        observedControls.Clear();
-        surfaceRoot.Controls.Remove(Root);
-        surfaceRoot.Dispose();
+        surfaceRoot.IsRetired = true;
+        // Revoke surface callbacks before invoking control-owned cancellation/composition hooks.
+        // They can throw or recursively dispose the surface, but cannot resurrect this adapter.
         accessibilityNotification = null;
         surfaceRoot.AccessibilityNotification = null;
         Invalidated = null;
+        InsetsChanged = null;
+        var controls = observedControls.ToArray();
+        var failures = new List<Exception>();
+        foreach (var control in controls)
+            CaptureCleanupFailure(() => Unobserve(control), failures);
+        observedControls.Clear();
+        CaptureCleanupFailure(() => CancelAllPointersCore(invalidate: false), failures);
+        CaptureCleanupFailure(inputBindingResolver.Reset, failures);
+        foreach (var textBox in controls.OfType<TextBox>())
+            if (!textBox.IsDisposed)
+                CaptureCleanupFailure(() => textBox.document.FinishComposition(), failures);
+        CaptureCleanupFailure(() => surfaceRoot.Controls.Remove(Root), failures);
+        // A throwing AssignParent notification may leave the collection already empty but its
+        // parent field stale. Reconcile through the existing internal parent setter before the
+        // owned synthetic root is disposed, so the borrowed tree remains reusable.
+        if (ReferenceEquals(Root.Parent, surfaceRoot))
+            CaptureCleanupFailure(() => Root.SetParentInternal(null), failures);
+        if (!ReferenceEquals(Root.Parent, surfaceRoot))
+            CaptureCleanupFailure(surfaceRoot.Dispose, failures);
+        ThrowCleanupFailures(failures);
     }
 
     private Control? FindSelectedControl()
@@ -647,19 +706,45 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     private void CancelAllPointers(bool invalidate = true)
     {
         ThrowIfDisposed();
-        foreach (var pointer in pointers.Values.ToArray())
-            CancelPointer(pointer);
+        CancelAllPointersCore(invalidate);
+    }
+
+    private void CancelAllPointersCore(bool invalidate)
+    {
+        var captured = pointers.Values.ToArray();
+        // Clear ownership before callbacks: recursive cancellation must see an empty old gesture
+        // set, and a failure in one pointer cannot leave a second pointer owned by a retired host.
         pointers.Clear();
-        surfaceRoot.Capture = false;
+        var failures = new List<Exception>();
+        foreach (var pointer in captured)
+            CaptureCleanupFailure(() => CancelPointer(pointer), failures);
+        CaptureCleanupFailure(() => surfaceRoot.Capture = false, failures);
         if (invalidate)
-            Invalidated?.Invoke(this, EventArgs.Empty);
+            CaptureCleanupFailure(() => Invalidated?.Invoke(this, EventArgs.Empty), failures);
+        ThrowCleanupFailures(failures);
     }
 
     private static void CancelPointer(PointerState pointer)
     {
-        pointer.CapturedControl?.CancelPointerInteraction(pointer.PointerId);
+        var failures = new List<Exception>();
+        CaptureCleanupFailure(() => pointer.CapturedControl?.CancelPointerInteraction(pointer.PointerId), failures);
         if (!ReferenceEquals(pointer.GestureOwner, pointer.CapturedControl))
-            pointer.GestureOwner?.CancelPointerInteraction(pointer.PointerId);
+            CaptureCleanupFailure(() => pointer.GestureOwner?.CancelPointerInteraction(pointer.PointerId), failures);
+        ThrowCleanupFailures(failures);
+    }
+
+    private static void CaptureCleanupFailure(Action action, List<Exception> failures)
+    {
+        try { action(); }
+        catch (Exception exception) { failures.Add(exception); }
+    }
+
+    private static void ThrowCleanupFailures(List<Exception> failures)
+    {
+        if (failures.Count == 1)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures.Count > 1)
+            throw new AggregateException("Surface input or lifecycle cleanup failed.", failures);
     }
 
     private void UnobserveTree(Control control)
@@ -794,7 +879,27 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
 
     private sealed class SurfaceRootControl : Control, IControlSurfaceAccessibilitySink
     {
+        public bool IsRetired { get; set; }
+
+        protected override ControlCollection CreateControlsInstance() => new SurfaceControlCollection(this);
+
+        private sealed class SurfaceControlCollection(SurfaceRootControl owner) : ControlCollection(owner)
+        {
+            public override void Insert(int index, Control value)
+            {
+                // Detach notifications may try to return the borrowed tree to its old parent.
+                // Reject adoption before mutating the canonical collection, otherwise synthetic
+                // parent disposal could dispose a caller-owned tree reinserted during cleanup.
+                ObjectDisposedException.ThrowIf(owner.IsRetired, owner);
+                base.Insert(index, value);
+            }
+        }
+
         internal override bool IsCommandRoutingRoot => true;
+
+        public Rectangle ContentRectangle { get; set; }
+
+        public override Rectangle DisplayRectangle => ContentRectangle;
 
         public Action<IPlatformAccessibleObject, int, int, int>? AccessibilityNotification { get; set; }
 

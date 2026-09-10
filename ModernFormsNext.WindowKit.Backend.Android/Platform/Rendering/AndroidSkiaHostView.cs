@@ -24,7 +24,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// source; there is no continuous or per-control render timer. The view is a custom Skia surface
 /// and does not introduce an Android native-control UI tree for framework controls.
 /// </remarks>
-public sealed class AndroidSkiaHostView : SKCanvasView
+public sealed partial class AndroidSkiaHostView : SKCanvasView
 {
     private readonly AndroidSurfaceHostState state = new();
     private readonly Action<string>? diagnosticSink;
@@ -207,23 +207,29 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     }
 
     /// <summary>Notifies the surface that its activity paused and cancels active pointers.</summary>
+    /// <remarks>All pointer cancellations and frame-demand reconciliation finish before observer failures are rethrown.</remarks>
     public void PauseHost()
     {
         ThrowIfDisposed();
         var primaryPointerId = state.PrimaryPointerId;
-        EmitCancellations(state.Pause(), primaryPointerId);
-        UpdateAnimationSurfaceRegistration();
-        AndroidLogger.Write("Skia surface paused.", diagnosticSink);
+        var cancellations = state.Pause();
+        AndroidSurfaceCleanup.Complete(
+            () => EmitCancellations(cancellations, primaryPointerId),
+            UpdateAnimationSurfaceRegistration,
+            () => AndroidLogger.Write("Skia surface paused.", diagnosticSink));
     }
 
     /// <summary>Notifies the surface that its activity stopped.</summary>
+    /// <remarks>All pointer cancellations and frame-demand reconciliation finish before observer failures are rethrown.</remarks>
     public void StopHost()
     {
         ThrowIfDisposed();
         var primaryPointerId = state.PrimaryPointerId;
-        EmitCancellations(state.Stop(), primaryPointerId);
-        UpdateAnimationSurfaceRegistration();
-        AndroidLogger.Write("Skia surface stopped.", diagnosticSink);
+        var cancellations = state.Stop();
+        AndroidSurfaceCleanup.Complete(
+            () => EmitCancellations(cancellations, primaryPointerId),
+            UpdateAnimationSurfaceRegistration,
+            () => AndroidLogger.Write("Skia surface stopped.", diagnosticSink));
     }
 
     /// <summary>
@@ -398,22 +404,40 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             PostInvalidateOnAnimation();
         accessibilityProvider?.Attach();
         UpdateAnimationSurfaceRegistration();
+        RequestApplyInsets();
+        RefreshWindowInsets();
         AndroidLogger.Write("Native Skia surface attached.", diagnosticSink);
     }
 
     /// <inheritdoc/>
     protected override void OnDetachedFromWindow()
     {
-        if (!disposed)
+        if (disposed)
         {
-            accessibilityProvider?.Detach();
-            var primaryPointerId = state.PrimaryPointerId;
-            EmitCancellations(state.DetachSurface(), primaryPointerId);
-            UpdateAnimationSurfaceRegistration();
-            AndroidLogger.Write("Native Skia surface detached.", diagnosticSink);
+            base.OnDetachedFromWindow();
+            return;
         }
-
-        base.OnDetachedFromWindow();
+        var primaryPointerId = state.PrimaryPointerId;
+        var cancellations = state.DetachSurface();
+        try
+        {
+            AndroidSurfaceCleanup.Complete(
+                // Complete the native detach before application cancellation can reenter
+                // Dispose and release the Java peer. The remaining steps never need to call
+                // a base View lifecycle method on that potentially released peer.
+                () => base.OnDetachedFromWindow(),
+                UpdateAnimationSurfaceRegistration,
+                () => accessibilityProvider?.Detach(),
+                () => EmitCancellations(cancellations, primaryPointerId),
+                () => AndroidLogger.Write("Native Skia surface detached.", diagnosticSink));
+        }
+        catch (Exception exception)
+        {
+            // This callback originates in ViewRoot. Finish native detachment and report the
+            // aggregated failure instead of letting an application observer abort Android cleanup.
+            try { AndroidLogger.Write($"Surface detach cleanup failed ({exception.GetType().Name}).", diagnosticSink); }
+            catch { /* Diagnostics cannot interrupt native teardown. */ }
+        }
     }
 
     /// <inheritdoc/>
@@ -426,13 +450,18 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         if (ResizeFromPhysicalPixels(width, height) && state.CanRender)
             PostInvalidateOnAnimation();
         accessibilityProvider?.InvalidateGeometry();
+        RefreshWindowInsets();
     }
 
     /// <inheritdoc/>
     protected override void OnLayout(bool changed, int left, int top, int right, int bottom)
     {
         base.OnLayout(changed, left, top, right, bottom);
-        if (changed && !disposed) accessibilityProvider?.InvalidateGeometry();
+        if (changed && !disposed)
+        {
+            accessibilityProvider?.InvalidateGeometry();
+            RefreshWindowInsets();
+        }
     }
 
     /// <inheritdoc/>
@@ -479,20 +508,21 @@ public sealed class AndroidSkiaHostView : SKCanvasView
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
-        // Activity.OnDestroy precedes ViewRoot's final native detach. Remove the still-live view
-        // first, otherwise Android can call OnDetachedFromWindow after its managed peer was freed.
-        // This also disconnects virtual accessibility descendants before disposing their provider.
-        if (disposing && !disposed && Parent is ViewGroup parent)
-            parent.RemoveView(this);
-        if (!disposed)
+        if (disposed)
         {
-            disposed = true;
-            accessibilityProvider?.Dispose();
-            accessibilityProvider = null;
-            accessibilityHost = null;
-            var primaryPointerId = state.PrimaryPointerId;
-            EmitCancellations(state.Dispose(), primaryPointerId);
-            animationSurfaceRegistration?.Dispose();
+            return;
+        }
+        // Mark the host terminal before native removal or user cancellation callbacks can
+        // reenter disposal. Activity destruction still removes the native view before freeing
+        // its managed peer, and every release step runs even when an earlier one fails.
+        disposed = true;
+        var provider = accessibilityProvider;
+        accessibilityProvider = null;
+        accessibilityHost = null;
+        var primaryPointerId = state.PrimaryPointerId;
+        var cancellations = state.Dispose();
+        void ClearCallbacks()
+        {
             Render = null;
             Pointer = null;
             TextCommitted = null;
@@ -508,10 +538,25 @@ public sealed class AndroidSkiaHostView : SKCanvasView
             TextInputStateProvider = null;
             activeInputConnection = null;
             InputConnectionDiagnosticSink = null;
-            AndroidLogger.Write("Skia surface disposed.", diagnosticSink);
+            InsetsChanged = null;
         }
-
-        base.Dispose(disposing);
+        if (!disposing)
+        {
+            // A Java peer finalizer cannot invoke application input/accessibility handlers.
+            // Registration disposal only reconciles frame demand through its own dispatcher.
+            try { AndroidSurfaceCleanup.Complete(() => animationSurfaceRegistration?.Dispose(), ClearCallbacks,
+                () => base.Dispose(false)); }
+            catch { /* Finalizers cannot propagate managed cleanup failures. */ }
+            return;
+        }
+        AndroidSurfaceCleanup.Complete(
+            () => { if (Parent is ViewGroup parent) parent.RemoveView(this); },
+            () => provider?.Dispose(),
+            () => EmitCancellations(cancellations, primaryPointerId),
+            () => animationSurfaceRegistration?.Dispose(),
+            ClearCallbacks,
+            () => AndroidLogger.Write("Skia surface disposed.", diagnosticSink),
+            () => base.Dispose(true));
     }
 
     private bool ResizeFromPhysicalPixels(int width, int height)
@@ -574,17 +619,7 @@ public sealed class AndroidSkiaHostView : SKCanvasView
         };
 
     private void EmitCancellations(IReadOnlyList<int> pointerIds, int? primaryPointerId)
-    {
-        foreach (var pointerId in pointerIds)
-        {
-            Pointer?.Invoke(this, new AndroidPointerEvent(
-                pointerId,
-                AndroidPointerAction.Cancel,
-                0,
-                0,
-                pointerId == primaryPointerId));
-        }
-    }
+        => AndroidSurfaceCleanup.CancelPointers(this, Pointer, pointerIds, primaryPointerId);
 
     private bool PublishKey(Keycode keyCode, bool isDown, NativeKeyEvent? nativeEvent = null)
     {

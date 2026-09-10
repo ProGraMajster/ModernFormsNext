@@ -6,6 +6,7 @@ using ModernFormsNext.WindowKit.Input.Platform;
 using ModernFormsNext.WindowKit.Platform;
 using ModernFormsNext.WindowKit.Platform.Services;
 using ModernFormsNext.WindowKit.Threading;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows;
 
@@ -39,6 +40,21 @@ public static class WindowsPlatformBootstrap
             AvaloniaGlobals.AddService<IPlatformSettings>(new Win32PlatformSettings());
             Win32Platform.Initialize();
             Win32ComRegistration.Initialize();
+
+            int lifecycleThread = Environment.CurrentManagedThreadId;
+            var lifecycle = new WindowsApplicationLifecycle(
+                () =>
+                {
+                    if (Environment.CurrentManagedThreadId != lifecycleThread)
+                        throw new InvalidOperationException("Windows application lifecycle requires its UI thread.");
+                },
+                action =>
+                {
+                    if (Environment.CurrentManagedThreadId == lifecycleThread) action();
+                    else Dispatcher.UIThread.Post(action);
+                });
+            Win32Platform.Instance.ApplicationLifecycle = lifecycle;
+            PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(lifecycle.Publisher);
 
             AvaloniaGlobals.AddService<IWindowingPlatform>(Win32Platform.Instance);
             AvaloniaGlobals.AddService<IDispatcherImpl>(Win32Platform.Instance._dispatcher);

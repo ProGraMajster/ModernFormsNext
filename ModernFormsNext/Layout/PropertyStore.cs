@@ -469,8 +469,15 @@ internal partial class PropertyStore
         _intEntries[index].Mask &= (short)(~((short)(1 << element)));
 
         if (_intEntries[index].Mask == 0) {
-            // This object entry is no longer in use - let's remove it all together
+            // This integer entry is no longer in use - let's remove it all together
             // not great for perf but very simple and we don't expect to remove much
+            if (_intEntries.Length == 1) {
+                // Like object entries, an empty store is represented by null. The unrolled
+                // lookup requires a non-empty array, including when the store is reused.
+                _intEntries = null;
+                return;
+            }
+
             var newEntries = new IntegerEntry[_intEntries.Length - 1];
             if (index > 0) {
                 Array.Copy (_intEntries, 0, newEntries, 0, index);

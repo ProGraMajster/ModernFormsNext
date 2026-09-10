@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--lifecycle", StringComparer.Ordinal))
+{
+    Environment.ExitCode = LifecycleScenario.Run();
+    return;
+}
+
 using var form = new Form
 {
     ClientSize = new Size(480, 240),

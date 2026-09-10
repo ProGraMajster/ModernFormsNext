@@ -10,7 +10,7 @@ namespace ModernFormsNext.Testing;
 /// <summary>
 /// Implements the existing WindowKit top-level contract without a native window or persistent surface.
 /// </summary>
-internal sealed partial class HeadlessWindowImpl : IWindowImpl
+internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsProvider
 {
     private readonly HeadlessPlatformHandle handle = new();
     private readonly HeadlessScreenImpl screen;
@@ -114,7 +114,19 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl
     public object? TryGetFeature(Type featureType)
     {
         ArgumentNullException.ThrowIfNull(featureType);
-        return null;
+        return featureType == typeof(IWindowInsetsProvider) ? this : null;
+    }
+
+    public WindowInsets CurrentInsets { get; private set; }
+
+    public event EventHandler<WindowInsetsChangedEventArgs>? InsetsChanged;
+
+    internal void SetInsets(WindowInsets insets)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if (CurrentInsets == insets) return;
+        CurrentInsets = insets;
+        InsetsChanged?.Invoke(this, new WindowInsetsChangedEventArgs(insets));
     }
 
     public void SetInputRoot(IInputRoot inputRoot)
@@ -294,6 +306,7 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl
             GotInputWhenDisabled = null;
             Closing = null;
             ExtendClientAreaToDecorationsChanged = null;
+            InsetsChanged = null;
         }
     }
 

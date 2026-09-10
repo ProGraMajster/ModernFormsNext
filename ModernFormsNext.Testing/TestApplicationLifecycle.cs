@@ -2,67 +2,60 @@ using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.Testing;
 
-/// <summary>Controls the existing platform foreground/background lifecycle in a headless host.</summary>
+/// <summary>Controls the production application lifecycle provider in a headless host.</summary>
 /// <remarks>
-/// This fake implements the production lifecycle contract; it does not simulate activation,
-/// Android Activity recreation, or native application events. Changes run synchronously on the
-/// host UI thread. The default state is <see cref="PlatformApplicationLifecycleState.Foreground"/>.
+/// The same provider implements legacy foreground/background and optional rich lifecycle contracts.
+/// Use inherited Publish, Activate, RequestSaveState and RestoreState to exercise the real shared
+/// publisher; no native activity, intent, window-manager event or persistence operation is simulated.
+/// Changes and callbacks run on the host UI thread. The initial snapshot is Running/Foreground with
+/// one active host at generation one. The test host normally owns disposal.
 /// </remarks>
-public sealed class TestApplicationLifecycle : IPlatformApplicationLifecycle
+/// <example>
+/// <code>
+/// using var host = ModernFormsTestHost.Create();
+/// host.Services.Lifecycle.Activate(new PlatformApplicationActivation(
+///     PlatformActivationKind.Uri, uri: new Uri("example://document/42")));
+/// host.Services.Lifecycle.SetState(PlatformApplicationLifecycleState.Background);
+/// </code>
+/// </example>
+public sealed class TestApplicationLifecycle : PlatformApplicationLifecyclePublisher
 {
-    private readonly UiTestDispatcher dispatcher;
-    private PlatformApplicationLifecycleState state = PlatformApplicationLifecycleState.Foreground;
-    private EventHandler<PlatformApplicationLifecycleChangedEventArgs>? stateChanged;
-    private bool disposed;
-
-    internal TestApplicationLifecycle(UiTestDispatcher dispatcher) => this.dispatcher = dispatcher;
-
-    /// <inheritdoc/>
-    public PlatformApplicationLifecycleState State
+    internal TestApplicationLifecycle(UiTestDispatcher dispatcher)
+        : base(dispatcher.VerifyAccess, new PlatformApplicationLifecycleSnapshot(
+            PlatformApplicationPhase.Running, PlatformApplicationLifecycleState.Foreground,
+            isActive: true, hostCount: 1, hostGeneration: 1))
     {
-        get { VerifyAccess(); return state; }
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>Subscribers observe the new state. Reassigning the same state raises no event.</remarks>
-    public event EventHandler<PlatformApplicationLifecycleChangedEventArgs>? StateChanged
-    {
-        add { VerifyAccess(); stateChanged += value; }
-        remove { if (!disposed) { dispatcher.VerifyAccess(); stateChanged -= value; } }
     }
 
     /// <summary>Publishes a state change through the production platform lifecycle event.</summary>
     /// <param name="value">An existing platform lifecycle state.</param>
     /// <remarks>
-    /// Call on the host UI thread. The state changes before callbacks run. Callback failures
-    /// propagate to the caller without reverting the published state; no native event is raised.
+    /// Call on the host UI thread. This compatibility helper maps Foreground to an active host,
+    /// Background to an inactive host and NoHost to zero hosts. Returning from zero hosts to
+    /// Foreground advances host generation. Use Publish for explicit phase, active or host-count
+    /// scenarios. State commits before legacy and rich callbacks; callback failures are reported
+    /// after all mandatory subscribers and queued transitions run. A terminal application cannot restart.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">The value is not a defined lifecycle state.</exception>
     public void SetState(PlatformApplicationLifecycleState value)
     {
-        VerifyAccess();
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
-        if (state == value)
+        PlatformApplicationLifecycleSnapshot current = Snapshot;
+        if (current.Phase is PlatformApplicationPhase.Exiting or PlatformApplicationPhase.Exited)
+        {
+            // Keep the same UI-affinity/terminal checks as explicit publication, including a
+            // no-op request from a caller attempting to reactivate a terminated test session.
+            Publish(current);
             return;
-
-        var previous = state;
-        state = value;
-        stateChanged?.Invoke(this, new PlatformApplicationLifecycleChangedEventArgs(previous, value));
-    }
-
-    internal void Dispose()
-    {
-        if (disposed)
-            return;
-        dispatcher.VerifyAccess();
-        disposed = true;
-        stateChanged = null;
-    }
-
-    private void VerifyAccess()
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        dispatcher.VerifyAccess();
+        }
+        bool foreground = value == PlatformApplicationLifecycleState.Foreground;
+        int hosts = value == PlatformApplicationLifecycleState.NoHost ? 0 :
+            foreground ? Math.Max(1, current.HostCount) : current.HostCount;
+        long generation = foreground && current.HostCount == 0
+            ? checked(current.HostGeneration + 1) : current.HostGeneration;
+        PlatformApplicationPhase phase = foreground && current.Phase == PlatformApplicationPhase.Suspended
+            ? PlatformApplicationPhase.Running : current.Phase;
+        Publish(new PlatformApplicationLifecycleSnapshot(phase, value, foreground, hosts, generation));
     }
 }

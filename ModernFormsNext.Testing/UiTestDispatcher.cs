@@ -7,8 +7,10 @@ namespace ModernFormsNext.Testing;
 /// </summary>
 /// <remarks>
 /// The dispatcher owns no worker thread and never waits on wall-clock time. The thread that creates
-/// the host is the UI thread. Posted work runs in FIFO/dispatcher-priority order only when
-/// <see cref="Drain"/> or another host operation that drains pending work is called.
+/// the host is the UI thread. Posted work runs in FIFO/dispatcher-priority order during an explicit
+/// <see cref="Drain"/>, a host operation that drains work, or the production Application.Run loop.
+/// The controlled application loop processes at most 4096 jobs across 64 nested frames and throws
+/// if it becomes quiescent before exit; it never waits or advances time automatically.
 /// </remarks>
 public sealed class UiTestDispatcher
 {
@@ -19,10 +21,12 @@ public sealed class UiTestDispatcher
     private readonly List<Exception> unhandledExceptions = [];
     private readonly int ownerThreadId = Environment.CurrentManagedThreadId;
     private bool disposed;
+    private int runLoopDepth;
+    private int runLoopOperations;
 
     internal UiTestDispatcher()
     {
-        implementation = new DeterministicDispatcherImpl(ownerThreadId);
+        implementation = new DeterministicDispatcherImpl(ownerThreadId, RunLoopCore);
         dispatcherScope = Dispatcher.PushUIThreadForTesting(implementation);
         dispatcher = Dispatcher.UIThread;
     }
@@ -205,6 +209,37 @@ public sealed class UiTestDispatcher
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
+    private void RunLoopCore(CancellationToken cancellationToken)
+    {
+        VerifyAccess();
+        if (runLoopDepth >= 64)
+            throw new InvalidOperationException("The deterministic dispatcher exceeded 64 nested run-loop frames.");
+        if (runLoopDepth == 0)
+            runLoopOperations = 0;
+        runLoopDepth++;
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                ThrowIfDisposed();
+                if (!dispatcher.HasReadyJobsForTesting)
+                    throw new InvalidOperationException("The deterministic application loop became quiescent before exit. Queue an exit or window-close action before starting the loop; the test dispatcher never waits or advances time automatically.");
+                if (runLoopOperations >= DefaultDrainLimit)
+                    throw new InvalidOperationException($"The deterministic application loop exceeded {DefaultDrainLimit} operations without exit.");
+                runLoopOperations++;
+                // Controlled frames use the same bounded production queue primitive as Drain.
+                // Check frame cancellation after each job rather than consuming unrelated work
+                // after an application Exit or nested DispatcherFrame.Continue=false request.
+                try { dispatcher.RunOneJobForTesting(); }
+                catch (Exception exception) { unhandledExceptions.Add(exception); }
+            }
+        }
+        finally
+        {
+            runLoopDepth--;
+        }
+    }
+
     private static void StopTimers()
     {
         // Future timer ticks belong to this host's dispatcher and must not remain armed on a
@@ -240,11 +275,18 @@ public sealed class UiTestDispatcher
         }
     }
 
-    private sealed class DeterministicDispatcherImpl(int ownerThreadId) : IDispatcherImpl, IDisposable
+    private sealed class DeterministicDispatcherImpl(int ownerThreadId, Action<CancellationToken> runLoop)
+        : IControlledDispatcherImpl, IDisposable
     {
         private long currentTicks;
 
         public bool CurrentThreadIsLoopThread => Environment.CurrentManagedThreadId == ownerThreadId;
+
+        public bool CanQueryPendingInput => true;
+
+        public bool HasPendingInput => false;
+
+        public void RunLoop(CancellationToken cancellationToken) => runLoop(cancellationToken);
 
         public event Action? Signaled
         {

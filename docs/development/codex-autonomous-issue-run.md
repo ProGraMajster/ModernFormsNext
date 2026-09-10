@@ -34,8 +34,9 @@ known limitations/roadmap, and related history. A source PASS is not a new runti
 
 The user-specified order remains authoritative. An open related issue is not automatically a hard
 dependency. Existing accessibility, commands, animation, resource, Designer and automation
-contracts are reused. Future #64 integration with lifecycle/navigation/virtualization must be
-recorded explicitly until #63/#12/#55 exist; no parallel testing runtime will fill those gaps.
+contracts are reused. At the initial audit, #64 lifecycle/navigation/virtualization integration
+depended on #63/#12/#55. The #63 implementation below now supplies lifecycle integration;
+navigation/virtualization remain dependent on #12/#55. No parallel testing runtime fills those gaps.
 
 Excluded implementation: #46, #72, #79, #80, #60, #20, #15, #16, #21, #43, #44, #69, #82, #99.
 Reading those issues to verify dependencies does not start their implementation.
@@ -71,10 +72,10 @@ Manual visual/platform-specific validation: NOT EXECUTED — environment unavail
 snapshots/tests establish only the shared production paths actually executed.
 
 Audit commit: `36184e7`. Implementation commit: `a75b3f98ebf476bbbc0e23cfad4d34cc042d3138`.
-PR: being prepared after successful documentation validation. Subsequent issues are audited,
-not yet implemented.
+PR: [#113](https://github.com/ProGraMajster/ModernFormsNext/pull/113), merged into master on
+2026-09-10. The subsequent #63 implementation and its acceptance record appear below.
 
-### #64 — implementation and regression record (in progress)
+### #64 — implementation and regression record
 
 The working implementation extends `ModernFormsNext.Testing` with `TestInput`, `TestClock`,
 `RenderedSnapshot`, scoped clipboard/lifecycle/theme/motion services, and focus/input diagnostics.
@@ -131,9 +132,10 @@ execute existing production behavior. Current master assemblies were built succe
 isolated local worktree for ApiCompat comparison (Release, zero errors, existing NU1902 repeated
 five times including restore). The isolated package consumer and both full regressions passed.
 
-Future activation/navigation/virtualization acceptance remains dependent on #63/#12/#55. Those
-criteria will be revisited after their actual runtime contracts exist; they are not silently
-removed from #64. Native Windows/Android/IME/accessibility evidence remains separate.
+Activation/lifecycle acceptance now passes through the actual #63 runtime contracts, full
+Debug/Release regression and isolated package consumer below. Navigation/virtualization acceptance still depends on #12/#55;
+those criteria have not been removed from #64. Native Windows/Android/IME/accessibility evidence
+remains separate.
 
 ### #64 — acceptance matrix
 
@@ -157,13 +159,13 @@ comment appeared. Issue #64 remains OPEN and its target/roadmap metadata is unch
 | Phase 2 pointer/key/text/focus/idle, modal and popup focus | PASS | Actual framework paths with supported existing key mapper |
 | Phase 3 clock/rendering/structured snapshots/diagnostics | PASS | Controlled production scheduling, detached images and bounded diagnostics |
 | Phase 4 existing binding/resource/theme/command/platform-service integration and testing template | PASS | [Consumer guide](../testing/testhost.md), [xUnit template](../testing/testhost-template.md), tests and local package consumer |
-| Phase 4 activation/lifecycle integration with #63 | BLOCKED (dependency) | Current fake exposes the existing coarse backend contract; richer application runtime not yet implemented |
+| Phase 4 activation/lifecycle integration with #63 | PASS | Same rich publisher, public Application.Lifecycle activation/save/restore, real Application.Run lifetime tests, scheduler integration and scoped runtime restoration; final #63 Debug/Release regression and 154 public package-consumer assertions pass. Native platform evidence remains separate below. |
 | Phase 4 navigation and shared virtualization integration | BLOCKED (dependencies #12/#55) | Those canonical runtime subsystems do not yet exist; revisit after implementing them |
 | Future touch, drag-and-drop and focus-scope helpers | NOT APPLICABLE to current phases | Explicit future directions; no excluded feature implemented |
 
-Overall issue status: **PARTIAL**, with the remaining ecosystem coverage **BLOCKED** on actual
-later queue dependencies. This is not permission to close #64. Implementation of #63 may proceed
-after PR finalization, and the dependent #64 rows must be revisited later. Documentation validation
+Overall issue status: **PARTIAL**, with navigation/virtualization ecosystem coverage still
+**BLOCKED** on #12/#55. The #63 lifecycle integration now has passing shared/runtime/package
+validation. This is not permission to close #64. Documentation validation
 also corrected 44 source links in the initial audits to verified baseline GitHub permalinks; no
 audit findings were changed.
 
@@ -171,3 +173,237 @@ Manual Windows visual review, Android emulator/physical-device checks, TalkBack 
 interaction for this phase: **NOT EXECUTED — environment unavailable**. The ControlGallery check
 was an automated native startup/close smoke; the inspected PNG was headless raster output.
 Template/reference-app validation: NOT APPLICABLE; generated application startup was unchanged.
+
+### #63 — refreshed audit and implementation plan
+
+At this pre-implementation audit, baseline master was
+`ba396f95adab82564a0681bc922096599ba8c1ca` after fetch. Full current issue and all comments (zero)
+were read again. `codex/issue-63-lifecycle-activation` initially stacked on #64 PR #113 at
+`311fa82`, before that PR merged. The merged baseline is recorded below; this paragraph preserves
+the audit's original provenance. The earlier all-queue audit supplies related issue/history context.
+
+Existing canonical pieces: Application.Run/Exit, window backend activation callbacks,
+IPlatformApplicationLifecycle's four coarse states, the scheduler's lifecycle policy, Android
+Activity tracker and a borrowed SkiaControlSurface across sample Activity recreation. Missing:
+rich normalized events, activation payloads, state handoff hooks, active-window diagnostics,
+Windows app lifecycle mapping, Android multi-Activity aggregation and real inset propagation.
+Run currently subscribes after Form.Shown and lacks guaranteed cleanup; Exit callbacks can
+prevent loop cancellation. These directly block lifecycle correctness.
+
+Implementation plan, before code changes:
+
+1. Preserve the existing interface and enum. Extend the same provider through an optional rich
+   interface and one deterministic publisher. Commit normalized state before old scheduler
+   notifications and then richer public callbacks. Bound reentrant notification queues, activation
+   payloads and restoration data. Never infer file/URI intent from arbitrary launch arguments.
+2. Expose the provider through Application.Lifecycle with UI-thread callbacks, immutable snapshots,
+   privacy-preserving bounded diagnostics and explicit save/restore hooks. Reuse existing test
+   services and isolate process Application state in TestHost; no second runtime or scheduler.
+3. Preserve main-root closure as the default Run policy. Add explicit last-form/explicit-exit
+   policies, wire real window activation, reconcile native closure, and guarantee once-only Exit
+   and cleanup even when user callbacks fail or close windows reentrantly.
+4. Map Windows app activation independently of window activation/background. Add launch arguments,
+   session/power notifications and graceful shutdown through the same provider. File/URI forwarding
+   accepts explicit safe data; single-instance transport is deferred as allowed by the issue.
+5. Aggregate Android Activities without equating recreation to process termination. Map initial
+   and subsequent intents, bounded Bundle state handoff, normalized background/foreground and
+   host generations. Keep renderer/IME teardown in the existing native host and shared surface.
+6. Add shared logical safe-area and IME-inset data, optional backend feature and real existing
+   content-root layout integration. Do not overwrite application Padding or create another tree.
+   Android converts native occlusion to the shared model; fitted desktop client areas default zero.
+7. Test duplicates, ordering, reentry, failures, multiple windows, activation copying/privacy,
+   restoration/recreation, animation/pending-work/IME lifetime and inset layout/input coordinates.
+   Build/test the full solution serially; inspect available emulator tooling before claiming it
+   unavailable. Native hosted views/WebView/Media implementations remain outside this issue.
+8. Document API examples, platform and process-death limits, lifetime policies and state ownership;
+   then revisit every #63 criterion and the dependent #64 lifecycle acceptance row.
+
+Compatibility and ownership: additive APIs; no large dependencies, version/package metadata or
+Designer serialization changes. UI mutation remains on the owning dispatcher. Native objects stay
+in platform projects; activation/restoration snapshots own copied primitive data only. Scope
+revocation and disposal detach subscriptions and preserve borrowed application/control state.
+
+### #64 — PR finalization and merged baseline
+
+The user's PR finalization policy authorizes merging useful completed scope even while an issue
+remains OPEN/PARTIAL. PR #113 was reviewed at exact head `311fa8241d2531ecffb10c2de4b3ffcb77dcded8`;
+required build CI passed and final code/acceptance review found no blocker. The PR was marked Ready
+and merged using the repository's normal merge-commit strategy on 2026-09-10.
+Merge: `ad0ee5679f8e122f3fb1107ffdaf931e58621abb`. Local `master` and `origin/master` were fast-forwarded
+to that commit. The #63 branch incorporated the new master at `2e6d52250421f0f168a1b1ad3a828a1214657a8f`.
+Its tree equals the reviewed #64 PR tree, so no in-progress #63 source or original local config was
+replaced. The #63 PR will target master directly. Post-merge master
+[CI run 34504661851](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34504661851)
+completed with **SUCCESS** at merge commit `ad0ee5679f8e122f3fb1107ffdaf931e58621abb`.
+PR merge and this run's status were reverified through GitHub during the final #63 acceptance audit.
+Issue #64 remains OPEN; subsequent completed issues will follow the same PR/CI/review/merge policy.
+
+### #63 — validation history and final results
+
+- Restore passed. Initial full Debug build passed with zero errors, four existing repeated NU1902
+  warnings and two new Android nullable warnings; both new warnings were corrected before acceptance.
+- First focused Testing run: 269/284 PASS. All 15 failures shared an invalid Exited snapshot retaining
+  host count. Exited now reports NoHost/zero hosts; cleanup remains guaranteed.
+- First full Debug regression: Automation 140, Windows bridge 61, sample 16, Designer 640,
+  Testing 287, core 1177, VSIX 26 and Android 181 tests passed. The Windows native suite aborted:
+  an individual window activation eagerly rebound a global lifecycle facade from another UI thread.
+  Window callbacks now update cached counts without binding; actual Run/public lifecycle access binds
+  through its owning dispatcher. This run is NOT accepted as a complete pass; native rerun is required.
+- A test-owned UiAutomationHost child left after the abort was identified by its exact workspace
+  executable path and stopped. No unrelated process was stopped.
+- Pixel_8 is now running as emulator-5554, boot-complete verified through adb. Emulator validation
+  is in progress; prior unavailable status for #64 does not substitute for this new evidence.
+
+Subsequent acceptance corrections: Exit now posts through the registered shared dispatcher, so
+Android does not depend on a WindowKit loop. Runtime identities revoke stale queued exit requests.
+Surface/Activity/native window cleanup attempts all mandatory steps after observer failures;
+the retired synthetic parent refuses re-adopting a borrowed tree from ParentChanged. Native Android
+detach completes before cancellation can reenter Java-peer disposal. The borrowed-tree reuse
+regression then exposed an existing PropertyStore empty-integer-array bug; removing its final block
+now restores the null empty-store invariant, matching object entries. The unchanged reuse regression
+and an additional empty/repopulate test pass.
+
+Final production-source commits: `6d8d6b4` (shared contracts, runtime/TestHost and regressions) and
+`83a2234d6a5a6b83ba228b03bba38971014127fe` (native backends/sample/integration tests). Full Debug
+build passed with zero errors and four existing NU1902 warnings. Debug regression passed
+**2623/2623, zero failed/skipped**: core 1182, Testing 298, Android 188, Windows 72,
+Designer 640, automation 140, Windows bridge 61, sample 16, VSIX 26.
+Both ControlGallery and the template-reference DemoApp exposed responsive native windows and
+completed a normal window-close request with exit code zero. This is automated native startup/exit
+evidence, not manual visual review. No template source or generated application structure changed.
+
+Full Release build also passed with zero errors and four existing NU1902 warnings; Release
+regression passed **2623/2623, zero failed/skipped**. ApiCompat passed **11/11 in each configuration**
+against merged master `ad0ee5679f8e122f3fb1107ffdaf931e58621abb`; a dependency-resolution false
+positive was corrected in the validation resolver, without suppressing compatibility findings.
+Package validation passed **11 nupkg and 10 snupkg**, with version **1.10.0 unchanged**. Nothing
+was published. Documentation scripts passed **32 assertions**; final DocFX passed with zero
+warnings/errors and 1004 HTML pages. All four documentation archives passed validation. Their
+metadata identifies source commit `83a2234d6a5a6b83ba228b03bba38971014127fe`; run logs are retained
+as `artifacts/autonomous-audit/phase63-docfx.log` and `phase63-doc-validation.log`.
+
+The independent NuGet-only consumer passed **154 public-API assertions**, after a fresh-cache
+restore and Release build with zero warnings/errors. It covers immutable argument/URI payloads,
+explicit state handoff, ordering/privacy, scheduler policy, app versus window activity, window
+insets and surface safe-area layout, all three real Run modes, canceled closure, failing Exit
+cleanup, scope revocation and legacy-provider compatibility. It has no ProjectReference or
+reflection/internal access. The first consumer compile exposed only consumer API mistakes
+(Form.Padding and internal Control.IsDisposed); the artifact was corrected to assert public
+ClientSize/Bounds and Disposed events, then the entire script passed with another empty cache.
+Evidence and package hashes are retained under
+`artifacts/autonomous-audit/consumer63/runs/20260910T172622771Z-f27722ca/`.
+
+Android evidence has two distinct APK provenances, detailed in the
+[lifecycle guide](../application-lifecycle.md). The broader initial Pixel_8/API 34 series passed
+**26/26 recorded-evidence assertions**, including Home/resume and cold-process Bundle restoration.
+The separate final-source smoke passed **21/21** against source `83a2234d6a5a6b83ba228b03bba38971014127fe`
+and APK SHA256 `6EEBA58B9698138016C2A4B761282BEF68C6C61C7B881C85EC0F2F2B6AF2C794`.
+It observed Protocol delivery, genuine font-scale Activity recreation with active IME, retained
+edited text and another Gboard commit, and recreation beginning with five active animations.
+The same process reached generation 5 with two shared clicks and a completed UI dispatcher
+callback; the refreshed 411 × 840 logical surface was attached with zero active pointers,
+zero active animations, no pending frame callback or scheduler demand, and one active surface.
+No captured crash, ANR or lifecycle failure occurred; all five temporary settings were restored
+exactly. Final-source evidence is in `artifacts/autonomous-audit/phase63-android/final-83a2234/`.
+The final smoke did not repeat cold-process/Home cases. Numeric nonzero shared insets/cutouts,
+automatic keyboard avoidance and a specifically pending callback spanning native teardown were
+not observed; physical/manual and future native-product coverage remain separate limitations.
+
+### #63 — final acceptance matrix
+
+The [current issue #63](https://github.com/ProGraMajster/ModernFormsNext/issues/63) and **all
+comments (zero)** were refreshed through `gh issue view` on 2026-09-10. The issue remains OPEN;
+the body is unchanged from the implementation audit. Every explicit acceptance-direction item
+and every additional 1.10.0-audit checkbox appears separately below. Detailed requirements and
+test scenarios follow so the broader issue scope is also visible.
+
+**Status convention:** **PASS** records executed checks for the stated scope, not universal native
+parity. **PARTIAL** identifies remaining evidence or future product integration. **BLOCKED** identifies
+a missing canonical dependency. **NOT APPLICABLE** identifies explicitly excluded future scope.
+Native observations retain their APK provenance; managed tests do not emulate the OS. No issue
+checkbox or remote issue state is changed by this report.
+
+| Explicit acceptance direction | Implementation and evidence location | Result / remaining boundary |
+|---|---|---|
+| Application code observes normalized lifecycle without platform-specific APIs | `Application.Lifecycle`, immutable snapshots, rich events, explicit DeliverActivation/SaveState/RestoreState; facade and public-consumer tests | PASS — Debug/Release and isolated consumer validate the shared UI-thread API and optional capability over the existing coarse provider. |
+| Windows and Android map lifecycle into the same shared contracts | Both register the canonical IPlatformApplicationLifecycle provider with rich notifications/controller; Windows native adapter and Android weak Activity reducer use the same publisher | PASS — managed regressions, Windows native 72/72 and final-source Android 21/21 pass within the recorded scenarios. Android remains an experimental host, not a full desktop window backend. |
+| Activation identifies normal, argument, file and URI launches where supported | Run launch/arguments; copied bounded explicit payloads; Android initial/new Intent and content/file/URI/protocol mapping; native Windows launch and mapper/codec tests | PASS — typed payload/mapper/consumer checks and actual Protocol delivery pass. Windows file/URI forwarding is explicit readiness, not shell association or automatic argument inference; native file-provider variants are not comprehensively observed. |
+| Lifecycle ordering is deterministic and testable | Snapshot commit before coarse then rich events; FIFO reentrant delivery, duplicate/stale suppression, terminal permanence, save ordering, bounded queues and failure aggregation | PASS — publisher/facade/lifetime regressions and native Windows callback scenarios pass. Platforms need not emit every intermediate native state. |
+| WebView/Media/native-hosted controls can react through common hooks | Shared lifecycle and state contracts are available without feature-specific backend calls; the existing renderer/surface and scheduler consume established contracts | PARTIAL — common hooks and the existing Skia host pass; concrete future WebView/Media/native-control integrations remain deferred to their own implementations. No substitute controls or duplicate runtime were added. |
+| Future restoration and single-instance activation can build on the same model | Explicit versioned state handoff and DeliverActivation accept application-owned data; Android Bundle adapter; SecondaryInstance/Notification descriptors | PASS — foundation contracts, copying, state handoff and codec checks pass. Durable storage, migration, single-instance IPC and notification transport remain application/future-feature responsibilities. |
+
+| Additional 1.10.0 audit acceptance checkbox | Implementation and evidence location | Result / remaining boundary |
+|---|---|---|
+| Shared restoration hooks and deterministic recreation/background/suspend/activation ordering | StateSaving/StateRestoring, documented reentrancy; native save before suspension; cold-process Bundle restoration before subsequent activation; same-process recreation preserves the live model | PASS — final managed ordering/codec checks and final-source same-process recreation pass. Cold-process/Home observations belong to the separate initial APK and were not repeated on final source. Android cannot guarantee a final save or OnDestroy after process termination. |
+| Safe-area/system insets reach framework windows/content without Android types | WindowInsets and optional feature contract; informational WindowBase.Insets; SkiaControlSurface safe-area layout preserves Padding and shared input/render coordinates; Android density/overlap mapping | PARTIAL — geometry/pointer/raster/mapper and public consumer checks pass; fitted native area and attached surface were observed. Numeric nonzero shared-inset/cutout cases were not observed. Ime remains separate application policy; API 23–29 has no typed IME inset. |
+| Lifecycle stress with active animations, IME, native hosted views and pending work | Existing scheduler, controlled dispatcher, shared surface and actual Android Skia host; cancellation/composition cleanup regressions and emulator scenario | PARTIAL — final-source active-IME/animation recreation and idle cleanup pass, as do deterministic queued-work tests. A specifically pending callback spanning native teardown was not observed; absent future WebView/Media/native-host products cannot supply product-specific stress evidence. |
+| Distinguish application lifetime, Activity recreation and individual window lifetime in tests/docs | Independent app/window activity, host count/generation, three application lifetime modes, multi-Activity reducer, scoped TestHost runtime, [consumer guide](../application-lifecycle.md) | PASS — full regressions, all three Run modes in the consumer and native recreation pass. Activity destruction is not application termination. |
+
+| Detailed requirement from the issue | Current scope / evidence | Result / remaining boundary |
+|---|---|---|
+| Extend existing Application/window/backend infrastructure | Existing Run/Exit, dispatcher, IPlatformApplicationLifecycle registry key and AnimationScheduler remain authoritative | PASS — integration regressions and consumer pass; no second application runtime, semantic tree or animation pause policy. |
+| Starting, activation/deactivation, entering/leaving background, suspend/resume and exit | Phase, coarse State and application IsActive are independent; windows expose their own IsActive; publisher and adapter tests cover transitions | PASS — managed/Windows checks and recorded Android scenarios pass. Desktop deactivation does not invent background or pause animations. |
+| Safe platform-neutral activation and future notification/secondary-instance kinds | Bounded copied strings/absolute URI; all seven declared kinds; payload validation/copy/privacy tests | PASS — tested descriptors; native transport and permissions are separate. |
+| Windows launch, app/window activity, file/URI readiness, session/display and shutdown | Run arguments, WM_ACTIVATEAPP and window callbacks, power suspend/resume, session query/end/cancellation, graceful loop exit | PASS — native 72/72 includes owned-process callback integration. Physical sleep/logoff/display-device changes are not claimed by synthetic owned-message tests; no invented Display phase. |
+| Android foreground/background, pause/resume, configuration/process recreation, Intent/deep links and state preservation | Aggregated weak Activities, generations/retired identities, explicit native Intent adapter, bounded Bundle handoff, borrowed control tree | PASS — Android 188/188 and separately recorded initial 26/26/final-source 21/21 emulator assertions. Cold-process/Home cases were not repeated in the final smoke; cold-process restore depends on a supplied saved Bundle. |
+| Multiple windows, background policy, popup/floating-window readiness and lifetime modes | MainWindowClosed default, LastWindowClosed and Explicit; OpenForms excludes popups; provider activity does not derive from focused Form; existing modal/popup paths remain | PASS — full regressions, native window checks and consumer modes pass. Future DockWorkspace floating products are not implemented by this change. |
+| Animation scheduler and timers/background-sensitive work | Existing coarse StateChanged subscription drives scheduler pause/rebase; application/native consumers can subscribe to the same contract | PASS — scheduler/consumer checks and final-source active-animation recreation pass. Timers are not all automatically suspended and arbitrary application background work is not controlled. |
+| Renderer/surface and native-host cleanup/recreation | Existing SkiaControlSurface/AndroidSkiaHostView paths with borrowed-root ownership and independent cleanup after user callback failures | PASS — final failure-cleanup/reuse regressions, package consumer and final-source attached/idle Android surface pass. This validates the existing Skia host, not absent future native products. |
+| Persistence and navigation hooks without serializing control trees | Positive schema version plus bounded ordinal string map; explicit save/restore and Android codec | PASS — handoff/codec/consumer checks pass. Persistence is optional; actual navigation integration remains dependent on #12, not silently completed here. |
+| Documented UI callback context and marshaling | Facade/publisher enforce owning UI thread; native adapters marshal through their platform dispatcher; Exit uses registered shared dispatcher with WindowKit fallback | PASS — final regressions include shared-dispatcher-only and stale queued-scope cases; native sample callback reports UI access. |
+| Duplicate normalization and deterministic notification/error order | Equal/stale snapshots suppressed, repeated activation remains distinct, queue/drain bounded, failures do not suppress remaining mandatory observers | PASS — publisher, Android reducer and owned native Windows duplicate/failure tests pass. |
+| Fake/test backend without real mobile OS | TestApplicationLifecycle derives the actual publisher; real Application.Run uses the canonical controlled dispatcher; TestHost restores borrowed application state | PASS — Testing 298/298 and isolated public consumer pass. Tests do not emulate OS foreground policy or native Activity callbacks. |
+| Developer Tools diagnostics readiness and payload privacy | Detached current snapshot, last activation kind, maximum 64 transitions, active/open Form counts; no activation/state contents in default diagnostics | PASS — data/privacy regressions and consumer checks pass; Developer Tools display itself remains future UI. |
+| Documentation and compatibility | XML docs, [lifecycle guide](../application-lifecycle.md), [TestHost guide](../testing/testhost.md), canonical docs-site TOC, limits/roadmap updates | PASS — ApiCompat 11/11 in each configuration, package validation, consumer, 32 documentation assertions, DocFX and all four documentation archives pass. No version or release metadata change. |
+
+| Required test scenario | Identified automated coverage | Final result |
+|---|---|---|
+| Normal start → active → exit | ApplicationLifetimeTests, facade tests, Windows LifecycleScenario using real Application.Run | PASS — full regressions, public Run consumer and native Windows scenario |
+| Deactivate/reactivate | Publisher/Windows adapter tests, Form activation tests, two-window native scenario | PASS — full regressions and owned native Windows scenario |
+| Background/foreground | TestApplicationLifecycleTests scheduler integration and Android reducer/native scenario | PASS — final managed tests; native Home/resume observed on initial APK only |
+| Suspend/resume | Publisher/scheduler tests, Windows owned power messages, Android stop/resume mapping | PASS — final managed/native Windows tests and recorded Android recreation; no physical Windows suspend |
+| Activation with arguments | Typed payload/facade tests and native process launch | PASS — final regressions, package consumer and Windows launch |
+| URI/file activation payloads | Copied payload validation, explicit facade delivery, Android Intent mapper/codec and native deep-link scenario | PASS — final managed/consumer checks and native Protocol delivery; no comprehensive native file-provider matrix |
+| Repeated/duplicate native notifications | Publisher duplicate/stale tests, Android retired/duplicate Activity tests, native duplicate Windows resume | PASS — final managed and native Windows regressions |
+| Window close during lifecycle transition | Starting/background Exit, Shown/Activated closure, failing observers, modal cleanup, runtime-identity isolation | PASS — final regressions and public consumer callback/failure cases |
+| Native hosted control cleanup/recreation | Existing shared surface disposal/capture/composition tests and Android renderer/IME recreation evidence | PARTIAL — current Skia host passes final-source recreation/IME/animation/idle checks; future native-hosted products remain unimplemented and unvalidated |
+
+Final review identified a pre-bootstrap null-dispatcher cache, eager lifecycle
+binding from unrelated native window threads, invalid Exited host counts, reentrant/terminal
+shutdown ordering, shared-platform-only Exit dispatch, stale queued runtime requests, and
+callback-failure surface cleanup. Corrective changes and their new tests are included in the
+final Debug/Release results and source identified above. The final-source Android smoke covers
+the latest teardown changes; its narrower scope does not relabel the initial APK's broader cases
+as rerun. Windows native
+tests send messages only to the spawned process's own verified HWNDs; they are native callback
+integration evidence, not a real request to suspend or end the user's Windows session.
+
+| Final #63 validation gate | Status / exact evidence boundary |
+|---|---|
+| Restore and complete Debug build | PASS — zero errors; four existing NU1902 build warnings |
+| Complete Debug regression, including latest cleanup/dispatcher tests | PASS — 2623/2623, zero failed/skipped |
+| Complete Release build and regression | PASS — zero build errors, four existing NU1902; 2623/2623 tests, zero failed/skipped |
+| Windows native Application.Run/session/power/window integration | PASS — Windows suite 72/72, including owned-process native callback scenarios |
+| Android target build, APK provenance and emulator lifecycle/IME/animation/recreation smoke | PASS — Android 188/188; final-source APK hash recorded above, final smoke 21/21; initial broader series 26/26 has separate provenance |
+| Numeric native shared-inset/cutout and keyboard-avoidance evidence | PARTIAL — shared geometry/mapper/consumer checks and fitted area observed; nonzero numeric shared insets/cutouts and automatic IME avoidance not observed |
+| API compatibility against merged master ad0ee5679f8e122f3fb1107ffdaf931e58621abb | PASS — 11/11 Debug and 11/11 Release; dependency resolver corrected without suppressions |
+| Package validation and isolated package-only consumer | PASS — 11 nupkg + 10 snupkg; unchanged 1.10.0; 154 assertions after fresh-cache restore, Release build zero warnings/errors |
+| Documentation scripts | PASS — 32 assertions |
+| Final DocFX | PASS — zero warnings/errors; 1004 HTML pages |
+| Four documentation archives | PASS — 4/4 validated; metadata records final source 83a2234d6a5a6b83ba228b03bba38971014127fe |
+| ControlGallery and template-reference DemoApp | PASS — responsive native windows, normal closure and exit code zero; automated startup/exit only |
+| Manual Windows visual, physical Android device, broader IME/vendor/native-control matrix | PARTIAL — NOT EXECUTED — environment unavailable; only explicitly recorded observations may change this status |
+| Implementing future WebView/Media/native widgets, navigation #12 or virtualization #55 | NOT APPLICABLE to this implementation; no claim that these future products or #64 dependent criteria are complete |
+
+Overall #63 status at this checkpoint: **PARTIAL UMBRELLA**, with passing shared, Windows,
+package-consumer, documentation and scoped Android emulator evidence. Native inset/device
+coverage and future product integrations retain the boundaries above.
+The current implementable scope is eligible for the user's ordinary
+PR/CI/review/merge workflow after its actual checks pass, even if future product integrations
+keep the parent issue open. This does not close #63 or complete #64's #12/#55-dependent rows.
+
+Final source review of `83a2234d6a5a6b83ba228b03bba38971014127fe` against merged master
+`ad0ee5679f8e122f3fb1107ffdaf931e58621abb` found no unresolved code blocker in this scope.
+The review reconciled the dispatcher, runtime ownership, native teardown, borrowed-root and
+PropertyStore corrections with the passing regressions. Subsequent changes only finalize
+documentation; no production or test source differs from the validated source commit.

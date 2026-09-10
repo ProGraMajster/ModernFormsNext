@@ -103,6 +103,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private WndProc? _wndProcDelegate;
         private IntPtr _hwnd;
         internal Win32DispatcherImpl _dispatcher;
+        internal WindowsApplicationLifecycle? ApplicationLifecycle { get; set; }
 
         public Win32Platform()
         {
@@ -183,6 +184,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
             if(msg == (uint)WindowsMessage.WM_QUERYENDSESSION)
             {
+                ApplicationLifecycle?.SessionEndRequested();
                 if (ShutdownRequested != null)
                 {
                     var e = new ShutdownRequestedEventArgs();
@@ -195,6 +197,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     }
                 }
             }
+
+            if (msg == (uint)WindowsMessage.WM_ENDSESSION)
+                ApplicationLifecycle?.SessionEnded(wParam != IntPtr.Zero);
+            if (msg == (uint)WindowsMessage.WM_POWERBROADCAST)
+                ApplicationLifecycle?.PowerChanged(unchecked((int)wParam.ToInt64()));
             
             if (msg == (uint)WindowsMessage.WM_SETTINGCHANGE)
             {
@@ -259,7 +266,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public IWindowImpl CreateWindow()
         {
-            return new WindowImpl();
+            var window = new WindowImpl();
+            ApplicationLifecycle?.WindowCreated(window.Handle.Handle);
+            return window;
         }
 
         //public IWindowImpl CreateEmbeddableWindow()

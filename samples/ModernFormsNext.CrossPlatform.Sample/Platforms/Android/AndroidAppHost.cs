@@ -55,6 +55,8 @@ public sealed class AndroidAppHost : IDisposable
         nativeSurface.DeleteSurroundingTextRequested += OnDeleteSurroundingTextRequested;
         nativeSurface.KeyInput += OnKeyInput;
         nativeSurface.TextSelectionRequested += OnTextSelectionRequested;
+        nativeSurface.InsetsChanged += OnInsetsChanged;
+        controlSurface.Insets = nativeSurface.CurrentInsets;
     }
 
     /// <summary>Gets the single native view that the activity should display.</summary>
@@ -81,19 +83,24 @@ public sealed class AndroidAppHost : IDisposable
     public void Pause()
     {
         ThrowIfDisposed();
-        nativeSurface.PauseHost();
-        controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0);
-        UpdateDiagnostics();
-        app.RefreshPlatformStatus();
+        List<Exception> failures = [];
+        Cleanup(nativeSurface.PauseHost, failures);
+        Cleanup(() => controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0), failures);
+        Cleanup(UpdateDiagnostics, failures);
+        Cleanup(app.RefreshPlatformStatus, failures);
+        ThrowCleanupFailures(failures);
     }
 
     /// <summary>Forwards activity stop to the render surface.</summary>
     public void Stop()
     {
         ThrowIfDisposed();
-        nativeSurface.StopHost();
-        UpdateDiagnostics();
-        app.RefreshPlatformStatus();
+        List<Exception> failures = [];
+        Cleanup(nativeSurface.StopHost, failures);
+        Cleanup(() => controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0), failures);
+        Cleanup(UpdateDiagnostics, failures);
+        Cleanup(app.RefreshPlatformStatus, failures);
+        ThrowCleanupFailures(failures);
     }
 
     /// <summary>Refreshes density and size after an Android configuration transition.</summary>
@@ -112,7 +119,8 @@ public sealed class AndroidAppHost : IDisposable
             return;
 
         disposed = true;
-        controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0);
+        List<Exception> failures = [];
+        Cleanup(() => controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0), failures);
         controlSurface.Invalidated -= OnControlSurfaceInvalidated;
         nativeSurface.Render -= OnRender;
         nativeSurface.Pointer -= OnPointer;
@@ -123,14 +131,32 @@ public sealed class AndroidAppHost : IDisposable
         nativeSurface.DeleteSurroundingTextRequested -= OnDeleteSurroundingTextRequested;
         nativeSurface.KeyInput -= OnKeyInput;
         nativeSurface.TextSelectionRequested -= OnTextSelectionRequested;
-        nativeSurface.TextInputStateProvider = null;
-        nativeSurface.AccessibilityHost = null;
+        nativeSurface.InsetsChanged -= OnInsetsChanged;
+        Cleanup(() => nativeSurface.TextInputStateProvider = null, failures);
+        Cleanup(() => nativeSurface.AccessibilityHost = null, failures);
         // This sample owns one process-wide surface. Snap its global theme transition before
         // detaching so Activity recreation cannot leave non-control scheduler work waiting for a
         // surface that no longer exists.
-        ThemeManager.Current.CancelTransition();
-        controlSurface.Dispose();
-        nativeSurface.Dispose();
+        Cleanup(() => ThemeManager.Current.CancelTransition(), failures);
+        Cleanup(controlSurface.Dispose, failures);
+        Cleanup(nativeSurface.Dispose, failures);
+        ThrowCleanupFailures(failures);
+    }
+
+    // Input/composition observers belong to application code. A failed observer must not retain
+    // an obsolete native view or detach the shared tree from its next Activity's ownership.
+    private static void Cleanup(Action action, List<Exception> failures)
+    {
+        try { action(); }
+        catch (Exception exception) { failures.Add(exception); }
+    }
+
+    private static void ThrowCleanupFailures(List<Exception> failures)
+    {
+        if (failures.Count == 1)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures.Count > 1)
+            throw new AggregateException("Android host lifecycle cleanup failed.", failures);
     }
 
     private void OnRender(object? sender, AndroidSkiaRenderEventArgs e)
@@ -140,6 +166,12 @@ public sealed class AndroidAppHost : IDisposable
         controlSurface.Resize(width, height);
         controlSurface.Render(e.Canvas);
         UpdateDiagnostics();
+    }
+
+    private void OnInsetsChanged(object? sender, WindowKit.WindowInsetsChangedEventArgs e)
+    {
+        if (!disposed)
+            controlSurface.Insets = e.Insets;
     }
 
     private void OnPointer(object? sender, AndroidPointerEvent e)
