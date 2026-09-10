@@ -71,10 +71,10 @@ Manual visual/platform-specific validation: NOT EXECUTED — environment unavail
 snapshots/tests establish only the shared production paths actually executed.
 
 Audit commit: `36184e7`. Implementation commit: `a75b3f98ebf476bbbc0e23cfad4d34cc042d3138`.
-PR: being prepared after successful documentation validation. Subsequent issues are audited,
+PR: [#113](https://github.com/ProGraMajster/ModernFormsNext/pull/113) (draft, base master). Subsequent issues are audited,
 not yet implemented.
 
-### #64 — implementation and regression record (in progress)
+### #64 — implementation and regression record
 
 The working implementation extends `ModernFormsNext.Testing` with `TestInput`, `TestClock`,
 `RenderedSnapshot`, scoped clipboard/lifecycle/theme/motion services, and focus/input diagnostics.
@@ -171,3 +171,51 @@ Manual Windows visual review, Android emulator/physical-device checks, TalkBack 
 interaction for this phase: **NOT EXECUTED — environment unavailable**. The ControlGallery check
 was an automated native startup/close smoke; the inspected PNG was headless raster output.
 Template/reference-app validation: NOT APPLICABLE; generated application startup was unchanged.
+
+### #63 — refreshed audit and implementation plan
+
+Baseline master remains `ba396f95adab82564a0681bc922096599ba8c1ca` after fetch.
+Full current issue and all comments (zero) were read again. Work is on
+`codex/issue-63-lifecycle-activation`, stacked on #64 PR #113 at `311fa82`; #64 is
+not represented as merged. The earlier all-queue audit supplies related issue/history context.
+
+Existing canonical pieces: Application.Run/Exit, window backend activation callbacks,
+IPlatformApplicationLifecycle's four coarse states, the scheduler's lifecycle policy, Android
+Activity tracker and a borrowed SkiaControlSurface across sample Activity recreation. Missing:
+rich normalized events, activation payloads, state handoff hooks, active-window diagnostics,
+Windows app lifecycle mapping, Android multi-Activity aggregation and real inset propagation.
+Run currently subscribes after Form.Shown and lacks guaranteed cleanup; Exit callbacks can
+prevent loop cancellation. These directly block lifecycle correctness.
+
+Implementation plan, before code changes:
+
+1. Preserve the existing interface and enum. Extend the same provider through an optional rich
+   interface and one deterministic publisher. Commit normalized state before old scheduler
+   notifications and then richer public callbacks. Bound reentrant notification queues, activation
+   payloads and restoration data. Never infer file/URI intent from arbitrary launch arguments.
+2. Expose the provider through Application.Lifecycle with UI-thread callbacks, immutable snapshots,
+   privacy-preserving bounded diagnostics and explicit save/restore hooks. Reuse existing test
+   services and isolate process Application state in TestHost; no second runtime or scheduler.
+3. Preserve main-root closure as the default Run policy. Add explicit last-form/explicit-exit
+   policies, wire real window activation, reconcile native closure, and guarantee once-only Exit
+   and cleanup even when user callbacks fail or close windows reentrantly.
+4. Map Windows app activation independently of window activation/background. Add launch arguments,
+   session/power notifications and graceful shutdown through the same provider. File/URI forwarding
+   accepts explicit safe data; single-instance transport is deferred as allowed by the issue.
+5. Aggregate Android Activities without equating recreation to process termination. Map initial
+   and subsequent intents, bounded Bundle state handoff, normalized background/foreground and
+   host generations. Keep renderer/IME teardown in the existing native host and shared surface.
+6. Add shared logical safe-area and IME-inset data, optional backend feature and real existing
+   content-root layout integration. Do not overwrite application Padding or create another tree.
+   Android converts native occlusion to the shared model; fitted desktop client areas default zero.
+7. Test duplicates, ordering, reentry, failures, multiple windows, activation copying/privacy,
+   restoration/recreation, animation/pending-work/IME lifetime and inset layout/input coordinates.
+   Build/test the full solution serially; inspect available emulator tooling before claiming it
+   unavailable. Native hosted views/WebView/Media implementations remain outside this issue.
+8. Document API examples, platform and process-death limits, lifetime policies and state ownership;
+   then revisit every #63 criterion and the dependent #64 lifecycle acceptance row.
+
+Compatibility and ownership: additive APIs; no large dependencies, version/package metadata or
+Designer serialization changes. UI mutation remains on the owning dispatcher. Native objects stay
+in platform projects; activation/restoration snapshots own copied primitive data only. Scope
+revocation and disposal detach subscriptions and preserve borrowed application/control state.
