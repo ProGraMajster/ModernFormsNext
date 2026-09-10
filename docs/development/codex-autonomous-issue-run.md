@@ -407,3 +407,21 @@ Final source review of `83a2234d6a5a6b83ba228b03bba38971014127fe` against merged
 The review reconciled the dispatcher, runtime ownership, native teardown, borrowed-root and
 PropertyStore corrections with the passing regressions. Subsequent changes only finalize
 documentation; no production or test source differs from the validated source commit.
+
+PR [#115](https://github.com/ProGraMajster/ModernFormsNext/pull/115) was created Ready,
+validated by required CI run `34509085249` on final head
+`3a8a405b3e534949eedb22a1dd4b72ad5179a4e4`, and merged using the normal merge strategy
+as `5eb19a5098f5fdba794d57fe599cf0224f2ab4d8`. The fetched local master matched origin
+and the merged tree exactly matched the reviewed PR head. Documentation was rebuilt
+and all four archives revalidated at that final PR head. #63 remains OPEN/PARTIAL
+for the acceptance boundaries above, not because its completed PR remains Draft.
+
+## Issue #62 — Add IME and advanced text input composition infrastructure
+
+Status: **IN PROGRESS — audit and pre-implementation plan complete**. Starting master:
+`5eb19a5098f5fdba794d57fe599cf0224f2ab4d8`; branch `codex/issue-62-text-composition`.
+The [audit and technical plan](issue-62-text-input-plan.md) records the reread issue,
+zero comments, current dependencies, source/history/test/docs findings and the
+additive shared client/session/native adapter design before production edits.
+Existing Android/document composition is reused. No #62 implementation validation
+has been executed at this audit checkpoint.
