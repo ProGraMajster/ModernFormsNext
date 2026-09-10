@@ -17,6 +17,16 @@ internal static class TestWindowFactoryScope
 
     internal static IWindowImpl? TryCreateWindow() => Current.Value?.CreateWindow();
 
+    internal static bool HasActiveFactory
+    {
+        get
+        {
+            if (Current.Value is not { } registration) return false;
+            ObjectDisposedException.ThrowIf(!registration.IsActive, "ModernFormsTestHost");
+            return true;
+        }
+    }
+
     internal static IDisposable Push(Func<IWindowImpl> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);

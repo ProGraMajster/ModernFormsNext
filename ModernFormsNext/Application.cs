@@ -30,6 +30,11 @@ namespace ModernFormsNext
     {
         private static CancellationTokenSource? _mainLoopCancellationTokenSource;
         private static bool is_exiting;
+        private static bool mainLoopStarted;
+        private static bool exitCleanupCompleted;
+        private static bool exitCleanupRunning;
+        private static ApplicationLifetimeMode lifetimeMode;
+        private static ICloseable? lifetimeRoot;
         private static FormCollection? open_forms;
         private static string? startup_path;
         private static readonly ResourceDictionary resources = new();
@@ -238,18 +243,79 @@ namespace ModernFormsNext
         /// Calling this method does not forcefully terminate the process. It requests a graceful
         /// shutdown of the UI loop.
         /// </para>
+        /// <para>
+        /// Repeated requests are idempotent. Background-thread requests are posted to the UI thread.
+        /// A request inside a lifecycle notification is latched immediately; its save/cleanup/OnExit
+        /// transaction runs after that notification through the UI dispatcher. Observer failures do
+        /// not prevent cleanup or loop cancellation; multiple failures are reported together.
+        /// </para>
         /// </remarks>
         public static void Exit()
         {
+            IPlatformDispatcher? platformDispatcher = PlatformServiceRegistry.GetService<IPlatformDispatcher>();
+            if (!(platformDispatcher?.CheckAccess() ?? Dispatcher.UIThread.CheckAccess()))
+            {
+                var requestIdentity = RuntimeIdentity;
+                PostLifecycleWork(() =>
+                {
+                    if (ReferenceEquals(requestIdentity, RuntimeIdentity)) Exit();
+                });
+                return;
+            }
+            if (is_exiting)
+                return;
             is_exiting = true;
-            ReleaseInputBindings();
-            ReleaseCommandBindings();
+            if (Lifecycle.Controller?.IsPublishing == true)
+            {
+                var identity = RuntimeIdentity;
+                PostLifecycleWork(() =>
+                {
+                    if (ReferenceEquals(identity, RuntimeIdentity)) CompleteExit();
+                });
+                return;
+            }
+            CompleteExit();
+        }
 
-            Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
+        private static void PostLifecycleWork(Action action)
+        {
+            // Android supplies its real main-thread dispatcher without a WindowKit message loop.
+            // Using the shared service also keeps headless hosts on their scoped production queue.
+            if (PlatformServiceRegistry.GetService<IPlatformDispatcher>() is { } dispatcher)
+                dispatcher.Post(action);
+            else
+                Dispatcher.UIThread.Post(action);
+        }
 
-            OnExit?.Invoke(null, EventArgs.Empty);
-
-            _mainLoopCancellationTokenSource?.Cancel();
+        private static void CompleteExit()
+        {
+            if (exitCleanupCompleted || exitCleanupRunning) return;
+            exitCleanupRunning = true;
+            var identity = RuntimeIdentity;
+            // Commit the exit guard before callbacks. A failing save/lifecycle/OnExit observer
+            // must not suppress another subscriber, resource cleanup, or loop cancellation.
+            var failures = new List<Exception>();
+            void CleanupOwned(Action action)
+            {
+                if (ReferenceEquals(identity, RuntimeIdentity))
+                    AttemptLifecycleCleanup(action, failures);
+            }
+            CleanupOwned(NotifyLifecycleExiting);
+            CleanupOwned(ReleaseInputBindings);
+            CleanupOwned(ReleaseCommandBindings);
+            CleanupOwned(Animations.AnimationScheduler.ShutdownDefaultIfInitialized);
+            if (ReferenceEquals(identity, RuntimeIdentity) && OnExit is { } handlers)
+                foreach (EventHandler handler in handlers.GetInvocationList())
+                    CleanupOwned(() => handler(null, EventArgs.Empty));
+            CleanupOwned(() => _mainLoopCancellationTokenSource?.Cancel());
+            if (ReferenceEquals(identity, RuntimeIdentity))
+            {
+                exitCleanupRunning = false;
+                exitCleanupCompleted = true;
+                if (_mainLoopCancellationTokenSource is null)
+                    AttemptLifecycleCleanup(NotifyLifecycleExited, failures);
+            }
+            ThrowLifecycleFailures(failures);
         }
 
         /// <summary>
@@ -289,13 +355,21 @@ namespace ModernFormsNext
         /// </code>
         /// </example>
         public static void Run(Form mainForm)
-        {
-            FrameworkBootstrap.EnsureInitialized();
-            Animations.AnimationScheduler.Default.RefreshPlatformPolicy();
-            AvaloniaSynchronizationContext.InstallIfNeeded();
+            => Run(mainForm, ApplicationLifetimeMode.MainWindowClosed);
 
-            mainForm.Show();
-            RunMainLoop(mainForm);
+        /// <summary>Shows a main Form and runs the message loop using an explicit lifetime policy.</summary>
+        /// <param name="mainForm">The initial Form, shown after lifetime and lifecycle handlers attach.</param>
+        /// <param name="mode">The shutdown policy; the default overload uses main-root closure.</param>
+        /// <remarks>
+        /// Call once on the UI thread. Closing from Shown is supported. Cleanup and Exited notification
+        /// run even when startup, callbacks or the message loop fail. This method does not dispose
+        /// other application-owned Forms. Android Activity recreation is independent of this policy.
+        /// </remarks>
+        /// <example><code>Application.Run(new MainForm(), ApplicationLifetimeMode.LastWindowClosed);</code></example>
+        public static void Run(Form mainForm, ApplicationLifetimeMode mode)
+        {
+            ArgumentNullException.ThrowIfNull(mainForm);
+            RunMainLoop(mainForm, mode, mainForm.Show);
         }
 
         /// <summary>
@@ -318,32 +392,107 @@ namespace ModernFormsNext
         /// Thrown when the application main loop has already been started.
         /// </exception>
         public static void Run(ICloseable closable)
-        {
-            FrameworkBootstrap.EnsureInitialized();
-            Animations.AnimationScheduler.Default.RefreshPlatformPolicy();
-            RunMainLoop(closable);
-        }
+            => Run(closable, ApplicationLifetimeMode.MainWindowClosed);
 
-        private static void RunMainLoop(ICloseable closable)
+        /// <summary>Runs the existing UI loop with a custom root and an explicit lifetime policy.</summary>
+        /// <param name="closable">The designated lifetime root; it is not shown or disposed by this overload.</param>
+        /// <param name="mode">The shutdown policy. LastWindowClosed observes Form closure independently of this root.</param>
+        /// <remarks>Call once on the UI thread. The root subscription is detached when the loop returns or fails.</remarks>
+        public static void Run(ICloseable closable, ApplicationLifetimeMode mode)
+            => RunMainLoop(closable, mode, null);
+
+        private static void RunMainLoop(ICloseable closable, ApplicationLifetimeMode mode, Action? show)
         {
             ArgumentNullException.ThrowIfNull(closable);
-
-            if (_mainLoopCancellationTokenSource != null)
-                throw new InvalidOperationException("Run should only be called once");
-
+            if (!Enum.IsDefined(mode))
+                throw new ArgumentOutOfRangeException(nameof(mode));
+            if (mainLoopStarted || is_exiting)
+                throw new InvalidOperationException("Run may only be called once, before application exit.");
+            // The supported TestHost already scopes the production backend-facing services.
+            // Starting its real application loop must not discover or initialize native services.
+            if (!TestWindowFactoryScope.HasActiveFactory)
+                FrameworkBootstrap.EnsureInitialized();
+            Dispatcher.UIThread.VerifyAccess();
+            var lifecycleController = Lifecycle.Controller;
+            if (lifecycleController?.IsPublishing == true)
+                throw new InvalidOperationException("Run cannot start inside a lifecycle notification; post startup to the UI dispatcher.");
+            if (lifecycleController?.Snapshot.Phase is WindowKit.Backend.Lifecycle.PlatformApplicationPhase.Exiting or
+                WindowKit.Backend.Lifecycle.PlatformApplicationPhase.Exited)
+                throw new InvalidOperationException("Run cannot start after the platform has begun application shutdown.");
+            Animations.AnimationScheduler.Default.RefreshPlatformPolicy();
             AvaloniaSynchronizationContext.InstallIfNeeded();
-            closable.Closed += (s, e) => Exit();
+            mainLoopStarted = true;
+            lifetimeMode = mode;
+            lifetimeRoot = closable;
+            var loopCancellation = new CancellationTokenSource();
+            var runtimeIdentity = RuntimeIdentity;
+            _mainLoopCancellationTokenSource = loopCancellation;
+            EventHandler rootClosed = (_, _) =>
+            {
+                if (ReferenceEquals(runtimeIdentity, RuntimeIdentity) && mode == ApplicationLifetimeMode.MainWindowClosed)
+                    Exit();
+            };
+            var failures = new List<Exception>();
+            var subscribed = false;
+            try
+            {
+                closable.Closed += rootClosed;
+                subscribed = true;
+                var arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+                NotifyLifecycleStarting(new WindowKit.Backend.Lifecycle.PlatformApplicationActivation(
+                    arguments.Length == 0 ? WindowKit.Backend.Lifecycle.PlatformActivationKind.Launch :
+                    WindowKit.Backend.Lifecycle.PlatformActivationKind.Arguments, arguments));
+                if (ReferenceEquals(runtimeIdentity, RuntimeIdentity) && !is_exiting)
+                    show?.Invoke();
+                if (ReferenceEquals(runtimeIdentity, RuntimeIdentity) && !is_exiting)
+                    Dispatcher.UIThread.MainLoop(loopCancellation.Token);
+            }
+            catch (Exception exception) { failures.Add(exception); }
+            finally
+            {
+                if (subscribed)
+                    AttemptLifecycleCleanup(() => closable.Closed -= rootClosed, failures);
+                // TestHost may be disposed from a running callback. Its scope then restores a
+                // borrowed application; never tear down that restored runtime from this old loop.
+                if (ReferenceEquals(runtimeIdentity, RuntimeIdentity))
+                {
+                    AttemptLifecycleCleanup(Exit, failures);
+                    if (ReferenceEquals(runtimeIdentity, RuntimeIdentity))
+                        AttemptLifecycleCleanup(CompleteExit, failures);
+                    if (ReferenceEquals(runtimeIdentity, RuntimeIdentity))
+                    {
+                        _mainLoopCancellationTokenSource = null;
+                        lifetimeRoot = null;
+                        AttemptLifecycleCleanup(NotifyLifecycleExited, failures);
+                    }
+                }
+                loopCancellation.Dispose();
+            }
+            ThrowLifecycleFailures(failures);
+        }
 
-            _mainLoopCancellationTokenSource = new CancellationTokenSource();
+        internal static void NotifyWindowClosed(WindowBase window)
+        {
+            NotifyLifecycleWindowStateChanged();
+            if (!mainLoopStarted || is_exiting)
+                return;
+            if ((lifetimeMode == ApplicationLifetimeMode.MainWindowClosed && ReferenceEquals(window, lifetimeRoot)) ||
+                (lifetimeMode == ApplicationLifetimeMode.LastWindowClosed && window is Form && OpenForms.Count == 0))
+                Exit();
+        }
 
-            Dispatcher.UIThread.MainLoop(_mainLoopCancellationTokenSource.Token);
+        private static void AttemptLifecycleCleanup(Action action, List<Exception> failures)
+        {
+            try { action(); }
+            catch (Exception exception) { failures.Add(exception); }
+        }
 
-            ReleaseInputBindings();
-            ReleaseCommandBindings();
-            Animations.AnimationScheduler.ShutdownDefaultIfInitialized();
-
-            if (!is_exiting)
-                OnExit?.Invoke(null, EventArgs.Empty);
+        private static void ThrowLifecycleFailures(List<Exception> failures)
+        {
+            if (failures.Count == 1)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (failures.Count > 1)
+                throw new AggregateException("Application lifecycle callbacks or cleanup failed.", failures);
         }
 
         /// <summary>

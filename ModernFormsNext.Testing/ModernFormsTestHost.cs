@@ -25,6 +25,7 @@ public sealed class ModernFormsTestHost : IDisposable
     private readonly KeyValuePair<object, object?>[] baselineApplicationResources;
     private readonly ThemeDefinition baselineTheme;
     private readonly IDisposable windowFactoryScope;
+    private readonly IDisposable applicationRuntimeScope;
     private readonly int ownerThreadId = Environment.CurrentManagedThreadId;
     private bool disposed;
     private bool disposing;
@@ -38,6 +39,7 @@ public sealed class ModernFormsTestHost : IDisposable
         Dispatcher = new UiTestDispatcher();
         try
         {
+            applicationRuntimeScope = Application.PushRuntimeStateForTesting();
             Services = new TestPlatformServices(Dispatcher);
             Clock = new TestClock(Dispatcher);
             windowFactoryScope = TestWindowFactoryScope.Push(CreateHeadlessWindow);
@@ -51,6 +53,7 @@ public sealed class ModernFormsTestHost : IDisposable
             var failures = new List<Exception> { creationFailure };
             TryCleanup(() => windowFactoryScope?.Dispose(), failures);
             TryCleanup(() => Clock?.Dispose(), failures);
+            TryCleanup(() => applicationRuntimeScope?.Dispose(), failures);
             TryCleanup(() => Services?.Dispose(), failures);
             TryCleanup(Dispatcher.Dispose, failures);
             if (failures.Count > 1)
@@ -358,6 +361,7 @@ public sealed class ModernFormsTestHost : IDisposable
             TryCleanup(RestoreThemeAndResources, failures);
             TryCleanup(() => Dispatcher.Drain(), failures);
             TryCleanup(() => Clock.Dispose(), failures);
+            TryCleanup(applicationRuntimeScope.Dispose, failures);
             TryCleanup(() => Services.Dispose(), failures);
             TryCleanup(() => windowFactoryScope.Dispose(), failures);
             TryCleanup(() => Dispatcher.Dispose(), failures);

@@ -43,37 +43,23 @@ namespace ModernFormsNext
             window.Input = OnInput;
             window.Paint = DoPaint;
             window.Resized = OnResize;
-            window.Closed = () => {
-                Exception? closeFailure = null;
-                try {
-                    ReleaseInputBindings();
-                    // A secondary window can close without shutting down the process-wide scheduler.
-                    // Release every control-owned animation so callbacks cannot retain its detached
-                    // visual tree. The operation is idempotent with the explicit Close path below.
-                    adapter.CancelOwnedControlAnimationsForSubtree ();
-                    Closed?.Invoke (this, EventArgs.Empty);
-                }
-                catch (Exception exception) { closeFailure = exception; }
-
-                // A native close need not pass through Form.Close. Complete modal ownership even
-                // when Closed throws, while retaining both failures if parent activation also fails.
-                if (this is Form form) {
-                    try { form.CompleteDialogClose (); }
-                    catch (Exception cleanupFailure) {
-                        if (closeFailure is not null)
-                            throw new AggregateException ("Window closure and dialog cleanup both failed.", closeFailure, cleanupFailure);
-                        throw;
-                    }
-                }
-                if (closeFailure is not null)
-                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture (closeFailure).Throw ();
+            window.Closed = OnBackendClosed;
+            window.Activated = () => {
+                if (backendClosed || IsActive) return;
+                IsActive = true;
+                Application.NotifyLifecycleWindowStateChanged();
+                Activated?.Invoke(this, EventArgs.Empty);
             };
             window.Deactivated = () => {
+                if (backendClosed) return;
+                IsActive = false;
+                Application.NotifyLifecycleWindowStateChanged();
                 inputBindingResolver.Reset();
                 // If we're clicking off the form, deactivate any active menus
                 Application.ClosePopups ();
                 Deactivated?.Invoke (this, EventArgs.Empty);
             };
+            AttachInsetsProvider();
         }
 
         /// <summary>
@@ -116,6 +102,7 @@ namespace ModernFormsNext
         /// </summary>
         public virtual void Close () 
         {
+            if (backendClosed) return;
             // If we just Dispose the window, WM_CLOSE will never get called so OnClosing will not get called
             if (this is Form f) {
                 var args = new CancelEventArgs ();
@@ -191,8 +178,11 @@ namespace ModernFormsNext
         /// </summary>
         public void Hide ()
         {
+            if (backendClosed) return;
             Visible = false;
+            IsActive = false;
             window.Hide ();
+            Application.NotifyLifecycleWindowStateChanged();
             
             if (Application.ActivePopupWindow == this)
                 Application.ActivePopupWindow = null;
@@ -536,14 +526,18 @@ namespace ModernFormsNext
         /// </summary>
         public void Show ()
         {
+            ObjectDisposedException.ThrowIf(backendClosed, this);
             Visible = true;
             OnVisibleChanged (EventArgs.Empty);
 
             SetWindowStartupLocation ();
             window.Show (true, false);
 
+            if (backendClosed) return;
+
             if (this is Form f)
                 Application.OpenForms.Add (f);
+            Application.NotifyLifecycleWindowStateChanged();
 
             if (!shown) {
                 shown = true;
@@ -553,6 +547,7 @@ namespace ModernFormsNext
 
         internal void ShowDialog (IWindowImpl parent)
         {
+            ObjectDisposedException.ThrowIf(backendClosed, this);
             Visible = true;
             OnVisibleChanged (EventArgs.Empty);
 
@@ -560,8 +555,11 @@ namespace ModernFormsNext
             parent.SetEnabled (false);
             window.Show (true, true);
 
+            if (backendClosed) return;
+
             if (this is Form f)
                 Application.OpenForms.Add (f);
+            Application.NotifyLifecycleWindowStateChanged();
 
             if (!shown) {
                 shown = true;
