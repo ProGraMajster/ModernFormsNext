@@ -34,7 +34,8 @@ public sealed class UiTestDispatcher
         return Environment.CurrentManagedThreadId == ownerThreadId;
     }
 
-    /// <summary>Gets the number of dispatcher operations waiting for an explicit drain.</summary>
+    /// <summary>Gets the number of queued dispatcher operations, including dormant timer operations.</summary>
+    /// <remarks>A future timer is queued at inactive priority and cannot run until the host clock advances.</remarks>
     public int PendingWorkCount
     {
         get
@@ -114,7 +115,7 @@ public sealed class UiTestDispatcher
         return completion.Task;
     }
 
-    /// <summary>Executes queued dispatcher operations in deterministic order.</summary>
+    /// <summary>Executes ready dispatcher operations in deterministic order without advancing time.</summary>
     /// <param name="maximumOperations">The maximum work items allowed in this drain.</param>
     /// <returns>The number of operations processed.</returns>
     /// <exception cref="InvalidOperationException">
@@ -128,7 +129,7 @@ public sealed class UiTestDispatcher
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumOperations);
 
         var processed = 0;
-        while (dispatcher.PendingJobCountForTesting > 0)
+        while (dispatcher.HasReadyJobsForTesting)
         {
             if (processed >= maximumOperations)
             {
@@ -152,12 +153,8 @@ public sealed class UiTestDispatcher
             }
         }
 
-        if (dispatcher.PendingJobCountForTesting > 0)
-        {
-            throw new InvalidOperationException(
-                $"The deterministic UI dispatcher could not execute {dispatcher.PendingJobCountForTesting} pending item(s).");
-        }
-
+        // Production DispatcherTimer queues its next tick at inactive priority. Reaching such an
+        // operation means ready work is idle; it must not be executed early or treated as a failure.
         return processed;
     }
 
@@ -193,7 +190,11 @@ public sealed class UiTestDispatcher
 
         VerifyAccess();
         var failures = new List<Exception>();
+        TryCleanup(StopTimers, failures);
         TryCleanup(() => Drain(), failures);
+        // Cleanup callbacks may have created new dormant timers during the final drain. Stop those
+        // as well, including after a bounded-drain failure, before restoring the prior dispatcher.
+        TryCleanup(StopTimers, failures);
         TryCleanup(() => dispatcherScope.Dispose(), failures);
         TryCleanup(() => implementation.Dispose(), failures);
         disposed = true;
@@ -203,6 +204,29 @@ public sealed class UiTestDispatcher
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
+
+    private static void StopTimers()
+    {
+        // Future timer ticks belong to this host's dispatcher and must not remain armed on a
+        // caller-retained timer after scope restoration. Stopping uses production cancellation.
+        foreach (DispatcherTimer timer in Dispatcher.SnapshotTimersForUnitTests())
+            timer.Stop();
+    }
+
+    internal bool HasReadyWork
+    {
+        get { ThrowIfDisposed(); return dispatcher.HasReadyJobsForTesting; }
+    }
+
+    internal void SetCurrentTime(TimeSpan currentTime)
+    {
+        VerifyAccess();
+        implementation.CurrentTime = currentTime;
+        // Promote through the actual dispatcher timer implementation, not through a separate test
+        // timer queue. Bypass the OS wake path because its background-processing branch can run an
+        // unbounded queue; Drain remains the single bounded execution boundary for headless work.
+        dispatcher.PromoteTimers();
+    }
 
     private static void TryCleanup(Action action, ICollection<Exception> failures)
     {
@@ -218,6 +242,8 @@ public sealed class UiTestDispatcher
 
     private sealed class DeterministicDispatcherImpl(int ownerThreadId) : IDispatcherImpl, IDisposable
     {
+        private long currentTicks;
+
         public bool CurrentThreadIsLoopThread => Environment.CurrentManagedThreadId == ownerThreadId;
 
         public event Action? Signaled
@@ -232,7 +258,13 @@ public sealed class UiTestDispatcher
             remove { }
         }
 
-        public long Now => 0;
+        public TimeSpan CurrentTime
+        {
+            get => TimeSpan.FromTicks(Interlocked.Read(ref currentTicks));
+            set => Interlocked.Exchange(ref currentTicks, value.Ticks);
+        }
+
+        public long Now => Interlocked.Read(ref currentTicks) / TimeSpan.TicksPerMillisecond;
 
         public void Signal()
         {
@@ -241,7 +273,8 @@ public sealed class UiTestDispatcher
 
         public void UpdateTimer(long? dueTimeInMs)
         {
-            // Phase 1 has no wall clock or TestClock. Dispatcher timers remain dormant.
+            // There is no native wake source. TestClock explicitly promotes production timers at
+            // the committed monotonic time; an ordinary Drain never advances the clock.
         }
 
         public void Dispose()

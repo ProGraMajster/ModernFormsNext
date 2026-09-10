@@ -22,8 +22,12 @@ namespace ModernFormsNext
         internal IWindowBaseImpl window;
         internal ControlAdapter adapter;
 
-        private DateTime last_click_time;
+        private TimeSpan last_click_time;
+        private bool has_last_click;
         private Point last_click_point;
+        // Test hosts supply the same monotonic time used by their animation clock. Native windows
+        // use Stopwatch so clock corrections cannot create or suppress a double-click.
+        internal Func<TimeSpan>? InputClock { get; set; }
         private Cursor? current_cursor;
         internal bool shown;
 
@@ -40,12 +44,29 @@ namespace ModernFormsNext
             window.Paint = DoPaint;
             window.Resized = OnResize;
             window.Closed = () => {
-                ReleaseInputBindings();
-                // A secondary window can close without shutting down the process-wide scheduler.
-                // Release every control-owned animation so callbacks cannot retain its detached
-                // visual tree. The operation is idempotent with the explicit Close path below.
-                adapter.CancelOwnedControlAnimationsForSubtree ();
-                Closed?.Invoke (this, EventArgs.Empty);
+                Exception? closeFailure = null;
+                try {
+                    ReleaseInputBindings();
+                    // A secondary window can close without shutting down the process-wide scheduler.
+                    // Release every control-owned animation so callbacks cannot retain its detached
+                    // visual tree. The operation is idempotent with the explicit Close path below.
+                    adapter.CancelOwnedControlAnimationsForSubtree ();
+                    Closed?.Invoke (this, EventArgs.Empty);
+                }
+                catch (Exception exception) { closeFailure = exception; }
+
+                // A native close need not pass through Form.Close. Complete modal ownership even
+                // when Closed throws, while retaining both failures if parent activation also fails.
+                if (this is Form form) {
+                    try { form.CompleteDialogClose (); }
+                    catch (Exception cleanupFailure) {
+                        if (closeFailure is not null)
+                            throw new AggregateException ("Window closure and dialog cleanup both failed.", closeFailure, cleanupFailure);
+                        throw;
+                    }
+                }
+                if (closeFailure is not null)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture (closeFailure).Throw ();
             };
             window.Deactivated = () => {
                 inputBindingResolver.Reset();
@@ -75,13 +96,16 @@ namespace ModernFormsNext
         private MouseEventArgs BuildMouseClickArgs (MouseButtons buttons, Point point, Keys keyData)
         {
             var click_count = 1;
+            TimeSpan now = InputClock?.Invoke() ?? System.Diagnostics.Stopwatch.GetElapsedTime(0);
+            TimeSpan elapsed = now - last_click_time;
 
-            if (DateTime.Now.Subtract (last_click_time).TotalMilliseconds < DOUBLE_CLICK_TIME && PointInDoubleClickRange (point))
+            if (has_last_click && elapsed >= TimeSpan.Zero && elapsed.TotalMilliseconds < DOUBLE_CLICK_TIME && PointInDoubleClickRange (point))
                 click_count = 2;
 
             var e = new MouseEventArgs (buttons, click_count, (int)point.X, (int)point.Y, System.Drawing.Point.Empty, keyData: keyData);
 
-            last_click_time = click_count > 1 ? DateTime.MinValue : DateTime.Now;
+            has_last_click = click_count == 1;
+            last_click_time = now;
             last_click_point = click_count > 1 ? Point.Empty : point;
 
             return e;

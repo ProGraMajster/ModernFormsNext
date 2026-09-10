@@ -19,6 +19,7 @@ namespace ModernFormsNext
         private const int MINIMUM_RESIZE_PIXELS = 4;
 
         private IWindowImpl? dialog_parent;
+        private Form? dialog_owner;
         private DialogResult dialog_result = DialogResult.None;
         private TaskCompletionSource<DialogResult>? dialog_task;
         private System.Drawing.Size minimum_size;
@@ -128,18 +129,29 @@ namespace ModernFormsNext
             if (Application.OpenForms.Contains(this))
                 return;
 
-            // If this was a dialog box we need to reactivate the parent
-            if (dialog_parent is not null) {
-                dialog_parent.SetEnabled (true);
-                dialog_parent.Activate ();
-                dialog_parent = null;
-            }
+            CompleteDialogClose ();
+        }
 
-            // If this was a dialog box we need to resume the execution task
-            if (dialog_task is not null) {
-                var task = dialog_task;
-                dialog_task = null;
-                task.SetResult (dialog_result);
+        // Backend-initiated close and authoritative host cleanup must release the same modal
+        // relationship as Form.Close. Detach first: activation and task continuations can reenter.
+        internal void CompleteDialogClose ()
+        {
+            var parent = dialog_parent;
+            var owner = dialog_owner;
+            var task = dialog_task;
+            dialog_parent = null;
+            dialog_owner = null;
+            dialog_task = null;
+
+            try {
+                if (parent is not null && owner?.InputBindingsClosed != true && owner?.adapter.IsDisposed != true) {
+                    parent.SetEnabled (true);
+                    parent.Activate ();
+                }
+            }
+            finally {
+                // A failing native activation must not leave an otherwise closed dialog's task pending.
+                task?.TrySetResult (dialog_result);
             }
         }
 
@@ -458,23 +470,44 @@ namespace ModernFormsNext
         /// <summary>
         /// Displays the window to the user modally, preventing interaction with other windows until closed.
         /// </summary>
+        /// <param name="parent">The live owning form whose input is disabled until this dialog closes.</param>
+        /// <returns>The dialog result after closure, or the already assigned non-None result.</returns>
+        /// <remarks>
+        /// Call on the UI thread. Closing may be canceled; a canceled close keeps the owner disabled
+        /// and the returned task pending. A Shown handler may close the dialog synchronously.
+        /// </remarks>
         public Task<DialogResult> ShowDialog (Form parent)
         {
-            dialog_task = new TaskCompletionSource<DialogResult> ();
+            ArgumentNullException.ThrowIfNull (parent);
+            if (dialog_task is not null)
+                throw new InvalidOperationException ("This form already has an active modal operation.");
+            var task = new TaskCompletionSource<DialogResult> ();
+            dialog_task = task;
 
             // If the DialogResult has already been set we don't show the dialog
             if (dialog_result != DialogResult.None) {
-                dialog_task.SetResult (dialog_result);
-                return dialog_task.Task;
+                dialog_task = null;
+                task.SetResult (dialog_result);
+                return task.Task;
             }
 
             dialog_parent = parent.Window;
-            Window.SetParent (parent.Window);
-            adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
+            dialog_owner = parent;
+            try {
+                Window.SetParent (parent.Window);
+                adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
+                ShowDialog (parent.Window);
+            }
+            catch (Exception showFailure) {
+                try { CompleteDialogClose (); }
+                catch (Exception cleanupFailure) {
+                    throw new AggregateException ("The dialog failed to show and owner restoration also failed.", showFailure, cleanupFailure);
+                }
+                throw;
+            }
 
-            ShowDialog (parent.Window);
-
-            return dialog_task.Task;
+            // Shown can close the dialog and clear the field before ShowDialog returns.
+            return task.Task;
         }
 
         /// <summary>

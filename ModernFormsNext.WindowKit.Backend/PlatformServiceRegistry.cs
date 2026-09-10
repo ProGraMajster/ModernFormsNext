@@ -12,6 +12,7 @@ public static class PlatformServiceRegistry
 {
     private static readonly object Sync = new();
     private static readonly Dictionary<Type, object> Services = new();
+    private static readonly AsyncLocal<TestingServiceScope?> TestingServices = new();
 
     /// <summary>
     /// Registers one implementation for a platform-neutral service contract.
@@ -46,8 +47,39 @@ public static class PlatformServiceRegistry
     public static TService? GetService<TService>()
         where TService : class
     {
+        for (var scope = TestingServices.Value; scope is not null; scope = scope.Previous)
+        {
+            if (scope.ServiceType == typeof(TService) && Volatile.Read(ref scope.Service) is TService scoped)
+                return scoped;
+        }
+
         lock (Sync)
             return Services.TryGetValue(typeof(TService), out var service) ? (TService)service : null;
+    }
+
+    // Overrides participate in the canonical resolver without replacing native registrations.
+    // Clearing a shared holder revokes it in every captured ExecutionContext, including contexts
+    // queued before host disposal; those contexts cannot keep the fake service graph alive.
+    internal static IDisposable PushServiceForTesting<TService>(TService service) where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        var scope = new TestingServiceScope(typeof(TService), service, TestingServices.Value);
+        TestingServices.Value = scope;
+        return scope;
+    }
+
+    private sealed class TestingServiceScope(Type serviceType, object service, TestingServiceScope? previous) : IDisposable
+    {
+        internal readonly Type ServiceType = serviceType;
+        internal readonly TestingServiceScope? Previous = previous;
+        internal object? Service = service;
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref Service, null);
+            if (ReferenceEquals(TestingServices.Value, this))
+                TestingServices.Value = Previous;
+        }
     }
 
     /// <summary>

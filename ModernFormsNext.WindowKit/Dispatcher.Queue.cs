@@ -56,6 +56,15 @@ public partial class Dispatcher
         }
     }
 
+    internal bool HasReadyJobsForTesting
+    {
+        get
+        {
+            lock (InstanceLock)
+                return _queue.Peek() is { } operation && operation.Priority >= DispatcherPriority.MinimumActiveValue;
+        }
+    }
+
     internal bool RunOneJobForTesting()
     {
         VerifyAccess();

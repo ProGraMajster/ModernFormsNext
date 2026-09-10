@@ -1,10 +1,9 @@
 # Deterministic headless TestHost
 
-`ModernFormsNext.Testing` is the supported application and layout testing package for
-ModernFormsNext. Phase 1 hosts real framework `Form`, `UserControl`, `Panel`, and other `Control`
-trees without creating a visible desktop window. It is intended for deterministic unit and
-component tests; it complements rather than replaces Windows, Android, accessibility, GPU, or
-other platform end-to-end validation.
+`ModernFormsNext.Testing` hosts real framework Forms and controls for automated application tests
+without creating a native window. It provides production input routing, explicit layout, a
+controllable animation clock, scoped platform services and optional off-screen rendering.
+It complements Windows/Android native integration tests.
 
 ## Install
 
@@ -14,183 +13,257 @@ Reference the package from a .NET 10 test project:
 <PackageReference Include="ModernFormsNext.Testing" Version="1.10.0" />
 ```
 
-The package depends on the platform-neutral ModernFormsNext runtime and WindowKit contracts. It
-does not depend on Designer, VSIX, Android, or the Windows native backend.
+The package uses the shared runtime and WindowKit contracts. It does not load the Windows or
+Android backend, Designer, or VSIX. New APIs described here are in the current source tree;
+this development change does not publish a package or change its version.
 
 ## First test
 
-Create the host before constructing a `Form`, because the constructor acquires its window
-implementation inside the current host scope:
+Create the host before constructing a Form; the Form constructor acquires the scoped backend.
+Run all UI operations and host disposal on that same thread. Serialize tests using the host.
 
 ```csharp
-using System.Drawing;
 using ModernFormsNext;
 using ModernFormsNext.Testing;
 using Xunit;
 
 using var host = ModernFormsTestHost.Create();
+var root = new Panel();
+var status = root.Controls.Add(new Label { Text = "Ready", Top = 60 });
+var save = root.Controls.Add(new Button { Name = "save", Text = "Save" });
+save.Click += (_, _) => status.Text = "Saved";
+TestWindowHost window = host.Show(root, 400, 300);
 
-var form = new Form
-{
-    Name = "MainForm",
-    UseSystemDecorations = true
-};
-var button = new Button
-{
-    Name = "save",
-    Text = "Save",
-    Dock = DockStyle.Bottom,
-    Height = 32
-};
-form.Controls.Add(button);
-
-TestWindowHost window = host.Show(form, width: 400, height: 300);
-window.PerformLayout();
-
-Assert.Equal(400, window.CaptureTree().Bounds.Width);
-Assert.Equal(32, button.Bounds.Height);
+window.Input.Click(save);
+host.ProcessPendingWork();
+Assert.Equal("Saved", status.Text);
+Assert.Same(save, window.FocusedControl);
 ```
 
-`Show(Control)` supports an unparented `UserControl`, `Panel`, or other control root. The host
-attaches it to an internal undecorated real `Form`; normal parent/child ownership, visibility, and
-layout still apply. One host can own multiple windows, and `Close()` closes all of them.
+`Show(Control)` wraps an unparented control in an undecorated real Form. `Show(Form)` retains its
+normal chrome configuration. `host.Input`, `host.FocusedControl`, `Resize` and `CaptureTree` select
+the first hosted window; use each `TestWindowHost` explicitly for multi-window tests.
+For a complete serialized xUnit fixture, see the [application test template](testhost-template.md).
 
 ## Architecture
 
-The host replaces two process entry points for the lifetime of one scope:
+The host scopes the existing window factory, UI dispatcher, default animation scheduler and
+platform registries. It does not copy layout, hit testing, focus, commands, animation scheduling,
+resource resolution, data binding or rendering logic. The native handle remains zero with the
+`HEADLESS` descriptor. Ordinary hosting exposes no framebuffer. Explicit capture temporarily
+provides an `IFramebufferPlatformSurface` to the normal `WindowBase` paint callback.
 
-- a minimal WindowKit `IWindowImpl` records logical client size, render scale, invalidation, and
-  lifecycle callbacks without allocating a native handle or rendering surface;
-- a deterministic implementation is installed behind the production `Dispatcher.UIThread`
-  queue and executes posted work only during an explicit drain.
+There is one process-wide dispatcher/default scheduler, so only one host may be active in a
+process. Concurrent creation fails. Scoped registries/factories revoke their references on
+teardown, including references carried by an older captured execution context. A Form cannot
+move between host scopes, and construction on a foreign thread is rejected.
 
-Everything above those seams remains production code: `Form.Show`, `Application.OpenForms`, the
-control tree, `PerformLayout`, Dock/Anchor, Padding/Margin, invalidation propagation, data binding,
-dynamic resources, ThemeManager, and control-owned animation cancellation. TestHost does not
-contain a second layout algorithm.
+## Input and focus
 
-The window handle is always zero with the diagnostic descriptor `HEADLESS`, and the backend
-exposes no surface. Logical DPI does not query a monitor.
+`TestInput` sends raw events through the backend's normal input callback. Window preview,
+InputBinding resolution, hit testing, capture, focus and control handlers retain their normal
+order. A control overload translates its current presentation center, including nested layout,
+render transforms and scale, then sends a pointer event. An overlapping control can intercept it.
+Hidden/disabled controls are never directly invoked by the helper.
+
+- `Move`, `PointerDown`, `PointerUp`, `Click`, `DoubleClick`, `Wheel`, `Leave` and `LoseCapture`
+  use production pointer paths. Point overloads use logical window-client pixels including managed
+  chrome; negative/outside points are useful for capture tests. Wheel deltas retain existing
+  framework units. Left, middle and right buttons are supported; unsupported buttons fail explicitly.
+- `KeyDown`, `KeyUp` and `PressKey` use existing framework `Keys` and explicit modifier flags.
+  The supported key set is the existing WindowKit-to-framework mapper. Unsupported keys fail
+  before dispatch. A key-down does not guess the character produced by a keyboard layout.
+- `TextInput` sends committed Unicode text separately. Empty text is a no-op. AltGraph modifiers
+  remain distinct from command gestures. This does not emulate native IME composition.
+- `Tab(backwards: true)` sends Shift+Tab; the forward default sends Tab. The helper supplies the
+  production translated Tab text event only when KeyDown was not handled. A text control that
+  accepts Tab retains its own behavior.
+- `Focus(control)` uses canonical `Control.Select`; `window.FocusedControl` reads the actual
+  adapter focus owner. Each window has independent focus. OS foreground activation is not emulated.
+
+A convenience `PressKey` releases a consumed key even if an application command throws. A failed
+`Click` cancels capture through the production capture-loss path, without inventing a successful
+click after a failed press. Primary and cleanup failures are both reported when necessary.
+Low-level Down/Up methods remain separate operations for gesture and repeat tests.
+
+No helper implicitly advances time. Consecutive clicks within the controlled production interval
+can count as double clicks; advance `host.Clock` to test the exclusive 500 ms boundary. Native
+windows use monotonic time for the same recognition algorithm.
+
+## Modal forms
+
+`host.ShowDialog(dialogForm, ownerWindow)` runs the existing `Form.ShowDialog` implementation and
+returns a normal `TestWindowHost`. Its `DialogCompletion` is the original result task; ordinary
+windows have no dialog task. Use the dialog window's input helper while its owner is disabled.
+
+```csharp
+var owner = host.Show(new Form());
+var dialogForm = new Form();
+var dialog = host.ShowDialog(dialogForm, owner);
+Assert.False(dialog.DialogCompletion!.IsCompleted);
+dialogForm.DialogResult = DialogResult.OK;
+Assert.True(dialog.DialogCompletion.IsCompletedSuccessfully);
+Assert.Equal(DialogResult.OK, await dialog.DialogCompletion);
+```
+
+All operations remain on the creating thread. Await only after the task has completed, or use your
+test runner's supported UI-thread scheduling. A canceled production close retains the modal owner
+and pending task. Explicit test-window cleanup is authoritative and finishes even a canceled close.
+Nested dialogs close before their owner during host cleanup. A result assigned before showing
+completes without displaying the dialog, matching `Form.ShowDialog`. This checks shared modality
+and focus ownership; native OS activation and foreground rules still need native integration tests.
+
+## Control popups
+
+Open a control's popup through ordinary input, then inspect `window.ActivePopup` or `window.Popups`.
+These handles refer to real `PopupWindow` instances using the existing popup positioning and
+input contracts. They expose their own input, canonical focus, layout, tree and image capture:
+
+```csharp
+window.Input.Click(comboBox);
+TestPopupHost popup = window.ActivePopup!;
+popup.LayoutUntilStable();
+using RenderedSnapshot dropdown = popup.CaptureRenderedSnapshot();
+popup.Input.Click(new System.Drawing.Point(12, 12));
+```
+
+Coordinates are logical pixels relative to the popup. `Hide` retains a popup for normal control
+reuse; `Close` destroys it. The owner cleans up every created popup, including one never inspected
+by a test. `Popups` includes live hidden popups; `ActivePopup` follows the framework's active-popup
+state. Hidden popups cannot receive input or be rendered. Window-manager activation, native
+shadows and cross-application focus still require native tests.
 
 ## Deterministic dispatcher
 
-`UiTestDispatcher.Run` and `Invoke` execute immediately on the thread that created the host.
-`Post` and `InvokeAsync` enqueue work in the real ModernFormsNext dispatcher queue. Call
-`Drain()`, `WaitForIdleAsync()`, or `host.ProcessPendingWork()` to execute it.
+`Run` and `Invoke` execute immediately on the owner thread. `Post` and `InvokeAsync` enqueue work
+in the production dispatcher. `Drain`, `WaitForIdleAsync` and `ProcessPendingWork` execute ready
+work in production priority/FIFO order.
 
-```csharp
-var calls = new List<int>();
-host.Dispatcher.Post(() => calls.Add(1));
-host.Dispatcher.Post(() => calls.Add(2));
+A drain has a default 4096-operation limit. A perpetually replenishing queue fails instead of
+hanging. Exceptions in posted fire-and-forget work are captured in `UnhandledExceptions`;
+`ThrowUnhandledExceptions` reports them as an aggregate. `InvokeAsync` reports its own exception
+through its returned task.
 
-host.Dispatcher.Drain();
+Production dispatcher timers can have inactive operations waiting for a future clock time.
+`PendingWorkCount` includes those queued operations; idle means no **ready** work. Draining does
+not advance time or run dormant timers early. Neither idle nor a dispatcher checkpoint means that
+arbitrary application I/O, thread-pool continuations or async business operations have finished.
 
-Assert.Equal(new[] { 1, 2 }, calls);
-```
+## Layout, viewport and scale
 
-Fire-and-forget failures are available through `UnhandledExceptions`; call
-`ThrowUnhandledExceptions()` to fail a test with one aggregate. A drain has an operation limit
-(4096 by default), so a callback that continuously replenishes the queue fails with the pending
-count instead of hanging. TestHost tests do not need `Thread.Sleep`, `Task.Delay`, or wall-clock
-synchronization. Phase 1 deliberately has no timer advancement or TestClock.
-
-All UI and host operations must run on the owner thread. This is an explicit single-threaded test
-model, not a general asynchronous UI framework.
-
-## Explicit layout and invalidation
-
-`PerformLayout()` runs the production form adapter, client owner, and descendant
-`Control.PerformLayout` paths. `LayoutUntilStable()` repeats complete passes until detached tree
-geometry is unchanged and the dispatcher is empty. Its default maximum is 16 passes; exceeding
-the limit throws with a readable tree dump. Callers can lower the limit for focused regression
-tests.
-
-`Invalidate(control)` accepts the root or a hosted descendant. `ProcessPendingWork()` drains UI
-work, stabilizes layout, and consumes recorded headless invalidations. It does not paint pixels.
-
-## Resize and logical render scale
-
-The viewport is an immutable logical configuration:
+`PerformLayout` runs the real Form adapter, client owner and descendant layout paths.
+`LayoutUntilStable` drains ready work and repeats geometry snapshots until stable, with a default
+16-pass limit and a tree dump on failure. `ProcessPendingWork` additionally consumes recorded
+invalidations; it does not paint or advance time.
 
 ```csharp
 using var host = ModernFormsTestHost.Create(new TestViewport(800, 600, 1.25));
-TestWindowHost window = host.Show(new Panel { Name = "content" });
-
+TestWindowHost window = host.Show(new Panel());
 window.Resize(1024, 768);
-window.SetRenderScale(2.0);
+window.SetRenderScale(2);
 window.LayoutUntilStable();
+ControlTreeSnapshot tree = window.CaptureTree();
 ```
 
-Common controlled values are `1.0`, `1.25`, `1.5`, and `2.0`. Width, height, and layout bounds
-remain logical pixels. `ControlTreeSnapshot.DeviceBounds` is only a deterministic edge-rounded
-logical-to-device projection for diagnostics; it is not a bitmap or physical-monitor assertion.
+Viewport dimensions and control bounds are logical pixels. `DeviceBounds` is an edge-rounded
+structural diagnostic projection. Raster dimensions instead follow production positive-dimension
+truncation after scaling, so fractional DPI can produce different edge rounding. Neither reads a
+physical monitor. Geometry snapshots are detached and survive later mutations/disposal.
 
-## Structural snapshots and diagnostics
+## Controlled time and animations
 
-`CaptureTree()` returns a detached immutable tree containing:
+`host.Clock.CurrentTime` starts at zero. `Advance(TimeSpan)` drives the real scoped default
+`AnimationScheduler` and production dispatcher timers on the UI thread, without a thread or sleep.
+It first drains ready work at the old time, commits the new time, promotes due timers, processes an
+animation tick and drains ready work. Negative, overflowing and reentrant advances are rejected.
 
-- stable name/index path and short CLR type name;
-- logical `Bounds`, `ClientRectangle`, and `DisplayRectangle`;
-- diagnostic `DeviceBounds` at the configured render scale;
-- effective `Visible` and `Enabled` state;
-- immutable child snapshots in framework collection order.
+```csharp
+using ModernFormsNext.Animations;
 
-`Dump()` produces readable failure output:
-
-```text
-Panel Root [0,0,300,200]
-  Button save [20,20,120,32]
+AnimationScheduler.Default.Start(save, "opacity", progress => save.Opacity = progress,
+    new AnimationOptions { Duration = TimeSpan.FromSeconds(1), Easing = Easings.Linear });
+host.Clock.Advance(TimeSpan.FromMilliseconds(500));
+Assert.Equal(0.5f, save.Opacity);
+host.Clock.Advance(TimeSpan.FromMilliseconds(500));
+Assert.Equal(1f, save.Opacity);
 ```
 
-Changing or disposing live controls cannot change an earlier snapshot. `GetDiagnostics()` adds
-hosted-window count, pending dispatcher work, pending invalidations, active control-owned
-animations, captured dispatcher exceptions, and every current tree.
+A large advance represents a delayed frame, not every intermediate frame. Periodic dispatcher
+timers coalesce missed ticks and schedule their next interval from the target time; resolution is
+whole milliseconds. Zero-interval/self-replenishing work is bounded by the dispatcher limit.
+The scheduler retains its cancellation, replacement, fault, pause and owner-lifetime rules.
+Framework-owned sequence, parallel, repeat, timeline and theme completion steps return to the
+same scheduler/dispatcher before an advance finishes. The next positive-duration leg starts at
+the current frame time; a large advance does not distribute leftover time across later legs.
+Unrelated clocks, native timers, `Task.Delay`, or a separately constructed scheduler remain outside
+this clock. Arbitrary user async continuations are not an idle guarantee.
 
-## Disposal and test isolation
+## Controlled existing platform services
 
-Disposing the host deterministically:
+`host.Services` scopes controlled implementations of the same contracts production code consumes:
 
-1. closes every hosted form/tree, even when an application `Closing` handler cancels a normal
-   user close or throws; cleanup continues and disposal reports the failure;
-2. cancels default-scheduler entries owned by controls in those trees;
-3. disposes headless adapters and unregisters every testing window backend;
-4. drains the deterministic dispatcher;
-5. restores application resources and the active ThemeManager definition;
-6. restores the previous process dispatcher and removes the window-factory scope.
+- `Clipboard` implements `IClipboard`; normal framework copy/paste never accesses the OS clipboard.
+  It copies string, byte-array, string-array and supported immutable scalar values. Unsupported CLR
+  object graphs fail atomically. It does not serialize/deserialise arbitrary application objects.
+- `Lifecycle.SetState` publishes existing Unknown/Foreground/Background/NoHost states; the initial
+  state is Foreground. This exercises production scheduler pause/rebase. It is not an implementation
+  of future activation, URI launch, state restoration or Android Activity recreation.
+- `ThemeSettings` supplies preferences read on the next normal ThemeManager apply. It does not
+  simulate future platform appearance-change notifications.
+- `AnimationSettings.SetPreferences` publishes production reduced-motion, enabled and duration-scale
+  preferences. Defaults are enabled, no reduced motion and scale 1.
+- Screen size/scaling already comes from the headless viewport. The platform dispatcher uses the
+  same deterministic UI dispatcher.
 
-Forms must be constructed after `ModernFormsTestHost.Create()` and cannot move between host
-scopes. A disposed host cannot be reused.
+DataBindings, BindingSource, dynamic resources, Application.Resources and ThemeManager continue
+using their production implementations. Follow their usual binding activation and UI-thread rules;
+no special binding engine or per-control resource test listener is installed.
 
-ModernFormsNext currently owns dispatcher, `Application.OpenForms`, resources, ThemeManager, and
-the default animation scheduler at process scope. Therefore only one `ModernFormsTestHost` may be
-active per process, and tests using it must be serialized. The package fails a second concurrent
-creation instead of claiming unsupported parallel isolation. The package's own xUnit suite
-disables parallelization; consumers should use an equivalent collection or assembly policy.
+## Rendering and snapshots
 
-## Binding, themes, and animations
+```csharp
+using RenderedSnapshot pixels = window.CaptureRenderedSnapshot();
+File.WriteAllBytes("actual.png", pixels.EncodePng());
+Assert.Equal(2048, pixels.PixelWidth); // 1024 logical pixels at scale 2
+```
 
-TestHost adds no alternate binding or theme implementation. Normal `DataBindings`,
-`Application.Resources`, dynamic resource references, and `ThemeManager.Current.Apply` run in the
-hosted tree. With the current binding lifecycle, set or refresh the normal `BindingContext` after a
-control is created when a binding must be activated explicitly; this is runtime behavior, not a
-TestHost helper.
+Capture stabilizes layout, then executes one normal paint callback. It includes Form chrome where
+configured, keeps the same control hierarchy, does not advance time, and leaves work posted by
+painting pending. A reentrant capture of the same window fails. The default/max framebuffer budget
+is 16,777,216 device pixels; callers can select a smaller positive budget. This bounds the capture
+buffer, not allocations in arbitrary application controls or their production backbuffers.
 
-Phase 1 does not virtualize animation time. Existing control-owned scheduler entries can be
-started normally, and closing their hosted tree cancels them. Deterministic animation advancement
-belongs to a future TestClock phase.
+The caller owns the disposable detached `RenderedSnapshot`. Pixel reads and PNG encoding can run
+on a background thread; it retains no control, host or native resource. `GetPixel` returns straight
+alpha; `CopyPixels` returns an independent BGRA8888 premultiplied byte copy. Snapshot pixels survive
+window/host disposal. Captured images depend on actual fonts/Skia/platform rasterization; there is
+no automatic golden-image comparison or cross-machine pixel identity promise. Use geometry and
+state assertions when font variability matters.
+
+## Diagnostics and cleanup
+
+`GetDiagnostics` includes detached trees, pending queue/invalidation counts, active animations,
+focused control names, captured dispatcher exceptions and bounded recent input kinds. Input history
+is capped at 64 entries per window and excludes key values and committed text. Explicit screenshots
+may contain application data; callers decide when and where to save them.
+
+Closing a TestWindowHost authoritatively cleans up its owned tree, even if a normal Form close is
+canceled or throws. Host disposal closes all windows, cancels owned scheduler work, restores the
+active theme/application resources, revokes service/factory scopes and restores the prior default
+scheduler/dispatcher. Cleanup proceeds through independent steps and reports failures. Retained
+host/input/service APIs fail after disposal; detached tree/image snapshots remain usable under their
+own ownership rules.
 
 ## Phase 1 boundaries
 
-Phase 1 intentionally does not provide:
+Phase 1 was merged in PR #93 and must not be reimplemented. The current continuation adds input,
+clock, rendering and existing-contract service integration on that foundation. Future touch/drag
+helpers, activation/state restoration (#63), navigation (#12) and shared virtualization (#55)
+coverage require their production contracts. Shared modal/popup behavior is testable; this package
+does not emulate OS foreground behavior, IME services, platform accessibility, GPU or native view
+hosting.
 
-- pointer, keyboard, text, wheel, touch, or Tab/focus simulation (Phase 2);
-- a TestClock, deterministic animation advancement, or fake wall clock;
-- off-screen rendering, bitmap snapshots, screenshot comparison, or image diffs (Phase 3);
-- fake application lifecycle, clipboard, accessibility, IME, native view, or other platform
-  services;
-- modal-dialog or OS focus semantics;
-- Windows/Android native-window, monitor, compositor, GPU, device, or manual UI validation.
-
-These remaining phases stay tracked by [GitHub issue #64](https://github.com/ProGraMajster/ModernFormsNext/issues/64).
-Phase 1 establishes the deterministic application/window, dispatcher, layout, viewport, cleanup,
-and structural-inspection foundation for that future work.
+Windows native HWND/UIA/automation tests, Android emulator checks, physical-device validation,
+TalkBack, and manual Visual Studio/visual assessment remain separate evidence. See the
+[session acceptance report](../development/codex-autonomous-issue-run.md) for actual executed checks
+and remaining work on [issue #64](https://github.com/ProGraMajster/ModernFormsNext/issues/64).

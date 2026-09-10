@@ -6,9 +6,9 @@ namespace ModernFormsNext.Testing;
 /// <summary>Owns a deterministic headless ModernFormsNext application context for automated tests.</summary>
 /// <remarks>
 /// <para>
-/// The host substitutes only WindowKit's top-level implementation and UI dispatcher. Controls,
-/// Forms, layout engines, data binding, resources, theme resolution, invalidation, and animation
-/// ownership continue through production framework code.
+/// The host scopes WindowKit window/dispatcher services and controlled platform services, and
+/// supplies time to the real animation scheduler. Controls, Forms, layout engines, data binding,
+/// resources, theme resolution, invalidation, and animation ownership use production framework code.
 /// </para>
 /// <para>
 /// One host may own multiple windows, but only one host may be active in a process. Tests using this
@@ -27,6 +27,10 @@ public sealed class ModernFormsTestHost : IDisposable
     private readonly IDisposable windowFactoryScope;
     private readonly int ownerThreadId = Environment.CurrentManagedThreadId;
     private bool disposed;
+    private bool disposing;
+    private bool disposalRequested;
+    private bool closingWindows;
+    private int activeWindowClosures;
 
     private ModernFormsTestHost(TestViewport defaultViewport)
     {
@@ -34,20 +38,42 @@ public sealed class ModernFormsTestHost : IDisposable
         Dispatcher = new UiTestDispatcher();
         try
         {
+            Services = new TestPlatformServices(Dispatcher);
+            Clock = new TestClock(Dispatcher);
             windowFactoryScope = TestWindowFactoryScope.Push(CreateHeadlessWindow);
             baselineForms = Application.OpenForms.ToHashSet();
             baselineApplicationResources = Application.Resources.ToArray();
             baselineTheme = Dispatcher.Run(() => ThemeManager.Current.ActiveTheme ?? BuiltInThemes.Light);
         }
-        catch
+        catch (Exception creationFailure)
         {
-            Dispatcher.Dispose();
+            // Each acquired scope must be revoked even if another cleanup callback fails.
+            var failures = new List<Exception> { creationFailure };
+            TryCleanup(() => windowFactoryScope?.Dispose(), failures);
+            TryCleanup(() => Clock?.Dispose(), failures);
+            TryCleanup(() => Services?.Dispose(), failures);
+            TryCleanup(Dispatcher.Dispose, failures);
+            if (failures.Count > 1)
+                throw new AggregateException("The test host could not be created or restored cleanly.", failures);
             throw;
         }
     }
 
     /// <summary>Gets the deterministic UI dispatcher owned by this host.</summary>
     public UiTestDispatcher Dispatcher { get; }
+
+    /// <summary>Gets the manually advanced clock driving the production animation scheduler.</summary>
+    public TestClock Clock { get; }
+
+    /// <summary>Gets controlled platform services scoped to this host without using native OS services.</summary>
+    public TestPlatformServices Services { get; }
+
+    /// <summary>Gets the first hosted window's production input helpers.</summary>
+    /// <remarks>Use <see cref="TestWindowHost.Input"/> when testing more than one window.</remarks>
+    public TestInput Input => GetPrimaryWindow().Input;
+
+    /// <summary>Gets the first hosted window's canonical focused control.</summary>
+    public Control? FocusedControl => GetPrimaryWindow().FocusedControl;
 
     /// <summary>Gets the default viewport used by Show overloads without explicit dimensions.</summary>
     public TestViewport DefaultViewport { get; }
@@ -109,6 +135,56 @@ public sealed class ModernFormsTestHost : IDisposable
         return Dispatcher.Run(() => ShowCore(form, controlRoot: null, viewport));
     }
 
+    /// <summary>Hosts a modal Form through the production dialog path using the default viewport.</summary>
+    /// <param name="dialog">An unshown Form constructed inside this host.</param>
+    /// <param name="owner">A live, shown, enabled window belonging to this host.</param>
+    /// <returns>The dialog window, whose <see cref="TestWindowHost.DialogCompletion"/> exposes its production result task.</returns>
+    /// <remarks>
+    /// Call on the host UI thread. The production Form disables its owner until the dialog closes.
+    /// Use the returned window's Input to exercise the dialog; no nested message loop or OS activation is simulated.
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// using var host = ModernFormsTestHost.Create();
+    /// var owner = host.Show(new Form());
+    /// var form = new Form();
+    /// var dialog = host.ShowDialog(form, owner);
+    /// form.DialogResult = DialogResult.OK;
+    /// Assert.Equal(DialogResult.OK, await dialog.DialogCompletion!);
+    /// </code>
+    /// </example>
+    public TestWindowHost ShowDialog(Form dialog, TestWindowHost owner)
+        => ShowDialog(dialog, owner, DefaultViewport);
+
+    /// <summary>Hosts a modal Form with a controlled viewport using <see cref="Form.ShowDialog(Form)"/>.</summary>
+    /// <param name="dialog">An unshown Form constructed inside this host.</param>
+    /// <param name="owner">A live, shown, enabled window belonging to this host.</param>
+    /// <param name="viewport">The dialog's logical dimensions and render scale.</param>
+    /// <returns>The tracked dialog window and its production completion task.</returns>
+    /// <exception cref="ArgumentException">The owner is not a window belonging to this host, or the dialog is its own owner.</exception>
+    /// <exception cref="InvalidOperationException">The owner cannot accept a modal dialog, or the dialog is already hosted, shown, or disposed.</exception>
+    /// <remarks>
+    /// All ownership checks run before mutating a Form or disabling its owner. For a nested dialog,
+    /// pass the currently enabled dialog window as owner. A pre-set DialogResult completes without
+    /// showing the Form, matching production behavior; the host retains its tree until cleanup.
+    /// </remarks>
+    public TestWindowHost ShowDialog(Form dialog, TestWindowHost owner, TestViewport viewport)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(dialog);
+        ArgumentNullException.ThrowIfNull(owner);
+        viewport.Validate(nameof(viewport));
+        Dispatcher.VerifyAccess();
+        if (!windows.Contains(owner))
+            throw new ArgumentException("The modal owner does not belong to this ModernFormsTestHost.", nameof(owner));
+        if (ReferenceEquals(dialog, owner.HostedForm))
+            throw new ArgumentException("A dialog cannot own itself.", nameof(dialog));
+        if (owner.IsClosed || !owner.Backend.IsShown || !owner.Backend.IsEnabled)
+            throw new InvalidOperationException("The modal owner must be a live, shown, enabled window.");
+        ValidateUnhostedForm(dialog);
+        return Dispatcher.Run(() => ShowCore(dialog, controlRoot: null, viewport, owner));
+    }
+
     /// <summary>Hosts a UserControl, Panel, or other control root using the default viewport.</summary>
     /// <param name="root">The unparented control root to host.</param>
     /// <returns>The hosted window handle.</returns>
@@ -151,7 +227,7 @@ public sealed class ModernFormsTestHost : IDisposable
     public void PerformLayout()
     {
         ThrowIfDisposed();
-        foreach (TestWindowHost window in windows.ToArray())
+        foreach (TestWindowHost window in windows.Where(window => !window.IsClosed).ToArray())
             window.PerformLayout();
     }
 
@@ -160,7 +236,7 @@ public sealed class ModernFormsTestHost : IDisposable
     public void LayoutUntilStable(int maximumPasses = 16)
     {
         ThrowIfDisposed();
-        foreach (TestWindowHost window in windows.ToArray())
+        foreach (TestWindowHost window in windows.Where(window => !window.IsClosed).ToArray())
             window.LayoutUntilStable(maximumPasses);
     }
 
@@ -173,12 +249,12 @@ public sealed class ModernFormsTestHost : IDisposable
     /// <returns>The primary window snapshot.</returns>
     public ControlTreeSnapshot CaptureTree() => GetPrimaryWindow().CaptureTree();
 
-    /// <summary>Drains and lays out every hosted window until all Phase 1 work is stable.</summary>
+    /// <summary>Drains ready dispatcher work and stabilizes every hosted window's layout.</summary>
     public void ProcessPendingWork()
     {
         ThrowIfDisposed();
         Dispatcher.Drain();
-        foreach (TestWindowHost window in windows.ToArray())
+        foreach (TestWindowHost window in windows.Where(window => !window.IsClosed).ToArray())
             window.ProcessPendingWork();
         Dispatcher.Drain();
     }
@@ -194,18 +270,46 @@ public sealed class ModernFormsTestHost : IDisposable
             windows.Sum(window => window.Backend.PendingInvalidationCount),
             AnimationScheduler.GetDefaultDiagnosticsIfInitialized()?.ActiveAnimationCount ?? 0,
             windows.Where(window => !window.IsClosed).Select(window => window.CaptureTree()),
-            Dispatcher.UnhandledExceptions));
+            Dispatcher.UnhandledExceptions,
+            windows.Where(window => !window.IsClosed).Select(window => window.FocusedControl?.Name ?? string.Empty),
+            windows.Where(window => !window.IsClosed).SelectMany(window => window.Input.RecentEvents)));
     }
 
     /// <summary>Closes every hosted window while keeping the host available for another test tree.</summary>
+    /// <remarks>
+    /// Reentrant Close calls do not repeat application close callbacks. If a close callback requests
+    /// host disposal, disposal completes after the outermost close operation releases its windows.
+    /// </remarks>
     /// <exception cref="AggregateException">One or more application close handlers or cleanup steps failed.</exception>
     public void Close()
     {
+        if (closingWindows)
+            return;
         ThrowIfDisposed();
+        Dispatcher.VerifyAccess();
+        CloseWindowsCore();
+    }
+
+    private void CloseWindowsCore()
+    {
+        if (closingWindows)
+            return;
+
         var failures = new List<Exception>();
-        foreach (TestWindowHost window in windows.ToArray())
-            TryCleanup(window.Close, failures);
-        TryCleanup(() => Dispatcher.Drain(), failures);
+        closingWindows = true;
+        try
+        {
+            foreach (TestWindowHost window in windows.ToArray())
+                TryCleanup(window.Close, failures);
+            TryCleanup(() => Dispatcher.Drain(), failures);
+        }
+        finally
+        {
+            closingWindows = false;
+        }
+
+        if (disposalRequested && activeWindowClosures == 0 && !disposing)
+            TryCleanup(Dispose, failures);
 
         if (failures.Count > 0)
             throw new AggregateException("One or more deterministic ModernFormsNext test windows failed to close cleanly.", failures);
@@ -214,6 +318,12 @@ public sealed class ModernFormsTestHost : IDisposable
     /// <summary>
     /// Closes all trees, drains pending work, restores process state, and removes all testing scopes.
     /// </summary>
+    /// <remarks>
+    /// Reentrant calls during disposal are no-ops. When called from an explicit window or host
+    /// Close callback, disposal is deferred until that close operation finishes; the dispatcher,
+    /// scheduler and services remain alive while application close callbacks unwind. Cleanup
+    /// failures are reported by the outermost operation after independent restoration steps run.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">The host is disposed from a thread other than its owner thread.</exception>
     /// <exception cref="AggregateException">One or more cleanup steps failed; independent restoration steps still ran.</exception>
     public void Dispose()
@@ -222,25 +332,42 @@ public sealed class ModernFormsTestHost : IDisposable
             return;
         if (Environment.CurrentManagedThreadId != ownerThreadId)
             throw new InvalidOperationException("ModernFormsTestHost must be disposed on the thread that created it.");
-
-        var failures = new List<Exception>();
-        TryCleanup(Close, failures);
-        TryCleanup(DisposeUntrackedHeadlessForms, failures);
-        TryCleanup(() =>
+        if (disposing)
+            return;
+        if (activeWindowClosures > 0 || closingWindows)
         {
+            disposalRequested = true;
+            return;
+        }
+
+        disposing = true;
+        disposalRequested = false;
+        var failures = new List<Exception>();
+        try
+        {
+            TryCleanup(CloseWindowsCore, failures);
+            TryCleanup(DisposeUntrackedHeadlessForms, failures);
             foreach (HeadlessWindowImpl backend in createdBackends)
             {
-                if (!backend.IsDisposed)
-                    backend.Dispose();
+                TryCleanup(() =>
+                {
+                    if (!backend.IsDisposed)
+                        backend.Dispose();
+                }, failures);
             }
-        }, failures);
-        TryCleanup(() => RestoreThemeAndResources(), failures);
-        TryCleanup(() => Dispatcher.Drain(), failures);
-        TryCleanup(() => windowFactoryScope.Dispose(), failures);
-        TryCleanup(() => Dispatcher.Dispose(), failures);
-
-        disposed = true;
-        Interlocked.Exchange(ref activeHost, 0);
+            TryCleanup(RestoreThemeAndResources, failures);
+            TryCleanup(() => Dispatcher.Drain(), failures);
+            TryCleanup(() => Clock.Dispose(), failures);
+            TryCleanup(() => Services.Dispose(), failures);
+            TryCleanup(() => windowFactoryScope.Dispose(), failures);
+            TryCleanup(() => Dispatcher.Dispose(), failures);
+        }
+        finally
+        {
+            disposed = true;
+            disposing = false;
+            Interlocked.Exchange(ref activeHost, 0);
+        }
 
         if (failures.Count > 0)
             throw new AggregateException("The deterministic ModernFormsNext test host reported cleanup failures.", failures);
@@ -248,35 +375,68 @@ public sealed class ModernFormsTestHost : IDisposable
 
     internal void NotifyWindowClosed(TestWindowHost window) => windows.Remove(window);
 
-    internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
+    internal void CloseOwnedDialogs(TestWindowHost owner)
+    {
+        var failures = new List<Exception>();
+        // Release descendants before their parent backend. Form.Close can then reactivate its
+        // still-live owner through the canonical modal cleanup path, including nested dialogs.
+        foreach (TestWindowHost dialog in windows.Where(window => ReferenceEquals(window.ModalOwner, owner)).ToArray())
+            TryCleanup(dialog.Close, failures);
+        if (failures.Count > 0)
+            throw new AggregateException("One or more owned test dialogs failed to close cleanly.", failures);
+    }
+
+    internal void BeginWindowClose() => activeWindowClosures++;
+
+    internal void EndWindowClose()
+    {
+        activeWindowClosures--;
+        if (activeWindowClosures == 0 && disposalRequested && !closingWindows && !disposing)
+            Dispose();
+    }
+
+    internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed || disposing || disposalRequested, this);
 
     private HeadlessWindowImpl CreateHeadlessWindow()
     {
+        ThrowIfDisposed();
         var backend = new HeadlessWindowImpl(DefaultViewport);
         createdBackends.Add(backend);
         return backend;
     }
 
-    private TestWindowHost ShowCore(Form form, Control? controlRoot, TestViewport viewport)
+    private HeadlessWindowImpl ValidateUnhostedForm(Form form)
     {
         if (form.window is not HeadlessWindowImpl backend || !createdBackends.Contains(backend))
         {
             throw new InvalidOperationException(
                 "The Form was not constructed inside this ModernFormsTestHost. Create the host before constructing Forms.");
         }
-        if (backend.IsDisposed || backend.IsShown)
+        if (backend.IsDisposed || backend.IsShown || windows.Any(window => ReferenceEquals(window.HostedForm, form)))
             throw new InvalidOperationException("The Form's headless window has already been shown or disposed.");
+        return backend;
+    }
 
-        var window = new TestWindowHost(this, form, backend, controlRoot, viewport);
+    private TestWindowHost ShowCore(Form form, Control? controlRoot, TestViewport viewport, TestWindowHost? modalOwner = null)
+    {
+        HeadlessWindowImpl backend = ValidateUnhostedForm(form);
+        var window = new TestWindowHost(this, form, backend, controlRoot, viewport, modalOwner);
         windows.Add(window);
         try
         {
-            window.Show();
+            if (modalOwner is null)
+                window.Show();
+            else
+                window.ShowDialog();
             return window;
         }
-        catch
+        catch (Exception showFailure)
         {
-            window.Close();
+            try { window.Close(); }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException("The test window failed to show and cleanup also reported a failure.", showFailure, cleanupFailure);
+            }
             throw;
         }
     }
@@ -291,34 +451,51 @@ public sealed class ModernFormsTestHost : IDisposable
 
     private void RestoreThemeAndResources()
     {
-        ThemeApplyResult result = ThemeManager.Current.Apply(
-            baselineTheme,
-            new ThemeApplyOptions
-            {
-                Transition = new ThemeTransitionOptions { Enabled = false }
-            });
-        if (!result.Success)
-            throw new InvalidOperationException("The test host could not restore the active theme after disposal.");
+        var failures = new List<Exception>();
+        TryCleanup(() =>
+        {
+            ThemeApplyResult result = ThemeManager.Current.Apply(
+                baselineTheme,
+                new ThemeApplyOptions
+                {
+                    Transition = new ThemeTransitionOptions { Enabled = false }
+                });
+            if (!result.Success)
+                throw new InvalidOperationException("The test host could not restore the active theme after disposal.", result.Exception);
+        }, failures);
 
-        Application.Resources.Clear();
+        // A theme observer or individual resource setter may fail. Continue restoring unrelated
+        // resource entries and report every failure after independent cleanup has run.
+        foreach (object key in Application.Resources.Keys)
+            TryCleanup(() => Application.Resources.Remove(key), failures);
         foreach ((object key, object? value) in baselineApplicationResources)
-            Application.Resources.Add(key, value);
+            TryCleanup(() => Application.Resources[key] = value, failures);
+
+        if (failures.Count > 0)
+            throw new AggregateException("The test host could not completely restore theme and resource state.", failures);
     }
 
     private void DisposeUntrackedHeadlessForms()
     {
+        var failures = new List<Exception>();
         foreach (Form form in Application.OpenForms.ToArray())
         {
             if (baselineForms.Contains(form) || form.window is not HeadlessWindowImpl backend || !createdBackends.Contains(backend))
                 continue;
 
-            Application.OpenForms.Remove(form);
-            form.adapter.CancelOwnedControlAnimationsForSubtree();
-            if (!backend.IsDisposed)
-                backend.Dispose();
-            form.adapter.Dispose();
-            form.Dispose();
+            TryCleanup(() => Application.OpenForms.Remove(form), failures);
+            TryCleanup(form.adapter.CancelOwnedControlAnimationsForSubtree, failures);
+            TryCleanup(() =>
+            {
+                if (!backend.IsDisposed)
+                    backend.Dispose();
+            }, failures);
+            TryCleanup(form.CompleteDialogClose, failures);
+            TryCleanup(form.adapter.Dispose, failures);
+            TryCleanup(form.Dispose, failures);
         }
+        if (failures.Count > 0)
+            throw new AggregateException("Untracked headless Form cleanup reported failures.", failures);
     }
 
     private static void TryCleanup(Action action, ICollection<Exception> failures)

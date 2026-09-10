@@ -19,7 +19,23 @@ namespace ModernFormsNext
             StartPosition = FormStartPosition.Manual;
 
             parent_form = parentForm;
-            parent_form.Deactivated += (o, e) => Hide ();
+            parent_form.Deactivated += ParentFormDeactivated;
+            Closed += PopupClosed;
+        }
+
+        private void ParentFormDeactivated(object? sender, System.EventArgs e) => Hide();
+
+        private void PopupClosed(object? sender, System.EventArgs e)
+            => parent_form.Deactivated -= ParentFormDeactivated;
+
+        /// <inheritdoc/>
+        protected override void Dispose(bool disposing)
+        {
+            // Hiding retains a popup for reuse. Destruction must release the parent's event
+            // subscription so it neither retains this tree nor calls Hide on a closed backend.
+            if (disposing)
+                parent_form.Deactivated -= ParentFormDeactivated;
+            base.Dispose(disposing);
         }
 
         /// <inheritdoc/>

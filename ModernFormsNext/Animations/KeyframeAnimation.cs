@@ -140,7 +140,7 @@ public sealed class KeyframeAnimation<T> : AnimationDefinition
     {
     }
 
-    internal override Task<AnimationExecutionResult> ExecuteCoreAsync(
+    internal override AnimationCompletion<AnimationExecutionResult> ExecuteCoreAsync(
         AnimationExecutionScope scope,
         bool reverse)
     {

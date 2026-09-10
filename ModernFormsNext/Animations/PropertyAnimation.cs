@@ -54,7 +54,7 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
         // Per-run start capture is implemented in ExecuteCoreAsync.
     }
 
-    internal override async Task<AnimationExecutionResult> ExecuteAsync(
+    internal override async AnimationCompletion<AnimationExecutionResult> ExecuteAsync(
         AnimationExecutionScope scope,
         bool reverse = false)
     {
@@ -66,14 +66,14 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
         {
             scope.CancellationToken.ThrowIfCancellationRequested();
             AnimationExecutionResult forward =
-                await ExecutePropertyLegAsync(scope, start, reverse).ConfigureAwait(false);
+                await ExecutePropertyLegAsync(scope, start, reverse).On(scope.Scheduler);
             if (forward.State != AnimationState.Completed || forward.WasIgnored)
                 return forward;
 
             if (IsAutoReversed)
             {
                 AnimationExecutionResult backward =
-                    await ExecutePropertyLegAsync(scope, start, !reverse).ConfigureAwait(false);
+                    await ExecutePropertyLegAsync(scope, start, !reverse).On(scope.Scheduler);
                 if (backward.State != AnimationState.Completed || backward.WasIgnored)
                     return backward;
             }
@@ -86,7 +86,7 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
         return AnimationExecutionResult.Completed;
     }
 
-    internal override Task<AnimationExecutionResult> ExecuteCoreAsync(
+    internal override AnimationCompletion<AnimationExecutionResult> ExecuteCoreAsync(
         AnimationExecutionScope scope,
         bool reverse)
     {
@@ -94,7 +94,7 @@ public sealed class PropertyAnimation<T> : AnimationDefinition
         return ExecutePropertyLegAsync(scope, start, reverse);
     }
 
-    private Task<AnimationExecutionResult> ExecutePropertyLegAsync(
+    private AnimationCompletion<AnimationExecutionResult> ExecutePropertyLegAsync(
         AnimationExecutionScope scope,
         StartValueCapture start,
         bool reverse)

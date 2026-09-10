@@ -478,12 +478,12 @@ public sealed class AnimationCompositionTests
     [Fact]
     public async Task ConcurrentRunCancellationAndNaturalCompletionAreExceptionSafe()
     {
+        using var harness = new AnimationSchedulerTestHarness();
         for (int iteration = 0; iteration < 1_000; iteration++)
         {
-            var execution = new TaskCompletionSource<AnimationExecutionResult>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
+            var execution = new AnimationCompletion<AnimationExecutionResult>();
             var run = new AnimationRun();
-            run.Start(_ => execution.Task, CancellationToken.None);
+            run.Start(_ => execution, CancellationToken.None, harness.Scheduler);
 
             Task cancel = Task.Run(run.Cancel);
             Task complete = Task.Run(() =>

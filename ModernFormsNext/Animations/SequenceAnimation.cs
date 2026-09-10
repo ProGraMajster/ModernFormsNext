@@ -29,7 +29,7 @@ public sealed class SequenceAnimation : AnimationDefinition
     {
     }
 
-    internal override async Task<AnimationExecutionResult> ExecuteCoreAsync(
+    internal override async AnimationCompletion<AnimationExecutionResult> ExecuteCoreAsync(
         AnimationExecutionScope scope,
         bool reverse)
     {
@@ -39,7 +39,7 @@ public sealed class SequenceAnimation : AnimationDefinition
             AnimationExecutionResult result =
                 await children[childIndex]
                     .ExecuteAsync(scope.CreateChild(childIndex), reverse)
-                    .ConfigureAwait(false);
+                    .On(scope.Scheduler);
             if (result.State != AnimationState.Completed)
                 return result;
         }
