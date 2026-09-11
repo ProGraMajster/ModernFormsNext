@@ -112,3 +112,23 @@ the remaining native language/vendor/device acceptance is partial. Push the comp
 scope, create a dedicated non-Draft PR, verify required CI, fix failures, perform
 final review, merge with the repository's normal strategy, verify/fetch the new
 master, then audit #109. No release, version bump, package publication or tag.
+
+## Decisions confirmed during implementation
+
+The existing Windows popup is deliberately nonactivating. The implemented integration
+therefore borrows its owner's native IMM32 transport and routes raw key/text events
+through the popup's existing adapter/resolver while its text session is active. Merely
+forwarding composition while ordinary characters still reach the owner was rejected.
+Lease release is conditional; reuse and nested callback teardown require fresh sessions.
+
+Caret geometry includes the managed window border added by ControlAdapter at paint time,
+as well as the existing presentation transform. Literal paint-coordinate tests complement
+the existing screen-coordinate tests. Custom event/native callbacks are treated as
+reentrant user code: candidate sessions are checked before publication, native attachment
+keeps the newest request, and teardown completes before callback errors are propagated.
+
+The Windows machine currently has only Polish Programmers enabled. Registered but disabled
+CJK profiles do not establish a usable native IME matrix. An already installed API 36 image
+was found in a second Android SDK; an isolated test AVD can extend the existing API 34
+emulator evidence without modifying that existing AVD. Neither installed image alone nor
+synthetic composition operations count as observed native keyboard acceptance.

@@ -75,6 +75,10 @@ Hidden/disabled controls are never directly invoked by the helper.
   before dispatch. A key-down does not guess the character produced by a keyboard layout.
 - `TextInput` sends committed Unicode text separately. Empty text is a no-op. AltGraph modifiers
   remain distinct from command gestures. This does not emulate native IME composition.
+- `SetComposingText`, `CommitComposition`, `FinishComposition` and `CancelComposition` call the
+  real focused editor's [shared text-service session](../text-input.md). Retain `TextInputClient`
+  to verify rejected late callbacks after focus, modal/popup or host retirement. These semantic
+  operations do not simulate native language profiles, candidate UI or physical keyboards.
 - `Tab(backwards: true)` sends Shift+Tab; the forward default sends Tab. The helper supplies the
   production translated Tab text event only when KeyDown was not handled. A text control that
   accepts Tab retains its own behavior.

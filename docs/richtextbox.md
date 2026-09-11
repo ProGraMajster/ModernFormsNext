@@ -44,6 +44,14 @@ Supported formatting members include:
 
 The RTF implementation intentionally supports a portable subset: text, font family, font size, bold, italic, underline, strikeout, foreground color, and background color. Unsupported RTF destinations are ignored.
 
+## Text composition
+
+RichTextBox inherits the [shared text-input client](text-input.md), keyboard hints and explicit
+composition lifecycle from TextBox. Caret geometry uses the actual styled block, including zoom.
+Canceling a current composition restores the affected typed formatting runs and selection;
+finishing accepts visible provisional text. This does not add a general RichTextBox undo stack.
+Native IME language/layout/device validation remains separate from shared protocol tests.
+
 ## Compatibility Notes
 
 ModernFormsNext exposes common WinForms-style enums and events such as `RichTextBoxFinds`, `RichTextBoxStreamType`, `RichTextBoxScrollBars`, `RichTextBoxSelectionTypes`, `ContentsResized`, `SelectionChanged`, and `VScroll`.

@@ -416,12 +416,77 @@ and the merged tree exactly matched the reviewed PR head. Documentation was rebu
 and all four archives revalidated at that final PR head. #63 remains OPEN/PARTIAL
 for the acceptance boundaries above, not because its completed PR remains Draft.
 
+The post-merge master CI run `34510156039` also completed successfully.
+
 ## Issue #62 — Add IME and advanced text input composition infrastructure
 
-Status: **IN PROGRESS — audit and pre-implementation plan complete**. Starting master:
+Status: **IN PROGRESS — implementation committed; final acceptance gates running**. Starting master:
 `5eb19a5098f5fdba794d57fe599cf0224f2ab4d8`; branch `codex/issue-62-text-composition`.
 The [audit and technical plan](issue-62-text-input-plan.md) records the reread issue,
 zero comments, current dependencies, source/history/test/docs findings and the
 additive shared client/session/native adapter design before production edits.
 Existing Android/document composition is reused. No #62 implementation validation
 has been executed at this audit checkpoint.
+
+### Implementation and validation in progress
+
+The additive shared client/options/snapshot/composition contracts, revocable canonical-focus
+sessions, TextBox/RichTextBox/Markdown integration, IMM32 and Android InputConnection adapters,
+TestHost helpers, composition adornment, consumer guide and both appropriate samples are
+implemented locally. No package version, dependency, template-reference content or native
+control substitution was introduced. The Windows popup path borrows the owner's IMM transport
+and forwards raw input through the existing popup resolver. Android connections capture a
+single session instead of resolving whichever editor has focus when a stale callback arrives.
+
+At this intermediate working-tree checkpoint, restore passed. The first complete Debug build
+failed only in the new sample code (missing System import and inaccessible IsDisposed use);
+those source errors were corrected. The framework and test assemblies produced by that build
+passed 1222/1222 core tests, including the new client and composition-rendering cases, and
+198/198 Android managed tests. The focused Windows IMM32/popup/owned-HWND suite passed 25/25
+after correcting fixtures to host/select real visible TextBoxes. The earlier focused session
+suite passed 12/12 before subsequent lifetime hardening. These are intermediate results, not
+final full-solution validation of later edits.
+
+Review found additional reentrant attachment, event subscription, parent change, popup reuse
+and callback-failure cleanup cases. Corrections and regressions are in progress. Managed border
+offsets are now included in native caret geometry to match ControlAdapter painting. Final
+Debug/Release, API/package/documentation gates and real keyboard observations remain pending.
+Logs and TRX evidence are under ignored `artifacts/autonomous-audit/phase62-*`; the final
+acceptance matrix will identify the actual validated source and native binary provenance.
+
+### Reviewed implementation checkpoint
+
+Production, sample and regression-test source is committed as
+`bf0fa945781413b644d8da558d8df0ad9d4818c9`. The final Debug build passed with zero errors
+and four existing NU1902 warnings. All nine test projects passed **2759/2759**, with zero
+failures or skips: Automation 140, Automation.Windows 61, cross-platform sample 16,
+Designer 640, Testing 359, core 1222, VSIX 26, Android 198 and Windows 97.
+This includes the last regression preventing a constructed, unshown window from lending
+its native text session when application setup selects a child.
+
+The review corrections cover reentrant native attachment/subscription, callback failures,
+ancestor removal/reparenting, hidden/disabled/disposed editor finalization, popup reuse and
+owner routing, activation/close ordering and managed-border caret coordinates. Native UI
+tests sharing framework services now use the existing xUnit collection mechanism to prevent
+concurrent access to those services. The earlier two failures caused by repaint after native
+closure and the subsequent parallel Windows fixture race were corrected before this final run.
+
+API comparison uses all 11 baseline assemblies built from merged master `5eb19a5`. An initial
+unfiltered comparison found only three changed compiler-generated state-machine type names
+in `AsyncStateMachineAttribute` on unchanged public Markdown async methods. Their private
+ordinal names changed after additive internal methods. The validation configuration excludes
+only `System.Runtime.CompilerServices.AsyncStateMachineAttribute`, using the SDK-supported
+attribute exclusion input; it continues checking all public members, signatures, parameter
+names and other attributes. There is no repository API suppression or public contract removal.
+The initial configured Debug comparison passed 11/11; final Debug/Release comparisons remain
+part of the pending gates below. Raw metadata evidence and the exact local configuration are
+recorded in `phase62-apicompat-state-machine-evidence.json` and
+`phase62-apicompat-configuration.md` under the ignored audit artifacts.
+
+Eight off-screen production-rendering images of the actual gallery were inspected at 100%
+and 150% scale: plain, multiline, rich and Markdown composition underlines were visible.
+The intro text was shortened after clipping at 150%; a final capture will validate that edit.
+These captures do not establish native candidate-window behavior. An isolated API 36 emulator
+is ready alongside the existing API 34 emulator; final APK installation and actual Gboard
+interaction are still pending at this checkpoint. Release, packages, consumer, final DocFX,
+native acceptance, PR and CI are not yet reported as passed.

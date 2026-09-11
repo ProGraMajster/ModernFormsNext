@@ -40,7 +40,8 @@ runs can therefore change font metrics or wrapping without moving the logical in
 from the glyph selected by the user.
 
 Text is Unicode and arrives through the platform `TextInput`/IME path rather than being inferred
-from physical keys. This preserves dead keys, composed text, emoji, and international layouts.
+from physical keys. The transport preserves committed Unicode strings, including emoji and
+composed text; actual dead-key, IME and international-layout compatibility requires native verification.
 On Windows, Right Alt/AltGr is retained as the `AltGraph` modifier even when Windows also reports
 the synthetic Control+Alt state. Editing shortcuts require shortcut Control and therefore do not
 conflict with AltGr input; normal Ctrl shortcuts continue to work.
@@ -56,6 +57,12 @@ The first stage supports:
 
 Undo history stores changed ranges and selection states instead of a full document snapshot for
 each typed character. Every formatting command is recorded as one undo operation.
+
+The inherited [shared composition client](text-input.md) groups one provisional composition
+through the existing history transaction. Finish/commit records its final text and selection;
+cancel restores the original fragment without adding a transient undo entry. Focus retirement
+preserves the currently visible text and rejects stale native callbacks. Large surrounding-text
+queries are bounded; this does not implement very-large-document virtualization.
 
 ## Commands
 
