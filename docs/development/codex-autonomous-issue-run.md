@@ -629,7 +629,7 @@ selection notifications, hints/actions and native lifecycle integration.
 | Offscreen gallery rendering | PASS scoped, earlier documented source | Ten final offscreen gallery captures at 100%/150%; `phase62-gallery-final-renderings`. These do not prove native candidate placement. |
 | Android broad run, source 3949100 / APK 942E5AE8…1798E283 | **37/42 outcomes PASS; five failures fixed in 507** | The 21-row matrix across API 34/36 records four editors, emoji, Done, cancel/finish, Home/resume, IME-active recreation, separate animation-active recreation and cleanup. Five failures concern initial focus-only caret visibility and SelectAll/Shift selection; all have passing final-APK retests. Runtime settled to idle with one surface, retained text/counter and 6/6 original settings restored per emulator. Evidence: `phase62-android-smoke/RESULTS.md`, `evidence-outcomes.json` and corrected device folders. |
 | Android final retest, source 507ca07 / APK B2604F0A…C025882 | **30/30 outcomes PASS** | Fifteen rows on each API cover startup, visible caret, compose/delete/commit, Next with immediate caret scrolling, LF Enter, Rich SelectAll and selected-fragment replacement, Rich/Markdown Done, Markdown editing, redacted modern key metadata and exact 6/6 settings restoration. The final device folders and outcome manifest retain matching provenance. Earlier lifecycle/emoji/animation observations are not relabeled as this APK. |
-| Dedicated PR / PR CI / merge | **PENDING** | Local implementation accepted for the dedicated Ready PR and required CI. Merge evidence will be recorded after verification; #62 remains OPEN/PARTIAL. |
+| Dedicated PR / PR CI / merge | **PASS** | Ready [PR #117](https://github.com/ProGraMajster/ModernFormsNext/pull/117), final head `e9ca9862df56591073e1a47f78ed536a6d2e11d4`, required CI [34613748529](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34613748529) passed. Normal merge `61c15190fef81e0f986c63956220fe5658ca0dca` succeeded; #62 remains OPEN/PARTIAL. |
 
 The Android outcome manifest contains 72 scenario/device rows with existing evidence
 references: 42 for the broader `3949100` run and 30 for the final `507ca07` rerun.
@@ -713,7 +713,24 @@ in the implemented scope. Later edits only finalize documentation; no production
 or test source differs from this validated commit. No new dependency, public API
 removal, version bump or release/publication metadata change is included.
 
-The implemented slice has passed its local validation and final source review. It can proceed to the dedicated PR and merge workflow once
-required PR CI passes, while #62 remains OPEN/PARTIAL. The broader native-language,
-vendor, physical-device and candidate acceptance requirements are retained rather
-than converted to PASS or dropped.
+The implemented slice passed local validation, independent final review and required
+PR CI. PR #117 merged on 2026-09-11 at 15:10:56Z. Its final documentation-only head
+also passed a fresh DocFX build with zero warnings/errors and all four archives.
+The merged tree matches the reviewed PR tree; local master and origin/master were
+fast-forwarded to the merge. Post-merge CI
+[34614592355](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34614592355)
+passed at that exact merge. #62 remains OPEN/PARTIAL for the broader native-language,
+vendor, physical-device and candidate requirements.
+
+## Issue #109 — Complete Android hardware shortcut forwarding and modifier parity
+
+Started from verified merged master `61c15190fef81e0f986c63956220fe5658ca0dca`.
+The full current issue, all comments (zero), empty formal blocked-by list and the
+related #56/#62/#69/#72 histories were audited with source, tests, docs, limitations,
+roadmap and sample consumers. Three independent bounded audits covered native input,
+shared resolver/lifetime and history/Designer/documentation boundaries.
+
+The [pre-implementation plan](issue-109-android-hardware-input-plan.md) records all
+six acceptance criteria and the additive native handled/reset seams. Current shared
+command runtime is reused; #69/#72/#108 remain separate. #109 validation is not yet
+executed. The initial unrelated `.codex/config.toml` remains untracked and untouched.
