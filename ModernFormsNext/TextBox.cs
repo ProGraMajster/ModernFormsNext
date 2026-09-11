@@ -334,9 +334,22 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnKeyDown (KeyEventArgs e)
         {
+            var parent = Parent;
+            var window = FindWindow();
+            var selected = Selected;
+            var visible = Visible;
             base.OnKeyDown (e);
 
-            e.Handled = ProcessTextBoxKeyDown (e);
+            // Public handlers get first refusal and may end or redirect this input route.
+            // A virtual editor method may itself set suppression while returning false, so
+            // do not assign its return value over the event's current handled state.
+            if (e.Handled || e.SuppressKeyPress || IsDisposed || Disposing || !Enabled ||
+                (visible && !Visible) || !ReferenceEquals(Parent, parent) ||
+                !ReferenceEquals(FindWindow(), window) || Selected != selected ||
+                window?.InputBindingsClosed == true)
+                return;
+            if (ProcessTextBoxKeyDown (e))
+                e.Handled = true;
         }
 
         /// <inheritdoc/>
@@ -349,10 +362,11 @@ namespace ModernFormsNext
             try { base.OnKeyPress (e); }
             finally { textInputClient?.LeaveCallback(); }
 
-            if (!IsDisposed && !Disposing && Enabled && ReferenceEquals(Parent, parent) &&
+            if (!e.Handled && !IsDisposed && !Disposing && Enabled && ReferenceEquals(Parent, parent) &&
                 ReferenceEquals(FindWindow(), window) && Selected == selected &&
                 window?.InputBindingsClosed != true && textInputClient?.CanContinueEdit != false)
-                ProcessTextBoxKeyPress (e);
+                if (ProcessTextBoxKeyPress (e))
+                    e.Handled = true;
         }
 
         /// <inheritdoc/>

@@ -373,16 +373,36 @@ Tests of committed accented text do not establish native keyboard-layout or dead
 
 Windows uses the existing raw-key → WindowBase → control pipeline, without hooks or RegisterHotKey.
 Android preserves modifiers and source metadata on its existing `AndroidInputKeyEvent`. Only
-physical-device view events are eligible; InputConnection, soft-keyboard and virtual-device
+device-backed view events satisfying the backend's source checks are eligible; InputConnection, soft-keyboard and virtual-device
 transitions stay editing input. Hosts forward `isTextInput: !e.IsHardwareKey` to the surface key
 overloads and include the event's modifiers. The cross-platform sample demonstrates this adapter.
-The original two-argument Android event constructor retains editing defaults and deconstruction.
+An emulator can supply an eligible device-backed event; `IsHardwareKey` is a routing decision,
+not proof that a physical keyboard was observed. The original two-argument Android event constructor
+retains editing defaults and deconstruction.
 
-Android's native adapter currently forwards only Backspace/Delete/Enter/arrows. Letters, digits
-and function keys are supported by KeyGesture but **not forwarded by that adapter yet**. There is
-no claim of Windows/Android shortcut parity or physical Android-device verification. Right Alt is
-conservatively marked AltGraph on Android as well. Existing software text editing does not become
-a shortcut stream. TestHost gains no keyboard simulation API.
+The expanded Android hardware adapter supplies letters, digits, F1–F12, navigation and a bounded
+keypad/OEM set through the existing resolver. Deterministic and scoped API 34 emulator checks pass; see the
+[supported keys and evidence matrix](android-hardware-input.md). The primary native
+`KeyInputHandler` returns the shared handled result. Without it, the legacy `KeyInput` event retains
+its original Backspace/Delete/Enter/arrows subset and consumption behavior. Configuring the new
+handler does not also execute the legacy event route.
+
+Right Alt is conservatively marked AltGraph on Android. Dead-key events bypass command lookup,
+and character translation remains with Android text services. Software editing retains selection
+modifiers without becoming shortcut input. An unhandled native View event does not itself insert
+text: the Skia host has no native editable KeyListener; see the [text fallback boundary](android-hardware-input.md#handled-input-and-compatibility).
+No Windows/Android layout or physical-keyboard parity is
+implied. The historical Phase 2 work added no testing API; current [TestHost input helpers](testing/testhost.md)
+exercise the shared production route and still do not establish native keyboard evidence.
+
+Hosts can use `KeyEventArgs.FromPlatformKey` to convert an existing WindowKit key and its modifiers,
+then pass the caller-owned event to `SkiaControlSurface.TryProcessKeyDown` or `TryProcessKeyUp`.
+These result-bearing methods reuse the same resolver and report final handling/suppression;
+the existing void `ProcessKeyDown`/`ProcessKeyUp` overloads remain available. Conversion does not
+translate characters. `ResetKeyboardState` retires held/consumed keyboard state without changing
+text, focus or registrations; wire it to the native host's keyboard reset notification. A canceled
+release must not activate a newly focused Button. See the hardware guide for the complete bridge
+and cleanup contract.
 
 ### Ownership, threading, diagnostics and Designer
 
@@ -684,8 +704,8 @@ window close, routing, popup origins, accessibility and Designer boundaries. The
 completed Tasks and existing dispatcher/window substitutes, without sleeps or new TestHost APIs.
 Native ControlGallery and Designer smoke evidence is recorded separately from headless tests.
 
-The existing Android hardware-key forwarding subset, physical-device parity and advanced IME
-limitations remain as documented in the keyboard section. There is no BindingNavigator port,
+The Android hardware adapter's supported subset and validation state, physical-device parity and
+advanced IME limitations remain as documented in the keyboard section. There is no BindingNavigator port,
 Developer Tools UI, automation bridge, new platform, release or version bump here. See the
 [Phase 1 audit](commands-phase1-audit.md), [Phase 2 audit](commands-phase2-audit.md),
 [Phase 3 audit](commands-phase3-audit.md) and [Phase 4 audit](commands-phase4-audit.md).

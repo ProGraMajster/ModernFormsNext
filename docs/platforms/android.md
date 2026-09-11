@@ -39,6 +39,11 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 - Basic focus, hardware editing keys, and Android IME integration work for the shared text-box
   path. The input connection supports surrounding text, UTF-16 selection, composition, committed
   text, deletion by code point, arrows, Backspace, Delete, and Enter.
+- An expanded [hardware-key adapter](../android-hardware-input.md) routes supported letters,
+  digits, function/navigation keys and Ctrl/Shift/Alt/Meta combinations through the existing
+  control/ancestor/surface/Application input bindings. Deterministic and scoped API 34 emulator
+  checks pass; physical hardware keyboards are **NOT EXECUTED — environment unavailable**.
+  IME editing and committed text remain separate from shortcut input.
 - Activity foreground/background transitions, pause/resume, configuration changes, and activity
   replacement are tracked. The cross-platform sample keeps its process-owned control tree and
   state when the host activity is recreated.
@@ -77,6 +82,10 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   and broader control coverage remain open.
 - Focus, hardware keyboard behavior, and IME handling cover the current shared text-control path,
   but have not reached desktop parity across every control, keyboard, language, and vendor IME.
+  The [hardware matrix](../android-hardware-input.md#validation-matrix) records API/device/layout
+  provenance separately; minimum API support does not establish observed device compatibility.
+  Unhandled printable keys need semantic text delivery from the IME/text service: the Skia View
+  fallback has no native editable KeyListener and does not translate those keys into text.
 - Rotation and configuration changes are handled by the sample host, but general host-independent
   lifecycle, state restoration, safe-area/inset, and configuration policies are still evolving.
 - Density conversion is implemented for the shared surface, but Android does not yet have complete

@@ -75,6 +75,13 @@ namespace ModernFormsNext
             Key.NumPad8 => Keys.NumPad8,
             Key.NumPad9 => Keys.NumPad9,
 
+            Key.Multiply => Keys.Multiply,
+            Key.Add => Keys.Add,
+            Key.Separator => Keys.Separator,
+            Key.Subtract => Keys.Subtract,
+            Key.Decimal => Keys.Decimal,
+            Key.Divide => Keys.Divide,
+
             Key.F1 => Keys.F1,
             Key.F2 => Keys.F2,
             Key.F3 => Keys.F3,
@@ -89,6 +96,19 @@ namespace ModernFormsNext
             Key.F12 => Keys.F12,
 
             Key.Oem3 => Keys.Oemtilde,
+            Key.OemSemicolon => Keys.OemSemicolon,
+            Key.OemPlus => Keys.Oemplus,
+            Key.OemComma => Keys.Oemcomma,
+            Key.OemMinus => Keys.OemMinus,
+            Key.OemPeriod => Keys.OemPeriod,
+            Key.OemQuestion => Keys.OemQuestion,
+            Key.OemOpenBrackets => Keys.OemOpenBrackets,
+            Key.OemPipe => Keys.OemPipe,
+            Key.OemCloseBrackets => Keys.OemCloseBrackets,
+            Key.OemQuotes => Keys.OemQuotes,
+
+            Key.LWin => Keys.LWin,
+            Key.RWin => Keys.RWin,
 
             Key.LeftCtrl => Keys.ControlKey,
             Key.RightCtrl => Keys.ControlKey,

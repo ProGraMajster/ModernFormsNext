@@ -44,6 +44,11 @@ The repository verifies shared layout and SkiaSharp rendering, logical-pixel den
 multi-touch routing, scrolling, basic focus, hardware editing keys, Android IME text input,
 lifecycle tracking, main-thread dispatching, and manifest-aware permissions.
 
+The expanded [Android hardware-key route](docs/android-hardware-input.md) connects supported
+letters, digits, function/navigation keys and modifiers to the shared command resolver. This
+implementation has deterministic and scoped API 34 emulator validation; its evidence is separate from
+software-keyboard composition and physical-keyboard observations.
+
 Android does not yet provide the general `Application.Run(Form)` path, a complete WindowKit
 windowing implementation, multiple framework windows, complete accessibility, native dialogs,
 clipboard, file pickers, drag and drop, or the full platform-service set. See

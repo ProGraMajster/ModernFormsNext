@@ -127,6 +127,23 @@ public sealed class InteractionEffectCollection : IList<InteractionEffect>
     internal void KeyUp(KeyEventArgs e)
         => Dispatch(EffectDispatchKind.KeyUp, keyEvent: e);
 
+    internal void KeyboardCanceled()
+    {
+        // Cancellation is mandatory cleanup. One failing extension must not strand another
+        // effect's held-key state; snapshot permits reentrant removal/disposal of effects.
+        List<Exception>? failures = null;
+        foreach (var effect in effects.ToArray())
+        {
+            if (!ReferenceEquals(effect.Target, owner)) continue;
+            try { effect.DispatchKeyboardCanceled(); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        if (failures is { Count: 1 })
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is { Count: > 1 })
+            throw new AggregateException("Keyboard effect cancellation failed.", failures);
+    }
+
     internal void Render(InteractionEffectLayer layer, PaintEventArgs e)
         => Dispatch(EffectDispatchKind.Render, layer: layer, paintEvent: e);
 

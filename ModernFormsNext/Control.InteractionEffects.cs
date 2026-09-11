@@ -16,6 +16,7 @@ public partial class Control
     private int interactionKeyDownNotifiedDepth;
     private int interactionKeyUpRouteDepth;
     private int interactionKeyUpNotifiedDepth;
+    private bool cancelingKeyboardInteraction;
 
     /// <summary>Gets the effects attached to this control.</summary>
     /// <remarks>
@@ -125,6 +126,29 @@ public partial class Control
         SetKeyboardVisualPressed(false);
         if (Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects)
             effects.KeyUp(e);
+    }
+
+    internal void CancelKeyboardInteraction()
+    {
+        if (IsDisposed || Disposing || cancelingKeyboardInteraction) return;
+        cancelingKeyboardInteraction = true;
+        List<Exception>? failures = null;
+        try
+        {
+            try { SetKeyboardVisualPressed(false); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+            try
+            {
+                if (!IsDisposed && Properties.GetObject(s_interactionEffectsProperty) is InteractionEffectCollection effects)
+                    effects.KeyboardCanceled();
+            }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        finally { cancelingKeyboardInteraction = false; }
+        if (failures is { Count: 1 })
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is { Count: > 1 })
+            throw new AggregateException("Keyboard interaction cancellation failed.", failures);
     }
 
     private void NotifyInteractionPointerDown(MouseEventArgs e)

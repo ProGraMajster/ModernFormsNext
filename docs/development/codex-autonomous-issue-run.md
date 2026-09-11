@@ -629,7 +629,7 @@ selection notifications, hints/actions and native lifecycle integration.
 | Offscreen gallery rendering | PASS scoped, earlier documented source | Ten final offscreen gallery captures at 100%/150%; `phase62-gallery-final-renderings`. These do not prove native candidate placement. |
 | Android broad run, source 3949100 / APK 942E5AE8…1798E283 | **37/42 outcomes PASS; five failures fixed in 507** | The 21-row matrix across API 34/36 records four editors, emoji, Done, cancel/finish, Home/resume, IME-active recreation, separate animation-active recreation and cleanup. Five failures concern initial focus-only caret visibility and SelectAll/Shift selection; all have passing final-APK retests. Runtime settled to idle with one surface, retained text/counter and 6/6 original settings restored per emulator. Evidence: `phase62-android-smoke/RESULTS.md`, `evidence-outcomes.json` and corrected device folders. |
 | Android final retest, source 507ca07 / APK B2604F0A…C025882 | **30/30 outcomes PASS** | Fifteen rows on each API cover startup, visible caret, compose/delete/commit, Next with immediate caret scrolling, LF Enter, Rich SelectAll and selected-fragment replacement, Rich/Markdown Done, Markdown editing, redacted modern key metadata and exact 6/6 settings restoration. The final device folders and outcome manifest retain matching provenance. Earlier lifecycle/emoji/animation observations are not relabeled as this APK. |
-| Dedicated PR / PR CI / merge | **PENDING** | Local implementation accepted for the dedicated Ready PR and required CI. Merge evidence will be recorded after verification; #62 remains OPEN/PARTIAL. |
+| Dedicated PR / PR CI / merge | **PASS** | Ready [PR #117](https://github.com/ProGraMajster/ModernFormsNext/pull/117), final head `e9ca9862df56591073e1a47f78ed536a6d2e11d4`, required CI [34613748529](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34613748529) passed. Normal merge `61c15190fef81e0f986c63956220fe5658ca0dca` succeeded; #62 remains OPEN/PARTIAL. |
 
 The Android outcome manifest contains 72 scenario/device rows with existing evidence
 references: 42 for the broader `3949100` run and 30 for the final `507ca07` rerun.
@@ -713,7 +713,201 @@ in the implemented scope. Later edits only finalize documentation; no production
 or test source differs from this validated commit. No new dependency, public API
 removal, version bump or release/publication metadata change is included.
 
-The implemented slice has passed its local validation and final source review. It can proceed to the dedicated PR and merge workflow once
-required PR CI passes, while #62 remains OPEN/PARTIAL. The broader native-language,
-vendor, physical-device and candidate acceptance requirements are retained rather
-than converted to PASS or dropped.
+The implemented slice passed local validation, independent final review and required
+PR CI. PR #117 merged on 2026-09-11 at 15:10:56Z. Its final documentation-only head
+also passed a fresh DocFX build with zero warnings/errors and all four archives.
+The merged tree matches the reviewed PR tree; local master and origin/master were
+fast-forwarded to the merge. Post-merge CI
+[34614592355](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34614592355)
+passed at that exact merge. #62 remains OPEN/PARTIAL for the broader native-language,
+vendor, physical-device and candidate requirements.
+
+## Issue #109 — Complete Android hardware shortcut forwarding and modifier parity
+
+Started from verified merged master `61c15190fef81e0f986c63956220fe5658ca0dca`.
+The full current issue, all comments (zero), empty formal blocked-by list and the
+related #56/#62/#69/#72 histories were audited with source, tests, docs, limitations,
+roadmap and sample consumers. Three independent bounded audits covered native input,
+shared resolver/lifetime and history/Designer/documentation boundaries.
+
+The [pre-implementation plan](issue-109-android-hardware-input-plan.md) records all
+six acceptance criteria and the additive native handled/reset seams. Current shared
+command runtime is reused; #69/#72/#108 remain separate. At the audit checkpoint no
+#109 implementation validation had run; subsequent results are recorded below.
+The initial unrelated `.codex/config.toml` remains untracked and untouched.
+
+### Issue #109 — initial implementation and regression evidence
+
+The committed audit/plan precedes implementation at `43d95ba`. The adapter extends
+the existing WindowKit key identities and canonical resolver, adds a single native
+handled-result route and keyboard reset/cancellation boundaries, and preserves the
+old seven-key event and surface void APIs. No Android command registry or new
+windowing host is introduced. The sample uses its actual adapter in linked-source
+Android integration tests and demonstrates local/page/Application command routes.
+
+Initial local runs, before final source freeze and native acceptance:
+
+| Gate | Result | Scope |
+|---|---|---|
+| Restore | PASS | Existing NU1902 for Microsoft.Build.Tasks.Git 10.0.301 remains; no dependency change. |
+| Full managed Android test project | 305/305 PASS | Production key mapper, real sample bridge/surface, source/modifiers, scopes, repeats, IME separation, cancellation and transport tests. Native lost-release pairing is a subsequent focused addition. |
+| Core input/effect focused tests | 141/141 PASS | New surface and existing binding/interaction regressions. |
+| Full Core Debug tests | 1285/1285 PASS | Existing editor, layout, rendering, input, lifecycle and resource regressions included. |
+| Full sample Debug tests | 22/22 PASS | Six new command/ownership cases in the existing project. Four new lifetime/scope cases first failed against the initial implementation, then passed after fixes. |
+| Baseline API source build | PASS | Fresh external worktree at master `61c1519`, 11 package assembly/TFM inputs plus both Android backend TFMs. Generated Windows interop rewrote line endings, but its normalized Git blob equals HEAD and the source diff is empty; raw Git status is recorded rather than falsely called clean. |
+| Final Debug/Release solution, API/package/consumer/docs gates | Pending at this initial checkpoint | Final source and documentation results are recorded below. |
+| Native emulator and sample rendering/startup | Pending at this initial checkpoint | Subsequent #109 observations are separate from historical #62 evidence. |
+
+The first Android integration run passed 32 of 33 cases. Its failing assertion
+incorrectly expected a managed Left event delivered after the native IME stage to
+select a candidate. The existing editor accepts visible preedit and moves its
+caret; the corrected regression explicitly checks that behavior, no command call,
+and a separate commit at the new caret. It does not claim native candidate testing.
+Initial new Core tests also needed nullable snapshot unwrapping before compilation;
+no production workaround or suppression was added for that test-source error.
+
+Independent sample review found and reproduced four static ownership/scope failures:
+failed constructor/platform facts retained an Application binding, a throwing Add
+diagnostic retained the just-added item, throwing child disposal skipped the old
+Disposed-based cleanup, and F1 could target another page retaining selection.
+Registration now occurs after full initialization with rollback; cleanup captures
+the collection and precedes child disposal; the existing RoutedCommand machinery
+uses the current input target. Status labels wrap on narrow screens, and ordinary
+input diagnostics no longer expose printable key identities. Native handler
+replacement is included in mandatory host cleanup because reset observers may throw.
+
+The subsequent native pairing addition passed the complete Android managed suite
+at **314/314**. Nine new cases cover per-device Down/Up pairing, late releases and
+orphan repeats after reset, actual Button activation safety, legacy/IME isolation,
+reentrancy and bounded capacity cleanup. This is a native transport lifetime guard;
+command matching and consumed shortcut state remain in the existing shared resolver.
+
+### Issue #109 — validated source and local artifact gates
+
+Production/test checkpoint: `8fd369650ebeba53ec78e299483c8db8a0216701`, with a clean
+tracked tree when its builds, tests, package files and APK were produced. The APK
+SHA-256 is `564A74A2F23E4107A4B58C87BFA830B43566B84A0C5959E0E672B2B14638EE2D`.
+Subsequent finalization changes only Markdown documentation. The original unrelated
+untracked `.codex/config.toml` remains untouched.
+
+All paths in this section are relative to ignored `artifacts/autonomous-audit/`.
+No generated binaries, local paths, diagnostic logs or package outputs are committed.
+
+| Gate | Result | Exact evidence and practical scope |
+|---|---|---|
+| Restore | PASS | SDK selected by the repository; existing Microsoft.Build.Tasks.Git 10.0.301 NU1902 remains, without dependency/version changes. |
+| Full Debug build and tests | **2944/2944 PASS** | `phase109-first-debug-build.log`, `phase109-first-debug-tests.log` and nine TRXs in `phase109-first-debug-results`: zero failures/skips; build zero errors, four existing NU1902 warnings. |
+| Full Release build and tests | **2944/2944 PASS** | Corresponding `phase109-first-release-*` logs and nine TRXs: zero failures/skips; build zero errors, four existing NU1902 warnings, including native Android compilation/AOT. |
+| API compatibility against merged master 61c1519 | **13/13 PASS per configuration** | Authoritative logs: `phase109-first-debug-apicompat-complete-refs.log` and `phase109-first-release-apicompat.log`. Eleven package assembly/TFM inputs plus both Android backend TFMs; no attribute exclusions or unresolved references. |
+| NuGet pack and validation | **11 nupkg / 10 snupkg PASS** | `packages109-first`, `phase109-first-pack.log`, `phase109-first-packages.log`; version remains 1.10.0 and nothing is published. |
+| Isolated package consumer | **40 assertions / 6 cases PASS** | `consumer109/runs/20260911T160111061Z-0aff1b30`: fresh private cache/feed, zero ProjectReferences, build zero warnings/errors, package/program hashes recorded. Exercises factory conversion, exact modifiers/repeats, text/dead-key safety, reset/cancellation, handling/focus and old void/borrowed APIs. |
+| Native Android APK | **PASS** | `phase109-8fd3696-apk-build.log` and provenance JSON: zero errors, two existing NU1902 warnings, exact committed source and hash above; not physical-keyboard evidence. |
+| Native Windows sample startup | **3/3 PASS scoped** | `phase109-first-native-sample-smoke.json` and provenance: CrossPlatformSample, ControlGallery and unchanged DemoApp each displayed a responsive HWND and closed normally with exit 0. DemoApp verifies template startup only. |
+| Actual sample offscreen rendering | **8/8 captures PASS scoped** | `render109/runs/20260911T155643354Z/RESULTS.md`: 320/411 logical widths at 100%/150%, initial and command states; new rows fit/wrap without overlap, exact editor/page/save-as/help counts 1/1/1/1 and disabled Save state visible. DLL hashes/source recorded. Windows-font offscreen rendering is not native Android or physical/manual evidence. |
+| Documentation script tests | **32 assertions PASS** | `phase109-first-doc-tests.log`. |
+| Initial source DocFX | **1018 HTML files, zero warnings/errors** | `phase109-first-doc-build.log` produced four archives. Their initial validation correctly stopped the gate on a conservative local-path pattern; the cause and final rerun are recorded below. |
+
+Both solution configurations contain Automation 140, Automation.Windows 61, sample 22,
+Designer 640, Testing 359, core 1285, VSIX 26, Android 314 and Windows 97 tests.
+These results include the pre-existing accessibility, automation, serialization,
+command, resource, animation and Windows backend regressions.
+
+Validation failures were investigated rather than hidden. The first API invocation
+could not resolve Android's generated resource-designer reference; the comparison
+helper now includes each side's own generated DLL as well as its actual assets and
+Android reference pack. The authoritative reruns above contain no unresolved
+references and no inherited #62 compiler-attribute exclusions. The first isolated
+consumer omitted Tab KeyUp before pressing Shift+Tab, correctly retaining a consumed
+press. Adding the real release fixed the test driver; no framework behavior changed.
+
+The first archive validator matched the prose fragment `Back`, `Home`, `power`,
+`volume`, `media` when these words were slash-separated: its case-insensitive Unix
+home-directory detector produced a false positive. There was no local path leak.
+The plan now uses a comma-separated list; the validator remains unchanged. The
+initial gate failure remains in `phase109-first-doc-validate.log` and is not reported
+as an archive PASS. Final documentation is rebuilt and validated at its committed head.
+
+Independent review found no unresolved code blocker in the scoped adapter. It also
+corrected the guide's cancellation wording: no ordinary release ripple or activation
+is synthesized, but PressScale can animate its return to rest. Existing narrow-page
+single-line header/diagnostic text still clips; the eight render checks establish
+the new rows' fit, not universal text-fit for the whole sample.
+
+The serial commands were `dotnet restore ModernFormsNext.slnx`; Debug and Release
+`dotnet build ModernFormsNext.slnx --configuration <configuration> --no-restore -m:1
+/p:UseSharedCompilation=false /p:EnableWindowsTargeting=true`; corresponding
+`dotnet test` with `--no-build --no-restore -m:1`, TRX logging and the same properties;
+`dotnet msbuild artifacts/autonomous-audit/ApiCompat109.proj -t:Compare` for each
+configuration; `dotnet pack` Release with `--no-build --no-restore -m:1`; repository
+package/documentation validators and the isolated consumer runner. The Android
+sample build selected `net10.0-android`, `SignAndroidPackage`, embedded assemblies
+and APK format. Full exact command lines and exit status remain in the named scripts/logs.
+
+### Issue #109 — native keyboard acceptance
+
+Native evidence is kept in `phase109-android-smoke/`, separately from managed tests,
+offscreen images and prior #62 runs. The current implementation/APK identity is the
+8fd3696 source and 564A74A2…4638EE2D hash recorded above. API 34 used Pixel_8, Gboard
+12.4.05.482060964-preload-x86_64 and its existing AT keyboard device 2 with Generic.kl;
+delivered events had Keyboard source and FromSystem flags. This is injection into
+an emulated input device, not a physical USB/Bluetooth keyboard. The emulator console
+alone reported acceptance without delivery. On the owned userdebug emulator, a
+temporary root adb session enabled bounded evdev injection; original daemon identity
+and settings must be restored before accepting the run. No SELinux, permissions,
+bootloader or keyboard-layout configuration was changed.
+
+| Native scenario | Observed result |
+|---|---|
+| F1 / Ctrl+S / Ctrl+Shift+S | PASS: Help, page Save and Save As each increased only its own counter. Ctrl and Ctrl+Shift retained distinct native meta states 12288 and 12353. |
+| Focused editor Ctrl+S | PASS: verified editor focus; editor counter 0→1. |
+| Unavailable editor fallback | PASS: disable the inner binding, refocus the same editor and press Ctrl+S; page counter 1→2. |
+| Native repeats and release | PASS: ten delivered S Down events with RepeatCount 0–9 produced exactly ten page executions (2→12); release was consumed without another action. |
+| Ctrl+RightAlt+S | PASS scoped safety: native meta state 12322, unhandled and no command-count change. This is not proof of general international text entry. |
+| Pause/canceled/late Space release | PASS: Space Down followed by Home caused a canceled native Up; after pause/resume, a late device Up without a native canceled flag was handled without activation. Save As stayed at 2; a fresh Space pair then increased it exactly once to 3. |
+| Ordinary A / Shift+A and available accent key | PARTIAL: native events reached the view unhandled, without semantic text commits or inserted characters in this Gboard configuration. No shortcut or duplicate text was produced. Hardware typing/layout composition is not reported as supported by this observation. |
+| API 34 and API 36 virtual negative controls | PASS scoped exclusion: virtual-device F1/Ctrl+S did not execute commands. A virtual source is not positive hardware evidence. |
+| API 36 eligible positive keyboard route | **NOT EXECUTED — environment unavailable**: Android 16/Gboard 15.1.08.726012951-preload-x86_64 console delivery produced no native key event. This transport limitation is not treated as a framework failure or native shortcut success. |
+| Physical keyboards, additional vendors/layouts/CJK | **NOT EXECUTED — environment unavailable**. |
+
+The API 34 qwerty2 device's vendor layout maps Linux F1 to Android Menu; this
+unsupported system key correctly remained unhandled. The positive shortcut lane
+used the existing AT keyboard's standard mapping. Layouts were inspected, not changed.
+The guide and AND-07 explicitly describe the observed hardware-text limitation:
+the native Skia View has no editable KeyListener; semantic IME/text-service commits
+remain the canonical text path. No character translator was added to shortcut routing.
+
+A bounded comparison actually reinstalled the preceding #62 APK from source
+`507ca07a5509d6edc62316ebbbcb9a67ce2ecea8`, SHA-256
+`B2604F0A694661D2A50AC00159996D4B586A8332110CB48A49D56011DC025882`, on the same API 34
+emulator/device/IME. Ordinary and Shift-modified A again arrived unhandled without
+inserted text or semantic commit. This establishes the observed text limit predates
+#109; it is not inferred solely from source inspection. Evidence is separated by
+process: baseline snapshots 20–22 and process-scoped log, then restored #109 snapshot
+23. The current #109 APK was reinstalled without clearing package data afterward.
+
+The consolidated native matrix in `phase109-android-smoke/RESULTS.md` and
+`evidence-outcomes.json` contains **16 cases: 12 PASS, 2 FAIL for observed hardware
+text/composition limitations, and 2 NOT EXECUTED** for API 36 positive delivery and
+physical hardware. These failures are retained; the native run is not reported as
+an unconditional 16/16 success. Both installed APK hashes were checked against the
+current 8fd3696 artifact after the baseline comparison. Both emulators restarted
+normally without opt-in input diagnostics. Final cleanup released all nine injected
+evdev key codes without failures, restored all six recorded settings on each
+emulator, and restored API 34 adb to its original UID 2000; API 36 never used root.
+
+### Issue #109 — final acceptance disposition
+
+| Acceptance criterion | Implemented and validated scope | Remaining boundary |
+|---|---|---|
+| Supported identities and Ctrl/Shift/Alt/Meta, including both Save gestures | Explicit mapping, original values preserved, full deterministic coverage and actual API 34 F1/Save variants. | Native policy/vendor mappings can reserve or reinterpret keys; every layout/device is not claimed. |
+| Down/Up/repeat/handled/focus/lifetime without duplicate actions/text | Exclusive native route, captured lifetime, per-device press pairing, shared suppression/reset and control handling; regression suites plus native repeat and pause/late-release observations pass. | Physical reliability and broader lifecycle stress are unobserved. |
+| AltGraph/dead-key/software/IME safety | Provenance and modifier separation, no text-derived shortcuts, semantic commit path retained; deterministic safety and scoped native RightAlt observation pass. | Observed Gboard hardware text insertion is incomplete; broader international/vendor/IME observations remain partial. |
+| Canonical scope lookup and unavailable fallback | Actual mapper/sample bridge exercises control, two ancestors, surface and Application; Windows window scope retained. Native focused editor and unavailable fallback pass. | General Android window host remains excluded #72; no fabricated WindowBase scope. |
+| Deterministic tests and separate emulator/physical records | Existing nine test projects pass in both configurations; native API 34 and API 36 negative observations have their own provenance. | Physical hardware and API 36 positive delivery remain explicitly unexecuted. |
+| Supported combinations and honest parity documentation | Supported key matrix, return/reset/ownership contract, sample, AND-07, Android status and roadmap updated. | #109 remains **OPEN/PARTIAL** for the recorded native breadth and text-integration limit. |
+
+All currently implemented shortcut work is suitable for a dedicated Ready PR after
+final documentation validation and required CI. The parent issue's remaining
+physical/native breadth does not prevent merging this useful scope under the user's
+finalization policy. No public API removal, renderer replacement, new command/tree
+system, dependency, package boundary, release publication or version bump is included.

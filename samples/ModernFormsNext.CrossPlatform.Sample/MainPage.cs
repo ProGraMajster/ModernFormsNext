@@ -113,6 +113,7 @@ public sealed partial class MainPage : Control
             Text = "Multiline IME test:\r\nzażółć gęślą jaźń\r\nemoji 👋🏽 and composition: 你好"
         };
         InitializeTextInputDemo();
+        InitializeCommandDemo();
         greetingLabel = CreateLabel(string.Empty);
         enabledCheckBox = new CheckBox { Text = "Enable shared action", Checked = true };
         diagnosticsCheckBox = new CheckBox { Text = "Show host diagnostics", Checked = true };
@@ -285,6 +286,7 @@ public sealed partial class MainPage : Control
 
         scrollArea.Controls.AddRange([
             headerLabel,
+            .. commandDemoRows.Select(row => row.Control),
             .. diagnosticLabels,
             unicodeLabel,
             nameTextBox,
@@ -307,6 +309,7 @@ public sealed partial class MainPage : Control
         Controls.Add(scrollArea);
 
         RefreshStatus();
+        RegisterApplicationCommand();
     }
 
     /// <summary>Updates labels from shared state and the injected platform implementation.</summary>
@@ -463,6 +466,8 @@ public sealed partial class MainPage : Control
         var y = margin - scrollArea.VerticalScrollProperties.Value;
 
         SetRow(headerLabel, margin, ref y, contentWidth, 40, gap + 4);
+        foreach (var row in commandDemoRows)
+            SetRow(row.Control, margin, ref y, contentWidth, row.Height, gap);
         if (diagnosticsCheckBox.Checked)
         {
             foreach (var label in diagnosticLabels)

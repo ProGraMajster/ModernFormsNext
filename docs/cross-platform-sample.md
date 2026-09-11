@@ -97,6 +97,52 @@ Or start an existing AVD as part of the sequence:
 See [Android and adb](android-adb.md) for separate build/install/launch commands, timeouts,
 software-rendering diagnostics, and artifact collection.
 
+## Hardware command section
+
+The shared page provides Ctrl+S, Ctrl+Shift+S and F1 command cases, with buttons and separate
+editor/page/save-as/help counts so keyboard and visual actions can be compared. These actions
+update sample state; they do not write files. Deterministic tests, offscreen sample renders and
+scoped API 34 native shortcut observations are recorded in the
+[Android hardware-input matrix](android-hardware-input.md#validation-matrix).
+
+| Action | Expected command route |
+|---|---|
+| Focus the first single-line editor and press Ctrl+S | Its local editor Save command increments `editor`. |
+| Clear **Enable editor Ctrl+S binding**, refocus that editor, and press Ctrl+S | The unavailable inner binding allows the page Save fallback; `page` increments. |
+| Press Ctrl+Shift+S with focus in the page | The distinct page Save As command increments `save-as`. |
+| Press F1 with a control selected in the attached page | The Application InputBinding selects Help; the page's RoutedCommand handler increments `help`. |
+| Activate **Save (same editor command)** or **Save As (Ctrl+Shift+S)** | The same domain command is used; disabling editor Save also disables its Button. |
+
+Use an eligible keyboard event source and keep focus inside the shared page. Check that Save
+and Save As remain distinct, each key-down invokes at most one action, and release does not
+invoke a second action. Toggle availability and confirm the documented outer fallback. Repeat
+with another focused control, then recreate the Activity and verify registrations do not run
+twice. A key repeat is another delivered KeyDown, so repeat-safe commands may run again.
+
+Separately type ordinary and Shift-modified text, use AltGraph/dead-key input where available,
+and exercise software IME composition. These must not execute the demo commands or duplicate
+text. InputConnection events remain editing input even when they carry modifiers or a device ID.
+Hardware text entry requires the IME/text service to commit text; falling back to the Skia native
+View alone does not translate printable keys. Record this [text fallback boundary](android-hardware-input.md#handled-input-and-compatibility)
+separately from successful shortcuts.
+Do not count a virtual `adb input keyevent` as positive hardware-shortcut evidence. An eligible
+emulated device still provides emulator evidence, not a physical-keyboard observation.
+
+The Android native handler converts the backend's platform key once and calls the existing
+surface resolver; it does not execute commands itself. F1 uses the current command route rather
+than a predicate that searches for any page retaining Selected state. Application registrations
+belong to the shared page lifetime: registration is the final construction step with rollback,
+and disposal removes the exact entry from its captured collection before child cleanup, including
+after Application exit or a failing child callback. Activity detach/recreation borrows the page,
+preserving state without adding duplicate global bindings. The default input status omits printable
+key identities as well as text payloads. Windows uses its normal Form route. There is no additional
+Android WindowBase or application/window host.
+
+API 34 emulator shortcuts have scoped native evidence; API 36 positive key delivery remains
+unavailable through the tested console transport. Physical hardware keyboards and unavailable device/
+layout combinations are **NOT EXECUTED — environment unavailable**. The broader device matrix
+and general Android windowing host remain separate work.
+
 ## Manual validation checklist
 
 1. Confirm platform, OS, backend, activity/window lifecycle, logical size, density, attachment,

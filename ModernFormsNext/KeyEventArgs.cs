@@ -22,6 +22,35 @@ namespace ModernFormsNext
             KeyData = keyData;
         }
 
+        /// <summary>Creates a framework key event from a platform-neutral WindowKit key and modifiers.</summary>
+        /// <param name="key">The logical platform key; unsupported mappings produce <see cref="Keys.None"/>.</param>
+        /// <param name="modifiers">Explicit Control, Shift, Alt, Meta and AltGraph flags.</param>
+        /// <returns>A new caller-owned event with no handled or suppression state.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">Unknown modifier bits were supplied.</exception>
+        /// <remarks>
+        /// Uses the same key mapper as framework windows. This factory performs no layout-dependent
+        /// character translation, dispatch or focus lookup. AltGraph remains distinct from Control+Alt.
+        /// The detached event may be created on any thread; dispatch requires the receiving UI thread.
+        /// </remarks>
+        /// <example><code>
+        /// var e = KeyEventArgs.FromPlatformKey(Key.S, KeyModifiers.Control);
+        /// bool handled = surface.TryProcessKeyDown(e);
+        /// </code></example>
+        public static KeyEventArgs FromPlatformKey(Key key, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            const KeyModifiers supported = KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt |
+                KeyModifiers.Meta | KeyModifiers.AltGraph;
+            if ((modifiers & ~supported) != 0)
+                throw new ArgumentOutOfRangeException(nameof(modifiers));
+            var mapped = WindowKitKeyMapper.ToFormsKey(key);
+            if ((modifiers & KeyModifiers.Control) != 0) mapped |= Keys.Control;
+            if ((modifiers & KeyModifiers.Shift) != 0) mapped |= Keys.Shift;
+            if ((modifiers & KeyModifiers.Alt) != 0) mapped |= Keys.Alt;
+            if ((modifiers & KeyModifiers.Meta) != 0) mapped |= Keys.Meta;
+            if ((modifiers & KeyModifiers.AltGraph) != 0) mapped |= Keys.AltGraph;
+            return new KeyEventArgs(mapped);
+        }
+
         /// <summary>
         ///  Gets a value indicating whether the ALT key was pressed.
         /// </summary>

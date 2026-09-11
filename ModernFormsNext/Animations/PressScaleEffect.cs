@@ -102,6 +102,15 @@ public sealed class PressScaleEffect : InteractionEffect
     }
 
     /// <inheritdoc/>
+    protected override void OnKeyboardCanceled()
+    {
+        if (!keyboardPressed) return;
+        keyboardPressed = false;
+        if (pointers.Count == 0)
+            AnimateTo(1f, ReleaseDuration);
+    }
+
+    /// <inheritdoc/>
     protected override void OnDetached()
     {
         pointers.Clear();

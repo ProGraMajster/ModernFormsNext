@@ -143,7 +143,12 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
     /// </remarks>
     public event EventHandler? DeleteBackwardRequested;
 
-    /// <summary>Occurs when the IME or a hardware keyboard sends an editing-key transition.</summary>
+    /// <summary>Occurs for the original seven editing/navigation keys when no primary handler is assigned.</summary>
+    /// <remarks>
+    /// This compatibility event retains its original consume-on-delivery behavior, even without
+    /// subscribers. Use <see cref="KeyInputHandler"/> for the extended key set and handled results.
+    /// Both transports run on the Android main thread and never receive the same transition.
+    /// </remarks>
     public event EventHandler<AndroidInputKeyEvent>? KeyInput;
 
     /// <summary>Occurs when the Android IME requests a new UTF-16 selection range.</summary>
@@ -214,6 +219,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         var primaryPointerId = state.PrimaryPointerId;
         var cancellations = state.Pause();
         AndroidSurfaceCleanup.Complete(
+            ResetKeyboardState,
             () => EmitCancellations(cancellations, primaryPointerId),
             UpdateAnimationSurfaceRegistration,
             () => AndroidLogger.Write("Skia surface paused.", diagnosticSink));
@@ -227,6 +233,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         var primaryPointerId = state.PrimaryPointerId;
         var cancellations = state.Stop();
         AndroidSurfaceCleanup.Complete(
+            ResetKeyboardState,
             () => EmitCancellations(cancellations, primaryPointerId),
             UpdateAnimationSurfaceRegistration,
             () => AndroidLogger.Write("Skia surface stopped.", diagnosticSink));
@@ -434,6 +441,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         }
         var primaryPointerId = state.PrimaryPointerId;
         var cancellations = state.DetachSurface();
+        InvalidateKeyboardRoute();
         try
         {
             AndroidSurfaceCleanup.Complete(
@@ -442,6 +450,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
                 // Dispose and release the Java peer. The remaining steps never need to call
                 // a base View lifecycle method on that potentially released peer.
                 () => base.OnDetachedFromWindow(),
+                ResetKeyboardState,
                 UpdateAnimationSurfaceRegistration,
                 () => accessibilityProvider?.Detach(),
                 () => EmitCancellations(cancellations, primaryPointerId),
@@ -533,6 +542,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         // reenter disposal. Activity destruction still removes the native view before freeing
         // its managed peer, and every release step runs even when an earlier one fails.
         disposed = true;
+        InvalidateKeyboardRoute();
         var provider = accessibilityProvider;
         accessibilityProvider = null;
         accessibilityHost = null;
@@ -551,6 +561,8 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
             DeleteSurroundingTextRequested = null;
             DeleteBackwardRequested = null;
             KeyInput = null;
+            keyInputHandler = null;
+            KeyboardStateReset = null;
             TextSelectionRequested = null;
             TextInputStateProvider = null;
             RetireInputConnection();
@@ -568,6 +580,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
             return;
         }
         AndroidSurfaceCleanup.Complete(
+            ResetKeyboardState,
             DetachTextInputClient,
             () => { if (Parent is ViewGroup parent) parent.RemoveView(this); },
             () => provider?.Dispose(),
@@ -640,42 +653,6 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
     private void EmitCancellations(IReadOnlyList<int> pointerIds, int? primaryPointerId)
         => AndroidSurfaceCleanup.CancelPointers(this, Pointer, pointerIds, primaryPointerId);
 
-    private bool PublishKey(Keycode keyCode, bool isDown, NativeKeyEvent? nativeEvent,
-        bool fromInputConnection = false)
-    {
-        var translated = keyCode switch
-        {
-            Keycode.Del => AndroidInputKey.Backspace,
-            Keycode.ForwardDel => AndroidInputKey.Delete,
-            Keycode.Enter or Keycode.NumpadEnter => AndroidInputKey.Enter,
-            Keycode.DpadLeft => AndroidInputKey.Left,
-            Keycode.DpadUp => AndroidInputKey.Up,
-            Keycode.DpadRight => AndroidInputKey.Right,
-            Keycode.DpadDown => AndroidInputKey.Down,
-            _ => (AndroidInputKey?)null
-        };
-
-        if (translated is null)
-            return false;
-
-        var modifiers = KeyModifiers.None;
-        if (nativeEvent is not null)
-        {
-            if (nativeEvent.IsCtrlPressed) modifiers |= KeyModifiers.Control;
-            if (nativeEvent.IsShiftPressed) modifiers |= KeyModifiers.Shift;
-            if (nativeEvent.IsAltPressed) modifiers |= KeyModifiers.Alt;
-            if (nativeEvent.IsMetaPressed) modifiers |= KeyModifiers.Meta;
-            // As on Windows, right Alt is conservatively reserved for international input.
-            if ((nativeEvent.MetaState & MetaKeyStates.AltRightOn) != 0) modifiers |= KeyModifiers.AltGraph;
-        }
-        KeyInput?.Invoke(this, AndroidInputKeyEvent.FromSource(translated.Value, isDown, modifiers,
-            nativeEvent?.DeviceId ?? -1,
-            nativeEvent is not null && (nativeEvent.Flags & KeyEventFlags.SoftKeyboard) != 0,
-            fromInputConnection));
-        NotifyTextStateChanged();
-        return true;
-    }
-
     private void PublishCommittedText(string text, int newCursorPosition)
     {
         TextCommitRequested?.Invoke(this, new AndroidTextEditEvent(text, newCursorPosition));
@@ -731,33 +708,6 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
     {
         if (inputStateNotificationPending && activeInputConnection?.BatchDepth == 0)
             NotifyTextStateChanged();
-    }
-
-    private bool ProcessViewKeyEvent(
-        Keycode keyCode,
-        NativeKeyEvent? keyEvent,
-        bool isDown,
-        Func<bool> baseHandler)
-    {
-        if (!EnableInputConnectionDiagnostics)
-            return PublishKey(keyCode, isDown, keyEvent) || baseHandler();
-
-        var before = GetTextInputState();
-        var batchDepth = activeInputConnection?.BatchDepth ?? 0;
-        var observation = ObserveKeyEvent(keyCode, isDown, "ViewKeyEvent");
-        var result = PublishKey(keyCode, isDown, keyEvent) || baseHandler();
-        WriteInputDiagnostic(
-            isDown ? "OnKeyDown" : "OnKeyUp",
-            "ViewKeyEvent",
-            $"keyCode={keyCode}; action={keyEvent?.Action.ToString() ?? (isDown ? "Down" : "Up")}; " +
-            $"unicodeChar={keyEvent?.UnicodeChar ?? 0}; deviceId={keyEvent?.DeviceId ?? -1}",
-            before,
-            GetTextInputState(),
-            batchDepth,
-            batchDepth,
-            result.ToString(),
-            operationKeyEvent: observation);
-        return result;
     }
 
     private KeyEventObservation ObserveKeyEvent(Keycode keyCode, bool isDown, string source)
