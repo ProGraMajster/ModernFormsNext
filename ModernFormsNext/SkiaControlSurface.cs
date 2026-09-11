@@ -19,7 +19,7 @@ namespace ModernFormsNext;
 /// Programmatic control selection, including accessibility requests for keyboard focus, replaces
 /// the previous input target. Screen-reader accessibility focus does not change keyboard focus.
 /// </remarks>
-public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost, IPlatformAccessibilitySurface
+public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost, IPlatformAccessibilitySurface
 {
     private readonly HashSet<Control> observedControls = [];
     private readonly Dictionary<int, PointerState> pointers = [];
@@ -490,22 +490,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     /// Text/composition APIs continue to use the editing path and never evaluate shortcuts.
     /// </remarks>
     public void ProcessKeyDown(Keys key, bool isTextInput)
-    {
-        ThrowIfDisposed();
-        if (Root.IsDisposed) return;
-        var selected = FindSelectedControl();
-        var args = new KeyEventArgs(key);
-        if (!isTextInput && !textInputHost.IsCompositionEditingKey(key) &&
-            inputBindingResolver.ProcessKeyDown(args, selected, Root, null))
-        {
-            Invalidated?.Invoke(this, EventArgs.Empty);
-            return;
-        }
-        selected?.RaiseKeyDown(args);
-        if (!args.SuppressKeyPress && key is Keys.Enter or Keys.Return)
-            selected?.RaiseKeyPress(new KeyPressEventArgs("\r", key));
-        Invalidated?.Invoke(this, EventArgs.Empty);
-    }
+        => TryProcessKeyDown(new KeyEventArgs(key), isTextInput);
 
     /// <summary>Routes a platform key-up transition to the selected framework control.</summary>
     /// <param name="key">The platform-neutral framework key.</param>
@@ -517,14 +502,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     /// <param name="isTextInput">True for software keyboard/IME editing requests that bypass shortcut state.</param>
     /// <remarks>Call on the owning UI thread. A consumed hardware press cannot activate a button again on release.</remarks>
     public void ProcessKeyUp(Keys key, bool isTextInput)
-    {
-        ThrowIfDisposed();
-        if (Root.IsDisposed) return;
-        var args = new KeyEventArgs(key);
-        if (isTextInput || !inputBindingResolver.ProcessKeyUp(args))
-            FindSelectedControl()?.RaiseKeyUp(args);
-        Invalidated?.Invoke(this, EventArgs.Empty);
-    }
+        => TryProcessKeyUp(new KeyEventArgs(key), isTextInput);
 
     /// <summary>Routes a backward-delete request to the selected framework control.</summary>
     public void DeleteBackward()
@@ -556,11 +534,11 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         var controls = observedControls.ToArray();
         var failures = new List<Exception>();
         CaptureCleanupFailure(textInputHost.Dispose, failures);
+        CaptureCleanupFailure(ResetKeyboardStateCore, failures);
         foreach (var control in controls)
             CaptureCleanupFailure(() => Unobserve(control), failures);
         observedControls.Clear();
         CaptureCleanupFailure(() => CancelAllPointersCore(invalidate: false), failures);
-        CaptureCleanupFailure(inputBindingResolver.Reset, failures);
         foreach (var textBox in controls.OfType<TextBox>())
             if (!textBox.IsDisposed)
                 CaptureCleanupFailure(() => textBox.document.FinishComposition(), failures);
@@ -637,6 +615,9 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
 
     private void OnControlRemoved(object? sender, EventArgs<Control> e)
     {
+        // A detached/reinserted ancestor retires an in-flight key even if the editor's immediate
+        // parent and eventual focus identity remain unchanged after application callbacks.
+        keyboardTreeVersion++;
         CancelPointersOwnedBy(e.Value);
 
         if (e.Value is TextBox textBox)

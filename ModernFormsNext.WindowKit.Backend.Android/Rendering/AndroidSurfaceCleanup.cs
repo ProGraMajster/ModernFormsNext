@@ -35,6 +35,18 @@ internal static class AndroidSurfaceCleanup
         ThrowFailures(failures);
     }
 
+    internal static void ResetKeyboard(object sender, EventHandler? handlers)
+    {
+        if (handlers is null) return;
+        List<Exception>? failures = null;
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            try { handler(sender, EventArgs.Empty); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        ThrowFailures(failures);
+    }
+
     private static void ThrowFailures(List<Exception>? failures)
     {
         if (failures is { Count: 1 }) ExceptionDispatchInfo.Capture(failures[0]).Throw();

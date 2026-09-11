@@ -56,7 +56,8 @@ public sealed class AndroidAppHost : IDisposable
         controlSurface.Invalidated += OnControlSurfaceInvalidated;
         nativeSurface.Render += OnRender;
         nativeSurface.Pointer += OnPointer;
-        nativeSurface.KeyInput += OnKeyInput;
+        nativeSurface.KeyInputHandler = OnKeyInput;
+        nativeSurface.KeyboardStateReset += OnKeyboardStateReset;
         nativeSurface.InsetsChanged += OnInsetsChanged;
         controlSurface.Insets = nativeSurface.CurrentInsets;
     }
@@ -136,7 +137,8 @@ public sealed class AndroidAppHost : IDisposable
         controlSurface.Invalidated -= OnControlSurfaceInvalidated;
         nativeSurface.Render -= OnRender;
         nativeSurface.Pointer -= OnPointer;
-        nativeSurface.KeyInput -= OnKeyInput;
+        Cleanup(() => nativeSurface.KeyInputHandler = null, failures);
+        nativeSurface.KeyboardStateReset -= OnKeyboardStateReset;
         nativeSurface.InsetsChanged -= OnInsetsChanged;
         Cleanup(() => nativeSurface.AccessibilityHost = null, failures);
         // This sample owns one process-wide surface. Snap its global theme transition before
@@ -230,32 +232,24 @@ public sealed class AndroidAppHost : IDisposable
         UpdateDiagnostics();
     }
 
-    private void OnKeyInput(object? sender, AndroidInputKeyEvent e)
+    private bool OnKeyInput(AndroidInputKeyEvent e)
     {
-        var key = e.Key switch
+        if (disposed) return true;
+        var handled = AndroidKeyboardInput.Process(controlSurface, e);
+        // A command can dispose/recreate this Activity. The old adapter must not repaint or
+        // schedule caret work on the borrowed tree after its ownership has ended.
+        if (!disposed)
         {
-            AndroidInputKey.Backspace => Keys.Back,
-            AndroidInputKey.Delete => Keys.Delete,
-            AndroidInputKey.Enter => Keys.Enter,
-            AndroidInputKey.Left => Keys.Left,
-            AndroidInputKey.Up => Keys.Up,
-            AndroidInputKey.Right => Keys.Right,
-            AndroidInputKey.Down => Keys.Down,
-            _ => throw new ArgumentOutOfRangeException(nameof(e))
-        };
+            // Ordinary diagnostics must not reveal printable key identities (including passwords).
+            app.UpdateLastInput($"{(e.IsHardwareKey ? "Hardware" : "Editing")} key {(e.IsDown ? "down" : "up")}; handled: {handled}; repeat: {e.RepeatCount}");
+            ScheduleCaretScroll();
+        }
+        return handled || disposed;
+    }
 
-        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Control) != 0) key |= Keys.Control;
-        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Shift) != 0) key |= Keys.Shift;
-        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Alt) != 0) key |= Keys.Alt;
-        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.Meta) != 0) key |= Keys.Meta;
-        if ((e.Modifiers & ModernFormsNext.WindowKit.Input.KeyModifiers.AltGraph) != 0) key |= Keys.AltGraph;
-
-        if (e.IsDown)
-            controlSurface.ProcessKeyDown(key, isTextInput: !e.IsHardwareKey);
-        else
-            controlSurface.ProcessKeyUp(key, isTextInput: !e.IsHardwareKey);
-        app.UpdateLastInput($"Key {e.Key} {(e.IsDown ? "down" : "up")}");
-        ScheduleCaretScroll();
+    private void OnKeyboardStateReset(object? sender, EventArgs e)
+    {
+        if (!disposed) controlSurface.ResetKeyboardState();
     }
 
     private void OnControlSurfaceInvalidated(object? sender, EventArgs e)

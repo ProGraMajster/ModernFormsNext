@@ -108,6 +108,11 @@ internal sealed class InputBindingResolver
 
     internal void Reset() => consumedKeys?.Clear();
 
+    // Native dead keys retire suppression without being mislabeled as AltGraph. A surface
+    // callback that ends its captured input route must also suppress that route's later release.
+    internal void ResetKey(Keys key) => consumedKeys?.Remove(key & Keys.KeyCode);
+    internal void SuppressUntilRelease(Keys key) => (consumedKeys ??= []).Add(key & Keys.KeyCode);
+
     private static bool IsContextActive(Control root, WindowBase? window)
         => !root.IsDisposed && root.Visible && root.Enabled && window?.InputBindingsClosed != true && !Application.IsExiting;
 

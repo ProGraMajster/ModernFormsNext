@@ -734,3 +734,49 @@ The [pre-implementation plan](issue-109-android-hardware-input-plan.md) records 
 six acceptance criteria and the additive native handled/reset seams. Current shared
 command runtime is reused; #69/#72/#108 remain separate. #109 validation is not yet
 executed. The initial unrelated `.codex/config.toml` remains untracked and untouched.
+
+### Issue #109 — initial implementation and regression evidence
+
+The committed audit/plan precedes implementation at `43d95ba`. The adapter extends
+the existing WindowKit key identities and canonical resolver, adds a single native
+handled-result route and keyboard reset/cancellation boundaries, and preserves the
+old seven-key event and surface void APIs. No Android command registry or new
+windowing host is introduced. The sample uses its actual adapter in linked-source
+Android integration tests and demonstrates local/page/Application command routes.
+
+Initial local runs, before final source freeze and native acceptance:
+
+| Gate | Result | Scope |
+|---|---|---|
+| Restore | PASS | Existing NU1902 for Microsoft.Build.Tasks.Git 10.0.301 remains; no dependency change. |
+| Full managed Android test project | 305/305 PASS | Production key mapper, real sample bridge/surface, source/modifiers, scopes, repeats, IME separation, cancellation and transport tests. Native lost-release pairing is a subsequent focused addition. |
+| Core input/effect focused tests | 141/141 PASS | New surface and existing binding/interaction regressions. |
+| Full Core Debug tests | 1285/1285 PASS | Existing editor, layout, rendering, input, lifecycle and resource regressions included. |
+| Full sample Debug tests | 22/22 PASS | Six new command/ownership cases in the existing project. Four new lifetime/scope cases first failed against the initial implementation, then passed after fixes. |
+| Baseline API source build | PASS | Fresh external worktree at master `61c1519`, 11 package assembly/TFM inputs plus both Android backend TFMs. Generated Windows interop rewrote line endings, but its normalized Git blob equals HEAD and the source diff is empty; raw Git status is recorded rather than falsely called clean. |
+| Final Debug/Release solution, API/package/consumer/docs gates | PENDING | Initial focused success is not final artifact acceptance. |
+| Native emulator and sample rendering/startup | PENDING | No #109 hardware observation is inferred from #62 evidence. |
+
+The first Android integration run passed 32 of 33 cases. Its failing assertion
+incorrectly expected a managed Left event delivered after the native IME stage to
+select a candidate. The existing editor accepts visible preedit and moves its
+caret; the corrected regression explicitly checks that behavior, no command call,
+and a separate commit at the new caret. It does not claim native candidate testing.
+Initial new Core tests also needed nullable snapshot unwrapping before compilation;
+no production workaround or suppression was added for that test-source error.
+
+Independent sample review found and reproduced four static ownership/scope failures:
+failed constructor/platform facts retained an Application binding, a throwing Add
+diagnostic retained the just-added item, throwing child disposal skipped the old
+Disposed-based cleanup, and F1 could target another page retaining selection.
+Registration now occurs after full initialization with rollback; cleanup captures
+the collection and precedes child disposal; the existing RoutedCommand machinery
+uses the current input target. Status labels wrap on narrow screens, and ordinary
+input diagnostics no longer expose printable key identities. Native handler
+replacement is included in mandatory host cleanup because reset observers may throw.
+
+The subsequent native pairing addition passed the complete Android managed suite
+at **314/314**. Nine new cases cover per-device Down/Up pairing, late releases and
+orphan repeats after reset, actual Button activation safety, legacy/IME isolation,
+reentrancy and bounded capacity cleanup. This is a native transport lifetime guard;
+command matching and consumed shortcut state remain in the existing shared resolver.

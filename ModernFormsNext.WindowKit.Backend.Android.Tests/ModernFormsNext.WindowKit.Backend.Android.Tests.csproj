@@ -24,6 +24,9 @@
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext.WindowKit.Backend.Android\ModernFormsNext.WindowKit.Backend.Android.csproj" />
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
+    <!-- Exercise the real, native-type-free sample bridge through the backend mapper and Core. -->
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\Platforms\Android\AndroidKeyboardInput.cs"
+             Link="SampleIntegration\AndroidKeyboardInput.cs" />
   </ItemGroup>
 
 </Project>

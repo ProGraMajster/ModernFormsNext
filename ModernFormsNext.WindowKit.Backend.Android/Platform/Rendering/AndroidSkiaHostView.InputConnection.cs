@@ -380,11 +380,17 @@ public sealed partial class AndroidSkiaHostView
                 {
                     // IMEs may send Shift+DPAD to extend a selection. Preserve those modifiers
                     // while explicitly retaining editing provenance, even for a real device id.
-                    if (e is not null && owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down,
+                    if (e is not null && (e.Action is KeyEventActions.Down or KeyEventActions.Up) &&
+                        owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down,
                         e, fromInputConnection: true))
                         return true;
 
-                    return base.SendKeyEvent(e);
+                    if (!IsCurrent || !owner.CanRouteKeyboard || e is null) return false;
+                    // BaseInputConnection queues a redispatch into ViewRoot without an IME
+                    // pass. Preserve editing provenance if that event later reaches this view;
+                    // never mutate the caller-owned native event or infer text from its key code.
+                    using var editingEvent = NativeKeyEvent.ChangeFlags(e, e.Flags | KeyEventFlags.SoftKeyboard);
+                    return base.SendKeyEvent(editingEvent);
                 },
                 operationKeyEvent: observation);
         }

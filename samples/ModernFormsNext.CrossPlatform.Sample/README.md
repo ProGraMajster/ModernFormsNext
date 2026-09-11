@@ -17,6 +17,16 @@ adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the 
 control pipeline. Android support remains experimental and is not yet a complete `Form`/window
 backend.
 
+The shared command section uses Ctrl+S, Ctrl+Shift+S and F1 with real command-backed buttons
+and an availability fallback. Android connects the native hardware-key handler to the same
+surface input resolver; Activity recreation keeps the shared page and its registrations.
+F1 selects a RoutedCommand handled by the page in the current input route. The page removes its
+exact Application registration before child disposal, including after Application exit.
+This addition is under validation. See the [hardware input contract and evidence matrix](../../docs/android-hardware-input.md)
+and the [sample interaction checklist](../../docs/cross-platform-sample.md#hardware-command-section).
+Emulator observations are pending; physical hardware keyboards are NOT EXECUTED because the
+environment is unavailable. Software-keyboard composition remains a separate test path.
+
 Touch uses stable pointer IDs, deepest-control hit testing, independent capture, one-click tap
 semantics, drag cancellation, and the real `ScrollableControl` scrollbar state. The diagnostic
 area separates control-action receipt from platform-service invocation and completion.

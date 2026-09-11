@@ -97,6 +97,16 @@ public abstract class InteractionEffect : IDisposable
     {
     }
 
+    /// <summary>Releases keyboard-only transient state when native input is canceled or focus is lost.</summary>
+    /// <remarks>
+    /// This is not a completed key release and must not activate a control or start a release effect.
+    /// Preserve independent pointer gestures. The default implementation does nothing. Called on
+    /// the target's UI thread; overrides may invalidate rendering but must not change focus.
+    /// </remarks>
+    protected virtual void OnKeyboardCanceled()
+    {
+    }
+
     /// <summary>Renders one effect frame inside the configured clip.</summary>
     protected virtual void OnRender(InteractionEffectRenderContext context)
     {
@@ -180,6 +190,8 @@ public abstract class InteractionEffect : IDisposable
         if (enabled)
             OnKeyUp(e);
     }
+
+    internal void DispatchKeyboardCanceled() => OnKeyboardCanceled();
 
     internal void DispatchRender(PaintEventArgs e)
     {
