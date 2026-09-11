@@ -911,3 +911,40 @@ final documentation validation and required CI. The parent issue's remaining
 physical/native breadth does not prevent merging this useful scope under the user's
 finalization policy. No public API removal, renderer replacement, new command/tree
 system, dependency, package boundary, release publication or version bump is included.
+
+### Issue #109 — final documentation, PR and verified merge
+
+Final documentation head `479674524142b9cb4811293c3362ce23202d8007` passed 32 script
+assertions, DocFX with **1018 HTML files and zero warnings/errors**, and **4/4 archive
+validation**. `phase109-4796745-summary.json` independently checks all 18 TRXs,
+authoritative 13/13 API logs, the 40-assertion package consumer and Markdown-only
+changes since implementation 8fd3696. The final native report and independent review
+agree on all 16 observed cases and their limitations; no scoped code/docs blocker
+remained.
+
+Ready [PR #118](https://github.com/ProGraMajster/ModernFormsNext/pull/118) passed required
+CI [34621407730](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34621407730)
+at that exact head. Normal merge succeeded on 2026-09-11 at
+`f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`. Fetch/prune and fast-forward pull completed;
+local master equals origin/master and its entire tree equals the reviewed PR head.
+#109 remains OPEN/PARTIAL. The next #59 branch starts from this verified merge.
+
+Post-merge master CI [34622176286](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34622176286)
+also completed successfully at exact merge `f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`.
+
+## Issue #59 — Add accessibility and platform UI automation infrastructure
+
+Fresh baseline: `f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`; branch
+`codex/issue-59-accessibility-phase4`. The refreshed complete issue and all three
+comments match the preliminary audit, with no formal blockers. Existing Phases 1–3
+and their historical evidence are preserved. Related current issues, prior merged
+PRs, source, tests, platform adapters, samples, Designer metadata and documentation
+were audited; the original unrelated `.codex/config.toml` remains untouched.
+
+The [Phase 4 audit and technical plan](issue-59-accessibility-phase4-plan.md) commits
+the current scope before implementation: existing link/numeric/bar controls, viewport
+Scroll, grid/table, date/calendar, practical Text/TextRange, explicit preference
+consumption, bounded diagnostics/Designer and cross-layer acceptance. Concrete
+current editor, grid, popup, layout and privacy defects are prerequisites within
+these slices, not reasons to defer them to future virtualization or Android hosting.
+No Phase 4 implementation test result is claimed at this plan checkpoint.
