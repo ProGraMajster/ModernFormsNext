@@ -274,13 +274,20 @@ public partial class Control
 
             CheckParentingCycle (Owner, value);
 
-            if (value.parent == Owner) {
+            if (value.parent == Owner && control_list.Contains(value)) {
                 value.SendToBack ();
                 return;
             }
 
             // Remove the new control from its old parent (if any)
             value.parent?.Controls.Remove (value);
+
+            // Removal can finish IME composition and run application callbacks. A callback
+            // may already have installed the child here or in another parent; keep that newer
+            // canonical assignment instead of inserting a duplicate or stealing it back.
+            if (value.parent is { } currentParent && currentParent.Controls.Contains(value))
+                return;
+            CheckParentingCycle (Owner, value);
 
             // Find the next highest tab index
             if (value.tab_index == -1)
@@ -388,10 +395,10 @@ public partial class Control
             if (value is null)
                 return false;     // Don't do anything
 
-            if (value.Parent == Owner) {
+            if (value.Parent == Owner && control_list.Remove(value)) {
 
-                // Remove the control from the internal control array
-                control_list.Remove (value);
+                // A nested Add can observe the old Parent after the collection removal but
+                // before AssignParent finishes its callbacks. Do not detach that child twice.
                 value.AssignParent (null);
 
                 LayoutTransaction.DoLayout (Owner, value, PropertyNames.Parent);

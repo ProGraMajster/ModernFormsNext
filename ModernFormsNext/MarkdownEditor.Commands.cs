@@ -9,6 +9,7 @@ public partial class MarkdownEditor
     /// </summary>
     public void ClearUndo()
     {
+        editorSurface.FinishTextInputBeforeExternalChange();
         history.Clear();
         cleanHistoryPosition = Modified ? -1 : 0;
         UpdateToolbarState();
@@ -42,6 +43,7 @@ public partial class MarkdownEditor
     /// </summary>
     public void Redo()
     {
+        editorSurface.FinishTextInputBeforeExternalChange();
         if (ReadOnly || !history.CanRedo)
             return;
 
@@ -72,6 +74,7 @@ public partial class MarkdownEditor
     /// </summary>
     public void Undo()
     {
+        editorSurface.FinishTextInputBeforeExternalChange();
         if (ReadOnly || !history.CanUndo)
             return;
 

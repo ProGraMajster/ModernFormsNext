@@ -24,7 +24,7 @@ namespace ModernFormsNext.Testing;
 /// host.ProcessPendingWork();
 /// </code>
 /// </example>
-public sealed class TestInput
+public sealed partial class TestInput
 {
     private const int HistoryLimit = 64;
     private const Keys SupportedModifiers = Keys.Control | Keys.Shift | Keys.Alt | Keys.Meta | Keys.AltGraph;

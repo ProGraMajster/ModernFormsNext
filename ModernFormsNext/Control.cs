@@ -22,6 +22,9 @@ namespace ModernFormsNext
         //       Every control on a form has the overhead of all of these
         //       variables!
         private Control? parent;
+        // Parent notifications can synchronously reparent this control, even away and back.
+        // The superseded call must not overwrite the newer canonical collection/Parent pair.
+        private int parentAssignmentVersion;
         private States _state = States.Visible | States.Enabled | States.TabStop | States.CausesValidation | States.IsDirty;
         private ExtendedStates _extendedState;
         private ControlBehaviors behaviors = ControlBehaviors.Selectable | ControlBehaviors.ReceivesMouseEvents;
@@ -89,46 +92,82 @@ namespace ModernFormsNext
             var old_visible = Visible;
 
             Control? previousParent = parent;
+            int assignmentVersion = unchecked(++parentAssignmentVersion);
+            IDisposable? textInputChange = null;
+            Exception? textInputFailure = null;
+            try {
+                try {
+                    textInputChange = previousParent is not null && !ReferenceEquals(previousParent, value)
+                        ? BeginTextInputTreeChange() : null;
+                }
+                catch (Exception failure) { textInputFailure = failure; }
 
-            // Capture belongs to the current routed input tree. End the gesture while the old
-            // parent is still attached so clearing Capture can propagate through every ancestor.
-            if (previousParent is not null && value is null)
-                CancelCapturedPointerInteractionsInSubtree();
+                // Removal already changed the old parent's collection. A failed Finish must
+                // still finish that removal; a newer reparenting callback, however, owns the tree.
+                if (assignmentVersion != parentAssignmentVersion)
+                    return;
 
-            // Update the parent
-            parent = value;
-            if (previousParent is not null && value is null)
-                CancelOwnedControlAnimationsForSubtree();
-            RefreshResourceBindingsForSubtree ();
-            RefreshRoutedCommandSourcesForSubtree();
-            OnParentChanged (EventArgs.Empty);
+                // Capture belongs to the current routed input tree. End the gesture while the old
+                // parent is still attached so clearing Capture can propagate through every ancestor.
+                if (previousParent is not null && value is null) {
+                    try { CancelCapturedPointerInteractionsInSubtree(); }
+                    catch (Exception failure) {
+                        textInputFailure = textInputFailure is null ? failure :
+                            new AggregateException("Text input and pointer retirement failed.", textInputFailure, failure);
+                    }
+                }
 
-            if (GetAnyDisposingInHierarchy ())
-                return;
+                if (assignmentVersion != parentAssignmentVersion)
+                    return;
 
-            // Compare property values with new parent to old values
-            if (old_enabled != Enabled)
-                OnEnabledChanged (EventArgs.Empty);
+                // Update the parent
+                parent = value;
+                if (previousParent is not null && value is null)
+                    CancelOwnedControlAnimationsForSubtree();
+                RefreshResourceBindingsForSubtree ();
+                RefreshRoutedCommandSourcesForSubtree();
+                OnParentChanged (EventArgs.Empty);
 
-            // When a control seems to be going from invisible -> visible,
-            // yet its parent is being set to null and it's not top level, do not raise OnVisibleChanged.
-            var new_visible = Visible;
+                if (assignmentVersion != parentAssignmentVersion || GetAnyDisposingInHierarchy ())
+                    return;
 
-            if (old_visible != new_visible && !(!old_visible && new_visible && parent is null))
-                OnVisibleChanged (EventArgs.Empty);
+                // Compare property values with new parent to old values
+                if (old_enabled != Enabled)
+                    OnEnabledChanged (EventArgs.Empty);
 
-            //    if (Properties.GetObject (s_bindingManagerProperty) is null && Created) {
-            //        // We do not want to call our parent's BindingContext property here.
-            //        // We have no idea if us or any of our children are using data binding,
-            //        // and invoking the property would just create the binding manager, which
-            //        // we don't need.  We just blindly notify that the binding manager has
-            //        // changed, and if anyone cares, they will do the comparison at that time.
-            //        //
-            //        OnBindingContextChanged (EventArgs.Empty);
-            //    }
+                // When a control seems to be going from invisible -> visible,
+                // yet its parent is being set to null and it's not top level, do not raise OnVisibleChanged.
+                var new_visible = Visible;
 
-            if (Parent is not null)
-                Parent.LayoutEngine.InitLayout (this, BoundsSpecified.All);
+                if (old_visible != new_visible && !(!old_visible && new_visible && parent is null))
+                    OnVisibleChanged (EventArgs.Empty);
+
+                //    if (Properties.GetObject (s_bindingManagerProperty) is null && Created) {
+                //        // We do not want to call our parent's BindingContext property here.
+                //        // We have no idea if us or any of our children are using data binding,
+                //        // and invoking the property would just create the binding manager, which
+                //        // we don't need.  We just blindly notify that the binding manager has
+                //        // changed, and if anyone cares, they will do the comparison at that time.
+                //        //
+                //        OnBindingContextChanged (EventArgs.Empty);
+                //    }
+
+                if (Parent is not null)
+                    Parent.LayoutEngine.InitLayout (this, BoundsSpecified.All);
+            }
+            catch (Exception failure) {
+                textInputFailure = textInputFailure is null ? failure :
+                    new AggregateException("Text input retirement and parent assignment failed.", textInputFailure, failure);
+            }
+            finally {
+                try { textInputChange?.Dispose(); }
+                catch (Exception failure) {
+                    textInputFailure = textInputFailure is null ? failure :
+                        new AggregateException("Parent assignment and text input restoration failed.", textInputFailure, failure);
+                }
+                if (textInputFailure is not null)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(textInputFailure).Throw();
+            }
         }
 
         /// <summary>
@@ -676,11 +715,18 @@ namespace ModernFormsNext
             Control? inputParent = Parent;
             WindowBase? inputWindow = FindWindow();
             Selected = false;
+            Exception? focusFailure = null;
+            try { NotifyTextInputFocusChanged(); }
+            catch (Exception failure) { focusFailure = failure; }
             int preservationDepth = Properties.GetInteger(s_focusLossPointerPreservationProperty);
             if (preservePointerInteraction)
                 Properties.SetInteger(s_focusLossPointerPreservationProperty, preservationDepth + 1);
             try {
                 OnDeselected (EventArgs.Empty);
+            }
+            catch (Exception failure) {
+                focusFailure = focusFailure is null ? failure :
+                    new AggregateException("Text input retirement and focus cleanup failed.", focusFailure, failure);
             }
             finally {
                 if (preservePointerInteraction) {
@@ -693,8 +739,16 @@ namespace ModernFormsNext
 
             // LostFocus can close/dispose or move this tree. The prior route must not invalidate
             // a disposed backend after the callback has completed.
-            if (IsInputRouteCurrent(inputParent, inputWindow, requireAvailable: false))
-                Invalidate ();
+            try {
+                if (IsInputRouteCurrent(inputParent, inputWindow, requireAvailable: false))
+                    Invalidate ();
+            }
+            catch (Exception failure) {
+                focusFailure = focusFailure is null ? failure :
+                    new AggregateException("Focus cleanup and invalidation failed.", focusFailure, failure);
+            }
+            if (focusFailure is not null)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(focusFailure).Throw();
         }
 
         /// <summary>
@@ -2304,6 +2358,8 @@ namespace ModernFormsNext
         /// Call on the UI thread. The normal GotFocus notification precedes assigning the
         /// adapter's focus owner. If a focus callback closes, disposes, detaches, disables, or
         /// hides this target, the obsolete selection stops without invalidating its former window.
+        /// If a focus or text-composition completion callback throws, the unfinished selection
+        /// is cleared and the original failure is propagated after required focus cleanup.
         /// </remarks>
         public void Select ()
         {
@@ -2334,8 +2390,19 @@ namespace ModernFormsNext
 
             var adapter = FindAdapter ();
 
-            if (adapter != null)
-                adapter.SelectedControl = this;
+            try {
+                if (adapter != null)
+                    adapter.SelectedControl = this;
+            }
+            catch (Exception focusFailure) {
+                // Deselecting the old owner can fail after the new control's GotFocus. Drop
+                // this unfinished selection using the same cleanup as a failed GotFocus.
+                try { AbandonFocusSelection(inputAdapter); }
+                catch (Exception cleanupFailure) {
+                    throw new AggregateException("The previous focus owner and selection cleanup failed.", focusFailure, cleanupFailure);
+                }
+                throw;
+            }
 
             // Assigning the adapter deselects its previous focus owner, whose LostFocus handler
             // can also close this window. Keep the established event order, then recheck lifetime.
@@ -2343,6 +2410,7 @@ namespace ModernFormsNext
                 AbandonFocusSelection(inputAdapter);
                 return;
             }
+            NotifyTextInputFocusChanged();
             Invalidate ();
         }
 
@@ -2699,24 +2767,48 @@ namespace ModernFormsNext
         /// </summary>
         protected override void Dispose (bool disposing)
         {
+            if (Disposing) return;
+            List<Exception>? textInputFailures = null;
             if (!disposedValue) {
-                ReleaseInputBindings();
-                ReleaseCommandBindings();
-                DisposeInteractionEffects ();
-                CancelOwnedControlAnimations();
-                DisposeLayoutTransitionConfiguration ();
-                DisposeResourceReferences ();
-                DisposeBrushInvalidationSubscriptions ();
-                FreeBackBuffer ();
+                SetState(States.Disposing, true);
+                IDisposable? textInputChange = null;
+                try {
+                    // Text-service finish can invoke application code. Its failure must not
+                    // prevent the existing control/child/native-resource disposal path.
+                    if (disposing) {
+                        try { textInputChange = BeginTextInputTreeChange(); }
+                        catch (Exception failure) { (textInputFailures ??= []).Add(failure); }
+                    }
+                    ReleaseInputBindings();
+                    ReleaseCommandBindings();
+                    DisposeInteractionEffects ();
+                    CancelOwnedControlAnimations();
+                    DisposeLayoutTransitionConfiguration ();
+                    DisposeResourceReferences ();
+                    DisposeBrushInvalidationSubscriptions ();
+                    FreeBackBuffer ();
 
-                foreach (var c in Controls.GetAllControls (true))
-                    c.Dispose (disposing);
+                    foreach (var c in Controls.GetAllControls (true))
+                        c.Dispose (disposing);
 
-                disposedValue = true;
-                Parent?.NotifyAccessibilityClients(AccessibleEvents.Reorder);
+                    disposedValue = true;
+                    Parent?.NotifyAccessibilityClients(AccessibleEvents.Reorder);
+                }
+                catch (Exception failure) when (textInputFailures is not null) {
+                    textInputFailures.Add(failure);
+                }
+                finally {
+                    try { textInputChange?.Dispose(); }
+                    catch (Exception failure) { (textInputFailures ??= []).Add(failure); }
+                    SetState(States.Disposing, false);
+                }
             }
-
-            base.Dispose (disposing);
+            try { base.Dispose (disposing); }
+            catch (Exception failure) when (textInputFailures is not null) { textInputFailures.Add(failure); }
+            if (textInputFailures?.Count == 1)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(textInputFailures[0]).Throw();
+            if (textInputFailures?.Count > 1)
+                throw new AggregateException("Text input and control disposal callbacks failed.", textInputFailures);
         }
 
         /// <summary>

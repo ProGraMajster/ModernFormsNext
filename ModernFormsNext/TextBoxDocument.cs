@@ -75,10 +75,13 @@ namespace ModernFormsNext
             if (!IsTextSelected || read_only)
                 return false;
 
+            textbox.BeforeTextInputDocumentMutation();
             ClearComposition ();
 
             var start = Math.Min (selection_start, selection_end);
             var end = Math.Max (selection_start, selection_end);
+            start = NormalizeUtf16Boundary(text, start, forward: false);
+            end = NormalizeUtf16Boundary(text, end, forward: true);
 
             SetCursorToCharIndex (start);
 
@@ -95,6 +98,7 @@ namespace ModernFormsNext
             if (read_only)
                 return false;
 
+            textbox.BeforeTextInputDocumentMutation();
             ClearComposition ();
 
             if (DeleteSelection ())
@@ -200,6 +204,7 @@ namespace ModernFormsNext
             if (read_only)
                 return false;
 
+            textbox.BeforeTextInputDocumentMutation();
             ClearComposition ();
 
             // Delete any currently selected text
@@ -207,8 +212,13 @@ namespace ModernFormsNext
 
             str = StripInvalidCharacters (str);
 
-            if (text.Length + str.Length > max_length)
-                str = str.Substring (0, max_length - text.Length);
+            var allowance = Math.Max(0, max_length - text.Length);
+            if (str.Length > allowance) {
+                // MaxLength retains UTF-16 compatibility, but a committed Unicode scalar must
+                // never become an isolated surrogate when only one code unit remains.
+                var length = NormalizeUtf16Boundary(str, allowance, forward: false);
+                str = str.Substring(0, length);
+            }
 
             text = text.Insert (cursor_index, str);
             cached_text_block = null;
@@ -263,6 +273,9 @@ namespace ModernFormsNext
                     ? Math.Max (selection_start, selection_end)
                     : cursor_index;
 
+            start = NormalizeUtf16Boundary(text, start, forward: false);
+            end = NormalizeUtf16Boundary(text, end, forward: true);
+
             ClearComposition ();
             SetSelectionCore (start, end);
             return new ImeTextReplacement (start, text.Length - (end - start));
@@ -282,6 +295,7 @@ namespace ModernFormsNext
                 ? (long)insertedEnd + newCursorPosition - 1
                 : (long)replacement.Start + newCursorPosition;
             var cursor = (int)Math.Clamp (requestedCursor, 0, text.Length);
+            cursor = NormalizeUtf16Boundary(text, cursor, forward: false);
 
             SetSelectionCore (cursor, cursor);
             if (keepComposition && insertedLength > 0)
@@ -310,6 +324,15 @@ namespace ModernFormsNext
             if (start < 0 || end < 0 || start > text.Length || end > text.Length)
                 throw new ArgumentOutOfRangeException (nameof (start), "Selection indexes must be within the document text.");
 
+            if (start == end)
+                start = end = NormalizeUtf16Boundary(text, start, forward: false);
+            else if (start < end) {
+                start = NormalizeUtf16Boundary(text, start, forward: false);
+                end = NormalizeUtf16Boundary(text, end, forward: true);
+            } else {
+                start = NormalizeUtf16Boundary(text, start, forward: true);
+                end = NormalizeUtf16Boundary(text, end, forward: false);
+            }
             SetSelectionCore (start, end);
         }
 
@@ -468,6 +491,7 @@ namespace ModernFormsNext
 
         public void SelectAll ()
         {
+            textbox.BeforeTextInputDocumentMutation();
             ClearComposition ();
             var changed = selection_start != 0 || selection_end != text.Length;
             selection_start = 0;
@@ -494,6 +518,7 @@ namespace ModernFormsNext
             get => selection_end;
             set {
                 if (selection_end != value) {
+                    textbox.BeforeTextInputDocumentMutation();
                     ClearComposition ();
                     selection_end = value;
                     revision++;
@@ -508,6 +533,7 @@ namespace ModernFormsNext
             get => selection_start;
             set {
                 if (selection_start != value) {
+                    textbox.BeforeTextInputDocumentMutation();
                     ClearComposition ();
                     selection_start = value;
                     revision++;
@@ -518,6 +544,8 @@ namespace ModernFormsNext
 
         public bool SetCursorToCharIndex (int index)
         {
+            textbox.BeforeTextInputDocumentMutation();
+            index = NormalizeUtf16Boundary(text, index, forward: false);
             ClearComposition ();
             if (cursor_index == index)
                 return false;
@@ -543,6 +571,7 @@ namespace ModernFormsNext
             get => text;
             set {
                 if (text != value) {
+                    textbox.BeforeTextInputDocumentMutation(forceExternal: true);
                     ClearComposition ();
                     text = value;
                     cached_text_block = null;
@@ -551,6 +580,7 @@ namespace ModernFormsNext
 
                     // If the Text property is changed, we need to reset the cursor to the top
                     SetCursorToCharIndex (0);
+                    selection_start = selection_end = -1;
                     Invalidate ();
                 }
             }
@@ -679,6 +709,25 @@ namespace ModernFormsNext
             }
 
             return code_point_to_utf16_offsets = offsets.ToArray ();
+        }
+
+        internal static int NormalizeUtf16Boundary(string value, int index, bool forward)
+        {
+            index = Math.Clamp(index, 0, value.Length);
+            return index > 0 && index < value.Length && char.IsHighSurrogate(value[index - 1]) &&
+                char.IsLowSurrogate(value[index]) ? index + (forward ? 1 : -1) : index;
+        }
+
+        // Rollback restores only the saved fragment in this document. It deliberately bypasses
+        // MaxLength because that fragment was already accepted before composition began.
+        internal void RestoreTextInputFragment(int start, int length, string original)
+        {
+            text = text.Remove(start, length).Insert(start, original);
+            cached_text_block = null;
+            code_point_to_utf16_offsets = null;
+            revision++;
+            ClearComposition();
+            SetSelectionCore(start + original.Length, start + original.Length);
         }
 
         public readonly record struct ImeTextReplacement (int Start, int RetainedTextLength);

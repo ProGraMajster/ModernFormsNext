@@ -2,6 +2,8 @@ using System.Drawing;
 using SkiaSharp;
 using ModernFormsNext.Accessibility;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
+using ModernFormsNext.WindowKit.Input;
+using ModernFormsNext.WindowKit.Platform;
 
 namespace ModernFormsNext;
 
@@ -28,6 +30,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     private bool disposed;
     private WindowKit.WindowInsets insets;
     private readonly DataBinding.InputBindingResolver inputBindingResolver = new();
+    private readonly ControlTextInputHost textInputHost;
 
     /// <summary>
     /// Creates an adapter for a framework control tree.
@@ -39,6 +42,8 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     public SkiaControlSurface(Control root, Action<string>? pointerDiagnosticSink = null)
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
+        textInputHost = new(surfaceRoot, FindSelectedControl);
+        surfaceRoot.TextInputHost = textInputHost;
         this.pointerDiagnosticSink = pointerDiagnosticSink;
         surfaceRoot.AccessibilityNotification = (source, eventId, objectId, childId) =>
             accessibilityNotification?.Invoke(source, eventId, objectId, childId);
@@ -52,6 +57,28 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
 
     /// <summary>Gets the borrowed root control.</summary>
     public Control Root { get; }
+
+    /// <summary>Gets the current revocable client with caret geometry in logical surface coordinates.</summary>
+    /// <remarks>Use on the UI thread. Retired clients reject later callbacks instead of targeting another control.</remarks>
+    public ITextInputClient? TextInputClient => textInputHost.Client;
+
+    /// <summary>Gets detached session diagnostics containing no entered text or control names.</summary>
+    public TextInputDiagnostics TextInputDiagnostics => textInputHost.GetDiagnostics();
+
+    /// <summary>Attaches a borrowed native input method to the existing surface and canonical focus.</summary>
+    /// <param name="method">Optional native feature; null detaches the old feature without disposing it.</param>
+    /// <remarks>Use on the UI thread. The surface retires connections on disposal but never owns the native view.</remarks>
+    public void AttachTextInputMethod(ITextInputMethod? method) => textInputHost.Attach(method);
+
+    /// <summary>Relinquishes or reacquires shared text ownership during native pause or editor handoff.</summary>
+    /// <param name="active">False retires native callbacks while preserving visible provisional text.</param>
+    /// <remarks>Use on the UI thread. Reacquisition follows current framework focus and creates a fresh session.</remarks>
+    public void SetTextInputActive(bool active) => textInputHost.SetActive(active);
+
+    /// <summary>Requests software keyboard visibility through the attached native input method.</summary>
+    /// <param name="visible">True to show the current editor's keyboard; false to dismiss it.</param>
+    /// <returns>Whether the native method accepted the request, subject to OS policy.</returns>
+    public bool RequestSoftwareKeyboard(bool visible) => textInputHost.SetKeyboardVisible(visible);
 
     // Borrowing semantic services must observe surface disposal without retaining the surface or
     // consulting a platform accessibility adapter. This is a lifetime seam, not another tree.
@@ -347,8 +374,8 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         if (selected is null)
             return;
 
-        if (selected is TextBox textBox)
-            ApplyImeText(textBox, text, newCursorPosition, keepComposition: false);
+        if (TextInputClient is { } client)
+            client.CommitText(text, newCursorPosition);
         else if (text.Length > 0)
             selected.RaiseKeyPress(new KeyPressEventArgs(text));
 
@@ -374,10 +401,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(text);
-        if (FindSelectedControl() is not TextBox textBox)
-            return;
-
-        ApplyImeText(textBox, text, newCursorPosition, keepComposition: true);
+        TextInputClient?.SetComposingText(text, newCursorPosition);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -391,10 +415,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     public void SetComposingRegion(int start, int end)
     {
         ThrowIfDisposed();
-        if (FindSelectedControl() is not TextBox textBox)
-            return;
-
-        textBox.document.SetCompositionRegion(start, end);
+        TextInputClient?.SetComposingRegion(start, end);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -402,11 +423,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     public void FinishComposingText()
     {
         ThrowIfDisposed();
-        var textBox = FindComposingTextBox();
-        if (textBox is null)
-            return;
-
-        textBox.document.FinishComposition();
+        TextInputClient?.FinishComposition();
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -436,12 +453,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
     public void SetTextSelection(int start, int end)
     {
         ThrowIfDisposed();
-        if (FindSelectedControl() is not TextBox textBox)
-            return;
-        if (start < 0 || end < 0 || start > textBox.Text.Length || end > textBox.Text.Length)
-            throw new ArgumentOutOfRangeException(nameof(start), "Selection indexes must be within the selected text box.");
-
-        SetTextSelectionCore(textBox, start, end);
+        TextInputClient?.SetSelection(start, end);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -459,40 +471,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
             throw new ArgumentOutOfRangeException(nameof(beforeLength));
         if (afterLength < 0)
             throw new ArgumentOutOfRangeException(nameof(afterLength));
-        if (FindSelectedControl() is not TextBox textBox)
-            return;
-
-        var originalCursor = textBox.document.CursorIndex;
-        var selectionStart = textBox.SelectionStart >= 0
-            ? Math.Min(textBox.SelectionStart, textBox.SelectionEnd)
-            : originalCursor;
-        var selectionEnd = textBox.SelectionEnd >= 0
-            ? Math.Max(textBox.SelectionStart, textBox.SelectionEnd)
-            : originalCursor;
-        textBox.document.FinishComposition();
-        SetTextSelectionCore(textBox, selectionStart, selectionStart);
-        var remainingBefore = beforeLength;
-        while (remainingBefore > 0 && !textBox.document.AtBeginning)
-        {
-            var oldCursor = textBox.document.CursorIndex;
-            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Back));
-            remainingBefore -= Math.Max(1, oldCursor - textBox.document.CursorIndex);
-        }
-
-        var deletedBefore = selectionStart - textBox.document.CursorIndex;
-        selectionStart -= deletedBefore;
-        selectionEnd -= deletedBefore;
-        SetTextSelectionCore(textBox, selectionEnd, selectionEnd);
-
-        var remainingAfter = afterLength;
-        while (remainingAfter > 0 && !textBox.document.AtEnd)
-        {
-            var oldLength = textBox.Text.Length;
-            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Delete));
-            remainingAfter -= Math.Max(1, oldLength - textBox.Text.Length);
-        }
-
-        SetTextSelectionCore(textBox, selectionStart, selectionEnd);
+        TextInputClient?.DeleteSurroundingText(beforeLength, afterLength);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -516,7 +495,8 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         if (Root.IsDisposed) return;
         var selected = FindSelectedControl();
         var args = new KeyEventArgs(key);
-        if (!isTextInput && inputBindingResolver.ProcessKeyDown(args, selected, Root, null))
+        if (!isTextInput && !textInputHost.IsCompositionEditingKey(key) &&
+            inputBindingResolver.ProcessKeyDown(args, selected, Root, null))
         {
             Invalidated?.Invoke(this, EventArgs.Empty);
             return;
@@ -575,6 +555,7 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
         InsetsChanged = null;
         var controls = observedControls.ToArray();
         var failures = new List<Exception>();
+        CaptureCleanupFailure(textInputHost.Dispose, failures);
         foreach (var control in controls)
             CaptureCleanupFailure(() => Unobserve(control), failures);
         observedControls.Clear();
@@ -850,35 +831,11 @@ public sealed class SkiaControlSurface : IDisposable, IPlatformAccessibilityHost
             ? control.GetType().Name
             : $"{control.GetType().Name}#{control.Name}";
 
-    private TextBox? FindComposingTextBox()
-        => observedControls.OfType<TextBox>().LastOrDefault(textBox => textBox.document.HasComposition);
-
-    private static void ApplyImeText(
-        TextBox textBox,
-        string text,
-        int newCursorPosition,
-        bool keepComposition)
-    {
-        var replacement = textBox.document.BeginImeTextReplacement();
-        if (text.Length > 0)
-            textBox.RaiseKeyPress(new KeyPressEventArgs(text));
-        else if (textBox.document.IsTextSelected)
-            textBox.RaiseKeyDown(new KeyEventArgs(Keys.Back));
-
-        textBox.document.CompleteImeTextReplacement(replacement, newCursorPosition, keepComposition);
-        textBox.ScrollToCaret();
-    }
-
-    private static void SetTextSelectionCore(TextBox textBox, int start, int end)
-    {
-        textBox.document.SetImeSelection(start, end);
-        textBox.ScrollToCaret();
-    }
-
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
-    private sealed class SurfaceRootControl : Control, IControlSurfaceAccessibilitySink
+    private sealed class SurfaceRootControl : Control, IControlSurfaceAccessibilitySink, IControlTextInputRoot
     {
+        public ControlTextInputHost? TextInputHost { get; set; }
         public bool IsRetired { get; set; }
 
         protected override ControlCollection CreateControlsInstance() => new SurfaceControlCollection(this);

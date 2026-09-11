@@ -25,6 +25,8 @@ internal sealed class MarkdownEditorTextBoxRenderer : Renderer<MarkdownEditorTex
         if (text.Length > 0)
             e.Canvas.DrawTextBlock(block, textOrigin, control.document.GetTextSelection());
 
+        TextCompositionRenderer.Render(control, e, block, textOrigin);
+
         if (control.Selected)
         {
             var caret = TextMeasurer.GetCursorLocation(

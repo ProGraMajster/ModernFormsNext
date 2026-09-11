@@ -10,6 +10,12 @@ namespace ModernFormsNext.CrossPlatform.Sample;
 /// <summary>
 /// Supplies Android lifecycle and the native Skia surface to the shared application.
 /// </summary>
+/// <remarks>
+/// Resize the native content area for the software keyboard. Android cannot discover the
+/// shared scroll controls inside a single Skia view; its automatic mode can otherwise choose
+/// panning without knowing the framework caret. The shared page scrolls its current caret
+/// after viewport changes and accounts only for any remaining edge-to-edge IME overlap.
+/// </remarks>
 [Activity(
     Name = "com.programajster.modernformsnext.sample.MainActivity",
     Label = "ModernFormsNext Cross-Platform Sample",
@@ -17,6 +23,7 @@ namespace ModernFormsNext.CrossPlatform.Sample;
     Exported = true,
     LaunchMode = LaunchMode.SingleTop,
     ScreenOrientation = ScreenOrientation.Unspecified,
+    WindowSoftInputMode = global::Android.Views.SoftInput.AdjustResize,
     ConfigurationChanges = ConfigChanges.Orientation |
         ConfigChanges.ScreenSize |
         ConfigChanges.SmallestScreenSize |

@@ -16,7 +16,8 @@ public sealed class AndroidAppHost : IDisposable
     /// </summary>
     /// <remarks>
     /// Normal launches omit the extra, so input text is never logged by default. The switch exists
-    /// only to capture a short, explicitly initiated diagnostic session.
+    /// only to capture a short, explicitly initiated diagnostic session. It also emits numeric
+    /// inset/view snapshots when their values change, to diagnose keyboard occlusion.
     /// </remarks>
     public const string EnableInputDiagnosticsIntentExtra =
         "com.programajster.modernformsnext.sample.ENABLE_INPUT_DIAGNOSTICS";
@@ -24,6 +25,9 @@ public sealed class AndroidAppHost : IDisposable
     private readonly App app;
     private readonly SkiaControlSurface controlSurface;
     private readonly AndroidSkiaHostView nativeSurface;
+    private readonly Func<WindowKit.Input.ITextInputClient?> textInputClientProvider;
+    private string? lastInputInsetDiagnostic;
+    private bool caretScrollPending;
     private bool disposed;
 
     /// <summary>Creates an Android adapter for a shared application.</summary>
@@ -42,19 +46,17 @@ public sealed class AndroidAppHost : IDisposable
         {
             EnableInputConnectionDiagnostics = enableInputConnectionDiagnostics
         };
-        nativeSurface.TextInputStateProvider = GetTextInputState;
         nativeSurface.AccessibilityHost = controlSurface;
+        controlSurface.SetTextInputActive(false);
+        controlSurface.AttachTextInputMethod(nativeSurface);
+        textInputClientProvider = () => disposed ? null : controlSurface.TextInputClient;
+        app.Root.TextInputClientProvider = textInputClientProvider;
+        app.Root.UpdateKeyboardOcclusion(nativeSurface.CurrentInsets);
 
         controlSurface.Invalidated += OnControlSurfaceInvalidated;
         nativeSurface.Render += OnRender;
         nativeSurface.Pointer += OnPointer;
-        nativeSurface.TextCommitRequested += OnTextCommitRequested;
-        nativeSurface.ComposingTextUpdateRequested += OnComposingTextUpdateRequested;
-        nativeSurface.ComposingTextFinished += OnComposingTextFinished;
-        nativeSurface.ComposingRegionRequested += OnComposingRegionRequested;
-        nativeSurface.DeleteSurroundingTextRequested += OnDeleteSurroundingTextRequested;
         nativeSurface.KeyInput += OnKeyInput;
-        nativeSurface.TextSelectionRequested += OnTextSelectionRequested;
         nativeSurface.InsetsChanged += OnInsetsChanged;
         controlSurface.Insets = nativeSurface.CurrentInsets;
     }
@@ -75,6 +77,7 @@ public sealed class AndroidAppHost : IDisposable
     {
         ThrowIfDisposed();
         nativeSurface.ResumeHost();
+        controlSurface.SetTextInputActive(true);
         UpdateDiagnostics();
         app.RefreshPlatformStatus();
     }
@@ -84,6 +87,7 @@ public sealed class AndroidAppHost : IDisposable
     {
         ThrowIfDisposed();
         List<Exception> failures = [];
+        Cleanup(() => controlSurface.SetTextInputActive(false), failures);
         Cleanup(nativeSurface.PauseHost, failures);
         Cleanup(() => controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0), failures);
         Cleanup(UpdateDiagnostics, failures);
@@ -96,6 +100,7 @@ public sealed class AndroidAppHost : IDisposable
     {
         ThrowIfDisposed();
         List<Exception> failures = [];
+        Cleanup(() => controlSurface.SetTextInputActive(false), failures);
         Cleanup(nativeSurface.StopHost, failures);
         Cleanup(() => controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0), failures);
         Cleanup(UpdateDiagnostics, failures);
@@ -120,19 +125,19 @@ public sealed class AndroidAppHost : IDisposable
 
         disposed = true;
         List<Exception> failures = [];
+        if (ReferenceEquals(app.Root.TextInputClientProvider, textInputClientProvider))
+        {
+            app.Root.TextInputClientProvider = null;
+            Cleanup(() => app.Root.UpdateKeyboardOcclusion(default), failures);
+        }
+        caretScrollPending = false;
+        Cleanup(() => controlSurface.AttachTextInputMethod(null), failures);
         Cleanup(() => controlSurface.ProcessPointer(ControlSurfacePointerAction.Cancel, 0, 0), failures);
         controlSurface.Invalidated -= OnControlSurfaceInvalidated;
         nativeSurface.Render -= OnRender;
         nativeSurface.Pointer -= OnPointer;
-        nativeSurface.TextCommitRequested -= OnTextCommitRequested;
-        nativeSurface.ComposingTextUpdateRequested -= OnComposingTextUpdateRequested;
-        nativeSurface.ComposingTextFinished -= OnComposingTextFinished;
-        nativeSurface.ComposingRegionRequested -= OnComposingRegionRequested;
-        nativeSurface.DeleteSurroundingTextRequested -= OnDeleteSurroundingTextRequested;
         nativeSurface.KeyInput -= OnKeyInput;
-        nativeSurface.TextSelectionRequested -= OnTextSelectionRequested;
         nativeSurface.InsetsChanged -= OnInsetsChanged;
-        Cleanup(() => nativeSurface.TextInputStateProvider = null, failures);
         Cleanup(() => nativeSurface.AccessibilityHost = null, failures);
         // This sample owns one process-wide surface. Snap its global theme transition before
         // detaching so Activity recreation cannot leave non-control scheduler work waiting for a
@@ -165,13 +170,39 @@ public sealed class AndroidAppHost : IDisposable
         var height = Math.Max(0, (int)MathF.Round(e.LogicalHeight));
         controlSurface.Resize(width, height);
         controlSurface.Render(e.Canvas);
+        TraceInputInsets("render");
         UpdateDiagnostics();
     }
 
     private void OnInsetsChanged(object? sender, WindowKit.WindowInsetsChangedEventArgs e)
     {
         if (!disposed)
+        {
             controlSurface.Insets = e.Insets;
+            app.Root.UpdateKeyboardOcclusion(e.Insets);
+            ScheduleCaretScroll();
+            TraceInputInsets("insets-changed");
+        }
+    }
+
+    private void TraceInputInsets(string source)
+    {
+        if (disposed || !nativeSurface.EnableInputConnectionDiagnostics ||
+            !OperatingSystem.IsAndroidVersionAtLeast(30) || nativeSurface.RootView is not { } root ||
+            nativeSurface.RootWindowInsets is not { } nativeInsets) return;
+
+        // Diagnostic-only reads: never request another inset pass or change layout from here.
+        // Coalesce identical numeric snapshots so an animated surface does not flood logcat.
+        using var keyboard = nativeInsets.GetInsets(global::Android.Views.WindowInsets.Type.Ime());
+        int[] location = new int[2];
+        int[] rootLocation = new int[2];
+        nativeSurface.GetLocationInWindow(location);
+        root.GetLocationInWindow(rootLocation);
+        var current = nativeSurface.CurrentInsets;
+        var values = FormattableString.Invariant($"rootIme={keyboard.Left},{keyboard.Top},{keyboard.Right},{keyboard.Bottom}; currentIme={current.Ime.Left},{current.Ime.Top},{current.Ime.Right},{current.Ime.Bottom}; safe={current.SafeArea.Left},{current.SafeArea.Top},{current.SafeArea.Right},{current.SafeArea.Bottom}; view={location[0]},{location[1]},{nativeSurface.Width},{nativeSurface.Height}; root={rootLocation[0]},{rootLocation[1]},{root.Width},{root.Height}; density={nativeSurface.Density}");
+        if (values == lastInputInsetDiagnostic) return;
+        lastInputInsetDiagnostic = values;
+        global::Android.Util.Log.Info("MFN.IME.Insets", $"source={source}; {values}");
     }
 
     private void OnPointer(object? sender, AndroidPointerEvent e)
@@ -192,49 +223,11 @@ public sealed class AndroidAppHost : IDisposable
 
         if (action == ControlSurfacePointerAction.Up)
         {
-            if (controlSurface.SelectedControl is TextBox)
-                nativeSurface.ShowSoftKeyboard();
-            else
-                nativeSurface.HideSoftKeyboard();
+            controlSurface.RequestSoftwareKeyboard(controlSurface.TextInputClient is not null);
+            ScheduleCaretScroll();
         }
 
         UpdateDiagnostics();
-    }
-
-    private void OnTextCommitRequested(object? sender, AndroidTextEditEvent e)
-    {
-        controlSurface.CommitText(e.Text, e.NewCursorPosition);
-        app.UpdateLastInput($"IME committed {e.Text.Length} UTF-16 unit(s)");
-    }
-
-    private void OnComposingTextUpdateRequested(object? sender, AndroidTextEditEvent e)
-    {
-        controlSurface.SetComposingText(e.Text, e.NewCursorPosition);
-        app.UpdateLastInput($"IME composition changed ({e.Text.Length} UTF-16 unit(s))");
-    }
-
-    private void OnComposingTextFinished(object? sender, EventArgs e)
-    {
-        controlSurface.FinishComposingText();
-        app.UpdateLastInput("IME composition finished");
-    }
-
-    private void OnComposingRegionRequested(object? sender, AndroidTextSelectionEvent e)
-    {
-        controlSurface.SetComposingRegion(e.Start, e.End);
-        app.UpdateLastInput($"IME composition region: {e.Start}..{e.End}");
-    }
-
-    private void OnDeleteSurroundingTextRequested(object? sender, AndroidTextDeletionRequest e)
-    {
-        controlSurface.DeleteSurroundingText(e.BeforeLength, e.AfterLength);
-        app.UpdateLastInput($"IME deletion: before {e.BeforeLength}, after {e.AfterLength}");
-    }
-
-    private void OnTextSelectionRequested(object? sender, AndroidTextSelectionEvent e)
-    {
-        controlSurface.SetTextSelection(e.Start, e.End);
-        app.UpdateLastInput($"IME selection: {e.Start}..{e.End}");
     }
 
     private void OnKeyInput(object? sender, AndroidInputKeyEvent e)
@@ -262,6 +255,7 @@ public sealed class AndroidAppHost : IDisposable
         else
             controlSurface.ProcessKeyUp(key, isTextInput: !e.IsHardwareKey);
         app.UpdateLastInput($"Key {e.Key} {(e.IsDown ? "down" : "up")}");
+        ScheduleCaretScroll();
     }
 
     private void OnControlSurfaceInvalidated(object? sender, EventArgs e)
@@ -271,18 +265,19 @@ public sealed class AndroidAppHost : IDisposable
             nativeSurface.RequestRender();
     }
 
-    private AndroidTextInputState GetTextInputState()
+    private void ScheduleCaretScroll()
     {
-        var state = controlSurface.GetTextInputState();
-        return state is null
-            ? new AndroidTextInputState(string.Empty, 0, 0)
-            : new AndroidTextInputState(
-                state.Value.Text,
-                state.Value.SelectionStart,
-                state.Value.SelectionEnd,
-                state.Value.CompositionStart,
-                state.Value.CompositionEnd,
-                state.Value.Revision);
+        if (disposed || caretScrollPending) return;
+        caretScrollPending = true;
+        try
+        {
+            app.PlatformServices.Dispatcher.Post(() =>
+            {
+                caretScrollPending = false;
+                if (!disposed) app.Root.ScrollCurrentCaretIntoView();
+            });
+        }
+        catch { caretScrollPending = false; throw; }
     }
 
     private void UpdateDiagnostics()

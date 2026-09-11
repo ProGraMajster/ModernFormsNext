@@ -9,7 +9,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a TextBox control.
     /// </summary>
-    public class TextBox : ScrollControl
+    public partial class TextBox : ScrollControl
     {
         internal readonly TextBoxDocument document;
 
@@ -81,6 +81,7 @@ namespace ModernFormsNext
             scroll_y += y;
 
             Invalidate ();
+            NotifyTextInputStateChanged();
         }
 
         // Gets the index of the character at the specified location.
@@ -250,12 +251,21 @@ namespace ModernFormsNext
         /// <remarks>
         /// The base implementation inserts printable text and new lines for multiline text boxes. Derived controls can override this method to
         /// enforce custom input rules while preserving rendering and caret behavior.
+        /// Text-service events can contain multiple characters; their complete <see cref="KeyPressEventArgs.Text"/> passes through
+        /// <see cref="InsertText(string)"/> and the existing document filter. A standalone carriage return in a multiline control retains
+        /// the legacy conversion to a line feed. A single-line event containing only line breaks does not replace the current selection.
         /// </remarks>
         protected virtual bool ProcessTextBoxKeyPress (KeyPressEventArgs e)
         {
-            // Enter = 13
-            if (e.KeyChar == 13 && MultiLine) {
-                if (InsertText ("\n")) {
+            if (e.KeyChar is '\r' or '\n') {
+                // Native text services may send LF, CRLF or a whole newline-prefixed payload.
+                // Keep that payload intact for virtual editing and the document's single-line
+                // filter, but do not delete a selection for a rejected line-break-only event.
+                if (!MultiLine && e.Text.AsSpan().IndexOfAnyExcept('\r', '\n') < 0)
+                    return false;
+
+                var text = MultiLine && e.Text == "\r" ? "\n" : e.Text;
+                if (InsertText (text)) {
                     ScrollToCaret ();
                     return true;
                 }
@@ -287,6 +297,7 @@ namespace ModernFormsNext
             get => document.IsMultiline;
             set {
                 if (document.IsMultiline != value) {
+                    FinishTextInputBeforeExternalChange();
 
                     if (Padding == DefaultPadding)
                         Padding = new Padding (value ? 4 : 1, 0, 0, 0);
@@ -299,6 +310,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnDeselected (EventArgs e)
         {
+            FinishTextInputBeforeExternalChange();
             base.OnDeselected (e);
 
             document.Deselect ();
@@ -330,9 +342,17 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnKeyPress (KeyPressEventArgs e)
         {
-            base.OnKeyPress (e);
+            var parent = Parent;
+            var window = FindWindow();
+            var selected = Selected;
+            textInputClient?.EnterCallback();
+            try { base.OnKeyPress (e); }
+            finally { textInputClient?.LeaveCallback(); }
 
-            ProcessTextBoxKeyPress (e);
+            if (!IsDisposed && !Disposing && Enabled && ReferenceEquals(Parent, parent) &&
+                ReferenceEquals(FindWindow(), window) && Selected == selected &&
+                window?.InputBindingsClosed != true && textInputClient?.CanContinueEdit != false)
+                ProcessTextBoxKeyPress (e);
         }
 
         /// <inheritdoc/>
@@ -453,6 +473,7 @@ namespace ModernFormsNext
                 if (document.PasswordCharacter == value)
                     return;
 
+                FinishTextInputBeforeExternalChange();
                 document.PasswordCharacter = value;
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.ValueChange);
@@ -490,8 +511,10 @@ namespace ModernFormsNext
                 if (document.ReadOnly == value)
                     return;
 
+                FinishTextInputBeforeExternalChange();
                 document.ReadOnly = value;
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
+                NotifyTextInputStateChanged();
             }
         }
 
@@ -501,8 +524,8 @@ namespace ModernFormsNext
         public void ScrollToCaret ()
         {
             var caret = TextMeasurer.GetCursorLocation (
-                document.GetTextBlock (),
-                TextOrigin,
+                GetTextInputLayoutBlock(),
+                GetTextOrigin(GetTextInputLayoutBlock()),
                 document.CursorLayoutCodePointIndex,
                 CurrentFontSize);
 

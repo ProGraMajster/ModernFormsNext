@@ -30,6 +30,9 @@ namespace ModernFormsNext
         internal Func<TimeSpan>? InputClock { get; set; }
         private Cursor? current_cursor;
         internal bool shown;
+        private bool hiding;
+        private long visibilityVersion;
+        private long activationVersion;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="WindowBase"/> class for the specified platform window implementation.
@@ -38,6 +41,7 @@ namespace ModernFormsNext
         {
             this.window = window;
             adapter = new ControlAdapter (this);
+            InitializeTextInput();
             window.SetInputRoot(adapter);
 
             window.Input = OnInput;
@@ -45,19 +49,60 @@ namespace ModernFormsNext
             window.Resized = OnResize;
             window.Closed = OnBackendClosed;
             window.Activated = () => {
-                if (backendClosed || IsActive) return;
-                IsActive = true;
-                Application.NotifyLifecycleWindowStateChanged();
-                Activated?.Invoke(this, EventArgs.Empty);
+                if (backendClosed) return;
+                bool changed = !IsActive;
+                if (changed) {
+                    IsActive = true;
+                    activationVersion++;
+                }
+                long version = activationVersion;
+                var failures = new System.Collections.Generic.List<Exception>();
+                void Notify(Action action)
+                {
+                    try { action(); }
+                    catch (Exception exception) { failures.Add(exception); }
+                }
+                // Native activation is already a fact. A custom editor's subscription or
+                // native text method may fail, but cannot roll that fact back or hide it.
+                if (changed) Notify(Application.NotifyLifecycleWindowStateChanged);
+                if (!backendClosed && IsActive && version == activationVersion)
+                    Notify(() => SetTextInputActive(true));
+                if (changed && Activated is { } handlers)
+                    foreach (EventHandler handler in handlers.GetInvocationList()) {
+                        // A text/activation observer may hide, close or reactivate the window.
+                        // Only the current transition can publish further activation events.
+                        if (backendClosed || !IsActive || version != activationVersion) break;
+                        Notify(() => handler(this, EventArgs.Empty));
+                    }
+                if (failures.Count == 1)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+                if (failures.Count > 1)
+                    throw new AggregateException("Window activation callbacks or text input activation failed.", failures);
             };
             window.Deactivated = () => {
                 if (backendClosed) return;
                 IsActive = false;
-                Application.NotifyLifecycleWindowStateChanged();
+                activationVersion++;
                 inputBindingResolver.Reset();
-                // If we're clicking off the form, deactivate any active menus
-                Application.ClosePopups ();
-                Deactivated?.Invoke (this, EventArgs.Empty);
+                var failures = new System.Collections.Generic.List<Exception>();
+                void Cleanup(Action action)
+                {
+                    try { action(); }
+                    catch (Exception exception) { failures.Add(exception); }
+                }
+                Cleanup(() => SetTextInputActive(false));
+                Cleanup(Application.NotifyLifecycleWindowStateChanged);
+                // Menu and popup cleanup are independent: a user callback in one must not
+                // leave the other input owner alive after native deactivation.
+                Cleanup(() => Application.ClosePopups(closePopups: false));
+                Cleanup(() => Application.ClosePopups(closeMenus: false));
+                if (Deactivated is { } handlers)
+                    foreach (EventHandler handler in handlers.GetInvocationList())
+                        Cleanup(() => handler(this, EventArgs.Empty));
+                if (failures.Count == 1)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+                if (failures.Count > 1)
+                    throw new AggregateException("Window deactivation callbacks or input cleanup failed.", failures);
             };
             AttachInsetsProvider();
         }
@@ -176,18 +221,47 @@ namespace ModernFormsNext
         /// <summary>
         /// Hides the window without destroying it.
         /// </summary>
+        /// <remarks>
+        /// Call on the UI thread. The current text composition is accepted before hiding.
+        /// Native hiding and input-owner cleanup complete even if a completion observer throws;
+        /// observer errors are then propagated to the caller.
+        /// </remarks>
         public void Hide ()
         {
-            if (backendClosed) return;
-            Visible = false;
-            IsActive = false;
-            window.Hide ();
-            Application.NotifyLifecycleWindowStateChanged();
-            
-            if (Application.ActivePopupWindow == this)
-                Application.ActivePopupWindow = null;
-
-            OnVisibleChanged (EventArgs.Empty);
+            if (backendClosed || hiding) return;
+            hiding = true;
+            long version = ++visibilityVersion;
+            var popup = this as PopupWindow;
+            long popupVersion = popup?.TextInputOwnershipVersion ?? 0;
+            var failures = new System.Collections.Generic.List<Exception>();
+            void Cleanup(Action action)
+            {
+                try { action(); }
+                catch (Exception exception) { failures.Add(exception); }
+            }
+            try {
+                IsActive = false;
+                activationVersion++;
+                inputBindingResolver.Reset();
+                // Finish while the editor is still visible. The session is revoked before
+                // its observers run; changing Visible first would reject the editor's finish.
+                Cleanup(() => SetTextInputActive(false));
+                // A completion observer may explicitly show this same window again. That
+                // newer request owns visibility and must survive this older Hide operation.
+                if (version == visibilityVersion) {
+                    Visible = false;
+                    if (!backendClosed) Cleanup(window.Hide);
+                    if (popup is not null)
+                        Cleanup(() => popup.RestoreParentTextInput(popupVersion));
+                    Cleanup(Application.NotifyLifecycleWindowStateChanged);
+                    if (!backendClosed && !Visible) Cleanup(() => OnVisibleChanged(EventArgs.Empty));
+                }
+            }
+            finally { hiding = false; }
+            if (failures.Count == 1)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (failures.Count > 1)
+                throw new AggregateException("Window hide callbacks or input cleanup failed.", failures);
         }
 
         /// <summary>
@@ -199,7 +273,13 @@ namespace ModernFormsNext
         /// </remarks>
         public void Invalidate () => Application.RequestVisualInvalidation (this);
 
-        internal void InvalidateCore () => window.Invalidate (new Rect (window.ClientSize));
+        internal void InvalidateCore ()
+        {
+            // Terminal document/focus cleanup can still notify managed controls after Closed.
+            // Keep those notifications, but no native paint target exists at this point.
+            if (backendClosed) return;
+            window.Invalidate (new Rect (window.ClientSize));
+        }
 
         internal void RefreshThemeVisuals (EventArgs e)
         {
@@ -241,6 +321,15 @@ namespace ModernFormsNext
 
         private void OnInput (RawInputEventArgs e)
         {
+            // Non-activating native popups keep keyboard/IME ownership on the parent HWND.
+            // Only an editable popup borrows that transport; its canonical adapter/resolver
+            // remains the sole route, and menus without text clients retain existing behavior.
+            if (e is RawKeyEventArgs or RawTextInputEventArgs &&
+                Application.ActivePopupWindow is PopupWindow popup && popup.Visible &&
+                ReferenceEquals(popup.ParentForm, this) && popup.TextInputClient is not null) {
+                ((WindowBase)popup).OnInput(e);
+                return;
+            }
             if (e is RawPointerEventArgs me) {
                 // TODO: How do we want to handle this for real
                 me.Position *= window.RenderScaling;
@@ -318,7 +407,8 @@ namespace ModernFormsNext
                         try {
                             OnKeyDown (kd_e);
                             if (!kd_e.Handled && !InputBindingsClosed &&
-                                !inputBindingResolver.ProcessKeyDown(kd_e, adapter.SelectedControl, adapter, this))
+                                (TextInputHost.IsCompositionEditingKey(kd_e.KeyData) ||
+                                 !inputBindingResolver.ProcessKeyDown(kd_e, adapter.SelectedControl, adapter, this)))
                                 adapter.RaiseKeyDown (kd_e);
                         }
                         finally {
@@ -527,13 +617,21 @@ namespace ModernFormsNext
         public void Show ()
         {
             ObjectDisposedException.ThrowIf(backendClosed, this);
+            long version = ++visibilityVersion;
             Visible = true;
             OnVisibleChanged (EventArgs.Empty);
+            if (backendClosed || !Visible || version != visibilityVersion) return;
+
+            // Native popups use ShowNoActivate, so a reused popup receives no Activated
+            // callback. Reacquire its selected editor explicitly for every visible session.
+            if (this is PopupWindow) SetTextInputActive(true);
+            if (backendClosed || !Visible || version != visibilityVersion) return;
 
             SetWindowStartupLocation ();
+            if (backendClosed || !Visible || version != visibilityVersion) return;
             window.Show (true, false);
 
-            if (backendClosed) return;
+            if (backendClosed || !Visible || version != visibilityVersion) return;
 
             if (this is Form f)
                 Application.OpenForms.Add (f);

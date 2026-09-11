@@ -164,6 +164,15 @@ public partial class Control
 
     internal Point ClientPointToParentPresentation(Point clientPoint)
     {
+        PointF result = ClientPointToParentPresentation(new PointF(clientPoint.X, clientPoint.Y));
+        return new Point(
+            (int)MathF.Round(result.X, MidpointRounding.AwayFromZero),
+            (int)MathF.Round(result.Y, MidpointRounding.AwayFromZero));
+    }
+
+    // IME caret corners use the same presentation transform without rounding each ancestor.
+    internal PointF ClientPointToParentPresentation(PointF clientPoint)
+    {
         RectangleF presentation = ScaledPresentationBounds;
         int targetWidth = ScaledWidth;
         int targetHeight = ScaledHeight;
@@ -183,9 +192,7 @@ public partial class Control
         x = presentation.X + (EffectiveTranslationX * ScaleFactor.Width) + centerX + rotatedX;
         y = presentation.Y + (EffectiveTranslationY * ScaleFactor.Height) + centerY + rotatedY;
 
-        return new Point(
-            (int)MathF.Round(x, MidpointRounding.AwayFromZero),
-            (int)MathF.Round(y, MidpointRounding.AwayFromZero));
+        return new PointF(x, y);
     }
 
     private bool TryParentPresentationPointToClient(Point parentPoint, out PointF clientPoint)

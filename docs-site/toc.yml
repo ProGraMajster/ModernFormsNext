@@ -6,6 +6,8 @@
   href: content/docs/getting-started.md
 - name: Application lifecycle
   href: content/docs/application-lifecycle.md
+- name: Text input and composition
+  href: content/docs/text-input.md
 - name: Installation
   href: content/docs/installation.md
 - name: Designer transactions and undo

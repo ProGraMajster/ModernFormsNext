@@ -29,6 +29,8 @@ namespace ModernFormsNext.Renderers
             if (text.Length > 0)
                 e.Canvas.DrawTextBlock (block, text_origin, GetTextSelection (control));
 
+            TextCompositionRenderer.Render(control, e, block, text_origin);
+
             if (control.Selected) {
                 var caret = TextMeasurer.GetCursorLocation (block, text_origin, GetCursorIndex (control), GetCurrentFontSize (control));
                 DrawCaret (e, caret);
