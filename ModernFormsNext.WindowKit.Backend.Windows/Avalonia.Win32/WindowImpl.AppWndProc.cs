@@ -32,6 +32,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             var shouldTakeFocus = false;
             var releaseMouseCaptureAfterInput = false;
             var message = (WindowsMessage)msg;
+            if (_textInputMethod?.HandleMessage(message, wParam, ref lParam) == true)
+                return IntPtr.Zero;
             switch (message)
             {
                 case WindowsMessage.WM_ACTIVATEAPP:
@@ -54,7 +56,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                             case WindowActivate.WA_INACTIVE:
                                 {
                                     _ignoreWmChar = false;
-                                    Deactivated?.Invoke();
+                                    try { _textInputMethod?.LoseFocus(); }
+                                    finally { Deactivated?.Invoke(); }
                                     break;
                                 }
                     }
@@ -95,21 +98,22 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         _uiaAccessibilityObject = null;
                         try
                         {
-                            uiaAccessibilityObject?.Dispose();
-                            // Notify TopLevel before releasing native rendering/input ownership.
-                            Closed?.Invoke();
+                            try { DisposeTextInputMethod(); }
+                            finally
+                            {
+                                try { uiaAccessibilityObject?.Dispose(); }
+                                finally
+                                {
+                                    // Notify TopLevel before releasing native rendering ownership.
+                                    Closed?.Invoke();
+                                }
+                            }
                         }
                         finally
                         {
                             //if (UiaCoreTypesApi.IsNetComInteropAvailable)
                             //{
                             //    UiaCoreProviderApi.UiaReturnRawElementProvider(_hwnd, IntPtr.Zero, IntPtr.Zero, null);
-                            //}
-
-                            //// We need to release IMM context and state to avoid leaks.
-                            //if (Imm32InputMethod.Current.Hwnd == _hwnd)
-                            //{
-                            //    Imm32InputMethod.Current.ClearLanguageAndWindow();
                             //}
 
                             // User Closed/capture handlers may throw. Nested finally blocks keep
@@ -131,6 +135,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                                     // The HWND is already being destroyed. Reentrant Dispose must
                                     // see that committed state, even after a resource release failed.
                                     _hwnd = IntPtr.Zero;
+                                    _textInputMethod = null;
                                     _msaaAccessibilityObject = null;
                                     s_instances.Remove(this);
                                     try { _mouseDevice.Dispose(); }
@@ -177,6 +182,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                                 SetWindowPosFlags.SWP_NOZORDER |
                                 SetWindowPosFlags.SWP_NOACTIVATE);
                         }
+
+                        RefreshTextInputGeometry();
 
                         return IntPtr.Zero;
                     }
@@ -706,6 +713,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         {
                         PositionChanged?.Invoke(new PixelPoint((short)(ToInt32(lParam) & 0xffff),
                             (short)(ToInt32(lParam) >> 16)));
+                        RefreshTextInputGeometry();
                         return IntPtr.Zero;
                     }
 
@@ -751,7 +759,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 case WindowsMessage.WM_KILLFOCUS:
                     _ignoreWmChar = false;
-                    LostFocus?.Invoke();
+                    try { _textInputMethod?.LoseFocus(); }
+                    finally { LostFocus?.Invoke(); }
+                    break;
+                case WindowsMessage.WM_SETFOCUS:
+                    _textInputMethod?.Refresh();
                     break;
 
                 case WindowsMessage.WM_INPUTLANGCHANGE:
@@ -761,24 +773,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         break;
                     }
                 case WindowsMessage.WM_IME_SETCONTEXT:
-                    {
-                        unchecked
-                        {
-                            DefWindowProc(Hwnd, msg, wParam, lParam & ~(nint)ISC_SHOWUICOMPOSITIONWINDOW);
-                        }
-
-                        UpdateInputMethod(GetKeyboardLayout(0));
-
-                        return IntPtr.Zero;
-                    }
                 case WindowsMessage.WM_IME_COMPOSITION:
-                    {
-                        //Imm32InputMethod.Current.HandleComposition(wParam, lParam, timestamp);
-
-                        break;
-                    }
+                case WindowsMessage.WM_IME_STARTCOMPOSITION:
+                case WindowsMessage.WM_IME_ENDCOMPOSITION:
                 case WindowsMessage.WM_IME_SELECT:
-                    break;
                 case WindowsMessage.WM_IME_CHAR:
                 case WindowsMessage.WM_IME_COMPOSITIONFULL:
                 case WindowsMessage.WM_IME_CONTROL:
@@ -786,18 +784,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 case WindowsMessage.WM_IME_KEYUP:
                 case WindowsMessage.WM_IME_NOTIFY:
                     break;
-                //case WindowsMessage.WM_IME_STARTCOMPOSITION:
-                //    {
-                //        Imm32InputMethod.Current.HandleCompositionStart();
-
-                //        return IntPtr.Zero;
-                //    }
-                //case WindowsMessage.WM_IME_ENDCOMPOSITION:
-                //    {
-                //        Imm32InputMethod.Current.HandleCompositionEnd();
-
-                //        return IntPtr.Zero;
-                //    }
                 case WindowsMessage.WM_GETOBJECT:
                     {
                         const int objIdClient = unchecked((int)0xFFFFFFFC);
@@ -1206,17 +1192,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private void UpdateInputMethod(IntPtr hkl)
         {
-            // note: for non-ime language, also create it so that emoji panel tracks cursor
-            var langid = LGID(hkl);
-
-            //if (langid == _langid && Imm32InputMethod.Current.Hwnd == Hwnd)
-            //{
-            //    return;
-            //}
-
-            //_langid = langid;
-
-            //Imm32InputMethod.Current.SetLanguageAndWindow(this, Hwnd, hkl);
+            // The current context is queried per operation; language switches do not
+            // create a second context or change the user's selected input profile.
+            RefreshTextInputGeometry();
         }
 
         private static int ToInt32(IntPtr ptr)

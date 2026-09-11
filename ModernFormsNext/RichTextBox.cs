@@ -97,6 +97,42 @@ namespace ModernFormsNext
             return document.GetUtf16IndexFromLayoutCodePointIndex(hit.ClosestCodePointIndex);
         }
 
+        /// <inheritdoc/>
+        protected override TextBlock GetTextInputLayoutBlock() => GetRichTextBlock();
+
+        /// <inheritdoc/>
+        protected override object CaptureTextInputFormatting(int start, int length)
+            => new CompositionFormatting(GetRunsInRange(start, length)
+                .Select(run => new RichTextBoxTextRun(run.Start - start, run.Length, run.Style)).ToArray(),
+                insertionStyle.Clone());
+
+        /// <inheritdoc/>
+        protected override void RestoreTextInputFragment(int start, int length, string text, object? formatting)
+        {
+            var oldText = Text;
+            EnsureRunCoverage();
+            document.RestoreTextInputFragment(start, length, text);
+            ReplaceRunRange(start, length, text.Length, new RichTextBoxTextStyle());
+            if (formatting is CompositionFormatting original) {
+                SplitRunAt(start);
+                SplitRunAt(start + text.Length);
+                runs.RemoveAll(run => run.Start >= start && run.End <= start + text.Length);
+                runs.AddRange(original.Runs.Select(run => new RichTextBoxTextRun(start + run.Start, run.Length, run.Style)));
+                insertionStyle.Font = original.InsertionStyle.Font;
+                insertionStyle.ForeColor = original.InsertionStyle.ForeColor;
+                insertionStyle.BackColor = original.InsertionStyle.BackColor;
+                MergeAdjacentRuns();
+                EnsureRunCoverage();
+            }
+            InvalidateRichText();
+            if (oldText != Text) OnTextChanged(EventArgs.Empty);
+            RaiseContentsResizedIfNeeded();
+        }
+
+        internal override void TextInputSelectionApplied() => OnSelectionChanged(EventArgs.Empty);
+
+        private sealed record CompositionFormatting(RichTextBoxTextRun[] Runs, RichTextBoxTextStyle InsertionStyle);
+
         /// <summary>
         /// Gets or sets a value indicating whether the TAB key inserts a tab character.
         /// </summary>
@@ -986,7 +1022,11 @@ namespace ModernFormsNext
         /// </summary>
         /// <param name="e">The event data.</param>
         protected virtual void OnSelectionChanged(EventArgs e)
-            => SelectionChanged?.Invoke(this, e);
+        {
+            EnterTextInputCallback();
+            try { SelectionChanged?.Invoke(this, e); }
+            finally { LeaveTextInputCallback(); }
+        }
 
         /// <summary>
         /// Raises the <see cref="VScroll"/> event.
@@ -1059,13 +1099,15 @@ namespace ModernFormsNext
         {
             var oldText = Text;
             var oldSelection = GetSelectionSnapshot();
+            EnsureRunCoverage();
+            var replacementStyle = insertedStyle ?? GetStyleAtInsertionPoint();
             var changed = edit();
 
             if (!changed)
                 return false;
 
             var diff = CalculateDiff(oldText, Text);
-            ReplaceRunRange(diff.Start, diff.RemovedLength, diff.InsertedLength, insertedStyle ?? GetStyleAtInsertionPoint());
+            ReplaceRunRange(diff.Start, diff.RemovedLength, diff.InsertedLength, replacementStyle);
             InvalidateRichText();
 
             if (oldText != Text)
@@ -1080,6 +1122,7 @@ namespace ModernFormsNext
         private void ApplySelectionStyle(Action<RichTextBoxTextStyle> apply)
         {
             ArgumentNullException.ThrowIfNull(apply);
+            FinishTextInputBeforeExternalChange();
             var (start, length) = GetSelectionRange();
 
             if (length == 0) {
@@ -1352,7 +1395,8 @@ namespace ModernFormsNext
 
         private void ReplaceRunRange(int start, int removedLength, int insertedLength, RichTextBoxTextStyle insertedStyle)
         {
-            EnsureRunCoverage();
+            // Callers normalized these runs before mutating document text. Normalizing against
+            // the new, shorter text here would discard suffix formatting before shifting it.
             SplitRunAt(start);
             SplitRunAt(start + removedLength);
 
@@ -1378,6 +1422,7 @@ namespace ModernFormsNext
             var (start, removedLength) = GetSelectionRange();
             var oldText = Text;
             var oldSelection = GetSelectionSnapshot();
+            EnsureRunCoverage();
 
             if (!document.DeleteSelection() && removedLength > 0)
                 return;
@@ -1451,7 +1496,8 @@ namespace ModernFormsNext
 
         private void SplitRunAt(int index)
         {
-            if (index <= 0 || index >= Text.Length)
+            // During range replacement runs still use the old document coordinates.
+            if (index <= 0)
                 return;
 
             for (var i = 0; i < runs.Count; i++) {

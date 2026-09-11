@@ -10,6 +10,8 @@ namespace ModernFormsNext
     public class PopupWindow : WindowBase
     {
         private readonly Form parent_form;
+        private bool ownsTextInput;
+        private long textInputOwnershipVersion;
 
         /// <summary>
         /// Initializes a new instance of the PopupWindow class.
@@ -26,7 +28,28 @@ namespace ModernFormsNext
         private void ParentFormDeactivated(object? sender, System.EventArgs e) => Hide();
 
         private void PopupClosed(object? sender, System.EventArgs e)
-            => parent_form.Deactivated -= ParentFormDeactivated;
+        {
+            parent_form.Deactivated -= ParentFormDeactivated;
+            RestoreParentTextInput();
+        }
+
+        internal Form ParentForm => parent_form;
+        internal bool OwnsParentTextInput => ownsTextInput && !InputBindingsClosed;
+        internal long TextInputOwnershipVersion => textInputOwnershipVersion;
+
+        internal void RestoreParentTextInput() => RestoreParentTextInput(textInputOwnershipVersion);
+
+        internal void RestoreParentTextInput(long expectedVersion)
+        {
+            if (!ownsTextInput || expectedVersion != textInputOwnershipVersion) return;
+            ownsTextInput = false;
+            // Relinquish only this popup. A finish observer may already have opened another
+            // popup (or a fresh session of this one), which owns the shared native method now.
+            if (ReferenceEquals(Application.ActivePopupWindow, this))
+                Application.ActivePopupWindow = null;
+            if (parent_form.IsActive && !parent_form.InputBindingsClosed)
+                parent_form.SetTextInputActive(true);
+        }
 
         /// <inheritdoc/>
         protected override void Dispose(bool disposing)
@@ -56,6 +79,8 @@ namespace ModernFormsNext
         /// </summary>
         public void Show (int x, int y)
         {
+            System.ObjectDisposedException.ThrowIf(InputBindingsClosed, this);
+            System.ObjectDisposedException.ThrowIf(parent_form.InputBindingsClosed, parent_form);
             var point = parent_form.PointToClient (new Point (x, y));
 
             var ppp = new PopupPositionerParameters {
@@ -67,10 +92,45 @@ namespace ModernFormsNext
             };
 
             PopupImpl.PopupPositioner?.Update (ppp);
+            if (InputBindingsClosed || parent_form.InputBindingsClosed) return;
 
+            var previousPopup = Application.ActivePopupWindow;
             Application.ActivePopupWindow = this;
-
-            Show ();
+            ownsTextInput = true;
+            long version = ++textInputOwnershipVersion;
+            bool IsCurrentShow() => !InputBindingsClosed && !parent_form.InputBindingsClosed &&
+                version == textInputOwnershipVersion && ownsTextInput &&
+                ReferenceEquals(Application.ActivePopupWindow, this);
+            try {
+                // Only one popup leases native text input. Retire the old core proxy too,
+                // even when that popup stays visible for its existing menu lifecycle.
+                if (previousPopup is not null && !ReferenceEquals(previousPopup, this))
+                    previousPopup.SetTextInputActive(false);
+                if (!IsCurrentShow()) {
+                    RestoreParentTextInput(version);
+                    return;
+                }
+                parent_form.SetTextInputActive(false);
+                if (!IsCurrentShow()) {
+                    RestoreParentTextInput(version);
+                    return;
+                }
+                Show ();
+                if (!Visible) RestoreParentTextInput(version);
+            }
+            catch (System.Exception failure) {
+                try {
+                    if (version == textInputOwnershipVersion) {
+                        if (Visible && !InputBindingsClosed) Hide();
+                        else RestoreParentTextInput(version);
+                    }
+                }
+                catch (System.Exception cleanup) {
+                    throw new System.AggregateException("Popup show and input-owner cleanup failed.", failure, cleanup);
+                }
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+                throw;
+            }
         }
 
         /// <summary>

@@ -72,7 +72,7 @@ public readonly struct AndroidTextInputState
         if (length < 0)
             throw new ArgumentOutOfRangeException(nameof(length));
         var cursor = Math.Max(SelectionStart, SelectionEnd);
-        var end = Math.Min(Text.Length, cursor + length);
+        var end = cursor + Math.Min(Text.Length - cursor, length);
         return Text[cursor..end];
     }
 

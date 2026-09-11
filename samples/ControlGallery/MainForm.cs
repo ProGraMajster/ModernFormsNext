@@ -68,6 +68,7 @@ namespace ControlGallery
             tree.Items.Add ("TableLayoutPanel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TabStrip", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TextBox", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Text input and IME", ImageLoader.Get ("button.png"));
             tree.Items.Add ("TitleBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ToolBar", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ToolTip", ImageLoader.Get ("button.png"));
@@ -205,6 +206,8 @@ namespace ControlGallery
                     return new TabStripPanel ();
                 case "TextBox":
                     return new TextBoxPanel ();
+                case "Text input and IME":
+                    return new TextInputPanel();
                 case "TitleBar":
                     return new TitleBarPanel ();
                 case "ToolBar":

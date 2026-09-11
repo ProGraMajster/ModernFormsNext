@@ -190,6 +190,7 @@ public partial class MarkdownEditor : Panel
         set
         {
             value ??= string.Empty;
+            editorSurface.FinishTextInputBeforeExternalChange();
             if (editorSurface.Text == value)
             {
                 history.Clear();

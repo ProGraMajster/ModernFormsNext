@@ -140,6 +140,9 @@ internal sealed class MarkdownEditorTextBox : RichTextBox
     protected override bool InsertText(string text)
         => owner.TrackSurfaceEdit(() => base.InsertText(text), MarkdownEditKind.Typing);
 
+    internal override void BeginTextInputComposition() => owner.BeginTextInputComposition();
+    internal override void EndTextInputComposition(bool canceled) => owner.EndTextInputComposition(canceled);
+
     protected override void OnDoubleClick(MouseEventArgs e)
     {
         base.OnDoubleClick(e);

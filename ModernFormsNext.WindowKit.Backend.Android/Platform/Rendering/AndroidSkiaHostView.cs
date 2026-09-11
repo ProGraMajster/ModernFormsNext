@@ -24,7 +24,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// source; there is no continuous or per-control render timer. The view is a custom Skia surface
 /// and does not introduce an Android native-control UI tree for framework controls.
 /// </remarks>
-public sealed partial class AndroidSkiaHostView : SKCanvasView
+public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.WindowKit.Platform.ITextInputMethod
 {
     private readonly AndroidSurfaceHostState state = new();
     private readonly Action<string>? diagnosticSink;
@@ -110,8 +110,8 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
 
     /// <summary>Occurs when the Android IME commits text with an explicit caret position.</summary>
     /// <remarks>
-    /// New hosts should use this event. <see cref="TextCommitted"/> remains available for hosts
-    /// that predate cursor-position forwarding.
+    /// Hosts that use the legacy event transport should use this event. New integrations use
+    /// <see cref="SetClient"/>; configured clients are not also delivered through these events.
     /// </remarks>
     public event EventHandler<AndroidTextEditEvent>? TextCommitRequested;
 
@@ -257,8 +257,10 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
     public void ShowSoftKeyboard()
     {
         ThrowIfDisposed();
+        if (textInputConfigured) { SetKeyboardVisible(true); return; }
         RequestFocus();
         var manager = GetInputMethodManager();
+        RetireInputConnection();
         manager?.RestartInput(this);
         NotifyTextStateChanged();
         manager?.ShowSoftInput(this, ShowFlags.Implicit);
@@ -268,6 +270,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
     public void HideSoftKeyboard()
     {
         ThrowIfDisposed();
+        if (textInputConfigured) { SetKeyboardVisible(false); return; }
         GetInputMethodManager()?.HideSoftInputFromWindow(WindowToken, HideSoftInputFlags.None);
         ClearFocus();
     }
@@ -277,6 +280,12 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
     {
         if (disposed)
             return;
+
+        if (textInputConfigured)
+        {
+            NotifyClientStateChanged();
+            return;
+        }
 
         var inputState = GetTextInputState();
         var batchDepth = activeInputConnection?.BatchDepth ?? 0;
@@ -331,13 +340,18 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
     }
 
     /// <inheritdoc/>
-    public override bool OnCheckIsTextEditor() => true;
+    public override bool OnCheckIsTextEditor()
+        => !disposed && (!textInputConfigured || textInputClient?.GetState(0) is { Options.ReadOnly: false });
 
     /// <inheritdoc/>
     public override IInputConnection? OnCreateInputConnection(EditorInfo? outAttrs)
     {
-        if (outAttrs is null)
+        if (disposed || outAttrs is null)
             return null;
+
+        RetireInputConnection();
+        if (textInputConfigured)
+            return CreateClientInputConnection(outAttrs);
 
         var inputState = GetTextInputState();
         // Reuse the canonical focused peer's sensitivity. Masking rendered glyphs and
@@ -406,6 +420,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
         UpdateAnimationSurfaceRegistration();
         RequestApplyInsets();
         RefreshWindowInsets();
+        NotifyTextStateChanged();
         AndroidLogger.Write("Native Skia surface attached.", diagnosticSink);
     }
 
@@ -422,6 +437,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
         try
         {
             AndroidSurfaceCleanup.Complete(
+                RetireInputConnection,
                 // Complete the native detach before application cancellation can reenter
                 // Dispose and release the Java peer. The remaining steps never need to call
                 // a base View lifecycle method on that potentially released peer.
@@ -450,6 +466,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
         if (ResizeFromPhysicalPixels(width, height) && state.CanRender)
             PostInvalidateOnAnimation();
         accessibilityProvider?.InvalidateGeometry();
+        NotifyTextStateChanged();
         RefreshWindowInsets();
     }
 
@@ -536,7 +553,8 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
             KeyInput = null;
             TextSelectionRequested = null;
             TextInputStateProvider = null;
-            activeInputConnection = null;
+            RetireInputConnection();
+            textInputClient = null;
             InputConnectionDiagnosticSink = null;
             InsetsChanged = null;
         }
@@ -550,6 +568,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
             return;
         }
         AndroidSurfaceCleanup.Complete(
+            DetachTextInputClient,
             () => { if (Parent is ViewGroup parent) parent.RemoveView(this); },
             () => provider?.Dispose(),
             () => EmitCancellations(cancellations, primaryPointerId),
@@ -701,6 +720,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
 
     private void RestartInput()
     {
+        RetireInputConnection();
         var manager = GetInputMethodManager();
         manager?.RestartInput(this);
         NotifyTextStateChanged();
@@ -848,250 +868,6 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
-
-    private sealed class SharedInputConnection(AndroidSkiaHostView owner) : BaseInputConnection(owner, false)
-    {
-        private string? lastTextArgument;
-
-        // ModernFormsNext owns all editable state in TextBoxDocument. Returning null prevents
-        // inherited helpers from silently creating BaseInputConnection's private fake Editable.
-        public override global::Android.Text.IEditable? Editable => null;
-
-        internal int BatchDepth { get; private set; }
-
-        public override bool BeginBatchEdit()
-            => Trace("BeginBatchEdit", "ImeInputConnection", string.Empty, () =>
-            {
-                BatchDepth++;
-                return true;
-            });
-
-        public override bool EndBatchEdit()
-            => Trace("EndBatchEdit", "ImeInputConnection", string.Empty, () =>
-            {
-                if (BatchDepth == 0)
-                    return false;
-
-                BatchDepth--;
-                owner.FlushTextStateNotification();
-                return BatchDepth > 0;
-            });
-
-        public override bool CommitText(ICharSequence? text, int newCursorPosition)
-        {
-            var value = text?.ToString() ?? string.Empty;
-            return Trace(
-                "CommitText",
-                "ImeInputConnection",
-                $"newCursorPosition={newCursorPosition}",
-                () =>
-                {
-                    owner.PublishCommittedText(value, newCursorPosition);
-                    return true;
-                },
-                value,
-                newCursorPosition);
-        }
-
-        public override bool SetComposingText(ICharSequence? text, int newCursorPosition)
-        {
-            var value = text?.ToString() ?? string.Empty;
-            return Trace(
-                "SetComposingText",
-                "ImeInputConnection",
-                $"newCursorPosition={newCursorPosition}",
-                () =>
-                {
-                    owner.PublishComposingText(value, newCursorPosition);
-                    return true;
-                },
-                value,
-                newCursorPosition);
-        }
-
-        public override bool SetComposingRegion(int start, int end)
-            => Trace(
-                "SetComposingRegion",
-                "ImeInputConnection",
-                $"start={start}; end={end}",
-                () =>
-                {
-                    owner.PublishComposingRegion(start, end);
-                    return true;
-                });
-
-        public override bool FinishComposingText()
-            => Trace("FinishComposingText", "ImeInputConnection", string.Empty, () =>
-            {
-                owner.PublishCompositionFinished();
-                return true;
-            });
-
-        public override bool DeleteSurroundingText(int beforeLength, int afterLength)
-            => Trace(
-                "DeleteSurroundingText",
-                "ImeInputConnection",
-                $"beforeLength={beforeLength}; afterLength={afterLength}",
-                () =>
-                {
-                    if (beforeLength < 0 || afterLength < 0)
-                        return false;
-
-                    owner.PublishDeletion(new AndroidTextDeletionRequest(beforeLength, afterLength));
-                    return true;
-                });
-
-        public override bool DeleteSurroundingTextInCodePoints(int beforeLength, int afterLength)
-            => Trace(
-                "DeleteSurroundingTextInCodePoints",
-                "ImeInputConnection",
-                $"beforeLength={beforeLength}; afterLength={afterLength}",
-                () =>
-                {
-                    if (beforeLength < 0 || afterLength < 0)
-                        return false;
-
-                    owner.PublishDeletion(owner.GetTextInputState().GetUtf16DeletionForCodePoints(beforeLength, afterLength));
-                    return true;
-                });
-
-        public override ICharSequence? GetTextBeforeCursorFormatted(int length, GetTextFlags flags)
-            => Trace(
-                "GetTextBeforeCursor",
-                "ImeInputConnection",
-                $"length={length}; flags={flags}",
-                () => new Java.Lang.String(owner.GetTextInputState().GetTextBeforeCursor(Math.Max(0, length))),
-                resultFormatter: value => value.ToString());
-
-        public override ICharSequence? GetTextAfterCursorFormatted(int length, GetTextFlags flags)
-            => Trace(
-                "GetTextAfterCursor",
-                "ImeInputConnection",
-                $"length={length}; flags={flags}",
-                () => new Java.Lang.String(owner.GetTextInputState().GetTextAfterCursor(Math.Max(0, length))),
-                resultFormatter: value => value.ToString());
-
-        public override ICharSequence? GetSelectedTextFormatted(GetTextFlags flags)
-            => Trace(
-                "GetSelectedText",
-                "ImeInputConnection",
-                $"flags={flags}",
-                () => new Java.Lang.String(owner.GetTextInputState().GetSelectedText()),
-                resultFormatter: value => value.ToString());
-
-        public override ExtractedText? GetExtractedText(ExtractedTextRequest? request, GetTextFlags flags)
-            => Trace(
-                "GetExtractedText",
-                "ImeInputConnection",
-                $"token={request?.Token ?? 0}; flags={flags}; hintMaxChars={request?.HintMaxChars ?? 0}; " +
-                  $"hintMaxLines={request?.HintMaxLines ?? 0}",
-                () =>
-                {
-                    var inputState = owner.GetTextInputState();
-                    return new ExtractedText
-                    {
-                        Text = new Java.Lang.String(inputState.Text),
-                        StartOffset = 0,
-                        PartialStartOffset = -1,
-                        PartialEndOffset = -1,
-                        SelectionStart = inputState.SelectionStart,
-                        SelectionEnd = inputState.SelectionEnd
-                    };
-                },
-                resultFormatter: value => value is null
-                    ? "null"
-                    : $"text={value.Text}; selection={value.SelectionStart}..{value.SelectionEnd}; " +
-                      $"partial={value.PartialStartOffset}..{value.PartialEndOffset}");
-
-        public override bool RequestCursorUpdates(int cursorUpdateMode)
-            => Trace(
-                "RequestCursorUpdates",
-                "ImeInputConnection",
-                $"cursorUpdateMode={cursorUpdateMode}",
-                () => base.RequestCursorUpdates(cursorUpdateMode));
-
-        public override bool SetSelection(int start, int end)
-            => Trace("SetSelection", "ImeInputConnection", $"start={start}; end={end}", () =>
-            {
-                var inputState = owner.GetTextInputState();
-                if (start < 0 || end < 0 || start > inputState.Text.Length || end > inputState.Text.Length)
-                    return false;
-
-                owner.PublishSelection(start, end);
-                return true;
-            });
-
-        public override bool SendKeyEvent(NativeKeyEvent? e)
-        {
-            var observation = e is null
-                ? (KeyEventObservation?)null
-                : owner.ObserveKeyEvent(e.KeyCode, e.Action == KeyEventActions.Down, "InputConnectionKeyEvent");
-            return Trace(
-                "SendKeyEvent",
-                "ImeInputConnectionKeyEvent",
-                e is null
-                    ? "event=null"
-                    : $"keyCode={e.KeyCode}; action={e.Action}; unicodeChar={e.UnicodeChar}; deviceId={e.DeviceId}",
-                () =>
-                {
-                    if (e is not null && owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down))
-                        return true;
-
-                    return base.SendKeyEvent(e);
-                },
-                operationKeyEvent: observation);
-        }
-
-        private T Trace<T>(
-            string method,
-            string source,
-            string arguments,
-            Func<T> operation,
-            string? argumentText = null,
-            int? newCursorPosition = null,
-            Func<T, string?>? resultFormatter = null,
-            KeyEventObservation? operationKeyEvent = null)
-        {
-            if (!owner.EnableInputConnectionDiagnostics)
-                return operation();
-
-            var before = owner.GetTextInputState();
-            var batchDepthBefore = BatchDepth;
-            var sameTextArgument = argumentText is not null && argumentText == lastTextArgument;
-            T result = default!;
-            string? exception = null;
-            try
-            {
-                result = operation();
-                return result;
-            }
-            catch (System.Exception error)
-            {
-                exception = error.ToString();
-                throw;
-            }
-            finally
-            {
-                var after = owner.GetTextInputState();
-                owner.WriteInputDiagnostic(
-                    method,
-                    source,
-                    arguments,
-                    before,
-                    after,
-                    batchDepthBefore,
-                    BatchDepth,
-                    exception is null ? resultFormatter?.Invoke(result) ?? result?.ToString() : null,
-                    argumentText,
-                    newCursorPosition,
-                    sameTextArgument,
-                    operationKeyEvent,
-                    exception);
-                if (argumentText is not null)
-                    lastTextArgument = argumentText;
-            }
-        }
-    }
 
     private readonly record struct KeyEventObservation(
         DateTimeOffset Timestamp,

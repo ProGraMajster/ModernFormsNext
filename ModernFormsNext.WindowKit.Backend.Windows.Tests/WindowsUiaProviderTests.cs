@@ -8,6 +8,7 @@ using PlatformRect = ModernFormsNext.WindowKit.Rect;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
+[Collection(WindowsUiCollection.Name)]
 public sealed class WindowsUiaProviderTests
 {
     private const int ActionInvoke = 1 << 0;

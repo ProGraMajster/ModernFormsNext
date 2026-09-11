@@ -68,6 +68,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private readonly IStorageProvider _storageProvider;
         private WindowsMsaaAccessibleObject? _msaaAccessibilityObject;
         private WindowsUiaRootProvider? _uiaAccessibilityObject;
+        private Imm32TextInputMethod? _textInputMethod;
         private WndProc _wndProcDelegate;
         private string? _className;
         private IntPtr _hwnd;
@@ -326,12 +327,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private bool IsMouseInPointerEnabled => _wmPointerEnabled && IsMouseInPointerEnabled();
 
-        public object? TryGetFeature(Type featureType)
+        public virtual object? TryGetFeature(Type featureType)
         {
-            //if (featureType == typeof(ITextInputMethodImpl))
-            //{
-            //    return Imm32InputMethod.Current;
-            //}
+            if (featureType == typeof(ITextInputMethod))
+                return _hwnd == IntPtr.Zero ? null : _textInputMethod ??= new Imm32TextInputMethod(_hwnd, () => RenderScaling);
 
             //if (featureType == typeof(INativeControlHostImpl))
             //{
@@ -355,6 +354,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
             return null;
         }
+
+        /// <summary>Refreshes native text geometry after this HWND moves or changes DPI.</summary>
+        protected virtual void RefreshTextInputGeometry() => _textInputMethod?.Refresh();
+
+        /// <summary>Retires native text ownership while the HWND is still valid.</summary>
+        protected virtual void DisposeTextInputMethod() => _textInputMethod?.Dispose();
         
         public void SetTransparencyLevelHint(IReadOnlyList<WindowTransparencyLevel> transparencyLevels)
         {

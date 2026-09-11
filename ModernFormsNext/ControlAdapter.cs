@@ -11,7 +11,7 @@ using SkiaSharp;
 
 namespace ModernFormsNext
 {
-    internal class ControlAdapter : ScrollableControl, IInputRoot, IPlatformAccessibilityHost
+    internal class ControlAdapter : ScrollableControl, IInputRoot, IPlatformAccessibilityHost, IControlTextInputRoot
     {
         private Control? selected_control;
 
@@ -33,6 +33,8 @@ namespace ModernFormsNext
         }
 
         public WindowBase ParentForm { get; }
+
+        ControlTextInputHost? IControlTextInputRoot.TextInputHost => ParentForm.TextInputHost;
 
         internal override bool IsCommandRoutingRoot => true;
 

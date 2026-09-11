@@ -494,6 +494,7 @@ namespace ModernFormsNext
             dialog_parent = parent.Window;
             dialog_owner = parent;
             try {
+                parent.SetTextInputActive(false);
                 Window.SetParent (parent.Window);
                 adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
                 ShowDialog (parent.Window);

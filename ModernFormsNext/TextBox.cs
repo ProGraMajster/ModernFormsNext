@@ -9,7 +9,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a TextBox control.
     /// </summary>
-    public class TextBox : ScrollControl
+    public partial class TextBox : ScrollControl
     {
         internal readonly TextBoxDocument document;
 
@@ -81,6 +81,7 @@ namespace ModernFormsNext
             scroll_y += y;
 
             Invalidate ();
+            NotifyTextInputStateChanged();
         }
 
         // Gets the index of the character at the specified location.
@@ -287,6 +288,7 @@ namespace ModernFormsNext
             get => document.IsMultiline;
             set {
                 if (document.IsMultiline != value) {
+                    FinishTextInputBeforeExternalChange();
 
                     if (Padding == DefaultPadding)
                         Padding = new Padding (value ? 4 : 1, 0, 0, 0);
@@ -299,6 +301,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnDeselected (EventArgs e)
         {
+            FinishTextInputBeforeExternalChange();
             base.OnDeselected (e);
 
             document.Deselect ();
@@ -330,9 +333,17 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnKeyPress (KeyPressEventArgs e)
         {
-            base.OnKeyPress (e);
+            var parent = Parent;
+            var window = FindWindow();
+            var selected = Selected;
+            textInputClient?.EnterCallback();
+            try { base.OnKeyPress (e); }
+            finally { textInputClient?.LeaveCallback(); }
 
-            ProcessTextBoxKeyPress (e);
+            if (!IsDisposed && !Disposing && Enabled && ReferenceEquals(Parent, parent) &&
+                ReferenceEquals(FindWindow(), window) && Selected == selected &&
+                window?.InputBindingsClosed != true && textInputClient?.CanContinueEdit != false)
+                ProcessTextBoxKeyPress (e);
         }
 
         /// <inheritdoc/>
@@ -453,6 +464,7 @@ namespace ModernFormsNext
                 if (document.PasswordCharacter == value)
                     return;
 
+                FinishTextInputBeforeExternalChange();
                 document.PasswordCharacter = value;
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.ValueChange);
@@ -490,8 +502,10 @@ namespace ModernFormsNext
                 if (document.ReadOnly == value)
                     return;
 
+                FinishTextInputBeforeExternalChange();
                 document.ReadOnly = value;
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
+                NotifyTextInputStateChanged();
             }
         }
 
@@ -501,8 +515,8 @@ namespace ModernFormsNext
         public void ScrollToCaret ()
         {
             var caret = TextMeasurer.GetCursorLocation (
-                document.GetTextBlock (),
-                TextOrigin,
+                GetTextInputLayoutBlock(),
+                GetTextOrigin(GetTextInputLayoutBlock()),
                 document.CursorLayoutCodePointIndex,
                 CurrentFontSize);
 

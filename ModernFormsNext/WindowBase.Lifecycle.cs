@@ -67,6 +67,7 @@ public abstract partial class WindowBase
             catch (Exception exception) { failures.Add(exception); }
         }
         Cleanup(DetachInsetsProvider);
+        Cleanup(TextInputHost.Dispose);
         Cleanup(ReleaseInputBindings);
         Cleanup(adapter.CancelOwnedControlAnimationsForSubtree);
         // All close observers, modal ownership and application lifetime see the committed close,

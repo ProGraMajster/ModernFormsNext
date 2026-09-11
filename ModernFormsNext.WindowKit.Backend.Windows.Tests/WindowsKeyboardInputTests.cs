@@ -3,6 +3,7 @@ using Xunit;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
+[Collection(WindowsUiCollection.Name)]
 public sealed class WindowsKeyboardInputTests
 {
     [Theory]

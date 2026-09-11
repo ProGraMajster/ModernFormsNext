@@ -15,7 +15,7 @@ namespace ModernFormsNext.CrossPlatform.Sample;
 /// diagnostics, dispatching, shared animations and effects, theme transitions, reduced motion,
 /// and an explicitly initiated permission flow.
 /// </remarks>
-public sealed class MainPage : Control
+public sealed partial class MainPage : Control
 {
     private readonly App app;
     private readonly ScrollableControl scrollArea;
@@ -112,6 +112,7 @@ public sealed class MainPage : Control
             MultiLine = true,
             Text = "Multiline IME test:\r\nzażółć gęślą jaźń\r\nemoji 👋🏽 and composition: 你好"
         };
+        InitializeTextInputDemo();
         greetingLabel = CreateLabel(string.Empty);
         enabledCheckBox = new CheckBox { Text = "Enable shared action", Checked = true };
         diagnosticsCheckBox = new CheckBox { Text = "Show host diagnostics", Checked = true };
@@ -289,6 +290,7 @@ public sealed class MainPage : Control
             nameTextBox,
             greetingLabel,
             multiLineTextBox,
+            .. textInputDemoRows.Select(row => row.Control),
             enabledCheckBox,
             diagnosticsCheckBox,
             clickButton,
@@ -355,7 +357,7 @@ public sealed class MainPage : Control
         base.OnResize(e);
         app.State.SurfaceWidth = Width;
         app.State.SurfaceHeight = Height;
-        scrollArea.SetBounds(0, 0, Width, Height);
+        scrollArea.SetBounds(0, 0, Width, Math.Max(0, Height - keyboardOcclusion));
         ArrangeControls();
     }
 
@@ -455,7 +457,7 @@ public sealed class MainPage : Control
         const int margin = 24;
         const int gap = 8;
         var contentWidth = Math.Max(240, scrollArea.Width - (margin * 2) - 18);
-        var y = margin;
+        var y = margin - scrollArea.VerticalScrollProperties.Value;
 
         SetRow(headerLabel, margin, ref y, contentWidth, 40, gap + 4);
         if (diagnosticsCheckBox.Checked)
@@ -469,6 +471,8 @@ public sealed class MainPage : Control
         SetRow(nameTextBox, margin, ref y, contentWidth, 38, gap);
         SetRow(greetingLabel, margin, ref y, contentWidth, 30, gap);
         SetRow(multiLineTextBox, margin, ref y, contentWidth, 112, gap);
+        foreach (var row in textInputDemoRows)
+            SetRow(row.Control, margin, ref y, contentWidth, row.Height, gap);
         SetRow(enabledCheckBox, margin, ref y, contentWidth, 30, gap);
         SetRow(diagnosticsCheckBox, margin, ref y, contentWidth, 30, gap);
         SetRow(clickButton, margin, ref y, contentWidth, 42, gap);

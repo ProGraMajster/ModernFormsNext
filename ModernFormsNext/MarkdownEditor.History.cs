@@ -4,6 +4,31 @@ namespace ModernFormsNext;
 
 public partial class MarkdownEditor
 {
+    private bool textInputCompositionEdit;
+
+    internal void BeginTextInputComposition()
+    {
+        if (textInputCompositionEdit) return;
+        textInputCompositionEdit = true;
+        // Reuse the existing edit transaction and diff record. Composition can replace an
+        // arbitrary region, so it must not use ordinary append-typing merge heuristics.
+        BeginEdit(MarkdownEditKind.Command);
+    }
+
+    internal void EndTextInputComposition(bool canceled)
+    {
+        if (!textInputCompositionEdit) return;
+        textInputCompositionEdit = false;
+        if (!canceled) EndEdit();
+        else {
+            editDepth--;
+            if (editDepth == 0) editBeforeText = string.Empty;
+            // No transient record was pushed, so both the redo branch and clean marker survive.
+            UpdateModifiedFromHistory();
+            UpdateToolbarState();
+        }
+    }
+
     internal bool TrackSurfaceEdit(Func<bool> edit, MarkdownEditKind kind)
     {
         ArgumentNullException.ThrowIfNull(edit);
@@ -73,6 +98,7 @@ public partial class MarkdownEditor
         if (ReadOnly)
             return;
 
+        editorSurface.FinishTextInputBeforeExternalChange();
         BeginEdit(MarkdownEditKind.Command);
         try
         {

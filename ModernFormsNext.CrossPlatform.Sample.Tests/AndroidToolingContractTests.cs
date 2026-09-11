@@ -77,8 +77,11 @@ public sealed class AndroidToolingContractTests
         var host = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android", "AndroidAppHost.cs"));
         var page = File.ReadAllText(IOPath.Combine(SampleDirectory, "MainPage.cs"));
 
-        Assert.Contains("controlSurface.SetComposingText", host, StringComparison.Ordinal);
-        Assert.Contains("controlSurface.DeleteSurroundingText", host, StringComparison.Ordinal);
+        Assert.Contains("controlSurface.AttachTextInputMethod(nativeSurface)", host, StringComparison.Ordinal);
+        Assert.Contains("controlSurface.SetTextInputActive(false)", host, StringComparison.Ordinal);
+        Assert.Contains("controlSurface.SetTextInputActive(true)", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("TextCommitRequested +=", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("TextInputStateProvider =", host, StringComparison.Ordinal);
         Assert.DoesNotContain("EditText", host, StringComparison.Ordinal);
         Assert.Contains("ScrollableControl", page, StringComparison.Ordinal);
         Assert.Contains("MultiLine = true", page, StringComparison.Ordinal);
