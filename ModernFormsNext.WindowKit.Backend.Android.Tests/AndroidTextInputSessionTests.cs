@@ -3,6 +3,7 @@ using ModernFormsNext.WindowKit.Input;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Tests;
 
+[Collection(AndroidTextInputUiCollection.Name)]
 public sealed class AndroidTextInputSessionTests
 {
     [Fact]
@@ -165,12 +166,63 @@ public sealed class AndroidTextInputSessionTests
         Assert.False(session.ShouldPublishExtractedText(6));
     }
 
+    [Fact]
+    public void SelectAllUsesDocumentLengthWithoutReadingTheSurroundingText()
+    {
+        var client = new Client(new string('x', 200_000), 100_002, 100_000);
+        var session = new AndroidTextInputSession(client);
+
+        Assert.True(session.SelectAll());
+
+        Assert.Equal((0, 200_000), client.LastSelection);
+        Assert.Equal(0, client.LargestRead);
+        Assert.Equal(1, client.Edits);
+    }
+
+    [Fact]
+    public void SelectAllCannotEditAfterRevocationDuringMetadataRead()
+    {
+        var client = new Client("text", 2, 2);
+        var session = new AndroidTextInputSession(client);
+        client.OnRead = session.Revoke;
+
+        Assert.False(session.SelectAll());
+        Assert.False(session.SelectAll());
+        Assert.Equal(0, client.Edits);
+        Assert.Null(client.LastSelection);
+    }
+
+    [Fact]
+    public void SelectAllUsesTheCapturedRealEditorAndCannotRetargetAfterFocusChanges()
+    {
+        using var root = new Panel();
+        var first = root.Controls.Add(new TextBox { Text = "A😀BC" });
+        var second = root.Controls.Add(new TextBox { Text = "other" });
+        using var surface = new SkiaControlSurface(root);
+        surface.Resize(480, 160);
+        first.Select();
+        var client = Assert.IsAssignableFrom<ITextInputClient>(surface.TextInputClient);
+        var session = new AndroidTextInputSession(client);
+
+        Assert.True(session.SelectAll());
+        Assert.Equal((0, 5), (client.GetState()!.SelectionStart, client.GetState()!.SelectionEnd));
+        Assert.Equal("A😀BC", first.Text);
+
+        second.Select();
+        var current = Assert.IsAssignableFrom<ITextInputClient>(surface.TextInputClient);
+        Assert.True(current.SetSelection(2, 2));
+        Assert.False(session.SelectAll());
+        Assert.Equal((2, 2), (current.GetState()!.SelectionStart, current.GetState()!.SelectionEnd));
+        Assert.Equal("other", second.Text);
+    }
+
     private sealed class Client(string text, int selectionStart, int selectionEnd) : ITextInputClient
     {
         public Action? OnRead { get; set; }
         public int LargestRead { get; private set; }
         public long Revision { get; set; }
         public int Edits { get; private set; }
+        public (int Start, int End)? LastSelection { get; private set; }
         public event EventHandler? StateChanged { add { } remove { } }
         public event EventHandler<TextCompositionEventArgs>? CompositionChanged { add { } remove { } }
 
@@ -191,7 +243,7 @@ public sealed class AndroidTextInputSessionTests
         public bool CommitText(string value, int newCursorPosition = 1) { Edits++; return true; }
         public bool SetComposingText(string value, int newCursorPosition = 1) { Edits++; return true; }
         public bool SetComposingRegion(int start, int end) { Edits++; return true; }
-        public bool SetSelection(int start, int end) { Edits++; return true; }
+        public bool SetSelection(int start, int end) { Edits++; LastSelection = (start, end); return true; }
         public bool FinishComposition() { Edits++; return true; }
         public bool CancelComposition() { Edits++; return true; }
         public bool DeleteSurroundingText(int beforeLength, int afterLength, bool inCodePoints = false) { Edits++; return true; }

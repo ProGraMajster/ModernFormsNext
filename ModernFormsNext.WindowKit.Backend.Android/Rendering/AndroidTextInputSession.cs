@@ -40,6 +40,16 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
             ReferenceEquals(target, client) && edit(target);
     }
 
+    internal bool SelectAll()
+    {
+        var target = client;
+        if (target is null || target.GetState(0) is not { } state || !ReferenceEquals(target, client))
+            return false;
+        // The bounded snapshot may contain no text at all. Selection uses absolute document
+        // length, not a surrounding-text window; a reentrant read must not revive this session.
+        return target.SetSelection(0, state.DocumentLength);
+    }
+
     internal bool BeginBatch()
     {
         // Broken IMEs must not overflow the nesting counter or defer synchronization forever.

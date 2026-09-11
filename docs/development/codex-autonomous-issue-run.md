@@ -557,3 +557,37 @@ The final gallery capture at that source produced ten images (two baselines plus
 compositions) at 100%/150%; the shortened intro fits. ControlGallery and the unchanged
 template-reference DemoApp also exposed responsive native windows and closed normally with
 exit code zero. These are scoped rendering/startup checks, not native candidate-window proof.
+
+### Corrected newline and Android keyboard handoff checkpoint
+
+Source `3949100f70875b779878154e3d6556544686d63d` passed complete Debug and Release builds
+with zero errors and four existing NU1902 warnings per configuration. All nine test projects
+passed **2785/2785 in each configuration**, with zero failures or skips. The additional 26
+core regressions cover full newline payloads, Unicode suffixes, composition cancellation,
+single-line filtering and Markdown policy/history. This also includes the image-copy
+resource-boundary assertion described above.
+
+The corrected embedded-assembly APK has SHA-256
+`942E5AE891473B6AA4295FAA3F334E1687F45500AE7C521B26D9CDFF1798E283`.
+Actual Gboard on API 34 and API 36 now keeps the keyboard visible during Next and delivers
+multiline Enter as `CommitText(LF)`, inserting the expected line break. API 34's resized view
+ends at the native keyboard top (y=1517); its zero remaining shared IME overlap therefore
+does not need additional padding. API 36 retains edge-to-edge native bounds and reports the
+remaining overlap through the shared insets. Rich text composition, native emoji insertion
+and deletion were also observed on both emulators. These observations belong to this APK,
+not to the earlier failed or inset-only comparison packages.
+
+The continuing native matrix exposed three more gaps before final acceptance: API 36's
+focus-only Next did not scroll the new caret until typing; Gboard SelectAll was not forwarded
+to the canonical client; and IME-synthetic Shift+arrow lost the native modifier. Narrow
+corrections and native retests are in progress. Modern opt-in SendKeyEvent diagnostics are
+also being restricted to metadata so printable key/Unicode codes are not logged. These later
+edits are not covered by the 2785/2785 checkpoint until their own validation is recorded.
+
+The narrow selection correction preserves native IME editing modifiers while keeping the
+independent hardware/shortcut classification false. SelectAll uses only the captured client's
+document-length metadata and existing SetSelection operation, with revocation checks after
+metadata callbacks. Six added regressions cover real-editor Shift selection without shortcut
+execution, large-document metadata-only selection, reentrant revocation and focus replacement.
+The complete Android managed suite passed **204/204** after this correction; native target,
+fresh APK and complete solution/package/documentation gates remain pending.

@@ -170,19 +170,24 @@ retirement. API-specific calls are guarded. Surrounding/extracted results preser
 document origin; an oversized selected range that cannot fit the supported bounded protocol
 returns unavailable instead of invented clipped selection. CursorAnchorInfo reports the
 insertion marker/selection; unsupported character/editor/line-bound filters return false.
+IME-synthetic editing keys retain selection modifiers such as Shift while remaining excluded
+from command bindings. The native SelectAll context action selects the captured client's full
+document using metadata only; other InputConnection context-menu actions are not supplied.
 See Android's [InputConnection](https://developer.android.com/reference/android/view/inputmethod/InputConnection)
 and [CursorAnchorInfo](https://developer.android.com/reference/android/view/inputmethod/CursorAnchorInfo.Builder).
 
-Native keyboard visibility remains OS policy. Framework `WindowInsets.Ime` is informational;
+Native keyboard visibility remains OS policy.
 During a synchronous Next/Previous focus transfer, Android defers the old client's dismissal
 until the next UI turn and cancels it when a new client takes over. The callback also checks
 native focus and attachment so it cannot hide another native view's keyboard.
-general automatic keyboard avoidance is not added. An application can combine the existing
+Framework `WindowInsets.Ime` is informational; general automatic keyboard avoidance is not
+added. An application can combine the existing
 inset, current caret and its normal scrolling policy, as the cross-platform sample does.
 The Android sample explicitly requests `AdjustResize`: Android sees one Skia view and cannot
 infer the scroll controls within it. After native viewport resizing the page scrolls the
 current caret; remaining edge-to-edge overlap is handled without subtracting keyboard height
-twice. Root-window insets are intersected with the actual surface bounds before conversion.
+twice. A focus-only Next/Previous transition schedules scrolling after the canonical client
+has changed. Root-window insets are intersected with the actual surface bounds before conversion.
 API 23–29 still lacks the typed IME inset used by the newer adapter.
 
 ## Diagnostics and verification

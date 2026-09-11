@@ -282,6 +282,18 @@ public sealed partial class AndroidSkiaHostView
                 return handled;
             });
 
+        /// <inheritdoc/>
+        public override bool PerformContextMenuAction(int id)
+            => Trace("PerformContextMenuAction", "ImeInputConnection", $"id={id}", () =>
+            {
+                // IMEs can request Select all through this Android action instead of Ctrl+A.
+                // Apply it to this connection's captured client, with no clipboard or focus lookup.
+                // Other context actions keep BaseInputConnection's unsupported behavior.
+                if (session is not null && id == global::Android.Resource.Id.SelectAll)
+                    return session.SelectAll();
+                return base.PerformContextMenuAction(id);
+            });
+
         private static ICharSequence? ToJavaText(string? text)
             => text is null ? null : new Java.Lang.String(text);
 
@@ -366,7 +378,10 @@ public sealed partial class AndroidSkiaHostView
                     : $"keyCode={e.KeyCode}; action={e.Action}; unicodeChar={e.UnicodeChar}; deviceId={e.DeviceId}",
                 () =>
                 {
-                    if (e is not null && owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down))
+                    // IMEs may send Shift+DPAD to extend a selection. Preserve those modifiers
+                    // while explicitly retaining editing provenance, even for a real device id.
+                    if (e is not null && owner.PublishKey(e.KeyCode, e.Action == KeyEventActions.Down,
+                        e, fromInputConnection: true))
                         return true;
 
                     return base.SendKeyEvent(e);
@@ -406,7 +421,10 @@ public sealed partial class AndroidSkiaHostView
                         // opt-in trace useful for native transport diagnosis without logging
                         // entered text; only identify exact newline payloads and text length.
                         var newline = argumentText switch { "\n" => "LF", "\r" => "CR", "\r\n" => "CRLF", _ => "none" };
-                        var message = $"InputConnection {method}; source={source}; {arguments}; textLength={argumentText?.Length}; newline={newline}; cursor={newCursorPosition}; active={!revoked}; batch={BatchDepth}";
+                        // SendKeyEvent's legacy arguments contain printable key/Unicode codes.
+                        // Keep those out of this metadata trace even when diagnostics are enabled.
+                        var metadataArguments = method == nameof(SendKeyEvent) ? string.Empty : arguments;
+                        var message = $"InputConnection {method}; source={source}; {metadataArguments}; textLength={argumentText?.Length}; newline={newline}; cursor={newCursorPosition}; active={!revoked}; batch={BatchDepth}";
                         global::Android.Util.Log.Info("MFN.InputConnection", message);
                         owner.InputConnectionDiagnosticSink?.Invoke(message);
                     }

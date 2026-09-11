@@ -65,7 +65,14 @@ public sealed partial class MainPage
         compositionLabel.Name = "ImeCompositionMetadata";
         foreach (var editor in demoEditors)
         {
-            editor.GotFocus += (_, _) => lastInputEditor = editor;
+            editor.GotFocus += (_, _) =>
+            {
+                lastInputEditor = editor;
+                // GotFocus precedes committing the adapter's canonical selection. Query that
+                // current selection after this turn, including Next actions without pointer input.
+                // The callback uses the current client, so a later focus transfer supersedes it.
+                app.PlatformServices.Dispatcher.Post(ScrollCurrentCaretIntoView);
+            };
             editor.Disposed += (_, _) =>
             {
                 if (ReferenceEquals(lastInputEditor, editor)) lastInputEditor = null;

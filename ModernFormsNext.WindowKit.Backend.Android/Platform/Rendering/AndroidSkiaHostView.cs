@@ -640,7 +640,8 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
     private void EmitCancellations(IReadOnlyList<int> pointerIds, int? primaryPointerId)
         => AndroidSurfaceCleanup.CancelPointers(this, Pointer, pointerIds, primaryPointerId);
 
-    private bool PublishKey(Keycode keyCode, bool isDown, NativeKeyEvent? nativeEvent = null)
+    private bool PublishKey(Keycode keyCode, bool isDown, NativeKeyEvent? nativeEvent,
+        bool fromInputConnection = false)
     {
         var translated = keyCode switch
         {
@@ -670,7 +671,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         KeyInput?.Invoke(this, AndroidInputKeyEvent.FromSource(translated.Value, isDown, modifiers,
             nativeEvent?.DeviceId ?? -1,
             nativeEvent is not null && (nativeEvent.Flags & KeyEventFlags.SoftKeyboard) != 0,
-            fromInputConnection: nativeEvent is null));
+            fromInputConnection));
         NotifyTextStateChanged();
         return true;
     }

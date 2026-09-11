@@ -7,7 +7,11 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// <param name="IsDown"><see langword="true"/> for key down; <see langword="false"/> for key up.</param>
 public readonly record struct AndroidInputKeyEvent(AndroidInputKey Key, bool IsDown)
 {
-    /// <summary>Gets keyboard modifiers, including the conservative right-Alt/AltGraph marker.</summary>
+    /// <summary>Gets editing modifiers, including Shift selection and the conservative right-Alt/AltGraph marker.</summary>
+    /// <remarks>
+    /// Software keyboards can supply modifiers for selection or navigation. Their presence does
+    /// not make an event eligible for shortcuts; use <see cref="IsHardwareKey"/> for that decision.
+    /// </remarks>
     public KeyModifiers Modifiers { get; init; }
 
     /// <summary>Gets whether this transition came from a physical device through the view key path.</summary>
@@ -25,6 +29,6 @@ public readonly record struct AndroidInputKeyEvent(AndroidInputKey Key, bool IsD
         KeyModifiers modifiers, int deviceId, bool isSoftKeyboard, bool fromInputConnection)
     {
         bool hardware = deviceId >= 0 && !isSoftKeyboard && !fromInputConnection;
-        return new(key, isDown) { IsHardwareKey = hardware, Modifiers = hardware ? modifiers : KeyModifiers.None };
+        return new(key, isDown) { IsHardwareKey = hardware, Modifiers = modifiers };
     }
 }
