@@ -29,7 +29,11 @@ public sealed partial class AndroidSkiaHostView
     private void RefreshWindowInsets(NativeWindowInsets? suppliedInsets = null)
     {
         if (disposed || !IsAttachedToWindow || RootView is not { } root) return;
-        NativeWindowInsets? native = suppliedInsets ?? RootWindowInsets;
+        // The mapper below intersects root-window edges with this view's actual bounds.
+        // Decor fitting can consume or translate the insets delivered to a child (including
+        // IME insets on older Android versions). Read the original window insets so those
+        // edges and the mapper geometry use the same coordinate system.
+        NativeWindowInsets? native = RootWindowInsets ?? suppliedInsets;
         if (native is null) return;
         Thickness system;
         Thickness ime = default;

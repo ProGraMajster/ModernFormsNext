@@ -359,6 +359,9 @@ public sealed partial class MainPage : Control
         app.State.SurfaceHeight = Height;
         scrollArea.SetBounds(0, 0, Width, Math.Max(0, Height - keyboardOcclusion));
         ArrangeControls();
+        // A decor-resized Android view can have zero remaining IME overlap. Its viewport
+        // still changed, so keep the shared editor visible after this layout pass as well.
+        ScrollCurrentCaretIntoView();
     }
 
     /// <inheritdoc/>

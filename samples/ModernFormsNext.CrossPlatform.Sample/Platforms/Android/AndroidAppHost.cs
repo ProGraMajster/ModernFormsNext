@@ -16,7 +16,8 @@ public sealed class AndroidAppHost : IDisposable
     /// </summary>
     /// <remarks>
     /// Normal launches omit the extra, so input text is never logged by default. The switch exists
-    /// only to capture a short, explicitly initiated diagnostic session.
+    /// only to capture a short, explicitly initiated diagnostic session. It also emits numeric
+    /// inset/view snapshots when their values change, to diagnose keyboard occlusion.
     /// </remarks>
     public const string EnableInputDiagnosticsIntentExtra =
         "com.programajster.modernformsnext.sample.ENABLE_INPUT_DIAGNOSTICS";
@@ -25,6 +26,7 @@ public sealed class AndroidAppHost : IDisposable
     private readonly SkiaControlSurface controlSurface;
     private readonly AndroidSkiaHostView nativeSurface;
     private readonly Func<WindowKit.Input.ITextInputClient?> textInputClientProvider;
+    private string? lastInputInsetDiagnostic;
     private bool caretScrollPending;
     private bool disposed;
 
@@ -168,6 +170,7 @@ public sealed class AndroidAppHost : IDisposable
         var height = Math.Max(0, (int)MathF.Round(e.LogicalHeight));
         controlSurface.Resize(width, height);
         controlSurface.Render(e.Canvas);
+        TraceInputInsets("render");
         UpdateDiagnostics();
     }
 
@@ -178,7 +181,28 @@ public sealed class AndroidAppHost : IDisposable
             controlSurface.Insets = e.Insets;
             app.Root.UpdateKeyboardOcclusion(e.Insets);
             ScheduleCaretScroll();
+            TraceInputInsets("insets-changed");
         }
+    }
+
+    private void TraceInputInsets(string source)
+    {
+        if (disposed || !nativeSurface.EnableInputConnectionDiagnostics ||
+            !OperatingSystem.IsAndroidVersionAtLeast(30) || nativeSurface.RootView is not { } root ||
+            nativeSurface.RootWindowInsets is not { } nativeInsets) return;
+
+        // Diagnostic-only reads: never request another inset pass or change layout from here.
+        // Coalesce identical numeric snapshots so an animated surface does not flood logcat.
+        using var keyboard = nativeInsets.GetInsets(global::Android.Views.WindowInsets.Type.Ime());
+        int[] location = new int[2];
+        int[] rootLocation = new int[2];
+        nativeSurface.GetLocationInWindow(location);
+        root.GetLocationInWindow(rootLocation);
+        var current = nativeSurface.CurrentInsets;
+        var values = FormattableString.Invariant($"rootIme={keyboard.Left},{keyboard.Top},{keyboard.Right},{keyboard.Bottom}; currentIme={current.Ime.Left},{current.Ime.Top},{current.Ime.Right},{current.Ime.Bottom}; safe={current.SafeArea.Left},{current.SafeArea.Top},{current.SafeArea.Right},{current.SafeArea.Bottom}; view={location[0]},{location[1]},{nativeSurface.Width},{nativeSurface.Height}; root={rootLocation[0]},{rootLocation[1]},{root.Width},{root.Height}; density={nativeSurface.Density}");
+        if (values == lastInputInsetDiagnostic) return;
+        lastInputInsetDiagnostic = values;
+        global::Android.Util.Log.Info("MFN.IME.Insets", $"source={source}; {values}");
     }
 
     private void OnPointer(object? sender, AndroidPointerEvent e)

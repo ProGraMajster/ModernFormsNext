@@ -19,6 +19,9 @@ public sealed partial class AndroidSkiaHostView
     /// Call on the Android main thread. After the first call, legacy text events and the legacy
     /// state provider no longer edit documents, including when client is null. Existing hosts that
     /// never call this method retain their event transport. The document and control remain borrowed.
+    /// A null offer schedules keyboard dismissal for the next Android UI turn. A synchronous
+    /// replacement editor cancels that dismissal, preserving the keyboard during Next/Previous
+    /// focus actions. Explicit dismissal and read-only offers still hide it immediately.
     /// </remarks>
     public void SetClient(ITextInputClient? client)
     {
@@ -40,9 +43,32 @@ public sealed partial class AndroidSkiaHostView
         lastTextInputRevision = snapshot?.Revision ?? -1;
         GetInputMethodManager()?.RestartInput(this);
         if (generation != textInputGeneration || disposed) return;
-        if (snapshot is null || snapshot.Options.ReadOnly)
+        if (client is null)
+            ScheduleKeyboardDismissal(generation);
+        else if ((snapshot is null || snapshot.Options.ReadOnly) && IsAttachedToWindow && IsFocused)
             GetInputMethodManager()?.HideSoftInputFromWindow(WindowToken, HideSoftInputFlags.None);
         NotifyClientStateChanged();
+    }
+
+    private void ScheduleKeyboardDismissal(long generation)
+    {
+        // View.Post stores callbacks on detached views until a later attachment. There is
+        // no keyboard owned by this detached/unfocused view that needs deferred dismissal.
+        if (!IsAttachedToWindow || !IsFocused) return;
+        // Canonical focus handoff revokes the old client before lending its successor.
+        // Do not turn that synchronous null interval into a visible keyboard close.
+        // The captured generation also keeps a stale callback away from a new editor;
+        // disposal invalidates it before the Java peer or its window token is released.
+        // Several native views may share one window token. A view that lost native focus
+        // must not dismiss the keyboard now owned by another view in that window.
+        void DismissIfCurrent()
+        {
+            if (!disposed && generation == textInputGeneration && textInputClient is null &&
+                IsAttachedToWindow && IsFocused)
+                GetInputMethodManager()?.HideSoftInputFromWindow(WindowToken, HideSoftInputFlags.None);
+        }
+
+        if (!Post(DismissIfCurrent)) DismissIfCurrent();
     }
 
     /// <summary>Requests the software keyboard for the current editable framework session.</summary>

@@ -401,7 +401,15 @@ public sealed partial class AndroidSkiaHostView
                             owner.NotifyClientStateChanged();
                     }
                     if (owner.EnableInputConnectionDiagnostics)
-                        owner.InputConnectionDiagnosticSink?.Invoke($"InputConnection {method}; active={!revoked}; batch={BatchDepth}");
+                    {
+                        // The modern client has no legacy full-document snapshot. Keep this
+                        // opt-in trace useful for native transport diagnosis without logging
+                        // entered text; only identify exact newline payloads and text length.
+                        var newline = argumentText switch { "\n" => "LF", "\r" => "CR", "\r\n" => "CRLF", _ => "none" };
+                        var message = $"InputConnection {method}; source={source}; {arguments}; textLength={argumentText?.Length}; newline={newline}; cursor={newCursorPosition}; active={!revoked}; batch={BatchDepth}";
+                        global::Android.Util.Log.Info("MFN.InputConnection", message);
+                        owner.InputConnectionDiagnosticSink?.Invoke(message);
+                    }
                 }
             }
             if (!owner.EnableInputConnectionDiagnostics)

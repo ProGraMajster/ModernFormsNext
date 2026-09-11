@@ -251,12 +251,21 @@ namespace ModernFormsNext
         /// <remarks>
         /// The base implementation inserts printable text and new lines for multiline text boxes. Derived controls can override this method to
         /// enforce custom input rules while preserving rendering and caret behavior.
+        /// Text-service events can contain multiple characters; their complete <see cref="KeyPressEventArgs.Text"/> passes through
+        /// <see cref="InsertText(string)"/> and the existing document filter. A standalone carriage return in a multiline control retains
+        /// the legacy conversion to a line feed. A single-line event containing only line breaks does not replace the current selection.
         /// </remarks>
         protected virtual bool ProcessTextBoxKeyPress (KeyPressEventArgs e)
         {
-            // Enter = 13
-            if (e.KeyChar == 13 && MultiLine) {
-                if (InsertText ("\n")) {
+            if (e.KeyChar is '\r' or '\n') {
+                // Native text services may send LF, CRLF or a whole newline-prefixed payload.
+                // Keep that payload intact for virtual editing and the document's single-line
+                // filter, but do not delete a selection for a rejected line-break-only event.
+                if (!MultiLine && e.Text.AsSpan().IndexOfAnyExcept('\r', '\n') < 0)
+                    return false;
+
+                var text = MultiLine && e.Text == "\r" ? "\n" : e.Text;
+                if (InsertText (text)) {
                     ScrollToCaret ();
                     return true;
                 }

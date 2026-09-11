@@ -490,3 +490,70 @@ These captures do not establish native candidate-window behavior. An isolated AP
 is ready alongside the existing API 34 emulator; final APK installation and actual Gboard
 interaction are still pending at this checkpoint. Release, packages, consumer, final DocFX,
 native acceptance, PR and CI are not yet reported as passed.
+
+### Native and package validation findings after the first implementation commit
+
+The first APK, built from `bf0fa94`, has SHA-256
+`411124AEED7E6C17C5906A009802AA6CB60AFD77F557F844A1EBEF24224A9BE9`.
+Actual Gboard interactions on API 34 and API 36 confirmed compose, replacement, deletion
+and space commit in the single-line editor, but exposed three incomplete behaviors:
+API 34 did not keep the editor above the keyboard; Next hid the keyboard on both APIs;
+and a multiline Enter produced no line break. These are observed failures, not passed
+acceptance rows. API 34 uses Gboard 12.4 and API 36 Gboard 15.1; full versions and native
+measurements are recorded with the ignored emulator artifacts.
+
+The API 34 native window used automatic `adjustPan`: Android sees one Skia view and cannot
+discover the shared scroll controls. Its root IME frame started at y=1517 in a 1080x2400
+window, overlapping the native view's bottom y=2337 by 820 physical pixels. Merely preferring
+the original root insets did not fix the observed case: comparison APK
+`B941B1BA465B018BC6E27721323000D227D5D5FBD349B25E89E2C192DFAB4203`
+still reproduced it. The sample now explicitly requests native `AdjustResize` and scrolls
+the current caret after viewport resizing as well as remaining IME-overlap changes.
+This follows Android's [window response guidance](https://developer.android.com/develop/ui/views/touch-and-input/keyboard-input/visibility).
+The root-inset correction remains necessary to use the same coordinate system as the mapper.
+
+The synchronous old-client-null/new-client handoff now defers keyboard dismissal with a
+generation check and native focus/attachment guards. This protects Next/Previous and avoids
+hiding a different native view's keyboard through their shared window token. Native
+diagnostics remain opt-in; the new client path records method/numeric/newline metadata,
+and the sample can record coalesced native/root inset measurements without changing layout.
+Fresh APK observations of these corrections remain pending at this checkpoint.
+
+The newline failure was reproduced in deterministic shared tests: 16 real payload cases
+failed before the correction. An initial Markdown fixture incorrectly selected its container
+through the nonvirtual Control.Select method; that fixture was corrected before the recorded
+16-failure checkpoint. The existing virtual text edit now accepts complete leading LF/CRLF
+payloads while preserving standalone CR, single-line and Markdown AcceptsReturn policies.
+All 53 text-client cases plus the image-copy resource-boundary case passed in the focused
+Debug run (**54/54**); full updated Debug/Release runs are pending.
+
+The first Release build passed (zero errors, four existing NU1902), but its full regression
+was **2758/2759**: an unchanged image-collision test failed during temporary-directory cleanup
+because `shared.png` was locked. Review found no evidence of an asynchronous framework loader
+in that test; all copy streams were awaited/disposed. The original focused test subsequently
+passed. Its assertion now explicitly opens the copied file with FileShare.None before decoding
+file bytes, preserving collision/pixel checks and testing the processor's release boundary
+without relying on native filename-decoder stream ownership. No retries, sleeps, forced GC
+or ignored IOException were added, and no unproven framework race is claimed fixed.
+
+Both configured API comparisons passed **11/11 Debug and 11/11 Release** for the first source.
+The first local pack validated **11 nupkg and 10 snupkg** at unchanged 1.10.0. A fresh-cache,
+package-only consumer restored and built with zero warnings/errors, but its final Tab assertion
+incorrectly assumed composition freezes canonical focus. The actual contract bypasses command
+bindings while retaining ordinary control navigation and text-preserving session retirement.
+The consumer has been corrected to check Tab transfer, stale-session rejection and fresh
+reacquisition, with a separate Escape-binding guard. Its corrected run remains pending.
+
+An isolated native Windows harness passed real Polish (Programmers) HKL translation through
+TranslateMessage/DispatchMessage to an owned TextBox/HWND: `ąęłĄ` appeared once, AltGr did not
+run the Ctrl+Alt binding, and a separate genuine Ctrl+Alt gesture did. A dead-key probe found
+Shift+VK_OEM_3; WM_DEADCHAR `~` inserted no text, followed by A producing one WM_CHAR `ą`.
+The thread's keyboard-state bytes and unchanged user layout were verified after completion.
+The test used synthetic thread-local key states, not a physical keyboard or a CJK IME.
+Core/Windows assemblies both identified source `bf0fa94`; hashes and complete message evidence
+are in `native-keyboard62/runs/20260911-122142-127/`.
+
+The final gallery capture at that source produced ten images (two baselines plus eight
+compositions) at 100%/150%; the shortened intro fits. ControlGallery and the unchanged
+template-reference DemoApp also exposed responsive native windows and closed normally with
+exit code zero. These are scoped rendering/startup checks, not native candidate-window proof.

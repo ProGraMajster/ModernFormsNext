@@ -30,6 +30,144 @@ public sealed class TextInputClientTests
         Assert.False(fixture.Client.GetState()!.HasComposition);
     }
 
+    [Theory]
+    [InlineData("plain", "\n")]
+    [InlineData("plain", "\r\n")]
+    [InlineData("plain", "\nż😀中")]
+    [InlineData("plain", "\r\nż😀中")]
+    [InlineData("rich", "\n")]
+    [InlineData("rich", "\r\n")]
+    [InlineData("rich", "\nż😀中")]
+    [InlineData("rich", "\r\nż😀中")]
+    [InlineData("markdown", "\n")]
+    [InlineData("markdown", "\r\n")]
+    [InlineData("markdown", "\nż😀中")]
+    [InlineData("markdown", "\r\nż😀中")]
+    public void NativeNewlinePayloadUsesTheExistingMultilineEditorForCommitCompositionAndCancel(string kind, string payload)
+    {
+        using var root = CreateNewlineEditor(kind, out var editor);
+        using var surface = new SkiaControlSurface(root);
+        surface.Resize(640, 320);
+        editor.Select();
+        var client = Assert.IsAssignableFrom<ITextInputClient>(surface.TextInputClient);
+        var observedText = new List<string>();
+        editor.KeyPress += (_, args) => observedText.Add(args.Text);
+        string expected = "A" + payload + "Z";
+
+        Assert.True(client.SetSelection(4, 1));
+        Assert.True(client.SetComposingText(payload));
+        Assert.Equal(expected, editor.Text);
+        var composing = client.GetState()!;
+        Assert.Equal((1, 1 + payload.Length), (composing.CompositionStart, composing.CompositionEnd));
+        Assert.Equal(1 + payload.Length, composing.SelectionEnd);
+
+        Assert.True(client.CancelComposition());
+        Assert.Equal("AoldZ", editor.Text);
+        Assert.Equal((4, 1), (client.GetState()!.SelectionStart, client.GetState()!.SelectionEnd));
+        Assert.False(client.GetState()!.HasComposition);
+        if (root is MarkdownEditor canceledMarkdown) {
+            Assert.Equal("AoldZ", canceledMarkdown.Markdown);
+            Assert.False(canceledMarkdown.CanUndo);
+            Assert.False(canceledMarkdown.Modified);
+        }
+
+        Assert.True(client.CommitText(payload));
+        Assert.Equal(expected, editor.Text);
+        Assert.Equal(1 + payload.Length, client.GetState()!.SelectionEnd);
+        Assert.False(client.GetState()!.HasComposition);
+        Assert.Equal(new[] { payload, payload }, observedText);
+        if (root is MarkdownEditor committedMarkdown) {
+            Assert.Equal(expected, committedMarkdown.Markdown);
+            committedMarkdown.Undo();
+            Assert.Equal("AoldZ", committedMarkdown.Markdown);
+            Assert.False(committedMarkdown.CanUndo);
+            committedMarkdown.Redo();
+            Assert.Equal(expected, committedMarkdown.Markdown);
+        }
+    }
+
+    [Theory]
+    [InlineData("plain")]
+    [InlineData("rich")]
+    [InlineData("markdown")]
+    public void NativeStandaloneCarriageReturnKeepsTheExistingSingleLineBreakConvention(string kind)
+    {
+        using var root = CreateNewlineEditor(kind, out var editor);
+        using var surface = new SkiaControlSurface(root);
+        surface.Resize(640, 320);
+        editor.Select();
+        var client = Assert.IsAssignableFrom<ITextInputClient>(surface.TextInputClient);
+        Assert.True(client.SetSelection(4, 1));
+
+        Assert.True(client.CommitText("\r"));
+
+        Assert.Equal("A\nZ", editor.Text);
+        Assert.Equal(2, client.GetState()!.SelectionEnd);
+    }
+
+    [Theory]
+    [InlineData("plain", "\nż😀")]
+    [InlineData("plain", "\r\nż😀")]
+    [InlineData("rich", "\nż😀")]
+    [InlineData("rich", "\r\nż😀")]
+    public void SingleLineNativeNewlinePrefixKeepsPrintableTextThroughTheExistingDocumentFilter(string kind, string payload)
+    {
+        using var root = CreateNewlineEditor(kind, out var editor);
+        editor.MultiLine = false;
+        using var surface = new SkiaControlSurface(root);
+        surface.Resize(640, 320);
+        editor.Select();
+        var client = Assert.IsAssignableFrom<ITextInputClient>(surface.TextInputClient);
+        var observedText = new List<string>();
+        editor.KeyPress += (_, args) => observedText.Add(args.Text);
+        Assert.True(client.SetSelection(4, 1));
+
+        Assert.True(client.SetComposingText(payload));
+        Assert.Equal("Aż😀Z", editor.Text);
+        Assert.Equal((1, 4), (client.GetState()!.CompositionStart, client.GetState()!.CompositionEnd));
+        Assert.True(client.CancelComposition());
+        Assert.Equal("AoldZ", editor.Text);
+        Assert.Equal((4, 1), (client.GetState()!.SelectionStart, client.GetState()!.SelectionEnd));
+
+        Assert.True(client.CommitText(payload));
+        Assert.Equal("Aż😀Z", editor.Text);
+        Assert.Equal(4, client.GetState()!.SelectionEnd);
+        Assert.Equal(new[] { payload, payload }, observedText);
+    }
+
+    [Theory]
+    [InlineData("plain", "\n")]
+    [InlineData("plain", "\r\n")]
+    [InlineData("rich", "\n")]
+    [InlineData("rich", "\r\n")]
+    [InlineData("markdown", "\n")]
+    [InlineData("markdown", "\r\n")]
+    [InlineData("markdown", "\nż😀中")]
+    public void NativeNewlineRespectsSingleLineAndMarkdownAcceptsReturnPolicies(string kind, string payload)
+    {
+        using var root = CreateNewlineEditor(kind, out var editor);
+        if (root is MarkdownEditor markdown)
+            markdown.AcceptsReturn = false;
+        else
+            editor.MultiLine = false;
+        using var surface = new SkiaControlSurface(root);
+        surface.Resize(640, 320);
+        editor.Select();
+        var client = Assert.IsAssignableFrom<ITextInputClient>(surface.TextInputClient);
+        Assert.True(client.SetSelection(4, 1));
+        var observedText = new List<string>();
+        editor.KeyPress += (_, args) => observedText.Add(args.Text);
+
+        Assert.True(client.CommitText(payload));
+        Assert.Equal("AoldZ", editor.Text);
+        Assert.True(client.SetSelection(5, 5));
+        Assert.True(client.SetComposingText(payload));
+        Assert.Equal("AoldZ", editor.Text);
+        Assert.True(client.CancelComposition());
+        Assert.Equal("AoldZ", editor.Text);
+        Assert.Equal(new[] { payload, payload }, observedText);
+    }
+
     [Fact]
     public void CancelRestoresOriginalFragmentAndReverseSelectionButFinishKeepsText()
     {
@@ -389,6 +527,19 @@ public sealed class TextInputClientTests
         Assert.False(markdown.Modified);
         markdown.Redo();
         Assert.Equal("original!", markdown.Markdown);
+    }
+
+    private static Control CreateNewlineEditor(string kind, out TextBox editor)
+    {
+        if (kind == "markdown") {
+            var markdown = new MarkdownEditor { Markdown = "AoldZ" };
+            editor = markdown.EditorSurface;
+            return markdown;
+        }
+
+        editor = kind == "rich" ? new RichTextBox() : new TextBox { MultiLine = true };
+        editor.Text = "AoldZ";
+        return editor;
     }
 
     private sealed class EditorFixture : IDisposable

@@ -57,6 +57,10 @@ indexing; semantic edits avoid splitting surrogate pairs. Full semantic input st
 must contain complete Unicode scalars. The existing raw UTF-16 character transport
 continues to support platforms that deliver surrogate pairs in two character events.
 MaxLength still counts UTF-16 units, but truncation cannot retain only half a pair.
+Native newline payloads preserve the full LF/CRLF text through the existing virtual edit
+path, including text following a leading newline. A standalone CR retains the existing
+multiline Enter convention of one LF. Single-line filtering and Markdown's `AcceptsReturn`
+policy still apply; newline-only input does not delete a single-line selection.
 Deletion keeps complete text elements, which can remove more units than requested when
 a request intersects a combined glyph or emoji sequence.
 
@@ -170,8 +174,15 @@ See Android's [InputConnection](https://developer.android.com/reference/android/
 and [CursorAnchorInfo](https://developer.android.com/reference/android/view/inputmethod/CursorAnchorInfo.Builder).
 
 Native keyboard visibility remains OS policy. Framework `WindowInsets.Ime` is informational;
+During a synchronous Next/Previous focus transfer, Android defers the old client's dismissal
+until the next UI turn and cancels it when a new client takes over. The callback also checks
+native focus and attachment so it cannot hide another native view's keyboard.
 general automatic keyboard avoidance is not added. An application can combine the existing
 inset, current caret and its normal scrolling policy, as the cross-platform sample does.
+The Android sample explicitly requests `AdjustResize`: Android sees one Skia view and cannot
+infer the scroll controls within it. After native viewport resizing the page scrolls the
+current caret; remaining edge-to-edge overlap is handled without subtracting keyboard height
+twice. Root-window insets are intersected with the actual surface bounds before conversion.
 API 23–29 still lacks the typed IME inset used by the newer adapter.
 
 ## Diagnostics and verification
