@@ -420,7 +420,7 @@ The post-merge master CI run `34510156039` also completed successfully.
 
 ## Issue #62 — Add IME and advanced text input composition infrastructure
 
-Status: **IN PROGRESS — implementation committed; final acceptance gates running**. Starting master:
+Status: **IMPLEMENTED / LOCAL VALIDATION PASS — dedicated PR/CI/merge pending; issue remains PARTIAL**. Starting master:
 `5eb19a5098f5fdba794d57fe599cf0224f2ab4d8`; branch `codex/issue-62-text-composition`.
 The [audit and technical plan](issue-62-text-input-plan.md) records the reread issue,
 zero comments, current dependencies, source/history/test/docs findings and the
@@ -591,3 +591,129 @@ metadata callbacks. Six added regressions cover real-editor Shift selection with
 execution, large-document metadata-only selection, reentrant revocation and focus replacement.
 The complete Android managed suite passed **204/204** after this correction; native target,
 fresh APK and complete solution/package/documentation gates remain pending.
+
+### Issue #62 — acceptance and validated implementation
+
+Status: **OPEN / PARTIAL**. Current implementation source is
+`507ca07a5509d6edc62316ebbbcb9a67ce2ecea8`. Its Android APK SHA-256 is
+`B2604F0A694661D2A50AC00159996D4B586A8332110CB48A49D56011DC025882`.
+The earlier entries retain the audit, discovered failures and their corrections;
+the results below supersede their pending statements only for the exact source
+and scenario named. The guide is [Text input and composition](../text-input.md).
+
+The implementation reuses canonical focus and existing editor documents/virtual
+operations. Captured native sessions are revoked before handoff and cleanup;
+finish preserves visible preedit, while explicit cancel restores its current
+checkpoint. Rich formatting and Markdown history remain in their existing models.
+Shared contracts contain bounded immutable snapshots, actual shaped caret/baseline,
+semantic operations/options and metadata diagnostics. Windows supplies IMM32 and
+owner-HWND popup routing; Android supplies captured InputConnection operations,
+selection notifications, hints/actions and native lifecycle integration.
+
+#### Exact validation gates
+
+| Gate | Current result | Evidence boundary |
+|---|---|---|
+| Debug build, source 507ca07 | PASS | Zero errors, four existing NU1902 warnings; `phase62-reviewed-debug-build.log`. |
+| Full Debug tests, source 507ca07 | **2791/2791 PASS** | Independently parsed nine TRXs in `phase62-reviewed-debug-results`, zero failed/skipped. |
+| Debug API compatibility, source 507ca07 | **11/11 PASS** | `phase62-reviewed-debug-apicompat.log`; merged-master 5eb19a5 baseline and the documented compiler-generated attribute exclusion. |
+| Release build/tests, source 507ca07 | **2791/2791 PASS** | Zero build errors, four existing NU1902 warnings; nine TRXs in `phase62-reviewed-release-results`, zero failed/skipped. Final summary: `phase62-reviewed-summary.json`. |
+| Release API compatibility, source 507ca07 | **11/11 PASS** | `phase62-reviewed-release-apicompat.log`; same baseline and documented compiler-generated attribute exclusion as Debug. |
+| Final NuGet pack/validation | **11 nupkg / 10 snupkg PASS** | `packages62-reviewed` and `phase62-reviewed-packages.log`; package version remains 1.10.0. |
+| Isolated final-package consumer | **74 assertions / 6 cases PASS** | `consumer62/runs/20260911T125815839Z-9a1a1c7f`: fresh private cache, mapped feed, zero ProjectReferences, build zero warnings/errors. Covers full LF/CRLF payload, singleline filtering, typed rollback/history, bounded/private metadata, stale sessions, native-method borrowing, Tab/Next and Escape binding. Package and program hashes are recorded in its `provenance.json`. |
+| Executable documentation checks | **32 assertions PASS** | `phase62-reviewed-doc-tests.log`. |
+| DocFX | **PASS, 1016 HTML files** | `phase62-reviewed-doc-build.log`: build succeeded with zero warnings/errors. |
+| Four offline documentation archives | **4/4 PASS** | `phase62-reviewed-doc-validate.log`: validated version 1.10.0 archives with metadata source commit `507ca07a5509d6edc62316ebbbcb9a67ce2ecea8`. Final serial validation script exited 0. |
+| Windows native keyboard | PASS scoped, source bf0fa94 | Polish HKL AltGr/dead-key translation through TranslateMessage/DispatchMessage to own HWND; synthetic thread-local keyboard states, restored afterward. `native-keyboard62/runs/20260911-122142-127`. Physical/CJK observations are not implied. |
+| Native sample startup, source 507ca07 | **3/3 PASS scoped** | CrossPlatformSample on Windows, ControlGallery and unchanged DemoApp each had a responsive HWND and graceful exit 0; `phase62-reviewed-native-sample-smoke.json` and matching provenance. This is startup/lifetime evidence, not manual visual or candidate-window acceptance. |
+| Offscreen gallery rendering | PASS scoped, earlier documented source | Ten final offscreen gallery captures at 100%/150%; `phase62-gallery-final-renderings`. These do not prove native candidate placement. |
+| Android broad run, source 3949100 / APK 942E5AE8…1798E283 | **37/42 outcomes PASS; five failures fixed in 507** | The 21-row matrix across API 34/36 records four editors, emoji, Done, cancel/finish, Home/resume, IME-active recreation, separate animation-active recreation and cleanup. Five failures concern initial focus-only caret visibility and SelectAll/Shift selection; all have passing final-APK retests. Runtime settled to idle with one surface, retained text/counter and 6/6 original settings restored per emulator. Evidence: `phase62-android-smoke/RESULTS.md`, `evidence-outcomes.json` and corrected device folders. |
+| Android final retest, source 507ca07 / APK B2604F0A…C025882 | **30/30 outcomes PASS** | Fifteen rows on each API cover startup, visible caret, compose/delete/commit, Next with immediate caret scrolling, LF Enter, Rich SelectAll and selected-fragment replacement, Rich/Markdown Done, Markdown editing, redacted modern key metadata and exact 6/6 settings restoration. The final device folders and outcome manifest retain matching provenance. Earlier lifecycle/emoji/animation observations are not relabeled as this APK. |
+| Dedicated PR / PR CI / merge | **PENDING** | Local implementation accepted for the dedicated Ready PR and required CI. Merge evidence will be recorded after verification; #62 remains OPEN/PARTIAL. |
+
+The Android outcome manifest contains 72 scenario/device rows with existing evidence
+references: 42 for the broader `3949100` run and 30 for the final `507ca07` rerun.
+All five historical failures have passing affected-path final retests. API 36's final
+Enter result is established by captured text and keyboard actions; its early native
+LF trace had rotated out. Both APIs retain the exact LF trace at source `3949100`.
+The final privacy observation covers the modern InputConnection SendKeyEvent line;
+separately opt-in legacy View-key diagnostics are not claimed globally redacted.
+
+Activity recreation retained the process and used verified replacement Activity/view
+identities after font-scale changes; IME-active and animation-active recreation were
+separate scenarios. Cold-process restoration, simultaneous IME/animation teardown,
+rotation-specific behavior and long stress runs were not exercised by this #62 run.
+The separate Focus-next demo button and native clipboard actions were not independently
+exercised; actual focus transitions used native Next and pointer focus. Copy/Cut becoming
+enabled demonstrates selection feedback, not successful clipboard transport. Settings
+restoration passed 6/6 values per emulator after both completed sessions.
+
+API checks exclude only `System.Runtime.CompilerServices.AsyncStateMachineAttribute`
+after direct metadata inspection confirmed private generated state-machine ordinal
+changes on three otherwise unchanged public Markdown methods. Other attributes,
+public signatures and parameter checks remain enabled; no CP0015/NoWarn or public
+API suppression is used. Exact configuration and raw evidence are retained in the
+audit artifacts.
+
+#### Every acceptance-direction criterion
+
+| Criterion | Status | Concrete evidence and limit |
+|---|---|---|
+| Text input is not derived solely from raw key events | **PASS** | Semantic ITextInputClient commit/composition operations, existing KeyPress compatibility, binding exclusion and native adapter paths. `CompositionUsesExistingKeyPressAndPublishesFinalMetadata` and host/Windows/Android protocol regressions. |
+| Polish/international keyboard input works correctly | **PARTIAL** | Shared Polish/Unicode/AltGraph tests and real Polish HKL translation pass. Broader physical/layout/CJK matrix remains unexecuted. |
+| Active composition is explicit and updates controls correctly | **PASS shared/protocol; PARTIAL full native compatibility** | Metadata stages/ranges, typed cancellation, Markdown transaction/history and shaped provisional underline tests; four-editor Gboard observations at 3949100. Representative native CJK candidate behavior is unverified. |
+| Android keyboards compose/commit without corruption | **PARTIAL** | Shared protocol tests and observed Gboard operation/LF/emoji success on API 34/36. Final-APK SelectAll, synthetic Shift and LF scenarios pass; the broader vendor matrix remains incomplete. |
+| Focus changes/disposal leave no stale IME sessions | **PASS automated; PARTIAL complete native matrix** | Captured-client revocation, ancestor/reparent/hide/disable/dispose, popup/modal and exception/reentry tests; observed Next and recreation at 3949100. Final focus/selection retests pass; native candidate teardown remains unverified. |
+| Framework controls reuse one common composition layer | **PASS** | TextBoxDocument and virtual Insert/Delete reused by plain, multiline, rich and Markdown; common session coordinator and actual-layout adornment. No second document or focus engine. |
+
+#### Every additional 1.10.0 audit checkbox
+
+| Criterion | Status | Coverage and unresolved boundary |
+|---|---|---|
+| TextBox/RichTextBox/Markdown/editor, hardware/software keyboards, dead keys, AltGr and representative CJK | **PARTIAL** | All existing editor consumers covered; Polish native HKL and Gboard evidence recorded separately. Physical keyboards and representative CJK engines remain **NOT EXECUTED — environment unavailable**. |
+| Multiple Android API levels and vendor IMEs: compose, commit, deletion, selection, surrounding text | **PARTIAL** | API 34 Gboard 12.4.05.482060964 and API 36 Gboard 15.1.08.726012951 are two API/version configurations of one vendor. They do not satisfy a multiple-vendor claim. Bounded protocol tests pass; final native selection scenarios pass with matching provenance and restored settings. |
+| Candidate/caret geometry, focus, popup/modal, Activity recreation and disposal during composition | **PARTIAL** | Actual-layout/baseline/DPI/transform/border tests, popup/modal ownership tests, observed keyboard occlusion and recreation. Final source-specific focus/selection observations pass; representative CJK candidate placement remains unverified. |
+| Separate automated, observed emulator and physical-device evidence | **PASS reporting discipline** | Deterministic protocol tests, native injected messages, native HKL translation, offscreen rendering and live emulator actions retain distinct source/provenance. Physical-device testing remains **NOT EXECUTED — environment unavailable**. |
+
+#### Other requirement groups retained from the full issue
+
+| Requirement group | Status | Source/tests and interpretation |
+|---|---|---|
+| Separate committed text; start/update/commit/cancel; composition text and replacement ranges | **PASS** | WindowKit input contracts, TextBox.TextInput and ControlTextInputHost; explicit empty result, replacement, reverse-selection and callback-order regressions. Finish and cancel have different documented semantics. |
+| Caret/selection synchronization, caret index, oriented selection, composition range, editable/readonly state | **PASS shared/protocol; PARTIAL native breadth** | TextInputState absolute offsets/options; existing editor selection; captured SelectAll uses metadata DocumentLength with post-query identity validation. Final native selection observations pass with matching provenance and restored settings. |
+| Current/surrounding text and large-document bounds | **PASS protocol** | Immutable slices with TextStart/DocumentLength; hard 65,536 UTF-16 ceiling, zero-text metadata query, surrogate-safe clipping, revision-consistent Android queries and oversized-selection unavailability. |
+| Dead keys, AltGr, international layouts, Polish characters | **PARTIAL** | Modifier/shortcut/international editing regressions and native Polish HKL proof; additional layouts/physical/CJK validation is not inferred. |
+| Unicode, emoji and supplementary characters | **PASS shared/protocol; PARTIAL vendor breadth** | MaxLength and selection retain complete scalars; deletion preserves text elements; malformed native sequences rejected. Observed native emoji is recorded at 3949100. |
+| Native LF/CRLF and newline-prefixed Unicode | **PASS at 507ca07 automated** | 26 client cases cover commit/compose/cancel across all existing editors, CR convention, singleline suffix filtering and Markdown AcceptsReturn; 53 client cases total. The final public package consumer passed its LF/Unicode and singleline prefix assertions within 74 assertions, specifically rejecting old packages that drop this payload. |
+| Software keyboard show/hide; scopes text/numeric/email/URL/phone/password; autocorrect/capitalization; mobile return actions | **PARTIAL full native behavior** | Android EditorInfo/actions/handoff and shared options; Gboard Next/Enter/Done observed at prior source. Hints and visibility remain OS policy. Password prediction is restricted. Windows touch keyboard is unsupported by the IMM adapter. |
+| Initial TextBox, multiline, RichTextBox and Markdown/editor consumers | **PASS shared** | One existing editing route; rich typed fragment restoration and unaffected formatting; Markdown existing undo transaction/final caret/redo; full legacy KeyPress payload. |
+| Future document/code editors | **PASS extension seam; future products NOT APPLICABLE** | Protected Control.GetTextInputClient accepts stable custom adapters without requiring TextBox inheritance or full-document copying. No future editor product is claimed complete. |
+| Windows text services, candidate/composition, caret and DPI, platform-neutral public API | **PASS IMM32 implementation; PARTIAL full native compatibility** | Context lifetime, result/default-message exclusion, geometry, cancellation and popup leases; actual owned-HWND integration and native Polish translation. Shared APIs expose no Win32 or TSF types. Native CJK placement remains unobserved. |
+| Android InputConnection compose/commit/delete/selection/surrounding/actions/options/lifecycle; avoid key=character assumption | **PARTIAL native matrix** | Captured revocable session, bounded queries, batch/cursor notifications; synthetic navigation preserves modifiers without becoming hardware shortcut input. Select All has a targeted captured-client path. Final affected-path retests pass; the broader vendor matrix remains incomplete. |
+| Canonical focus, mid-composition policy, popup/modal and native hosted ownership | **PASS automated; PARTIAL complete native observations** | Existing Control/WindowBase focus/traversal, session handoff, conditional popup owner leases and SetTextInputActive. Retired instances return null/false and cannot target later focus. |
+| Cancellation on removal/disposal and exceptional/reentrant cleanup | **PASS automated** | Session/tree/window lifecycle tests include failed observers, disabled/hidden ancestors, reparenting, native attach rejection and combined detach/finish errors. Ownership is canceled; visible Android preedit is preserved by finish. Explicit cancel alone rolls back a current checkpoint. |
+| All named regression families | **PASS deterministic coverage; PARTIAL native matrix** | Dead-key/AltGr/Polish, emoji/surrogates, CJK-shaped payloads, replacing selection, backspace/delete in composition, focus change, removal/disposal and Android composing/commit have shared/protocol tests. A CJK string fixture is not native CJK IME evidence. |
+| Diagnostics: active client, composition/range, scope and backend connection; no entered text by default | **PASS detached metadata and scoped native privacy observation** | TextInputDiagnostics stores bounded metadata without text/control references. Modern native Trace removes SendKeyEvent character/key arguments; final-APK modern metadata observations pass. Existing separately opt-in legacy View-key tracing retains its documented sensitive diagnostics. HasNativeMethod describes an attached capability, not measured keyboard visibility/vendor health. Full runtime DevTools UI remains future work. |
+| Phase 1 shared contracts/operations/state/selection/tests | **PASS** | Shared production contracts and current passing regression suite. |
+| Phase 2 Windows integration and international/candidate validation | **PARTIAL** | Implemented IMM32 with scoped native proof; broad CJK/layout/candidate acceptance remains incomplete. |
+| Phase 3 Android connection/operations/options/actions/lifecycle | **PARTIAL** | Implementation and managed/native evidence; final selection/focus/privacy observations pass and settings are restored. Vendor breadth remains incomplete. |
+| Phase 4 current controls/diagnostics/docs/sample | **PASS implementation and final artifact gates** | Existing controls, metadata, guide/gallery/sample completed in current source. Final packages, isolated consumer, documentation scripts, DocFX and four archives pass; final-source startup passes 3/3. Affected native observations remain separately qualified above. |
+
+Windows support is IMM32-compatible input, not a TSF text store or TSF locking,
+reconversion, handwriting or dictation. Windows password IME composition and
+touch-keyboard requests remain unavailable; ordinary password character input is
+retained. IME insets are informational, with sample-level scrolling and AdjustResize
+policy; typed IME inset reporting is not supplied for API 23–29. Native-host handoff
+does not implement WebView, Media or a new native-control hierarchy. Future
+#12/#55/#61 scope is not declared complete.
+
+Final source review of `507ca07a5509d6edc62316ebbbcb9a67ce2ecea8` against merged
+master `5eb19a5098f5fdba794d57fe599cf0224f2ab4d8` found no unresolved code blocker
+in the implemented scope. Later edits only finalize documentation; no production
+or test source differs from this validated commit. No new dependency, public API
+removal, version bump or release/publication metadata change is included.
+
+The implemented slice has passed its local validation and final source review. It can proceed to the dedicated PR and merge workflow once
+required PR CI passes, while #62 remains OPEN/PARTIAL. The broader native-language,
+vendor, physical-device and candidate acceptance requirements are retained rather
+than converted to PASS or dropped.
