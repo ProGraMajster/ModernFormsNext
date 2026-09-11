@@ -101,8 +101,9 @@ software-rendering diagnostics, and artifact collection.
 
 The shared page provides Ctrl+S, Ctrl+Shift+S and F1 command cases, with buttons and separate
 editor/page/save-as/help counts so keyboard and visual actions can be compared. These actions
-update sample state; they do not write files. The section is implementation under validation,
-with current results in the [Android hardware-input matrix](android-hardware-input.md#validation-matrix).
+update sample state; they do not write files. Deterministic tests, offscreen sample renders and
+scoped API 34 native shortcut observations are recorded in the
+[Android hardware-input matrix](android-hardware-input.md#validation-matrix).
 
 | Action | Expected command route |
 |---|---|
@@ -137,7 +138,8 @@ preserving state without adding duplicate global bindings. The default input sta
 key identities as well as text payloads. Windows uses its normal Form route. There is no additional
 Android WindowBase or application/window host.
 
-New emulator observations are **PENDING**. Physical hardware keyboards and unavailable device/
+API 34 emulator shortcuts have scoped native evidence; API 36 positive key delivery remains
+unavailable through the tested console transport. Physical hardware keyboards and unavailable device/
 layout combinations are **NOT EXECUTED — environment unavailable**. The broader device matrix
 and general Android windowing host remain separate work.
 

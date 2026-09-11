@@ -50,7 +50,7 @@ Existing Designer command metadata stays hidden/runtime-only.
    0–6. A pure backend mapper supplies the existing WindowKit key representation.
    Preserve the two-argument record constructor/deconstruction and editing default;
    add source/repeat/canceled/dead-key metadata and a derived platform key. Do not
-   intercept Android Back/Home/power/volume/media or claim every OEM key supported.
+   intercept Android Back, Home, power, volume or media keys, or claim every OEM key supported.
 2. Add an optional synchronous `KeyInputHandler` returning bool on the native view.
    It is exclusive of legacy `KeyInput`; absent the new handler, the old event still
    receives only its original seven keys with its original consumption contract.

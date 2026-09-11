@@ -381,7 +381,7 @@ not proof that a physical keyboard was observed. The original two-argument Andro
 retains editing defaults and deconstruction.
 
 The expanded Android hardware adapter supplies letters, digits, F1–F12, navigation and a bounded
-keypad/OEM set through the existing resolver. This implementation is **under validation**; see the
+keypad/OEM set through the existing resolver. Deterministic and scoped API 34 emulator checks pass; see the
 [supported keys and evidence matrix](android-hardware-input.md). The primary native
 `KeyInputHandler` returns the shared handled result. Without it, the legacy `KeyInput` event retains
 its original Backspace/Delete/Enter/arrows subset and consumption behavior. Configuring the new

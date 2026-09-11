@@ -7,8 +7,8 @@ This extends the command system completed in [#56](https://github.com/ProGraMajs
 it does not add a second command or focus system.
 
 > [!IMPORTANT]
-> The expanded adapter is **implementation under validation**. New build/test and emulator
-> results are PENDING until recorded below. Physical hardware keyboards are **NOT EXECUTED —
+> The expanded adapter has **deterministic and scoped API 34 emulator validation**. Supported
+> routes and observed limits are recorded below. Physical hardware keyboards are **NOT EXECUTED —
 > environment unavailable**. Android remains Experimental; implementation coverage is not a
 > declaration of parity across devices, layouts or Android versions.
 
@@ -160,7 +160,8 @@ editing modifiers survive while command lookup is bypassed. A dead key clears ob
 suppression for its key and returns unhandled without invoking command lookup, control KeyDown,
 editing or activation; an already handled/suppressed event remains consumed. A canceled release
 retires its pending interaction without invoking ordinary control KeyUp, Click or a release
-animation. Independent pointer capture and pointer press effects remain intact.
+ripple. PressScale can animate its return to rest; independent pointer capture and pointer
+press effects remain intact.
 
 ## Focus, reset and ownership
 
@@ -209,13 +210,19 @@ password contents. Save only the minimum metadata needed to distinguish routes.
 
 | Evidence lane | Current result | Scope |
 |---|---|---|
-| Expanded deterministic mapping and real-surface integration | **PENDING** | Key families/modifiers, fallback, repeats/releases, handled result, reset, stale callbacks, IME and AltGraph safety. |
-| Debug/Release solution and native Android build | **PENDING** | Compilation is not native hardware observation. |
-| API compatibility, packages and executable consumer | **PENDING** | Preserve public enum values/constructors/void APIs; the Android backend is source-built and not a standalone NuGet package. |
-| API 34 emulator | **PENDING** | Record the actual key source/layout and current APK. Existing Gboard 12.4 software-IME evidence from #62 is not a hardware-shortcut result. |
-| API 36 emulator | **PENDING** | Record the actual key source/layout and current APK. Existing Gboard 15.1 software-IME evidence from #62 is not a hardware-shortcut result. |
+| Expanded deterministic mapping and real-surface integration | **PASS** | Android 314, core 1285 and sample 22 tests include production mapping/bridge, fallback, repeats/releases, handled result, reset, stale callbacks, IME and AltGraph safety. |
+| Debug/Release solution and native Android build | **2944/2944 tests PASS in each configuration** | Nine projects, zero failed/skipped; native Android TFM and the exact-source APK compile. Compilation is not native hardware observation. |
+| API compatibility, packages and executable consumer | **PASS** | 13 assembly/TFM comparisons per configuration, no attribute exclusions; 11 packages, 10 symbol packages, 40 isolated consumer assertions. Original enum values/constructors/void APIs remain. Android backend is source-built, not a standalone NuGet package. |
+| API 34 emulator | **PASS scoped shortcuts; PARTIAL hardware text** | Pixel_8, Gboard 12.4.05.482060964-preload-x86_64, existing AT keyboard device 2 / Generic.kl, native Keyboard source with FromSystem: F1, Ctrl+S, Ctrl+Shift+S, focused editor/outer fallback and repeats observed. Ctrl+RightAlt+S does not execute a command. Ordinary A and Shift+A reach the View unhandled but do not insert text in this configuration. |
+| API 36 emulator | **PASS virtual-source exclusion; positive route NOT EXECUTED — environment unavailable** | Android 16 emulator, Gboard 15.1.08.726012951-preload-x86_64. Virtual F1/Ctrl+S do not execute commands. The tested console transport reports acceptance but produces no native keyboard delivery; this cannot establish positive shortcut behavior or a framework failure. |
 | Physical Android device with hardware keyboard | **NOT EXECUTED — environment unavailable** | No USB/Bluetooth physical-keyboard behavior is inferred from emulator input. |
-| Additional vendor/layout/CJK combinations | **NOT EXECUTED** | No broad compatibility result is inferred; preserve separate language, candidate and software-IME acceptance under #62. |
+| Additional vendor/layout/CJK combinations | **NOT EXECUTED — environment unavailable** | No broad compatibility result is inferred; preserve separate language, candidate and software-IME acceptance under #62. |
+
+These #109 results use production/test source `8fd369650ebeba53ec78e299483c8db8a0216701`
+and APK SHA-256 `564A74A2F23E4107A4B58C87BFA830B43566B84A0C5959E0E672B2B14638EE2D`.
+The [durable acceptance report](development/codex-autonomous-issue-run.md#issue-109--validated-source-and-local-artifact-gates)
+separates command observations, text limits, restoration, exact-source artifacts and later
+documentation-only commits. #109 remains OPEN/PARTIAL for the recorded native breadth.
 
 An `adb input keyevent` using a virtual source cannot establish the positive hardware route.
 Eligible emulated-device injection can validate the emulator path, with exact provenance and

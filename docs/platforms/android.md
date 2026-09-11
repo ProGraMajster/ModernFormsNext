@@ -41,8 +41,8 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   text, deletion by code point, arrows, Backspace, Delete, and Enter.
 - An expanded [hardware-key adapter](../android-hardware-input.md) routes supported letters,
   digits, function/navigation keys and Ctrl/Shift/Alt/Meta combinations through the existing
-  control/ancestor/surface/Application input bindings. This implementation is under validation;
-  new emulator observations are pending and physical hardware-keyboard testing is NOT EXECUTED.
+  control/ancestor/surface/Application input bindings. Deterministic and scoped API 34 emulator
+  checks pass; physical hardware keyboards are **NOT EXECUTED — environment unavailable**.
   IME editing and committed text remain separate from shortcut input.
 - Activity foreground/background transitions, pause/resume, configuration changes, and activity
   replacement are tracked. The cross-platform sample keeps its process-owned control tree and

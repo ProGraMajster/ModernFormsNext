@@ -46,7 +46,7 @@ lifecycle tracking, main-thread dispatching, and manifest-aware permissions.
 
 The expanded [Android hardware-key route](docs/android-hardware-input.md) connects supported
 letters, digits, function/navigation keys and modifiers to the shared command resolver. This
-implementation is under validation; its API/device/layout evidence is listed separately from
+implementation has deterministic and scoped API 34 emulator validation; its evidence is separate from
 software-keyboard composition and physical-keyboard observations.
 
 Android does not yet provide the general `Application.Run(Form)` path, a complete WindowKit

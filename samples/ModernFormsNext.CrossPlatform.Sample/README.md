@@ -22,10 +22,10 @@ and an availability fallback. Android connects the native hardware-key handler t
 surface input resolver; Activity recreation keeps the shared page and its registrations.
 F1 selects a RoutedCommand handled by the page in the current input route. The page removes its
 exact Application registration before child disposal, including after Application exit.
-This addition is under validation. See the [hardware input contract and evidence matrix](../../docs/android-hardware-input.md)
+This addition has deterministic and scoped API 34 emulator validation. See the [hardware input contract and evidence matrix](../../docs/android-hardware-input.md)
 and the [sample interaction checklist](../../docs/cross-platform-sample.md#hardware-command-section).
-Emulator observations are pending; physical hardware keyboards are NOT EXECUTED because the
-environment is unavailable. Software-keyboard composition remains a separate test path.
+Physical hardware keyboards are **NOT EXECUTED — environment unavailable**. Software-keyboard
+composition and the observed Gboard hardware-text fallback limit remain separate test paths.
 
 Touch uses stable pointer IDs, deepest-control hit testing, independent capture, one-click tap
 semantics, drag cancellation, and the real `ScrollableControl` scrollbar state. The diagnostic
