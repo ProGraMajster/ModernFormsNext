@@ -52,7 +52,12 @@ public class MarkdownImageAssetWorkflowTests
         options.CollisionBehavior = MarkdownImageAssetCollisionBehavior.Overwrite;
         var overwritten = await MarkdownImageAssetProcessor.CopyAsync(second, options);
         Assert.Equal(MarkdownImageAssetStatus.Copied, overwritten.Status);
-        using var bitmap = SKBitmap.Decode(overwritten.DestinationPath);
+        // Completion must release the processor's file handles. Check that boundary
+        // explicitly, then decode bytes so this collision test does not also depend
+        // on the native filename decoder's stream ownership.
+        using (var exclusive = new FileStream(overwritten.DestinationPath!, FileMode.Open, FileAccess.Read, FileShare.None))
+            Assert.True(exclusive.Length > 0);
+        using var bitmap = SKBitmap.Decode(File.ReadAllBytes(overwritten.DestinationPath!));
         Assert.Equal(SKColors.Blue, bitmap.GetPixel(0, 0));
     }
 
