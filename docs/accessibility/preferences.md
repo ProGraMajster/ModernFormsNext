@@ -86,6 +86,22 @@ current Activity rather than retaining its predecessor. Native callbacks report 
 without throwing through the OS; explicit managed preference reads report observer
 failure after committing the detected snapshot.
 
+For reproducible Android validation, the backing contrast setting is
+`Settings.Secure.CONTRAST_LEVEL`, key `contrast_level`, for the current user.
+It is separate from `high_text_contrast_enabled`. API 34's SystemUI contrast dialog
+writes this key for its current user; API 36's Color contrast screen writes the same
+setting. The service observes it and reads it for `mCurrentUser`.
+[AOSP API 34 dialog](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android14-release/packages/SystemUI/src/com/android/systemui/contrast/ContrastDialog.kt),
+[API 36 selector](https://raw.githubusercontent.com/aosp-mirror/platform_packages_apps_settings/android16-release/src/com/android/settings/display/ContrastSelectorPreferenceController.java),
+[service](https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/android16-release/services/core/java/com/android/server/UiModeManagerService.java).
+
+A test that changes system preferences should first record the device, user, exact
+raw values and whether each key exists. Use the same explicit user for mutation
+and restoration, and verify the provider's actual observed state as well as the
+setting readback. Restore an originally absent key by deleting it; writing the
+default value is not exact restoration. The sample and instrumentation never
+change OS preferences automatically.
+
 ## Executable sample and evidence
 
 The cross-platform sample's **Use system accessibility preferences** checkbox starts
@@ -103,13 +119,52 @@ the existing horizontal scrollbar exposes any overflow. Flow button groups recei
 space for larger labels. This is an authored sample layout policy, not automatic
 resizing of arbitrary applications or an override of their explicit fonts.
 
-Core scaling tests and the DPI parity checkpoint have passed during implementation.
-Native provider, scoped-consumer and final-source rendering validation are still
-pending in the current Phase 4F batch. Automated headless checks are not physical-device,
-screen-reader, or manual high-contrast evidence. The implementation report records those
-validation categories separately. See also the [canonical control semantics](current-controls.md),
-[viewport contracts](scroll-viewports.md), [text provider](../accessibility-text.md), and
-[bounded diagnostics and Designer](diagnostics-and-designer.md).
+## Recorded validation and limits
+
+Deterministic theme scaling, DPI parity and scoped preference-consumer tests passed
+during implementation. Native Android observation is now recorded for the
+standalone sample APK at **f92759ae2bdc4a482cb7fe4c3c7aa95edc13565b**, SHA256
+**81F1ABE0C41213192F2194EF153197DB86654FB62B6B13D26F40B9A6ABD51EFC**:
+
+- API 34 and API 36 both observed actual `contrast_level=1.0` plus
+  `font_scale=1.3` as `High`/`1.3` after explicit sample opt-in.
+- On both emulators, native hierarchy bounds show larger header/count/checkbox
+  rows. Four native High/restored PNGs were inspected for visible text wrapping
+  and clipping.
+- Turning following off retains the larger application theme despite restoring
+  OS preferences. Re-enabling it restores `NoPreference`/`1` and exactly the
+  original six measured header/control rectangles.
+- The ordinary editor Save count remains 1 across host recreation: generations
+  1→2→4 on API 34 and 1→3→5 on API 36.
+- Eight original settings per device are restored exactly, the contrast key is
+  absent again, installed hashes match and shell identity remains uid 2000.
+  API 34's original TalkBack service is again enabled and bound.
+
+The same APK passed 64 Phase 4 native instrumentation assertions on each API;
+those fixture checks and the 18 assertions against recorded preference artifacts
+are different evidence sets. See [Android Phase 4 validation](android-phase4-validation.md)
+for device fingerprints, the native matrix and limitations.
+
+The later ControlGallery-only fix at `6a0a4386c3cdc1d5b79b55c84cd57e1004ffb0ec`
+and `EndEdit` trimming-annotation restoration at
+`bc160dcbbe8f7ea0acff1cdee18569f8bb8cd50f` have separate managed validation
+provenance; they do not change the recorded APK's source identity. Final solution,
+package/API compatibility, Windows provider and documentation gates are recorded
+separately in the implementation report.
+
+The combined OS changes establish native propagation and recreation; they do not
+isolate every callback or independently prove each authored font is unchanged.
+The implementation's explicit-font and noncompounding guarantees also rely on the
+separate deterministic tests. **Physical-device checks, a new human TalkBack
+speech/navigation assessment and a vendor/OEM matrix are NOT EXECUTED here.**
+The restored TalkBack service is a cleanup check, not a screen-reader usability claim.
+Windows system-setting mutation and manual high-contrast usability are not implied
+by these Android observations. Measured contrast ratios and unseen portions of the
+sample are outside these four screenshot observations.
+
+See also the [canonical control semantics](current-controls.md),
+[viewport contracts](scroll-viewports.md), [text provider](../accessibility-text.md),
+and [bounded diagnostics and Designer](diagnostics-and-designer.md).
 
 The native signals are documented by Microsoft for
 [UISettings.TextScaleFactor](https://learn.microsoft.com/en-us/uwp/api/windows.ui.viewmanagement.uisettings.textscalefactor)
