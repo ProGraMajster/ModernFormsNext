@@ -186,6 +186,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Commits the current edit and hides the edit TextBox.
         /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Data binding requires runtime reflection over user-provided types.")]
         public bool EndEdit() => EndCellEdit();
 
         // Handle key events during editing.
