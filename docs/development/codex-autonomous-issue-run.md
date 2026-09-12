@@ -1166,3 +1166,39 @@ assessment and unavailable manual tooling are **NOT EXECUTED — environment una
 These boundaries do not prevent merging this completed, validated Phase 4 scope.
 No release, tag, dependency/version bump, package publication or issue closure is
 part of this change. The user's unrelated `.codex/config.toml` remains untouched.
+
+### Issue #59 merge verification
+
+The final Markdown-only commit `75adf2f012197ae95d2ab21fd31f200cf2b9d1bd`
+passed a fresh 32 documentation assertions, DocFX (1049 HTML pages, zero warnings)
+and four archive checks. Original implementation binaries and evidence plus the
+separate five-package consumer proof were reverified without rebuilding them.
+Required [PR CI](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34708205488)
+passed. PR #119 was marked Ready and merged normally on 2026-09-12 as
+`af6422a108de78dd68ea6aca2f7d92c44550d4d4`.
+[Merged-master CI](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34708696923)
+also passed. Fetch/pull confirmed master equals origin/master with zero divergence;
+issue #59 remains OPEN/PARTIAL with the boundaries above.
+
+## #58 — Add runtime performance overlay, profiling counters and diagnostics hooks
+
+Status: **AUDITED / implementation pending**. The fresh baseline is merged master
+`af6422a108de78dd68ea6aca2f7d92c44550d4d4`. The full issue has zero comments and
+no formal blocked-by dependencies. Existing animation/font/TestHost diagnostics do
+not provide a unified frame profiler. Native CPU paint, layout, cached composition,
+shader ownership and input/scheduler boundaries are available to instrument now.
+
+The [technical plan](issue-58-performance-diagnostics-plan.md) records API ownership,
+metric definitions, native/threading/lifetime boundaries, all seven acceptance
+directions and four shader/allocation additions. One opt-in UI-thread profiler and
+internal WindowKit transport will supply both programmatic snapshots and an optional
+post-content HUD. Requested invalidation, actual full-client painting and reuse of
+control backbuffers will remain distinct. GPU/presentation and future recycler
+metrics will report availability honestly.
+
+Independent detached baseline restore/Release build passed, with four inherited
+NU1902 warnings and zero errors. No #58 implementation or performance result is
+claimed at this planning checkpoint. Its five required workload families stay in
+existing tests/Gallery; the separate future PerformanceLab application (#114) is
+outside this queue. Physical-device performance remains **NOT EXECUTED — environment
+unavailable**. The plan is committed before code on `codex/issue-58-performance-diagnostics`.
