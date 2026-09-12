@@ -42,7 +42,7 @@ public sealed partial class AccessibilityPanel
 
     private static Label AddCaption(Control page, int top, string text, int height = 30)
         => page.Controls.Add(new Label { Bounds = new(20, top, 640, height), Text = text,
-            TextAlign = ContentAlignment.TopLeft });
+            TextAlign = ModernFormsNext.ContentAlignment.TopLeft });
 
     private static Button AddExampleAction(Control page, int left, int top, int width,
         string text, string id, Action action)
@@ -99,7 +99,7 @@ public sealed partial class AccessibilityPanel
     {
         AddCaption(page, 16, "Each link range has its own identity. Numeric field and scrollbar expose real ranges.", 42);
         var links = page.Controls.Add(new LinkLabel { Bounds = new(20, 66, 600, 44),
-            Text = "Read guide or show help", TextAlign = ContentAlignment.MiddleLeft,
+            Text = "Read guide or show help", TextAlign = ModernFormsNext.ContentAlignment.MiddleLeft,
             AccessibleName = "Example links", AccessibleAutomationId = IdPrefix + "links" });
         links.Links.Clear();
         links.Links.Add(5, 5).Name = IdPrefix + "link-guide";
@@ -141,7 +141,11 @@ public sealed partial class AccessibilityPanel
         int changes = 0;
         plain.TextChanged += (_, _) => report.Text = $"Text changes: {++changes}";
         rich.TextChanged += (_, _) => report.Text = $"Text changes: {++changes}";
-        AddExampleAction(page, 20, 198, 180, "Select first word", "text-select", () => { plain.Select(0, Math.Min(5, plain.Text.Length)); plain.Select(); });
+        AddExampleAction(page, 20, 198, 180, "Select first word", "text-select", () => {
+            plain.SelectionStart = 0;
+            plain.SelectionEnd = Math.Min(5, plain.Text.Length);
+            plain.Select();
+        });
         AddExampleAction(page, 215, 198, 180, "Toggle read-only", "text-readonly", () => {
             plain.ReadOnly = !plain.ReadOnly; report.Text = $"Plain text read-only: {plain.ReadOnly}";
         });
