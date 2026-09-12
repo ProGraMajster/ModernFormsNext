@@ -174,14 +174,24 @@ public sealed class PrivacyTests
     {
         using var f = new AutomationFixture(new() { MaxNodes = 4 });
         var c = f.Add(new SemanticControl());
-        int stateReads = 0;
-        c.Child.StateGetter = () => ++stateReads >= 3 ? throw new Exception(Secret) : AccessibleStates.None;
+        int payloadFailures = 0;
+        bool privacyFailed = false;
+        Exception PayloadFailure() { payloadFailures++; return new Exception(Secret); }
+        c.Child.StateGetter = () => {
+            // Four distinct nonprivacy getters first consume the entire diagnostic budget.
+            // Only then fail classification, independently of how often a safe guard rereads it.
+            if (payloadFailures < 4) return AccessibleStates.None;
+            privacyFailed = true;
+            throw new Exception(Secret);
+        };
         c.Child.AutomationId = Secret;
-        c.Child.NameGetter = () => throw new Exception(Secret);
-        c.Child.ValueGetter = () => throw new Exception(Secret);
-        c.Child.RangeGetter = () => throw new Exception(Secret);
-        c.Child.ActionsGetter = () => throw new Exception(Secret);
+        c.Child.NameGetter = () => throw PayloadFailure();
+        c.Child.ValueGetter = () => throw PayloadFailure();
+        c.Child.RangeGetter = () => throw PayloadFailure();
+        c.Child.ActionsGetter = () => throw PayloadFailure();
         var result = f.Session.InspectAsync(f.Root.RootId, f.Handle(c.Child)).Completed();
+        Assert.Equal(4, payloadFailures);
+        Assert.True(privacyFailed);
         Assert.Equal(4, result.Issues.Length);
         Assert.True(result.Truncated);
         Assert.True((result.Value!.Redaction & AutomationRedaction.PrivacyUnknown) != 0);

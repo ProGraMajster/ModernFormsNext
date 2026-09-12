@@ -12,6 +12,24 @@ shared animation runtime. The animation smoke section covers ripple, press scale
 layout/presentation transitions, simultaneous animations, theme transitions, reduced motion, and
 idle-to-wake diagnostics.
 
+The **Use system accessibility preferences** checkbox is an explicit opt-in to the
+sample's authored normal/high-contrast themes and one-time scaling of theme typography.
+It begins unchecked, reports unknown detection separately, and uses an owned UI-dispatched
+subscription that survives borrowed Activity/surface recreation. The page measures larger
+text rows; its existing scrollbars expose overflow from single-line controls. Explicit
+fonts stay authored. Turning following off retains the current theme. See
+[accessibility preferences](../../docs/accessibility/preferences.md) for platform sources,
+lifetime and the separate validation status; physical/manual preference checks are not
+implied by the headless tests.
+
+The Android-only `ACCESSIBILITY_PHASE4` intent opens a separate, opt-in fixture of
+real link, numeric, date, grid, rich-text, protected-text and scroll controls. Its
+`AccessibilityPhase4Instrumentation` runner uses the native `UiAutomation` service
+connection. It leaves the historical `ACCESSIBILITY_DEMO` fixture and Phase 3 runner
+unchanged. See [Phase 4 native checks](../../docs/accessibility/android-phase4-validation.md)
+for the exact invocation, coverage and pending evidence. An ordinary launch does not
+open or execute either instrumentation fixture.
+
 Windows attaches `App.Root` to a normal ModernFormsNext `Form`. Android creates one Skia view and
 adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the same framework
 control pipeline. Android support remains experimental and is not yet a complete `Form`/window

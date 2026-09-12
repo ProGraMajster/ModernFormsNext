@@ -947,4 +947,122 @@ Scroll, grid/table, date/calendar, practical Text/TextRange, explicit preference
 consumption, bounded diagnostics/Designer and cross-layer acceptance. Concrete
 current editor, grid, popup, layout and privacy defects are prerequisites within
 these slices, not reasons to defer them to future virtualization or Android hosting.
-No Phase 4 implementation test result is claimed at this plan checkpoint.
+The technical plan was committed before the first Phase 4 source change.
+
+### Phase 4 implementation checkpoint — 2026-09-12, uncommitted work in progress
+
+The existing canonical hierarchy now has concrete link/numeric/bar, viewport,
+grid/table, date/calendar and practical text implementations under development.
+Optional preferences, bounded snapshot diagnostics and Designer metadata use their
+existing framework contracts. The new [grid/calendar guide](../accessibility/grids-and-calendars.md)
+documents identities, callbacks, input, platform boundaries and limits.
+
+These are **intermediate working-tree checks**, not final PR acceptance or native
+screen-reader evidence:
+
+- Initial Core grid/edit/text subset: **38/38**; initial Windows UIA provider suite:
+  **80/80**; initial Android mapping subset: **22/22**, plus native Android backend
+  compilation. Later changes require rerunning all these checks.
+- Grid/viewport Automation snapshot/action subset **5/5** and protocol subset
+  **5/5**; subsequent diagnostics/grid/viewport subset **13/13**.
+- Callback regressions against the previous working implementation reproduced all
+  **5/5 failures** (sparse-row reattachment, post-EndEdit reattachment, throwing
+  selection cleanup, publishing an incompletely bound row, and replacing DataSource
+  in a property getter). Their fixes are now present and passed the later full Core
+  run. Baseline grid editing probes also preserve the earlier **4 FAIL / 1 PASS**
+  result against exact master `f9e363f`, distinct from these working-tree probes.
+- New DPI/raster and viewport cases reached **56/56**, then **62/62** when the first
+  six viewport hardening cases were included: 25 current-controls, 5 pixel-parity,
+  13 composite viewport, 13 viewport, 6 hardening cases. More tests were added later.
+- First full Core run: **1369 PASS / 5 FAIL / 1374**. Four failures concern existing
+  presentation-padding behavior and the old generic action test's Scroll payload;
+  the fifth concerns the date popup's native-hide lifecycle. The next full Core run
+  passed **1377/1377** after the fixes; subsequent review added further regressions.
+- First Designer accessibility run: **10 PASS / 7 FAIL / 17**. Reverse parsing
+  preserved the metadata but normalized implicit Dock ordering; the test now authors
+  that existing property explicitly before requiring identical generated code.
+- The first new Windows preference reader compile exposed a generated-COM cleanup
+  pattern mismatch. The corrected reader compiled and its four focused tests passed,
+  including an actual Windows WinRT query/subscription/disposal smoke.
+- Subsequent Designer accessibility **17/17**, Testing preferences/hardening **18/18**,
+  cross-platform sample full suite **28/28**, and Automation full suite **160/160**
+  passed. The Automation first full run's two test-fixture/old-payload expectations
+  were corrected while retaining explicit invalid/unsupported and full diagnostic-budget coverage.
+- Independent calendar review reproduced **3/3** red probes for culture boundaries
+  and retired providers. Two grid probes reproduced unwanted second-axis scrolling
+  after row/column reinsertion. The corrected grid/calendar subset passed **38/38**.
+- Actual Windows out-of-process Text assertions passed. Native Scroll and password
+  privacy passed in the later 9-pass subset. A focus trace identified UIAutomationCore's
+  separate AutoSetFocus call; canonical Scroll preservation is checked independently.
+- The new actual HWND Grid/Table/Calendar scenario passed all **17** checks in its
+  fourth run, including edit event order, headers, sorting identity, reveal, read-only
+  values, stale actions, checkbox state, popup selection and native popup retirement.
+- Full Android managed run reached **356 PASS / 1 FAIL / 357**. The new own-password
+  action fixture lacked a visible host; its corrective surface setup awaits rerun.
+- `origin/master` was fetched again and still equals baseline `f9e363f`; no Phase 4
+  PR exists yet. The resumed environment initially had no running emulators; API 34
+  was started from the existing Pixel_8 AVD for the new standalone-APK checks.
+
+Restore metadata now reports NU1902 for the pre-existing private build dependency
+`Microsoft.Build.Tasks.Git` 10.0.301 through SourceLink. The existing master has the
+same pin; this is a known baseline warning, not a new Phase 4 runtime dependency.
+The [upstream advisory](https://github.com/advisories/GHSA-23fw-v26w-5fgq) identifies
+10.0.303 as the fixed 10.0.3xx package. Dependencies remain unchanged under this
+issue's committed scope; zero-warning build acceptance is not claimed.
+
+Further working-tree verification passed full Core **1389/1389**, Testing **435/435**,
+Windows **139/139**, Android **357/357**, and Windows Automation **66/66**. These
+precede the final review corrections below and are not attributed to a committed
+implementation revision.
+
+The third intermediate standalone APK, SHA-256
+`5D9E33E169246F91A2101C2AD396E81F4B0227357C0B96D4CADC505723DCD1F1`, passed the expanded
+native runner **64/64 on API 34 and 64/64 on API 36**. The earlier API 34 run stopped
+after 35 assertions on an incorrect fixture expectation that sensitive ancestry
+must reject ordinary Click. The corrected fixture preserves that assistive action,
+checks its actual callback, and separately proves redaction and rejected protected
+text/range operations on real controls. Sensitivity is not a blanket native-action
+authorization policy. The old failed result remains recorded separately.
+
+Native validation of the ordinary sample then exposed an **ANR on both emulators**,
+including API 34 with accessibility services temporarily disabled. A bounded API 36
+comparison installed the preceding #109 APK (the 564A74A2 hash recorded above): its
+ordinary launch remained responsive and an injected Save click increased only its
+editor counter from 0 to 1. The Phase 4 startup regression therefore blocks acceptance
+until diagnosed and corrected; passing the dedicated accessibility fixture does not
+establish ordinary-sample usability. Original emulator settings were recorded before
+changes and must be restored after the remaining native checks.
+
+Independent final review also reproduced four failing Windows UIA COLORREF tests
+(alpha roundtrip and alpha-only mixed spans) and a failing semantic grid edit test
+(a callback-owned replacement editor on the same cell was incorrectly overwritten).
+The color projection correction then passed **6/6**, including clipped forward and
+backward searches. Grid/date review passed **58/58** after exact edit-session ownership
+and popup privacy corrections. A further red probe found that the popup's independent
+name could inherit a protected picker label; the corrected complete DatePicker suite
+passed **29/29**. Activity recreation checks now wait for actual replacement host,
+node and subscription state instead of assuming a fixed delay is sufficient.
+
+The startup ANR was traced to repeated geometry during canonical child membership
+queries. A temporary, bounded native trace measured the fifth APK's first Resize at
+**10.473 seconds and 192088 GetScrollState calls**. The real-tree regression first
+reproduced 512 unnecessary geometry reads; it preserves offscreen membership and
+custom peers' independent Invisible state. The correction avoids full State reads
+only for the exact default peer when its View already determines membership, skips
+scroll geometry with no scrolling ancestor, and maps transformed corners without
+temporary arrays/LINQ. No tree cache or second membership contract was introduced.
+
+The sixth APK on the same API 34 emulator measured **0.209 seconds and 938 calls**
+for the same first Resize; the notification, registration and child-lookup counts
+were unchanged. Its ordinary launch exposed the native tree without an ANR. This is
+a scoped instrumented comparison, not a universal performance benchmark. Full Core
+then passed **1397/1397** on the working source. The actual sample's two-render test
+and a separate production Android session/render test also passed. All temporary
+trace fields, reflection and logging were removed afterward; final clean-source APK
+and broader native checks are still required.
+
+All final Debug/Release solution checks, unfiltered API comparison with exact master,
+package/consumer/docs checks, the expanded native Windows UIA scenarios, and new
+Android emulator observations still remain. Physical-device/screen-reader manual
+checks are **NOT EXECUTED — environment unavailable**. No Phase 4 PR, merge, release
+publication or issue closure is claimed at this checkpoint.

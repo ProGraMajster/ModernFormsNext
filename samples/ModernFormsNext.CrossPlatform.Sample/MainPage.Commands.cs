@@ -85,7 +85,14 @@ public sealed partial class MainPage
     {
         // Release the global owner before child disposal or user Disposed handlers can fail.
         // A native Activity only disposes its borrowing surface, so recreation keeps the count.
-        try { if (disposing) ReleaseApplicationCommand(); }
-        finally { base.Dispose(disposing); }
+        if (!disposing) { base.Dispose(false); return; }
+        var failures = new List<Exception>();
+        try { DisposePreferenceDemo(); } catch (Exception error) { failures.Add(error); }
+        try { ReleaseApplicationCommand(); } catch (Exception error) { failures.Add(error); }
+        try { base.Dispose(true); } catch (Exception error) { failures.Add(error); }
+        if (failures.Count == 1)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures.Count > 1)
+            throw new AggregateException("Sample subscriptions and controls could not be released.", failures);
     }
 }

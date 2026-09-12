@@ -1,6 +1,12 @@
 using System.Text.Json;
 using System.Windows.Automation;
 
+if (args.Length == 2 && args[0] == "--grid-calendar") return GridCalendarScenario.Run(args[1]);
+
+if (args.Length == 2 && args[0] == "--text") return TextScenario.Run(args[1]);
+
+if (args.Length == 2 && args[0] == "--scroll") return ScrollScenario.Run(args[1]);
+
 if (args.Length != 1 || !long.TryParse(args[0], out long rawHandle) || rawHandle == 0)
     return 2;
 

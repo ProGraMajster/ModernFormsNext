@@ -1,4 +1,17 @@
-# Android accessibility backend (issue #59, Phase 3)
+# Android accessibility backend (issue #59)
+
+## Current scope and historical evidence
+
+Phase 4 extends this existing provider with canonical [scroll viewports](accessibility/scroll-viewports.md),
+[text ranges and selection](accessibility-text.md), [grids and calendars](accessibility/grids-and-calendars.md),
+and [accessibility preferences](accessibility/preferences.md). Its viewport actions use the actual
+control scrollbars, and protected-ancestor checks apply before and after payload extraction.
+The Phase 4 native Android/TalkBack smoke is pending; the dated Phase 3 results below do not
+validate these new capabilities. Physical-device validation remains unexecuted.
+
+The startup and IME work that followed Phase 3 is documented separately in
+[application lifecycle](application-lifecycle.md) and [text input](text-input.md).
+The audit and dated validation sections below retain their original baseline and results.
 
 ## Audit before implementation
 
@@ -26,9 +39,9 @@ sample Release configuration enables AOT; minimum Android API is 23. The install
 rolls forward from global.json's 10.0.201 to 10.0.400 under `latestFeature`.
 
 The existing ComboBox popup requires a Form; the windowless Android host cannot expand it.
-Phase 3 must not advertise an unavailable expansion action or implement #72 to supply it.
-Full scroll, advanced text/IME (#62), application lifecycle (#63), and diagnostics (#61)
-remain separate work.
+Phase 3 did not advertise an unavailable expansion action or implement #72 to supply it.
+At that baseline, full scroll, advanced text/IME (#62), application lifecycle (#63), and diagnostics
+were separate work; the current capability guides above describe subsequent implementation.
 
 Native mapping follows Android's [virtual descendant provider contract](https://developer.android.com/reference/android/view/accessibility/AccessibilityNodeProvider)
 and [node information API](https://developer.android.com/reference/android/view/accessibility/AccessibilityNodeInfo).
@@ -91,7 +104,8 @@ it does not introduce the full lifecycle system planned in #63.
 | Window / Dialog | Dialog semantics; the actual native surface root remains a ViewGroup |
 | Pane / Group / ToolBar | Structural ViewGroup |
 | Text / Image | TextView / ImageView |
-| Custom / Separator / ScrollBar without a viewport contract | Generic View |
+| ScrollBar | Generic View with canonical numeric range; a bar is distinct from an owner viewport |
+| Custom / Separator | Generic View |
 
 Name is the explicit semantic label, not an alias for entered text. Edit nodes expose Value as
 Text and Name as HintText on API 26+, with ContentDescription as the older-API label fallback.
@@ -105,16 +119,19 @@ Checkable widgets retain Android's native checked/on/off descriptions instead of
 numeric canonical Value as StateDescription. Their value changes invalidate state; only edits
 use the Text content-change flag, so a switch toggle does not become an empty text announcement.
 
-Sensitive/Protected nodes are marked Password, and API 34+ also receives AccessibilityDataSensitive.
-The mapper never calls their Value getter. No value is copied to Text, ContentDescription, range,
-state description, diagnostics, search results, or event payloads. Explicit Name/Help/Description
-are author-provided metadata: applications must not put secrets into those labels themselves.
+Sensitive/Protected nodes and their descendants are marked Password, and API 34+ also receives
+AccessibilityDataSensitive. The mapper checks ancestor privacy before and after extraction and
+does not call protected value getters. A password field retains its own explicit label, help and
+identifier; inherited protection suppresses these metadata fields on descendants. Entered text,
+range, viewport, grid and text-range metadata remain redacted, including when a custom getter
+protects an ancestor during the query. No entered value is copied to diagnostics, search results
+or event payloads.
 SetText is permitted for an enabled, writable password editor, through canonical SetValue, and
 readback remains redacted. ReadOnly/Enabled and normal TextChanged behavior are preserved.
 The existing Android input connection also uses the keyboard-focused canonical peer's sensitivity
 to request password input with no suggestions and, from API 26, no personalized learning. Otherwise
 an IME could expose masked input through its own suggestion nodes. This narrowly configures the
-existing editor connection; it does not introduce an additional text model or advanced IME support.
+existing editor connection; the current session and composition contract is described in the text-input guide.
 
 States include enabled, focusable, input focused, selected, checkable/checked/mixed, editable,
 password, and actual visibility. Clickable and scrollable derive from supported actions;
@@ -133,20 +150,26 @@ tree. Android has one service tree, rather than Windows UIA's three query projec
 | ClearSelection | Existing ListBox multi-selection flags; capability explicitly confirmed by adapter |
 | Expand / Collapse | Corresponding action, only in the applicable state and never on a leaf |
 | SetText | SetValue with a string, respecting writable/enabled state |
+| SetSelection / NextAtMovementGranularity / PreviousAtMovementGranularity | Canonical text provider selection and range movement, when supported |
 | SetProgress | SetValue with a finite, in-range number and writable range (API 24+) |
-| ScrollForward / ScrollBackward | Increment / Decrement for a mutable range, within limits |
+| ScrollForward / ScrollBackward | Scroll by the actual viewport on the primary scrollable axis; otherwise Increment / Decrement for a mutable range |
+| ScrollUp / ScrollDown / ScrollLeft / ScrollRight | Typed viewport Scroll on the corresponding axis, only while movement is possible |
 | ShowOnScreen | ScrollIntoView, where the control actually supports it |
 | AccessibilityFocus / ClearAccessibilityFocus | Backend-only Android accessibility focus |
 
 Argument-free actions ignore Android routing metadata in Bundle; only documented action arguments
 are passed to the canonical API. Unsupported, stale, invalid, disabled, or detached requests return
-false. Clear input focus, general viewport scrolling and scroll-to-position are not advertised.
+false. Clear input focus and arbitrary scroll-to-position are not advertised. Viewport actions
+leave the framework's focus and selection unchanged. On API 35+, positive granular fractions
+request a multiple of the visible length; positive infinity requests that direction's endpoint.
+Negative and NaN fractions are rejected. The API 35 granular flag is set only for a real viewport.
 ListBox/ListView/Tree/tab/radio selection uses the existing control state and single/multi-selection
 rules. For the existing ListBox multi-selection peers, Android Select adds an item without clearing
 other selections; Click toggles that item, and ClearSelection removes it. Single-selection lists
-retain their replace-selection behavior. Collections are supplied only for a flat canonical List made exclusively of ListItems;
-those children receive actual row indexes. No invented grid dimensions are attached to menus,
-trees or tabs. Invalid/nonfinite ranges are omitted, and read-only progress has no setter actions.
+retain their replace-selection behavior. Flat canonical lists retain their real item positions;
+grid and calendar collections use the optional canonical grid/cell metadata described in the
+grid guide. No invented grid dimensions are attached to menus, trees or tabs. Invalid/nonfinite
+ranges are omitted, and read-only progress has no setter actions.
 
 Keyboard focus and accessibility focus are independent. The latter lives only in the session.
 Touch exploration routes Android hover events through canonical HitTest; it does not synthesize
@@ -162,6 +185,10 @@ ContentDescription, StateDescription or Subtree change flags. Successful accessi
 normal surface control Click produce ViewClicked. Custom logical peers are observed on demand.
 Other events are coalesced per node/type over 50 ms, with a 128-entry bound and subtree fallback.
 Events carry no Text, BeforeText, ContentDescription or user-value extras, including for passwords.
+Viewport changes additionally produce `TYPE_VIEW_SCROLLED` with numeric current and maximum
+axis offsets in native pixels. Numeric coordinates are converted by host density once.
+Text selection notifications contain only numeric indices/counts and omit entered text; see the
+text-accessibility guide for supported movement units and protected-range behavior.
 Dynamic add/remove/reorder invalidates the subtree without rebuilding the host View.
 
 ## Coordinates and visibility
@@ -174,8 +201,8 @@ does not use font ScaledDensity as a second rendering scale. Edges round outward
 physical pixels with finite/overflow guards. BoundsInParent is relative to the semantic parent.
 
 Logical tree/menu rows are not viewports: their own rectangles must not clip expanded descendants.
-Real structural ancestors still clip children, including framework scroll offsets already reflected
-by canonical bounds. Hidden/invisible/offscreen nodes, zero rectangles, detached peers, invisible
+Real structural ancestors still clip children, using the actual viewport where supplied and framework
+scroll offsets already reflected by canonical bounds. Hidden/invisible/offscreen nodes, zero rectangles, detached peers, invisible
 native ancestors and zero native alpha are not reported visible. A cached node with no visible
 intersection has VisibleToUser=false. General native View rotation/nonuniform scale and precise
 nonrectangular clipping are not claimed; the supported sample host uses translation plus density.
@@ -227,10 +254,9 @@ resulting control state. The following statuses describe the agent-operated emul
 | Dynamic add/remove | Refreshes order; removed item no longer reachable | PASS |
 | Disabled/hidden | Disabled announced, Hidden omitted | PASS |
 
-The compact fixture includes representative controls; full framework-wide coverage, localization,
-diagnostics, virtualized controls (#97), full scroll and advanced Text/IME (#62) remain deferred.
-The default generated DemoApp/template is unaffected. Issue #59 stays open; Phase 3 is only ready
-for manual validation when automated checks pass, and is not declared COMPLETE without TalkBack.
+This historical compact fixture included representative controls; it did not cover the subsequent
+Phase 4 viewport, text, grid/calendar or preference changes. Its recorded results are not a claim
+of full framework or physical-device coverage. The default generated DemoApp/template was unaffected.
 
 ### Recorded Android evidence (2026-09-05)
 

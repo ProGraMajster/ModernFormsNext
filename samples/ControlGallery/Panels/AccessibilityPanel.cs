@@ -9,7 +9,7 @@ namespace ControlGallery.Panels;
 /// <summary>
 /// Provides a focused development surface for manual accessibility and UI Automation validation.
 /// </summary>
-public sealed class AccessibilityPanel : Panel
+public sealed partial class AccessibilityPanel : Panel
 {
     private readonly ListBox dynamicList;
     private readonly Button dynamicTarget;
@@ -99,6 +99,7 @@ public sealed class AccessibilityPanel : Panel
             Text = "Ready",
             AccessibleAutomationId = "controlgallery.accessibility.status"
         });
+        InitializeCapabilityPages();
     }
 
     private void AddActionButton(int left, int top, string text, string automationId, Action action)

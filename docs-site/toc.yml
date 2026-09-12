@@ -30,8 +30,12 @@
   href: content/docs/automation-live-bridge.md
 - name: Accessibility semantic model
   href: content/docs/accessibility/semantic-model.md
+- name: Accessible grids and calendars
+  href: content/docs/accessibility/grids-and-calendars.md
 - name: Android accessibility backend
   href: content/docs/android-accessibility.md
+- name: Android Phase 4 native checks
+  href: content/docs/accessibility/android-phase4-validation.md
 - name: Platform status
   href: content/docs/platform-specific-features.md
 - name: Known limitations

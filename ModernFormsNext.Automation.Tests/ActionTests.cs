@@ -163,12 +163,27 @@ public sealed class ActionTests
     [Theory]
     [InlineData(AccessibleActions.None, AutomationErrorCode.InvalidArgument)]
     [InlineData(AccessibleActions.Invoke | AccessibleActions.Focus, AutomationErrorCode.InvalidArgument)]
-    [InlineData(AccessibleActions.Scroll, AutomationErrorCode.ActionUnsupported)]
+    [InlineData(AccessibleActions.Scroll, AutomationErrorCode.InvalidArgument)]
     [InlineData(AccessibleActions.Toggle, AutomationErrorCode.ActionUnsupported)]
     public void InvalidOrUnsupportedActionsAreExplicit(AccessibleActions action, AutomationErrorCode expected)
     {
         using var f = new AutomationFixture();
         Assert.Equal(expected, f.Act(f.Add(new Button()), action).Error);
+    }
+
+    [Fact]
+    public void ValidScrollRequestOnControlWithoutViewportIsUnsupported()
+    {
+        using var f = new AutomationFixture();
+        var button = f.Add(new Button());
+        int clicks = 0;
+        button.Click += (_, _) => clicks++;
+        var result = f.Act(button, AccessibleActions.Scroll,
+            AutomationActionValue.FromScroll(AccessibleScrollRequest.ToPercent(50, null)));
+
+        Assert.Equal(AutomationActionStatus.Unsupported, result.Status);
+        Assert.Equal(AutomationErrorCode.ActionUnsupported, result.Error);
+        Assert.Equal(0, clicks);
     }
 
     [Fact]

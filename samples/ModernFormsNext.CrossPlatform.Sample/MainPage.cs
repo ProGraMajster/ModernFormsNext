@@ -114,6 +114,7 @@ public sealed partial class MainPage : Control
         };
         InitializeTextInputDemo();
         InitializeCommandDemo();
+        InitializePreferenceDemo();
         greetingLabel = CreateLabel(string.Empty);
         enabledCheckBox = new CheckBox { Text = "Enable shared action", Checked = true };
         diagnosticsCheckBox = new CheckBox { Text = "Show host diagnostics", Checked = true };
@@ -287,6 +288,7 @@ public sealed partial class MainPage : Control
         scrollArea.Controls.AddRange([
             headerLabel,
             .. commandDemoRows.Select(row => row.Control),
+            preferenceOptIn, preferenceStatus,
             .. diagnosticLabels,
             unicodeLabel,
             nameTextBox,
@@ -468,6 +470,8 @@ public sealed partial class MainPage : Control
         SetRow(headerLabel, margin, ref y, contentWidth, 40, gap + 4);
         foreach (var row in commandDemoRows)
             SetRow(row.Control, margin, ref y, contentWidth, row.Height, gap);
+        SetRow(preferenceOptIn, margin, ref y, contentWidth, 34, gap);
+        SetRow(preferenceStatus, margin, ref y, contentWidth, 62, gap);
         if (diagnosticsCheckBox.Checked)
         {
             foreach (var label in diagnosticLabels)
@@ -601,8 +605,9 @@ public sealed partial class MainPage : Control
 
     private static Label CreateLabel(string text) => new() { Text = text };
 
-    private static void SetRow(Control control, int x, ref int y, int width, int height, int gap)
+    private void SetRow(Control control, int x, ref int y, int width, int height, int gap)
     {
+        MeasurePreferenceRow(control, ref width, ref height);
         control.SetBounds(x, y, width, height);
         y += height + gap;
     }
