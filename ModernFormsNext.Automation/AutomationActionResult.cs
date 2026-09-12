@@ -22,14 +22,21 @@ public enum AutomationActionStatus
 /// <param name="Error">The specific semantic reason; None accompanies Accepted.</param>
 public sealed record AutomationActionResult(AutomationActionStatus Status, AutomationErrorCode Error);
 
-/// <summary>Contains one explicitly typed text or numeric action value, with no arbitrary CLR object payload.</summary>
+/// <summary>Contains one explicitly typed text, numeric or scroll action value, with no arbitrary CLR object payload.</summary>
 /// <remarks>Use null as the method argument to clear editable text. Never log or echo action values; ToString intentionally omits them.</remarks>
 public sealed class AutomationActionValue
 {
-    private AutomationActionValue(string? text, double? number) { Text = text; Number = number; }
-    /// <summary>Gets the text payload, or null for a numeric payload.</summary>
+    private AutomationActionValue(string? text, double? number, ModernFormsNext.Accessibility.AccessibleScrollRequest? scroll = null)
+    { Text = text; Number = number; Scroll = scroll; }
+    /// <summary>Gets the explicitly typed viewport request, or null for other payload kinds.</summary>
+    public ModernFormsNext.Accessibility.AccessibleScrollRequest? Scroll { get; }
+    /// <summary>Creates a viewport action payload without arbitrary objects or text-based commands.</summary>
+    /// <param name="request">The immutable validated request.</param><returns>A typed scroll payload.</returns>
+    public static AutomationActionValue FromScroll(ModernFormsNext.Accessibility.AccessibleScrollRequest request)
+    { ArgumentNullException.ThrowIfNull(request); return new(null, null, request); }
+    /// <summary>Gets the text payload, or null for another payload kind.</summary>
     public string? Text { get; }
-    /// <summary>Gets the numeric payload, or null for a text payload.</summary>
+    /// <summary>Gets the numeric payload, or null for another payload kind.</summary>
     public double? Number { get; }
     /// <summary>Creates a text payload. Length is checked by the action service.</summary>
     /// <param name="text">The requested text, which may be sensitive.</param>

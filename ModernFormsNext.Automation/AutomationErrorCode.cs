@@ -67,7 +67,13 @@ public enum AutomationProperty
     /// <summary>The numeric range could not be safely captured.</summary>
     RangeValue,
     /// <summary>The bounds could not be read.</summary>
-    Bounds
+    Bounds,
+    /// <summary>The viewport metadata could not be safely captured.</summary>
+    ScrollInfo,
+    /// <summary>The grid metadata could not be safely captured.</summary>
+    GridInfo,
+    /// <summary>The cell metadata could not be safely captured.</summary>
+    GridCell
 }
 
 /// <summary>Contains only controlled diagnostic metadata; it never contains an exception or application message.</summary>

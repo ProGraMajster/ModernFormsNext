@@ -28,7 +28,7 @@ public enum AutomationRedaction
     None = 0,
     /// <summary>This node or an ancestor was marked sensitive or protected.</summary>
     Sensitive = 1,
-    /// <summary>Privacy could not be established because a privacy/state getter failed.</summary>
+    /// <summary>Privacy could not be established because a getter failed, ancestry changed or cycled, or its validation limit was reached.</summary>
     PrivacyUnknown = 2
 }
 
@@ -43,12 +43,15 @@ public sealed class AutomationNodeSnapshot
     internal AutomationNodeSnapshot(AutomationNodeHandle handle, string rootId, string? automationId,
         string? name, AccessibleRole role, AccessibleControlType controlType, AccessibleStates states,
         AccessibleActions actions, string? value, AccessibleRangeValue? range, AutomationBounds bounds,
-        string? parentId, ImmutableArray<string> children, AutomationRedaction redaction, string captureId, bool truncated)
+        string? parentId, ImmutableArray<string> children, AutomationRedaction redaction, string captureId, bool truncated,
+        AccessibleScrollInfo? scroll = null, AutomationGridInfo? grid = null, AutomationGridCellInfo? gridCell = null)
     {
         Handle = handle; RootId = rootId; AutomationId = automationId; Name = name; Role = role;
         ControlType = controlType; States = states; SupportedActions = actions; Value = value;
         RangeValue = range; Bounds = bounds; ParentRuntimeId = parentId; ChildRuntimeIds = children;
         Redaction = redaction; CaptureId = captureId; Truncated = truncated;
+        ScrollInfo = scroll;
+        GridInfo = grid; GridCell = gridCell;
     }
 
     /// <summary>Gets the session-scoped canonical handle.</summary>
@@ -75,6 +78,12 @@ public sealed class AutomationNodeSnapshot
     public string? Value { get; }
     /// <summary>Gets safe immutable numeric metadata, or null when absent/redacted/unavailable.</summary>
     public AccessibleRangeValue? RangeValue { get; }
+    /// <summary>Gets safe detached viewport metadata, or null when absent/redacted/unavailable.</summary>
+    public AccessibleScrollInfo? ScrollInfo { get; }
+    /// <summary>Gets detached grid/table metadata, or null when absent, sensitive or unavailable.</summary>
+    public AutomationGridInfo? GridInfo { get; }
+    /// <summary>Gets detached cell coordinates and bounded header IDs, or null when unavailable.</summary>
+    public AutomationGridCellInfo? GridCell { get; }
     /// <summary>Gets canonical bounds without additional clipping/occlusion inference.</summary>
     public AutomationBounds Bounds { get; }
     /// <summary>Gets the captured parent ID within this root; null for the registered root.</summary>

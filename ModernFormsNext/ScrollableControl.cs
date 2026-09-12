@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Drawing;
+using System.Collections.Generic;
+using System.Linq;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Layout;
 using ModernFormsNext.Renderers;
 
@@ -8,7 +11,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a ScrollableControl control.
     /// </summary>
-    public class ScrollableControl : Control
+    public partial class ScrollableControl : Control
     {
         private readonly HorizontalScrollBar hscrollbar;
         private readonly VerticalScrollBar vscrollbar;
@@ -33,6 +36,7 @@ namespace ModernFormsNext
             });
 
             hscrollbar.ValueChanged += HandleScroll;
+            hscrollbar.RangeMetadataChanged += HandleScrollMetadata;
             hscrollbar.Scroll += (o, e) => OnScroll (e);
 
             vscrollbar = Controls.AddImplicitControl (new VerticalScrollBar {
@@ -40,6 +44,7 @@ namespace ModernFormsNext
             });
 
             vscrollbar.ValueChanged += HandleScroll;
+            vscrollbar.RangeMetadataChanged += HandleScrollMetadata;
             vscrollbar.Scroll += (o, e) => OnScroll (e);
 
             sizegrip = Controls.AddImplicitControl (new SizeGrip {
@@ -109,8 +114,13 @@ namespace ModernFormsNext
         {
             var width = 0;
             var height = 0;
-            var extra_width = hscrollbar.Value + PresentationPadding.Right;
-            var extra_height = vscrollbar.Value + PresentationPadding.Bottom;
+            var clientOrigin = base.DisplayRectangle.Location;
+            // PresentationPadding is already in logical layout units and includes the
+            // current visual-state transition. Reading Padding here loses styled/animated
+            // metrics; scaling the presentation value would apply DPI a second time.
+            var padding = PresentationPadding;
+            var extra_width = scroll_position.X + padding.Right - clientOrigin.X;
+            var extra_height = scroll_position.Y + padding.Bottom - clientOrigin.Y;
             var layout_bounds = LayoutEngine == DefaultLayout.Instance
                 ? Size.Empty
                 : CommonProperties.GetLayoutBounds (this);
@@ -135,8 +145,8 @@ namespace ModernFormsNext
             // sufficient for flow/table layouts, especially on the same pass that adds or
             // removes children, because those bounds belong to the preceding arrangement.
             if (!layout_bounds.IsEmpty) {
-                canvas_size.Width = Math.Max (width, layout_bounds.Width + PresentationPadding.Right);
-                canvas_size.Height = Math.Max (height, layout_bounds.Height + PresentationPadding.Bottom);
+                canvas_size.Width = Math.Max (width, layout_bounds.Width + padding.Right - clientOrigin.X);
+                canvas_size.Height = Math.Max (height, layout_bounds.Height + padding.Bottom - clientOrigin.Y);
                 return;
             }
 
@@ -195,9 +205,9 @@ namespace ModernFormsNext
         private void HandleScroll (object? sender, EventArgs e)
         {
             if (sender == vscrollbar && vscrollbar.Visible)
-                ScrollWindow (0, vscrollbar.Value - scroll_position.Y);
+                ScrollWindow (0, vscrollbar.Value - vscrollbar.Minimum - scroll_position.Y);
             else if (sender == hscrollbar && hscrollbar.Visible)
-                ScrollWindow (hscrollbar.Value - scroll_position.X, 0);
+                ScrollWindow (hscrollbar.Value - hscrollbar.Minimum - scroll_position.X, 0);
         }
 
         /// <summary>
@@ -273,8 +283,12 @@ namespace ModernFormsNext
         // Recalculates all components of the ScrollableControl.
         private void Recalculate (bool doLayout)
         {
+            scroll_update_depth++;
+            try {
             var canvas = canvas_size;
-            var client = ClientRectangle;
+            // Canvas, child Bounds and scrollbar SetBounds all use logical layout units.
+            // ClientRectangle is DPI-scaled and cannot be mixed into these calculations.
+            var client = base.DisplayRectangle;
 
             canvas.Width += auto_scroll_margin.Width;
             canvas.Height += auto_scroll_margin.Height;
@@ -315,15 +329,15 @@ namespace ModernFormsNext
             bottom_edge = Math.Max (bottom_edge, 0);
 
             if (!vscroll_visible)
-                vscrollbar.Value = 0;
+                vscrollbar.Value = vscrollbar.Minimum;
 
             if (!hscroll_visible)
-                hscrollbar.Value = 0;
+                hscrollbar.Value = hscrollbar.Minimum;
 
             if (hscroll_visible) {
                 hscrollbar.LargeChange = right_edge;
                 hscrollbar.SmallChange = 5;
-                hscrollbar.Maximum = Math.Max (0, canvas.Width - client.Width + bar_size);
+                hscrollbar.Maximum = ScrollMaximum(hscrollbar.Minimum, canvas.Width, right_edge);
             } else {
                 if (hscrollbar.Visible)
                     ScrollWindow (-scroll_position.X, 0);
@@ -334,7 +348,7 @@ namespace ModernFormsNext
             if (vscroll_visible) {
                 vscrollbar.LargeChange = bottom_edge;
                 vscrollbar.SmallChange = 5;
-                vscrollbar.Maximum = Math.Max (0, canvas.Height - client.Height + bar_size);
+                vscrollbar.Maximum = ScrollMaximum(vscrollbar.Minimum, canvas.Height, bottom_edge);
             } else {
                 if (vscrollbar.Visible)
                     ScrollWindow (0, -scroll_position.Y);
@@ -343,7 +357,7 @@ namespace ModernFormsNext
             }
 
             SuspendLayout ();
-
+            try {
             var sizegrip_visible = hscroll_visible && vscroll_visible;
 
             hscrollbar.SetBounds (
@@ -370,7 +384,8 @@ namespace ModernFormsNext
 
             sizegrip.Visible = sizegrip_visible;
 
-            ResumeLayout (doLayout);
+            } finally { ResumeLayout (doLayout); }
+            } finally { EndScrollUpdate(); }
         }
 
         /// <summary>
@@ -384,18 +399,25 @@ namespace ModernFormsNext
             if (xOffset == 0 && yOffset == 0)
                 return;
 
+            scroll_update_depth++;
             SuspendLayout ();
-
-            foreach (var c in Controls) {
-                if (IsInternalScrollControl (c))
-                    continue;
-
-                c.Location = new Point (c.Left - xOffset, c.Top - yOffset);
+            try {
+                // Commit first: a LocationChanged callback can scroll again. Its delta must be
+                // measured from this position, and must not be overwritten when it returns.
+                scroll_position.Offset (xOffset, yOffset);
+                var lifetime = new AccessibilityControlLifetime(this);
+                List<Exception>? failures = null;
+                foreach (var c in Controls.ToArray()) {
+                    if (!lifetime.IsCurrent || IsDisposed) break;
+                    if (IsInternalScrollControl (c) || c.IsDisposed || !ReferenceEquals(c.Parent, this)) continue;
+                    try { c.Location = new Point (c.Left - xOffset, c.Top - yOffset); }
+                    catch (Exception error) { (failures ??= []).Add(error); }
+                }
+                if (failures is not null) throw new AggregateException(failures);
+            } finally {
+                try { ResumeLayout (false); }
+                finally { EndScrollUpdate(); }
             }
-
-            scroll_position.Offset (xOffset, yOffset);
-
-            ResumeLayout (false);
         }
 
         /// <summary>

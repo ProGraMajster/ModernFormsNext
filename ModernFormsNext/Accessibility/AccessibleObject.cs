@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 
 namespace ModernFormsNext.Accessibility;
@@ -19,7 +20,7 @@ namespace ModernFormsNext.Accessibility;
 /// close to their original shape.
 /// </para>
 /// </remarks>
-public class AccessibleObject
+public partial class AccessibleObject
 {
     private static long s_nextRuntimeId;
     private readonly long runtime_id = CreateRuntimeId();
@@ -30,6 +31,8 @@ public class AccessibleObject
     /// <remarks>
     /// The shared framework raises this event as a platform-neutral notification. Native backends
     /// can listen to it and translate the event into the platform accessibility system.
+    /// Each subscriber in the current invocation snapshot runs even when an earlier subscriber
+    /// throws. Failures propagate after delivery; multiple failures form an AggregateException.
     /// </remarks>
     public event EventHandler<AccessibleObjectNotificationEventArgs>? ClientNotification;
 
@@ -236,9 +239,22 @@ public class AccessibleObject
     /// <param name="accEvent">The event being reported.</param>
     /// <param name="objectID">A platform object identifier. Shared ModernFormsNext code normally passes <c>0</c>.</param>
     /// <param name="childID">The child identifier, or <c>0</c> for this object.</param>
+    /// <remarks>
+    /// Delivers synchronously to the current subscriber snapshot on the calling UI thread.
+    /// A single observer failure is rethrown after delivery; multiple failures are aggregated.
+    /// Overrides should call base to preserve canonical observer delivery.
+    /// </remarks>
     public virtual void NotifyClients(AccessibleEvents accEvent, int objectID, int childID)
     {
-        ClientNotification?.Invoke(this, new AccessibleObjectNotificationEventArgs(accEvent, objectID, childID));
+        if (ClientNotification is not { } handlers) return;
+        var args = new AccessibleObjectNotificationEventArgs(accEvent, objectID, childID);
+        List<Exception>? failures = null;
+        foreach (EventHandler<AccessibleObjectNotificationEventArgs> handler in handlers.GetInvocationList()) {
+            try { handler(this, args); }
+            catch (Exception error) { (failures ??= []).Add(error); }
+        }
+        if (failures is { Count: 1 }) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is not null) throw new AggregateException("Accessibility notification observers failed.", failures);
     }
 
     /// <summary>

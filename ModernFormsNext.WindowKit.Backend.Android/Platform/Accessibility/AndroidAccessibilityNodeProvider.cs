@@ -15,7 +15,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Accessibility;
 /// Owns Android's virtual descendant boundary for one Skia host. Native node wrappers are created
 /// for individual requests and transferred to Android; neither the session nor host caches them.
 /// </summary>
-internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvider
+internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNodeProvider
 {
     private readonly AndroidSkiaHostView host;
     private readonly AndroidAccessibilitySession session;
@@ -102,7 +102,8 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
             // Extras keep supplemental metadata distinct from the spoken label and current text.
             // Values are never copied here. AutomationId is metadata, not an Android resource ID.
             info.Extras?.PutString("ModernFormsNext.Help", properties.Help);
-            info.Extras?.PutString("ModernFormsNext.AutomationId", node.GetAutomationId());
+            string? automationId = ReadAutomationId(node);
+            info.Extras?.PutString("ModernFormsNext.AutomationId", automationId);
             if (!OperatingSystem.IsAndroidVersionAtLeast(30) && properties.StateDescription is { } state)
                 info.Extras?.PutString("androidx.view.accessibility.AccessibilityNodeInfoCompat.STATE_DESCRIPTION_KEY", state);
 
@@ -123,7 +124,7 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
             var actions = Actions(node);
             info.Clickable = actions.Contains(ActionClick);
             info.LongClickable = false;
-            info.Scrollable = actions.Contains(ActionScrollForward) || actions.Contains(ActionScrollBackward);
+            ApplyViewportInfo(info, node, actions);
             foreach (int action in actions)
             {
                 if (action == ActionSetProgress && !OperatingSystem.IsAndroidVersionAtLeast(24)) continue;
@@ -145,6 +146,8 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
 #pragma warning restore CA1422
                 info.SetRangeInfo(nativeRange);
             }
+            ApplyTextInfo(info, node);
+            ApplyGridInfo(info, node, properties.Selected);
             if (Collection(node) is { } collection)
             {
 #pragma warning disable CA1422
@@ -164,6 +167,12 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
                     info.SetCollectionItemInfo(item);
                     break;
                 }
+            }
+            // Custom semantic getters may detach a node or change privacy during this query.
+            // Never transfer a now-stale native wrapper or previously captured plaintext to Android.
+            if (!ReferenceEquals(session.Find(id), node) || !CanExposeProperties(node, properties, automationId)) {
+                info.Dispose();
+                return null;
             }
             return info;
         }
@@ -188,7 +197,9 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
             if (disposed || session.Find(virtualViewId) is not { } node) return false;
             int actionId = (int)action;
             object? parameter = null;
-            if (actionId == ActionSetText)
+            if (actionId is ActionSetTextSelection or ActionNextText or ActionPreviousText)
+                parameter = ReadTextActionArguments(actionId, arguments);
+            else if (actionId == ActionSetText)
             {
                 const string key = "ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE";
                 if (arguments?.ContainsKey(key) != true) return false;
@@ -200,6 +211,11 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
                 const string key = "android.view.accessibility.action.ARGUMENT_PROGRESS_VALUE";
                 if (!OperatingSystem.IsAndroidVersionAtLeast(24) || arguments?.ContainsKey(key) != true) return false;
                 parameter = (double)arguments.GetFloat(key, float.NaN);
+            }
+            else if (IsViewportAction(actionId) && arguments?.ContainsKey(ScrollAmountKey) == true)
+            {
+                if (!OperatingSystem.IsAndroidVersionAtLeast(35)) return false;
+                parameter = (double)arguments.GetFloat(ScrollAmountKey, float.NaN);
             }
             // Android services add routing metadata even to argument-free actions such as Click.
             // Only documented action arguments become canonical parameters; ignore native extras.
@@ -312,8 +328,14 @@ internal sealed class AndroidAccessibilityNodeProvider : AccessibilityNodeProvid
             nativeEvent.PackageName = host.Context?.PackageName;
             nativeEvent.ClassName = ClassName(node.GetControlType());
             nativeEvent.Enabled = (node.State & Unavailable) == 0;
-            nativeEvent.Password = node.GetIsSensitive() || (node.State & Protected) != 0;
+            nativeEvent.Password = PlatformAccessibilityPrivacy.HasSensitiveAncestor(node);
             nativeEvent.ContentChangeTypes = (ContentChangeTypes)change.Changes;
+            if (change.Type == 4096) ApplyViewportEvent(nativeEvent, node);
+            if (change.Type is 16 or 8192) ApplyTextEvent(nativeEvent, node);
+            // Text/viewport getters are application code too. Do not emit even numeric metadata
+            // when the source was retired or became protected while preparing this event.
+            if (disposed || !ReferenceEquals(session.Find(change.Id), node) ||
+                !nativeEvent.Password && PlatformAccessibilityPrivacy.HasSensitiveAncestor(node)) continue;
             // Deliberately no Text, BeforeText, ContentDescription or event extras: services
             // query fresh nodes, and sensitive input cannot escape through a stale event payload.
             host.Parent?.RequestSendAccessibilityEvent(host, nativeEvent);

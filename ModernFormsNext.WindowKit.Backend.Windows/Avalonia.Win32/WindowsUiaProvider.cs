@@ -113,13 +113,22 @@ internal partial class WindowsUiaProvider :
         {
             int actions = node.GetSupportedActions();
 
+            if (patternId is 10014 or 10024 && node.GetTextProvider() is not null)
+                return this;
+
+            if (IsGridPatternAvailable(node, patternId))
+                return this;
+
+            if (patternId == WindowsUiaScrollIds.Pattern && node.GetScrollInfo() is not null)
+                return this;
+
             if (patternId == WindowsUiaIds.InvokePattern && HasAction(actions, ActionInvoke))
                 return this;
             if (patternId == WindowsUiaIds.TogglePattern && HasAction(actions, ActionToggle))
                 return this;
             if (patternId == WindowsUiaIds.ValuePattern && SupportsValue(node, actions))
                 return this;
-            if (patternId == WindowsUiaIds.RangeValuePattern && node.GetRangeValue() is not null)
+            if (patternId == WindowsUiaIds.RangeValuePattern && ReadPayload(node, node.GetRangeValue, (PlatformAccessibleRangeValue?)null) is not null)
                 return this;
             if (patternId == WindowsUiaIds.ExpandCollapsePattern && SupportsExpandCollapse(node, actions))
                 return this;
@@ -141,10 +150,20 @@ internal partial class WindowsUiaProvider :
         {
             int state = node.State;
 
+            if (propertyId is 30040 or 30119)
+                return node.GetTextProvider() is not null;
+
+            if (IsGridProperty(propertyId))
+                return GridProperty(node, propertyId);
+
+            if (propertyId is >= WindowsUiaScrollIds.HorizontalPercent and <= WindowsUiaScrollIds.VerticallyScrollable
+                or WindowsUiaScrollIds.Available or WindowsUiaScrollIds.Orientation)
+                return ScrollProperty(node, propertyId);
+
             if (propertyId == WindowsUiaIds.NameProperty)
-                return node.Name ?? string.Empty;
+                return ReadMetadata(node, () => node.Name ?? string.Empty, string.Empty);
             if (propertyId == WindowsUiaIds.AutomationIdProperty)
-                return node.GetAutomationId() ?? string.Empty;
+                return ReadMetadata(node, () => node.GetAutomationId() ?? string.Empty, string.Empty);
             if (propertyId == WindowsUiaIds.ControlTypeProperty)
                 return WindowsUiaControlTypeMapper.Map(node.GetControlType());
             if (propertyId == WindowsUiaIds.IsEnabledProperty)
@@ -158,25 +177,22 @@ internal partial class WindowsUiaProvider :
             if (propertyId == WindowsUiaIds.IsOffscreenProperty)
                 return IsOffscreen(node, state);
             if (propertyId == WindowsUiaIds.HelpTextProperty)
-                return node.Help ?? node.Description ?? string.Empty;
+                return ReadHelpText(node);
             if (propertyId == WindowsUiaIds.IsPasswordProperty)
-                return node.GetIsSensitive() || HasState(state, unchecked((int)0x20000000));
+                return PlatformAccessibilityPrivacy.HasSensitiveAncestor(node);
             if (propertyId == WindowsUiaIds.IsControlElementProperty)
                 return IsControlElement(node.GetAccessibilityView());
             if (propertyId == WindowsUiaIds.IsContentElementProperty)
                 return IsContentElement(node.GetAccessibilityView());
             if (propertyId == WindowsUiaIds.ClassNameProperty)
-                return node.GetClassName() ?? WindowsUiaControlTypeMapper.GetClassName(node.GetControlType());
+                return ReadMetadata(node, () => node.GetClassName(), (string?)null)
+                    ?? WindowsUiaControlTypeMapper.GetClassName(node.GetControlType());
             if (propertyId == WindowsUiaIds.FrameworkIdProperty)
                 return "ModernFormsNext";
             if (propertyId == WindowsUiaIds.ValueProperty)
             {
-                if (node.GetIsSensitive())
-                    throw new WindowsUiaAccessDeniedException();
-
-                return SupportsValue(node, node.GetSupportedActions())
-                    ? node.Value ?? string.Empty
-                    : null;
+                return ReadPayload<string?>(node, () => SupportsValue(node, node.GetSupportedActions())
+                    ? ReadPayload(node, () => node.Value ?? string.Empty, string.Empty, deny: true) : null, null, deny: true);
             }
 
             return null;
@@ -299,9 +315,7 @@ internal partial class WindowsUiaProvider :
 
     /// <inheritdoc/>
     string IValueProvider.Value
-        => Read(static node => node.GetIsSensitive()
-            ? throw new WindowsUiaAccessDeniedException()
-            : node.Value ?? string.Empty);
+        => Read(static node => ReadPayload(node, () => node.Value ?? string.Empty, string.Empty, deny: true));
 
     /// <inheritdoc/>
     bool IValueProvider.IsReadOnly
@@ -318,6 +332,8 @@ internal partial class WindowsUiaProvider :
                 throw new WindowsUiaElementNotEnabledException();
             if (HasState(node.State, StateReadOnly) || !HasAction(node.GetSupportedActions(), ActionSetValue))
                 throw new InvalidOperationException("The semantic value is read-only.");
+            // Writing a password remains supported; no old value/range getter is needed.
+            Context.Validate(target, IsRoot);
             if (!node.PerformUiaAction(ActionSetValue, value))
                 throw new InvalidOperationException("The semantic object rejected the value.");
         });
@@ -346,15 +362,17 @@ internal partial class WindowsUiaProvider :
     {
         Mutate(node =>
         {
-            PlatformAccessibleRangeValue range = node.GetRangeValue()
+            PlatformAccessibleRangeValue range = ReadPayload(node, node.GetRangeValue, (PlatformAccessibleRangeValue?)null, deny: true)
                 ?? throw new InvalidOperationException("The semantic object does not expose a numeric range.");
 
             if (HasState(node.State, StateUnavailable))
                 throw new WindowsUiaElementNotEnabledException();
             if (range.IsReadOnly || !HasAction(node.GetSupportedActions(), ActionSetValue))
                 throw new InvalidOperationException("The semantic range is read-only.");
-            if (double.IsNaN(value) || value < range.Minimum || value > range.Maximum)
+            if (!double.IsFinite(value) || value < range.Minimum || value > range.Maximum)
                 throw new ArgumentOutOfRangeException(nameof(value));
+            if (PlatformAccessibilityPrivacy.HasSensitiveAncestor(node)) throw new WindowsUiaAccessDeniedException();
+            Context.Validate(target, IsRoot);
             if (!node.PerformUiaAction(ActionSetValue, value))
                 throw new InvalidOperationException("The semantic object rejected the range value.");
         });
@@ -393,6 +411,12 @@ internal partial class WindowsUiaProvider :
         return Read(node =>
         {
             var selected = new List<IRawElementProviderSimple>();
+            if (node.GetGridInfo() is not null && !HasState(node.State, StateMultiSelectable))
+            {
+                if (node.GetSelected() is { } item)
+                    selected.Add(Context.GetOrCreate(item));
+                return selected.ToArray();
+            }
             int count = node.GetChildCount();
             for (int index = 0; index < count; index++)
             {
@@ -410,7 +434,7 @@ internal partial class WindowsUiaProvider :
 
     /// <inheritdoc/>
     IRawElementProviderSimple? ISelectionItemProvider.SelectionContainer
-        => Read(node => node.Parent is { } parent ? Context.GetOrCreate(parent) : null);
+        => Read(node => (node.GetGridCell()?.Grid ?? node.Parent) is { } parent ? Context.GetOrCreate(parent) : null);
 
     /// <inheritdoc/>
     void ISelectionItemProvider.Select()
@@ -465,8 +489,39 @@ internal partial class WindowsUiaProvider :
     private static bool HasState(int state, int flag) => (state & flag) != 0;
 
     private static bool SupportsValue(IPlatformAccessibleObject node, int actions)
-        => node.GetRangeValue() is null
-            && (HasAction(actions, ActionSetValue) || node.GetControlType() == 10);
+    {
+        // Password text keeps its write-only ValuePattern. Never inspect a protected numeric
+        // range merely to decide whether the alternative string pattern is available.
+        if (PlatformAccessibilityPrivacy.HasSensitiveAncestor(node)) return node.GetControlType() == 10;
+        return ReadPayload(node, () => node.GetRangeValue() is null
+            && (HasAction(actions, ActionSetValue) || node.GetControlType() == 10 || node.GetGridCell() is not null), false);
+    }
+
+    internal static T ReadPayload<T>(IPlatformAccessibleObject node, Func<T> read, T redacted, bool deny = false)
+    {
+        if (PlatformAccessibilityPrivacy.HasSensitiveAncestor(node))
+            return deny ? throw new WindowsUiaAccessDeniedException() : redacted;
+        T result = read();
+        // A custom getter may synchronously mark its owner or ancestor protected.
+        return PlatformAccessibilityPrivacy.HasSensitiveAncestor(node)
+            ? deny ? throw new WindowsUiaAccessDeniedException() : redacted : result;
+    }
+
+    internal static string ReadHelpText(IPlatformAccessibleObject node)
+        => ReadMetadata(node, () => node.Help, (string?)null)
+            ?? ReadMetadata(node, () => node.Description ?? string.Empty, string.Empty);
+
+    internal static T ReadMetadata<T>(IPlatformAccessibleObject node, Func<T> read, T redacted)
+    {
+        // An explicitly named password field still needs its label. A protected container's
+        // descendants may derive names from its private contents, so inherited protection
+        // suppresses their metadata before and after every application-owned getter.
+        static bool Inherited(IPlatformAccessibleObject current)
+            => current.Parent is { } parent && PlatformAccessibilityPrivacy.HasSensitiveAncestor(parent);
+        if (Inherited(node)) return redacted;
+        T result = read();
+        return Inherited(node) ? redacted : result;
+    }
 
     private static bool SupportsExpandCollapse(IPlatformAccessibleObject node, int actions)
         => HasAction(actions, ActionExpand)
@@ -475,7 +530,7 @@ internal partial class WindowsUiaProvider :
             || HasState(node.State, StateCollapsed);
 
     private static bool IsSelectionContainer(IPlatformAccessibleObject node)
-        => node.GetControlType() is 11 or 12 or 14 or 16;
+        => node.GetControlType() is 11 or 12 or 14 or 16 || node.GetGridInfo() is not null;
 
     private static bool IsControlElement(int view)
         => view is ViewControl or ViewContent;
@@ -517,8 +572,8 @@ internal partial class WindowsUiaProvider :
     }
 
     private T ReadRange<T>(Func<PlatformAccessibleRangeValue, T> selector)
-        => Read(node => selector(node.GetRangeValue()
-            ?? throw new InvalidOperationException("The semantic object does not expose a numeric range.")));
+        => Read(node => ReadPayload(node, () => selector(node.GetRangeValue()
+            ?? throw new InvalidOperationException("The semantic object does not expose a numeric range.")), default(T)!, deny: true));
 
     private void PerformRequiredAction(int action)
     {
@@ -526,7 +581,9 @@ internal partial class WindowsUiaProvider :
         {
             if (HasState(node.State, StateUnavailable))
                 throw new WindowsUiaElementNotEnabledException();
-            if (!HasAction(node.GetSupportedActions(), action) || !node.PerformUiaAction(action))
+            bool supported = HasAction(node.GetSupportedActions(), action);
+            Context.Validate(target, IsRoot);
+            if (!supported || !node.PerformUiaAction(action))
                 throw new InvalidOperationException("The semantic action is not available.");
         });
     }
@@ -627,6 +684,7 @@ internal sealed class WindowsUiaProviderContext : IDisposable
     private readonly ConditionalWeakTable<IPlatformAccessibleObject, WindowsUiaProvider> providers = new();
     private readonly IWindowsUiaDispatcher dispatcher;
     private readonly IWindowsUiaEventSink eventSink;
+    private WeakReference<IPlatformAccessibleObject>? rootTarget;
     private bool disposed;
 
     public WindowsUiaProviderContext(
@@ -645,6 +703,7 @@ internal sealed class WindowsUiaProviderContext : IDisposable
 
     public void Initialize(IPlatformAccessibleObject root, WindowsUiaRootProvider provider)
     {
+        rootTarget = new(root);
         Root = provider;
         providers.Add(root, provider);
     }
@@ -662,7 +721,9 @@ internal sealed class WindowsUiaProviderContext : IDisposable
         => OnUiThread(() =>
         {
             IPlatformAccessibleObject node = Resolve(target, isRoot);
-            return callback(node);
+            T result = callback(node);
+            Resolve(target, isRoot); // A custom metadata getter may detach or replace an ancestor.
+            return result;
         });
 
     public void Mutate(
@@ -693,7 +754,9 @@ internal sealed class WindowsUiaProviderContext : IDisposable
         }
     }
 
-    public void Dispose() => disposed = true;
+    public void Dispose() { disposed = true; rootTarget = null; }
+
+    internal void Validate(WeakReference<IPlatformAccessibleObject> target, bool isRoot) => Resolve(target, isRoot);
 
     private T OnUiThread<T>(Func<T> callback)
     {
@@ -751,10 +814,16 @@ internal sealed class WindowsUiaProviderContext : IDisposable
         ThrowIfDisposed();
         if (!target.TryGetTarget(out IPlatformAccessibleObject? node))
             throw new WindowsUiaElementNotAvailableException("The semantic object is no longer available.");
-        if (!isRoot && node.Parent is null)
-            throw new WindowsUiaElementNotAvailableException("The semantic object is detached from its accessibility tree.");
-
-        return node;
+        if (rootTarget is null || !rootTarget.TryGetTarget(out var root))
+            throw new WindowsUiaElementNotAvailableException("The original semantic root is unavailable.");
+        var current = node;
+        for (int depth = 0; depth < 512; depth++)
+        {
+            if (ReferenceEquals(current, root)) return node;
+            if (current.Parent is not { } parent) break;
+            current = parent;
+        }
+        throw new WindowsUiaElementNotAvailableException("The semantic object no longer belongs to its original window.");
     }
 
     private void ThrowIfDisposed()
@@ -830,6 +899,13 @@ internal static class WindowsUiaControlTypeMapper
             24 => 50006,
             25 => 50021,
             26 => 50038,
+            27 => 50005,
+            28 => 50016,
+            29 => 50028,
+            30 => 50029,
+            31 => 50034,
+            32 => 50035,
+            33 => 50001,
             _ => 50025
         };
 
@@ -861,6 +937,13 @@ internal static class WindowsUiaControlTypeMapper
             24 => "Image",
             25 => "ToolBar",
             26 => "Separator",
+            27 => "Hyperlink",
+            28 => "Spinner",
+            29 => "DataGrid",
+            30 => "DataItem",
+            31 => "Header",
+            32 => "HeaderItem",
+            33 => "Calendar",
             _ => "Custom"
         };
 }

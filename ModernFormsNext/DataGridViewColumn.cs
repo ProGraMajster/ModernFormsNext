@@ -13,6 +13,9 @@ namespace ModernFormsNext
         private string header_text = string.Empty;
         private int width = 100;
         private DataGridView? owner;
+        private bool visible = true;
+
+        internal long OwnershipVersion { get; private set; }
 
         /// <summary>
         /// Initializes a new instance of the DataGridViewColumn class.
@@ -88,7 +91,16 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets whether the column is visible.
         /// </summary>
-        public bool Visible { get; set; } = true;
+        public bool Visible
+        {
+            get => visible;
+            set
+            {
+                if (visible == value) return;
+                visible = value;
+                owner?.OnColumnsChanged();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the width, in pixels, of the column.
@@ -111,7 +123,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Sets the owning DataGridView.
         /// </summary>
-        internal void SetOwner(DataGridView? dataGridView) => owner = dataGridView;
+        internal void SetOwner(DataGridView? dataGridView)
+        {
+            if (ReferenceEquals(owner, dataGridView)) return;
+            owner = dataGridView;
+            OwnershipVersion++;
+        }
     }
 
     /// <summary>

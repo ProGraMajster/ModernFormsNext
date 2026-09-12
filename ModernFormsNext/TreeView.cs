@@ -11,7 +11,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a TreeView control.
     /// </summary>
-    public class TreeView : Control
+    public partial class TreeView : Control
     {
         private TreeViewDrawMode draw_mode;
         private readonly TreeViewItem root_item;
@@ -88,14 +88,19 @@ namespace ModernFormsNext
 
         internal void EnsureItemVisible (TreeViewItem item)
         {
+            var lifetime = new Accessibility.AccessibilityControlLifetime(this);
+            if (!lifetime.IsCurrent || !ReferenceEquals(item.TreeView, this)) return;
             // Make sure all parent are expanded so this node is shown
             var parent = item.Parent;
 
             while (parent != null && parent != root_item) {
                 parent.Expand ();
+                if (!lifetime.IsCurrent || !ReferenceEquals(item.TreeView, this)) return;
                 parent = parent.Parent;
             }
 
+            UpdateVerticalScrollBar();
+            if (!lifetime.IsCurrent || !ReferenceEquals(item.TreeView, this)) return;
             var all_items = root_item.GetVisibleItems ().Skip (1).ToList ();
 
             if (all_items.Count <= VisibleItemCount)
@@ -109,9 +114,9 @@ namespace ModernFormsNext
                 return;
             }
 
-            if (index >= top_index + VisibleItemCount - 1) {
+            if (index >= top_index + Math.Max(1, VisibleItemCount)) {
                // top_index = index - (VisibleItemCount - 1);
-                vscrollbar.Value = index - (VisibleItemCount - 1);
+                vscrollbar.Value = Math.Clamp(index - Math.Max(1, VisibleItemCount) + 1, 0, vscrollbar.Maximum);
                 return;
             }
         }
@@ -479,21 +484,23 @@ namespace ModernFormsNext
         // Determines scrollbar visibility and scrollbar values.
         private void UpdateVerticalScrollBar ()
         {
-            if (Items.Count == 0)
-                vscrollbar.Visible = false;
-
-            // See if we need more height than we have.
-            if (ScaledItemHeight * root_item.GetVisibleChildrenCount () > ScaledHeight) {
-                if (!vscrollbar.Visible)
-                    vscrollbar.Value = 0;
-
-                vscrollbar.Visible = true;
-                vscrollbar.Maximum = root_item.GetVisibleChildrenCount () - VisibleItemCount;
-                vscrollbar.LargeChange = Math.Max (0, VisibleItemCount);
-            } else {
-                vscrollbar.Visible = false;
-                top_index = 0;
-            }
+            if (vscrollbar is null) return;
+            if (updatingTreeScroll) { treeScrollPending = true; return; }
+            updatingTreeScroll = true;
+            try {
+                int pass = 0;
+                do {
+                if (++pass > 64) throw new InvalidOperationException("Tree scrollbar layout did not stabilize after 64 changes.");
+                treeScrollPending = false;
+                int count = root_item.GetVisibleChildrenCount();
+                bool needed = (long)ScaledItemHeight * count > ClientRectangle.Height;
+                vscrollbar.Visible = needed;
+                vscrollbar.Maximum = needed ? Math.Max(0, count - Math.Max(1, VisibleItemCount)) : 0;
+                vscrollbar.Value = Math.Clamp(vscrollbar.Value, 0, vscrollbar.Maximum);
+                top_index = vscrollbar.Value;
+                vscrollbar.LargeChange = Math.Max(1, VisibleItemCount);
+                } while (treeScrollPending && !IsDisposed && !Disposing);
+            } finally { updatingTreeScroll = false; NotifyTreeScrollChanged(); }
         }
 
         // Handles scrollbar scrolling.
@@ -502,6 +509,7 @@ namespace ModernFormsNext
             top_index = vscrollbar.Value;
 
             Invalidate ();
+            NotifyTreeScrollChanged();
         }
 
         /// <summary>
@@ -518,7 +526,7 @@ namespace ModernFormsNext
         }
 
         // The number of items that can be shown with the current height.
-        private int VisibleItemCount => ScaledHeight / ScaledItemHeight;
+        private int VisibleItemCount => Math.Max(0, ClientRectangle.Height) / Math.Max(1, ScaledItemHeight);
 
         /// <inheritdoc/>
         public class TreeViewControlStyle : ControlStyle

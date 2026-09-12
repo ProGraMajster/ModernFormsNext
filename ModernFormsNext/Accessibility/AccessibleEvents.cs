@@ -6,6 +6,16 @@ namespace ModernFormsNext.Accessibility
     /// </summary>
     public enum AccessibleEvents
     {
+        /// <summary>Committed viewport position or extent changed. Framework notification; never a raw MSAA event.</summary>
+        ScrollChanged = -2,
+        /// <summary>Committed text changed. Framework notification; payload is metadata-only.</summary>
+        TextChanged = -3,
+        /// <summary>Committed text selection changed, independently of item selection.</summary>
+        TextSelectionChanged = -4,
+        /// <summary>Text formatting or shaped geometry changed. Framework notification.</summary>
+        TextAttributesChanged = -5,
+        /// <summary>Numeric range limits, steps or editability changed without implying a value change.</summary>
+        RangeValueChanged = -6,
         /// <summary>
         ///  <c>EVENT_SYSTEM_SOUND</c>
         ///  Sent when a sound is played. Currently nothing is generating this, we

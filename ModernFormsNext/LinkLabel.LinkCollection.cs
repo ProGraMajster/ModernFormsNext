@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using ModernFormsNext.Accessibility;
 
 namespace ModernFormsNext
 {
@@ -10,6 +11,9 @@ namespace ModernFormsNext
         /// <summary>
         /// Represents a strongly typed collection of <see cref="Link"/> objects.
         /// </summary>
+        /// <remarks>A link belongs to one collection. Remove it before moving it to another
+        /// label. Duplicate ownership and overlapping ranges are rejected before mutation.
+        /// Mutations update rendering and the canonical accessibility children on the UI thread.</remarks>
         public class LinkCollection : IList<Link>
         {
             private readonly LinkLabel owner;
@@ -45,17 +49,13 @@ namespace ModernFormsNext
                     ArgumentNullException.ThrowIfNull(value);
 
                     var previous = items[index];
-                    if (!ReferenceEquals(previous, value))
-                        previous.Owner = null;
-
+                    if (ReferenceEquals(previous, value)) return;
+                    ValidateCandidate(value, previous);
+                    previous.Owner = null;
                     value.Owner = owner;
                     items[index] = value;
-
                     SortByStart();
-                    owner.ValidateNoOverlappingLinks();
-                    owner.UpdateSelectability();
-                    owner.InvalidateLayout();
-                    owner.Invalidate();
+                    Changed();
                 }
             }
 
@@ -67,14 +67,11 @@ namespace ModernFormsNext
             {
                 ArgumentNullException.ThrowIfNull(item);
 
+                ValidateCandidate(item);
                 item.Owner = owner;
                 items.Add(item);
-
                 SortByStart();
-                owner.ValidateNoOverlappingLinks();
-                owner.UpdateSelectability();
-                owner.InvalidateLayout();
-                owner.Invalidate();
+                Changed();
             }
 
             /// <summary>
@@ -113,10 +110,7 @@ namespace ModernFormsNext
                     item.Owner = null;
 
                 items.Clear();
-                owner.FocusLink = null;
-                owner.UpdateSelectability();
-                owner.InvalidateLayout();
-                owner.Invalidate();
+                Changed();
             }
 
             /// <summary>
@@ -155,14 +149,12 @@ namespace ModernFormsNext
             {
                 ArgumentNullException.ThrowIfNull(item);
 
+                if ((uint)index > (uint)items.Count) throw new ArgumentOutOfRangeException(nameof(index));
+                ValidateCandidate(item);
                 item.Owner = owner;
                 items.Insert(index, item);
-
                 SortByStart();
-                owner.ValidateNoOverlappingLinks();
-                owner.UpdateSelectability();
-                owner.InvalidateLayout();
-                owner.Invalidate();
+                Changed();
             }
 
             /// <summary>
@@ -178,12 +170,7 @@ namespace ModernFormsNext
                 {
                     item.Owner = null;
 
-                    owner.UpdateSelectability();
-                    owner.InvalidateLayout();
-                    owner.Invalidate();
-
-                    if (ReferenceEquals(owner.FocusLink, item))
-                        owner.FocusLink = items.Count > 0 ? items[0] : null;
+                    Changed();
                 }
 
                 return removed;
@@ -200,13 +187,32 @@ namespace ModernFormsNext
 
                 removed.Owner = null;
 
-                owner.UpdateSelectability();
-                owner.InvalidateLayout();
-                owner.Invalidate();
-
-                if (ReferenceEquals(owner.FocusLink, removed))
-                    owner.FocusLink = items.Count > 0 ? items[0] : null;
+                Changed();
             }
+
+            // Validate before committing ownership: a rejected add must not poison either
+            // collection or silently steal a link whose existing semantic identity is live.
+            private void ValidateCandidate(Link item, Link? replacing = null)
+            {
+                if (item.Owner is not null || items.Contains(item))
+                    throw new ArgumentException("Remove a link from its current collection before adding it again.", nameof(item));
+                ValidateRange(item, item.Start, item.RawLength, replacing);
+            }
+
+            internal void ValidateRange(Link item, int start, int length, Link? replacing = null)
+            {
+                long end = length == -1 ? owner.Text.Length : (long)start + Math.Max(0, length);
+                foreach (var other in items)
+                {
+                    if (ReferenceEquals(other, item) || ReferenceEquals(other, replacing)) continue;
+                    long otherEnd = (long)other.Start + other.Length;
+                    if (Math.Max(start, other.Start) < Math.Min(end, otherEnd))
+                        throw new InvalidOperationException("Link ranges must not overlap.");
+                }
+            }
+
+            private void Changed()
+                => owner.OnLinkMetadataChanged(null, AccessibleEvents.Reorder, layout: true);
 
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 

@@ -11,7 +11,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a ListBox control.
     /// </summary>
-    public class ListBox : Control
+    public partial class ListBox : Control
     {
         private int item_height = -1;
         private SelectionMode selection_mode = SelectionMode.One;
@@ -63,8 +63,8 @@ namespace ModernFormsNext
 
             if (index < FirstVisibleIndex)
                 FirstVisibleIndex = index;
-            else if (index >= FirstVisibleIndex + VisibleItemCount)
-                FirstVisibleIndex = index - VisibleItemCount + 1;
+            else if (index >= FirstVisibleIndex + Math.Max(1, VisibleItemCount))
+                FirstVisibleIndex = index - Math.Max(1, VisibleItemCount) + 1;
         }
 
         /// <summary>
@@ -154,11 +154,11 @@ namespace ModernFormsNext
                 return item_height;
             }
             set {
-                if (value > 255)
-                    throw new ArgumentOutOfRangeException(nameof(value), "The ItemHeight property was set beyond 255 pixels");
+                if (value == 0 || value < -1 || value > 255)
+                    throw new ArgumentOutOfRangeException(nameof(value), "ItemHeight must be -1 (automatic), or between 1 and 255 logical pixels.");
 
                 item_height = value;
-
+                UpdateVerticalScrollBar();
                 Invalidate ();
             }
         }
@@ -169,7 +169,7 @@ namespace ModernFormsNext
         public ListBoxItemCollection Items { get; }
 
         // The height that would be needed to display all items.
-        private int NeededHeightForItems => ScaledItemHeight * Items.Count;
+        private long NeededHeightForItems => (long)ScaledItemHeight * Items.Count;
 
         /// <inheritdoc/>
         protected override void OnKeyUp (KeyEventArgs e)
@@ -542,16 +542,22 @@ namespace ModernFormsNext
         // Update the vertical scroll bar to match the number of current items.
         private void UpdateVerticalScrollBar ()
         {
-            if (Items.Count == 0)
-                vscrollbar.Visible = ScrollbarAlwaysVisible;
-
-            if (NeededHeightForItems > Bounds.Height) {
-                vscrollbar.Visible = true;
-                vscrollbar.Maximum = Items.Count - VisibleItemCount;
-                vscrollbar.LargeChange = Math.Max (0, VisibleItemCount);
-            } else {
-                vscrollbar.Visible = ScrollbarAlwaysVisible;
-            }
+            if (vscrollbar is null) return;
+            if (updatingListScroll) { listScrollPending = true; return; }
+            updatingListScroll = true;
+            try {
+                int pass = 0;
+                do {
+                if (++pass > 64) throw new InvalidOperationException("List scrollbar layout did not stabilize after 64 changes.");
+                listScrollPending = false;
+                bool needed = NeededHeightForItems > ClientRectangle.Height;
+                vscrollbar.Visible = needed || ScrollbarAlwaysVisible;
+                vscrollbar.Maximum = needed ? Math.Max(0, Items.Count - Math.Max(1, VisibleItemCount)) : 0;
+                vscrollbar.Value = Math.Clamp(vscrollbar.Value, 0, vscrollbar.Maximum);
+                top_index = vscrollbar.Value;
+                vscrollbar.LargeChange = Math.Max(1, VisibleItemCount);
+                } while (listScrollPending && !IsDisposed && !Disposing);
+            } finally { updatingListScroll = false; NotifyListScrollChanged(); }
         }
 
         // Handle changes to the vertical scroll bar.
@@ -560,11 +566,12 @@ namespace ModernFormsNext
             top_index = Math.Max (vscrollbar.Value, 0);
 
             Invalidate ();
+            NotifyListScrollChanged();
         }
 
         /// <summary>
         /// The number of full items that can be shown at a time.
         /// </summary>
-        public int VisibleItemCount => ClientRectangle.Height / ScaledItemHeight;
+        public int VisibleItemCount => Math.Max(0, ClientRectangle.Height) / Math.Max(1, ScaledItemHeight);
     }
 }

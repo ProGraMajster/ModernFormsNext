@@ -70,7 +70,7 @@ namespace ModernFormsNext
         /// </summary>
         public void EnsureVisible ()
         {
-            tree_view?.EnsureItemVisible (this);
+            TreeView?.EnsureItemVisible (this);
         }
 
         /// <summary>
@@ -198,7 +198,13 @@ namespace ModernFormsNext
         // Invalidates the node.
         internal void Invalidate ()
         {
-            TreeView?.Invalidate ();
+            if (TreeView is { } tree)
+            {
+                // Collection and expansion changes must commit the viewport before semantic
+                // notifications, even if no paint has been requested by a headless/native client.
+                try { tree.UpdateViewportAfterItemChange(); }
+                finally { tree.Invalidate(); }
+            }
         }
 
         /// <summary>

@@ -275,7 +275,7 @@ public sealed class ThemeManager
             return await FailAsync(theme, diagnostics, exception, stopwatch.Elapsed).ConfigureAwait(false);
         }
 
-        ThemeResolutionResult resolution = Resolve(definition, applyOptions.SystemFallbackVariant);
+        ThemeResolutionResult resolution = Resolve(definition, applyOptions.SystemFallbackVariant, applyOptions.TextScale);
         SetLastDiagnostics(resolution.Diagnostics);
         if (!resolution.Success)
             return await FailAsync(definition, resolution.Diagnostics, null, stopwatch.Elapsed).ConfigureAwait(false);
@@ -342,8 +342,8 @@ public sealed class ThemeManager
     private void RegisterCore(ThemeDefinition theme)
         => registeredThemes.Add(theme.Id, theme.Clone());
 
-    private ThemeResolutionResult Resolve(ThemeDefinition definition, ThemeVariant fallback)
-        => new ThemeResolver(FindRegistered, () => environment.GetSystemVariant(fallback), limits).Resolve(definition);
+    private ThemeResolutionResult Resolve(ThemeDefinition definition, ThemeVariant fallback, double textScale = 1d)
+        => new ThemeResolver(FindRegistered, () => environment.GetSystemVariant(fallback), limits).Resolve(definition, textScale);
 
     private ThemeDefinition? FindRegistered(string id)
     {

@@ -43,7 +43,7 @@ namespace ModernFormsNext
     /// editor.DeselectAll();
     /// </code>
     /// </example>
-    public class RichTextBox : TextBox
+    public partial class RichTextBox : TextBox
     {
         private readonly List<RichTextBoxTextRun> runs = new List<RichTextBoxTextRun>();
         private readonly RichTextBoxTextStyle insertionStyle = new RichTextBoxTextStyle();
@@ -109,6 +109,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void RestoreTextInputFragment(int start, int length, string text, object? formatting)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var oldText = Text;
             EnsureRunCoverage();
             document.RestoreTextInputFragment(start, length, text);
@@ -1097,6 +1098,7 @@ namespace ModernFormsNext
 
         private bool ApplyRichTextEdit(Func<bool> edit, RichTextBoxTextStyle? insertedStyle = null)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var oldText = Text;
             var oldSelection = GetSelectionSnapshot();
             EnsureRunCoverage();
@@ -1121,6 +1123,7 @@ namespace ModernFormsNext
 
         private void ApplySelectionStyle(Action<RichTextBoxTextStyle> apply)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             ArgumentNullException.ThrowIfNull(apply);
             FinishTextInputBeforeExternalChange();
             var (start, length) = GetSelectionRange();
@@ -1344,6 +1347,7 @@ namespace ModernFormsNext
         private void InvalidateRichText()
         {
             cachedRichTextBlock = null;
+            AccessibleTextFormattingChanged();
             Invalidate();
         }
 
@@ -1419,6 +1423,7 @@ namespace ModernFormsNext
 
         private void ReplaceSelectionWithRichText(string text, IReadOnlyList<RichTextBoxTextRun> newRuns)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var (start, removedLength) = GetSelectionRange();
             var oldText = Text;
             var oldSelection = GetSelectionSnapshot();
@@ -1456,6 +1461,7 @@ namespace ModernFormsNext
 
         private void SetSelection(int start, int end)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var old = GetSelectionSnapshot();
 
             document.SelectionStart = start;
@@ -1469,6 +1475,7 @@ namespace ModernFormsNext
 
         private void SetTextAndRuns(string text, List<RichTextBoxTextRun> newRuns)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var oldSelection = GetSelectionSnapshot();
             var oldText = document.Text;
 

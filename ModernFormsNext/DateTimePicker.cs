@@ -18,7 +18,7 @@ namespace ModernFormsNext
     /// </remarks>
     [DefaultProperty (nameof (Value))]
     [DefaultEvent (nameof (ValueChanged))]
-    public class DateTimePicker : Control
+    public partial class DateTimePicker : Control
     {
         private const int DefaultButtonWidth = 22;
         private const int DefaultCheckBoxSize = 14;
@@ -71,17 +71,20 @@ namespace ModernFormsNext
         {
             var current = Value;
 
-            var merged = new DateTime (
-                selectedDate.Year,
-                selectedDate.Month,
-                selectedDate.Day,
-                current.Hour,
-                current.Minute,
-                current.Second,
-                current.Millisecond);
-
-            Value = merged;
-            CloseDropDown ();
+            var selectedPopup = popupWindow;
+            // Preserve the complete time (including sub-millisecond ticks and Kind). A date at
+            // a range boundary may require clamping the retained time to that boundary.
+            var merged = selectedDate.Date.AddTicks(current.TimeOfDay.Ticks);
+            merged = DateTime.SpecifyKind(merged, current.Kind);
+            try { Value = merged < MinDate ? MinDate : merged > MaxDate ? MaxDate : merged; }
+            catch (Exception failure)
+            {
+                try { if (ReferenceEquals(popupWindow, selectedPopup)) CloseDropDown(); }
+                catch (Exception cleanup) { throw new AggregateException("Calendar value change and cleanup failed.", failure, cleanup); }
+                throw;
+            }
+            // ValueChanged can open another popup. Only retire the session that chose this date.
+            if (ReferenceEquals(popupWindow, selectedPopup)) CloseDropDown();
         }
 
         /// <summary>
@@ -89,19 +92,7 @@ namespace ModernFormsNext
         /// </summary>
         internal void CloseDropDown ()
         {
-            if (popupWindow is not null) {
-                popupWindow.Hide ();
-                popupWindow.Dispose ();
-                popupWindow = null;
-            }
-
-            popupCalendar = null;
-
-            if (isDroppedDown) {
-                isDroppedDown = false;
-                OnCloseUp (EventArgs.Empty);
-                Invalidate (buttonRect);
-            }
+            RetireDropDown();
         }
 
         /// <summary>
@@ -202,6 +193,7 @@ namespace ModernFormsNext
 
                 UpdateLayoutRects ();
                 Invalidate ();
+                NotifyAccessibilityClients(AccessibleEvents.Reorder);
             }
         }
 
@@ -217,7 +209,9 @@ namespace ModernFormsNext
                     return;
 
                 showUpDown = value;
+                if (value) CloseDropDown();
                 Invalidate ();
+                NotifyAccessibilityClients(AccessibleEvents.Reorder);
             }
         }
 
@@ -238,6 +232,7 @@ namespace ModernFormsNext
                     return;
 
                 isChecked = newValue;
+                if (!newValue) CloseDropDown();
                 Invalidate ();
 
                 OnValueChanged (EventArgs.Empty);
@@ -264,6 +259,7 @@ namespace ModernFormsNext
                     throw new ArgumentOutOfRangeException (nameof (value), value, "MinDate cannot be greater than MaxDate.");
 
                 minDate = value;
+                if (popupCalendar is { } calendar) calendar.MinDate = value;
 
                 // Keep the current value inside the valid range.
                 if (Value < minDate)
@@ -292,6 +288,7 @@ namespace ModernFormsNext
                     throw new ArgumentOutOfRangeException (nameof (value), value, "MaxDate cannot be less than MinDate.");
 
                 maxDate = value;
+                if (popupCalendar is { } calendar) calendar.MaxDate = value;
 
                 // Keep the current value inside the valid range.
                 if (Value > maxDate)
@@ -321,6 +318,7 @@ namespace ModernFormsNext
 
                 this.value = value;
                 userHasSetValue = true;
+                if (popupCalendar is { } calendar) calendar.Value = value;
 
                 // Setting the value explicitly activates the control when a checkbox is shown.
                 if (ShowCheckBox)
@@ -379,17 +377,17 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the calculated rectangle of the checkbox area.
         /// </summary>
-        internal Rectangle CheckBoxRectangle => checkBoxRect;
+        internal Rectangle CheckBoxRectangle { get { UpdateLayoutRects(); return checkBoxRect; } }
 
         /// <summary>
         /// Gets the calculated rectangle of the text area.
         /// </summary>
-        internal Rectangle TextRectangle => textRect;
+        internal Rectangle TextRectangle { get { UpdateLayoutRects(); return textRect; } }
 
         /// <summary>
         /// Gets the calculated rectangle of the right-side button area.
         /// </summary>
-        internal Rectangle ButtonRectangle => buttonRect;
+        internal Rectangle ButtonRectangle { get { UpdateLayoutRects(); return buttonRect; } }
 
         /// <summary>
         /// Gets a value indicating whether the right-side button is currently pressed.
@@ -428,6 +426,7 @@ namespace ModernFormsNext
         protected override void OnMouseMove (MouseEventArgs e)
         {
             base.OnMouseMove (e);
+            UpdateLayoutRects();
 
             bool hover = buttonRect.Contains (e.Location);
             if (hoveredButton != hover) {
@@ -457,19 +456,19 @@ namespace ModernFormsNext
         protected override void OnMouseDown (MouseEventArgs e)
         {
             base.OnMouseDown (e);
+            UpdateLayoutRects();
 
+            var lifetime = new AccessibilityControlLifetime(this);
+            if (!CanUseDatePicker) return;
             Select ();
+            if (!lifetime.IsCurrent || !CanUseDatePicker) return;
 
             if (ShowCheckBox && checkBoxRect.Contains (e.Location)) {
-                isChecked = !isChecked;
-                Invalidate ();
-
-                OnValueChanged (EventArgs.Empty);
-                OnTextChanged (EventArgs.Empty);
+                Checked = !Checked;
                 return;
             }
 
-            if (buttonRect.Contains (e.Location)) {
+            if (Checked && buttonRect.Contains (e.Location)) {
                 buttonPressed = true;
                 Invalidate (buttonRect);
             }
@@ -482,6 +481,7 @@ namespace ModernFormsNext
         protected override void OnMouseUp (MouseEventArgs e)
         {
             base.OnMouseUp (e);
+            UpdateLayoutRects();
 
             bool wasPressed = buttonPressed;
             buttonPressed = false;
@@ -489,7 +489,7 @@ namespace ModernFormsNext
             if (wasPressed)
                 Invalidate (buttonRect);
 
-            if (buttonRect.Contains (e.Location)) {
+            if (wasPressed && CanUseDatePicker && Checked && buttonRect.Contains (e.Location)) {
                 if (ShowUpDown)
                     HandleUpDownClick (e.Location);
                 else
@@ -525,8 +525,16 @@ namespace ModernFormsNext
         {
             base.OnKeyDown (e);
 
-            if (!Checked && ShowCheckBox)
+            if (e.Handled || !CanUseDatePicker)
                 return;
+
+            // The checkbox must remain reachable when unchecked, just as with pointer input.
+            if (e.KeyCode == Keys.Space && ShowCheckBox) {
+                Checked = !Checked;
+                e.Handled = true;
+                return;
+            }
+            if (!Checked) return;
 
             switch (e.KeyCode) {
                 case Keys.Up:
@@ -630,7 +638,7 @@ namespace ModernFormsNext
         /// <returns>A formatted date/time string.</returns>
         private string GetDisplayText ()
         {
-            DateTime displayValue = userHasSetValue ? value : DateTime.Now;
+            DateTime displayValue = value;
 
             return Format switch {
                 DateTimePickerFormat.Long => displayValue.ToString ("D", CultureInfo.CurrentCulture),
@@ -652,7 +660,8 @@ namespace ModernFormsNext
         /// </remarks>
         private void ResetValue ()
         {
-            value = DateTime.Now;
+            var now = DateTime.Now;
+            value = now < MinDate ? MinDate : now > MaxDate ? MaxDate : now;
             userHasSetValue = false;
             isChecked = !ShowCheckBox;
 
@@ -685,49 +694,23 @@ namespace ModernFormsNext
                 y + DefaultVerticalPadding,
                 Math.Max (0, buttonRect.Left - x - (DefaultHorizontalPadding * 2)),
                 Math.Max (0, height - (DefaultVerticalPadding * 2)));
+            // Layout is authored in logical pixels; the renderer, pointer event and semantic
+            // bounds all consume these same device-space rectangles, including before paint.
+            checkBoxRect = GetScaledBounds(checkBoxRect, ScaleFactor, BoundsSpecified.All);
+            textRect = GetScaledBounds(textRect, ScaleFactor, BoundsSpecified.All);
+            buttonRect = GetScaledBounds(buttonRect, ScaleFactor, BoundsSpecified.All);
         }
 
         /// <summary>
         /// Opens or closes the drop-down part of the control.
         /// </summary>
-        /// <remarks>
-        /// This is currently a placeholder. A future implementation can attach a real calendar popup here.
-        /// </remarks>
-        /// <summary>
-        /// Opens or closes the drop-down calendar.
-        /// </summary>
         private void ToggleDropDown ()
         {
-            if (ShowUpDown)
-                return;
-
             if (isDroppedDown) {
                 CloseDropDown ();
                 return;
             }
-
-            var hostForm = FindForm ();
-            if (hostForm is null)
-                return;
-
-            popupWindow = new PopupWindow (hostForm) {
-                Size = new Size (232, 268)
-            };
-
-            popupCalendar = new DateTimePickerCalendar (this) {
-                Dock = DockStyle.Fill,
-                Value = Value,
-                MinDate = MinDate,
-                MaxDate = MaxDate
-            };
-
-            popupWindow.Controls.Add(popupCalendar);
-
-            isDroppedDown = true;
-            OnDropDown (EventArgs.Empty);
-            Invalidate (buttonRect);
-
-            popupWindow.Show (this, 0, Height);
+            OpenDropDown();
         }
 
         /// <summary>
@@ -762,13 +745,17 @@ namespace ModernFormsNext
         /// <param name="delta">The step amount. Positive values increment, negative values decrement.</param>
         private void StepValue (int delta)
         {
-            DateTime newValue = Format switch {
+            DateTime newValue;
+            // AddMonths/AddYears can overflow before the ordinary MinDate/MaxDate clamp.
+            // Stepping at the boundary is a no-op for every input and accessibility path.
+            try { newValue = Format switch {
                 DateTimePickerFormat.Time => Value.AddMinutes (delta),
                 DateTimePickerFormat.Short => Value.AddDays (delta),
                 DateTimePickerFormat.Long => Value.AddDays (delta),
                 DateTimePickerFormat.Custom => StepCustom (delta),
                 _ => Value.AddDays (delta)
-            };
+            }; }
+            catch (ArgumentOutOfRangeException) { newValue = delta > 0 ? MaxDate : MinDate; }
 
             if (newValue < MinDate)
                 newValue = MinDate;

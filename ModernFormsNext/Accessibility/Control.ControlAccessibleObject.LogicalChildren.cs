@@ -47,6 +47,8 @@ public partial class Control
         {
             return owner switch
             {
+                LinkLabel label => GetLinkObjects(label),
+                NumericUpDown numeric => GetNumericChildren(numeric),
                 ListBox listBox => GetListBoxItemObjects(listBox),
                 ComboBox comboBox => GetComboBoxItemObjects(comboBox),
                 ListView listView => listView.Items.Select(item => GetListViewItemObject(listView, item)),
@@ -194,7 +196,8 @@ public partial class Control
 
             protected bool IsOwnerAvailable
                 => Root.View != AccessibilityView.Hidden
-                    && OwnerControl is { Enabled: true, Visible: true };
+                    && OwnerControl is { Enabled: true, Visible: true, Disposing: false } owner
+                    && owner.FindWindow()?.InputBindingsClosed != true;
 
             public override AccessibilityView View
                 => Root.View != AccessibilityView.Hidden && OwnerControl is { Visible: true }

@@ -30,7 +30,9 @@ public partial class TextBox
             VerifyTextInputAccess();
             if (textInputOptions == value) return;
             FinishTextInputBeforeExternalChange();
+            bool wasSensitive = IsAccessibilitySensitive;
             textInputOptions = value;
+            if (wasSensitive != IsAccessibilitySensitive) AccessibleTextPrivacyChanged();
             NotifyTextInputStateChanged();
         }
     }
@@ -132,8 +134,11 @@ public partial class TextBox
     /// <inheritdoc/>
     protected override void OnInvalidated(EventArgs<Rectangle> e)
     {
-        base.OnInvalidated(e);
-        NotifyTextInputStateChanged();
+        try { base.OnInvalidated(e); }
+        finally {
+            try { NotifyTextInputStateChanged(); }
+            finally { PublishAccessibleTextChanges(); }
+        }
     }
 
     /// <inheritdoc/>
@@ -143,7 +148,8 @@ public partial class TextBox
         try { base.OnTextChanged(e); }
         finally {
             textInputClient?.LeaveCallback();
-            NotifyTextInputStateChanged();
+            try { NotifyTextInputStateChanged(); }
+            finally { PublishAccessibleTextChanges(); }
         }
     }
 
@@ -152,6 +158,8 @@ public partial class TextBox
     {
         try {
             if (disposing) {
+                accessibleTextObserved = false;
+                accessibleTextPublished = null;
                 textInputClient?.Retire();
                 TextCompositionChanged = null;
             }
@@ -447,6 +455,7 @@ public partial class TextBox
                 (!terminal && (!control.Enabled || !control.Visible || (writable && control.ReadOnly))))
                 return false;
             editing = true;
+            using var accessibleChange = control.BeginAccessibleTextChange();
             invalidEdit = false;
             editParent = control.Parent;
             editWindow = control.FindWindow();

@@ -8,13 +8,13 @@ public sealed partial class AutomationSession
     private const AccessibleActions AllowedActions = AccessibleActions.Invoke | AccessibleActions.Focus
         | AccessibleActions.SetValue | AccessibleActions.Select | AccessibleActions.Toggle
         | AccessibleActions.Expand | AccessibleActions.Collapse | AccessibleActions.Increment
-        | AccessibleActions.Decrement | AccessibleActions.ScrollIntoView;
+        | AccessibleActions.Decrement | AccessibleActions.ScrollIntoView | AccessibleActions.Scroll;
 
     /// <summary>Requests one currently advertised canonical action on the UI dispatcher.</summary>
     /// <param name="rootId">The exact allowed root registration identity.</param>
     /// <param name="handle">The session and canonical runtime identity, re-resolved before execution.</param>
     /// <param name="action">Exactly one advertised action from the Phase 1a allowlist.</param>
-    /// <param name="value">Only SetValue accepts a payload: text, a finite numeric range value, or null to clear text.</param>
+    /// <param name="value">SetValue accepts text, a finite number, or null to clear text. Scroll requires FromScroll; other actions accept no payload.</param>
     /// <param name="cancellationToken">Cancels before execution or between reachability reads; it cannot undo an accepted action.</param>
     /// <returns>Accepted when PerformAction returns true, independently of future async work.</returns>
     /// <remarks>
@@ -48,7 +48,8 @@ public sealed partial class AutomationSession
         int flag = (int)action;
         if (flag <= 0 || (flag & (flag - 1)) != 0) return ActionResult(AutomationErrorCode.InvalidArgument);
         if ((AllowedActions & action) == 0) return ActionResult(AutomationErrorCode.ActionUnsupported);
-        if (action != AccessibleActions.SetValue && value is not null) return ActionResult(AutomationErrorCode.InvalidArgument);
+        if (action == AccessibleActions.Scroll ? value?.Scroll is null : value?.Scroll is not null
+            || action != AccessibleActions.SetValue && value is not null) return ActionResult(AutomationErrorCode.InvalidArgument);
         if (value?.Text is { Length: > SemanticTraversal.MaxTextLength } || value?.Number is double number && !double.IsFinite(number))
             return ActionResult(AutomationErrorCode.InvalidArgument);
 
@@ -66,6 +67,14 @@ public sealed partial class AutomationSession
             return ActionResult(AutomationErrorCode.ActionRejected);
         if ((peer.SupportedActions & action) == 0) return ActionResult(AutomationErrorCode.ActionUnsupported);
         object? parameter = null;
+        if (action == AccessibleActions.Scroll)
+        {
+            if (entry.Redaction != AutomationRedaction.None) return ActionResult(AutomationErrorCode.ActionRejected);
+            if (peer.ScrollInfo is not { } scroll) return ActionResult(AutomationErrorCode.ActionUnsupported);
+            if (!value!.Scroll!.TryGetOffset(scroll.Horizontal, true, out _)
+                || !value.Scroll.TryGetOffset(scroll.Vertical, false, out _)) return ActionResult(AutomationErrorCode.ActionRejected);
+            parameter = value.Scroll;
+        }
         if (action == AccessibleActions.SetValue)
         {
             if ((state & AccessibleStates.ReadOnly) != 0) return ActionResult(AutomationErrorCode.ActionRejected);
@@ -95,6 +104,8 @@ public sealed partial class AutomationSession
         if (current!.Error != AutomationErrorCode.None) return ActionResult(current.Error);
         var live = current.Find(handle.RuntimeId);
         if (live is null || !ReferenceEquals(live.Peer, peer)) return ActionResult(AutomationErrorCode.NodeUnavailable);
+        if (action == AccessibleActions.Scroll && live.Redaction != AutomationRedaction.None)
+            return ActionResult(AutomationErrorCode.ActionRejected);
         token.ThrowIfCancellationRequested();
         if ((peer.State & (AccessibleStates.Unavailable | AccessibleStates.Invisible)) != 0)
             return ActionResult(AutomationErrorCode.ActionRejected);

@@ -321,9 +321,22 @@ internal readonly struct UiaRect : IEquatable<UiaRect>
     public override int GetHashCode() => HashCode.Combine(Left, Top, Width, Height);
 }
 
-[StructLayout(LayoutKind.Explicit, Size = 16)]
+[StructLayout(LayoutKind.Explicit)]
 internal struct WindowsUiaVariant : IDisposable
 {
+    // VARIANT's BRECORD union member contains two pointers, even when a scalar is used.
+    // Its native size is therefore 24 bytes on Win64 and 16 bytes on Win32. This matters
+    // for ITextRangeProvider.FindAttribute's by-value argument as well as array strides.
+    // Source: https://learn.microsoft.com/windows/win32/api/oaidl/ns-oaidl-variant
+    [FieldOffset(8)]
+    private NativeRecord recordValue;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRecord
+    {
+        internal IntPtr Data;
+        internal IntPtr RecordInfo;
+    }
     [FieldOffset(0)]
     private ushort variantType;
 
@@ -343,6 +356,12 @@ internal struct WindowsUiaVariant : IDisposable
         => value switch
         {
             null => default,
+            WindowsUiaProvider provider => new WindowsUiaVariant { variantType = (ushort)VarEnum.VT_UNKNOWN,
+                pointerValue = WindowsUiaNativeMethods.GetUnknownPointer(provider) },
+            WindowsUiaProvider[] providers => new WindowsUiaVariant { variantType = (ushort)(VarEnum.VT_ARRAY | VarEnum.VT_UNKNOWN),
+                pointerValue = WindowsUiaNativeMethods.CreateSafeArray(providers) },
+            ModernFormsNext.WindowKit.Platform.Accessibility.PlatformTextAttributeSentinel sentinel => new WindowsUiaVariant {
+                variantType = (ushort)VarEnum.VT_UNKNOWN, pointerValue = WindowsUiaTextNative.Reserved(sentinel) },
             string text => new WindowsUiaVariant
             {
                 variantType = (ushort)VarEnum.VT_BSTR,
@@ -378,6 +397,16 @@ internal struct WindowsUiaVariant : IDisposable
         if (variantType != (ushort)VarEnum.VT_EMPTY)
             _ = WindowsUiaNativeMethods.ClearVariant(ref this);
     }
+
+    // The inbound VARIANT is borrowed. Only baseline text-attribute scalar types are accepted;
+    // no arbitrary COM object, array or native pointer is dereferenced as document data.
+    internal object ToObject() => (VarEnum)variantType switch {
+        VarEnum.VT_BSTR => Marshal.PtrToStringBSTR(pointerValue),
+        VarEnum.VT_BOOL => booleanValue != 0,
+        VarEnum.VT_I4 => integerValue,
+        VarEnum.VT_R8 => doubleValue,
+        _ => throw new ArgumentException("The attribute value is not a supported scalar VARIANT.")
+    };
 }
 
 internal static class WindowsUiaIds
@@ -640,6 +669,9 @@ internal static class WindowsUiaNativeMethods
 
     public static IntPtr GetFragmentProviderPointer(WindowsUiaProvider provider)
         => GetComInterfacePointer(provider, FragmentProviderInterfaceId);
+
+    public static IntPtr GetSimpleProviderPointer(WindowsUiaProvider provider)
+        => GetComInterfacePointer(provider, SimpleProviderInterfaceId);
 
     public static IntPtr GetFragmentRootProviderPointer(WindowsUiaRootProvider provider)
         => GetComInterfacePointer(provider, FragmentRootProviderInterfaceId);

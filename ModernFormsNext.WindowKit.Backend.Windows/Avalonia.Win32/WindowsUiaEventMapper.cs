@@ -5,7 +5,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32;
 /// <summary>
 /// Translates canonical accessibility notifications to Windows UI Automation events.
 /// </summary>
-internal static class WindowsUiaEventMapper
+internal static partial class WindowsUiaEventMapper
 {
     private const int EventShow = 0x8002;
     private const int EventHide = 0x8003;
@@ -31,24 +31,41 @@ internal static class WindowsUiaEventMapper
     {
         switch (eventId)
         {
+            case -3 or -5 when !source.GetIsSensitive() && source.GetTextProvider() is not null:
+                RaiseEvent(eventSink, provider, 20015); // UIA_Text_TextChangedEventId; metadata only.
+                break;
+            case -4 when !source.GetIsSensitive() && source.GetTextProvider() is not null:
+                RaiseEvent(eventSink, provider, 20014); // UIA_Text_TextSelectionChangedEventId.
+                break;
+            case -2:
+                RaiseScrollProperties(eventSink, provider, source);
+                break;
+            case -6:
+                RaiseRangeProperties(eventSink, provider, source);
+                break;
             case EventFocus:
                 RaiseEvent(eventSink, provider, WindowsUiaIds.AutomationFocusChangedEvent);
                 break;
             case EventNameChange:
-                RaisePropertyChanged(eventSink, provider, WindowsUiaIds.NameProperty, source.Name ?? string.Empty);
+                RaisePropertyChanged(eventSink, provider, WindowsUiaIds.NameProperty,
+                    WindowsUiaProvider.ReadMetadata(source, () => source.Name ?? string.Empty, string.Empty));
                 break;
             case EventDescriptionChange:
                 RaisePropertyChanged(
                     eventSink,
                     provider,
                     WindowsUiaIds.HelpTextProperty,
-                    source.Help ?? source.Description ?? string.Empty);
+                    WindowsUiaProvider.ReadHelpText(source));
                 break;
-            case EventValueChange when !source.GetIsSensitive():
-                if (source.GetRangeValue() is { } range)
+            case EventValueChange when !PlatformAccessibilityPrivacy.HasSensitiveAncestor(source):
+                if (WindowsUiaProvider.ReadPayload(source, source.GetRangeValue, (PlatformAccessibleRangeValue?)null) is { } range)
                     RaisePropertyChanged(eventSink, provider, WindowsUiaIds.RangeValueProperty, range.Value);
-                else
-                    RaisePropertyChanged(eventSink, provider, WindowsUiaIds.ValueProperty, source.Value ?? string.Empty);
+                else if (!PlatformAccessibilityPrivacy.HasSensitiveAncestor(source))
+                {
+                    var value = WindowsUiaProvider.ReadPayload(source, () => source.Value, (string?)null);
+                    if (!PlatformAccessibilityPrivacy.HasSensitiveAncestor(source))
+                        RaisePropertyChanged(eventSink, provider, WindowsUiaIds.ValueProperty, value ?? string.Empty);
+                }
                 break;
             case EventStateChange:
                 RaiseStateProperties(eventSink, provider, source);

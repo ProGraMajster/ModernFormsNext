@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Runtime.ExceptionServices;
 using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 
@@ -19,6 +20,7 @@ namespace ModernFormsNext
         private int thumbclick_offset;		        // Position of the last button-down event relative to the thumb edge
         
         private readonly bool vertical;
+        internal Orientation AccessibilityOrientation => vertical ? Orientation.Vertical : Orientation.Horizontal;
 
         internal int thumb_drag_position;     // Current pixel of the midpoint of the thumb drag 
 
@@ -39,15 +41,17 @@ namespace ModernFormsNext
         /// Gets or sets the amount the ScrollBar will change when clicked in the track area.
         /// </summary>
         public int LargeChange {
-            get => Math.Min (large_change, maximum - minimum + 1);
+            get => (int)Math.Min (large_change, (long)maximum - minimum + 1);
             set {
-                if (value < 0)
-                    throw new ArgumentOutOfRangeException (nameof (LargeChange), $"Value '{value}' must be greater than or equal to 0.");
+                ChangeRange(() => {
+                    if (value < 0)
+                        throw new ArgumentOutOfRangeException (nameof (LargeChange), $"Value '{value}' must be greater than or equal to 0.");
 
-                if (large_change != value) {
-                    large_change = value;
-                    UpdateFromValue (Value);
-                }
+                    if (large_change != value) {
+                        large_change = value;
+                        UpdateFromValue (Value);
+                    }
+                });
             }
         }
 
@@ -57,16 +61,18 @@ namespace ModernFormsNext
         public int Maximum {
             get => maximum;
             set {
-                if (maximum != value) {
-                    maximum = value;
+                ChangeRange(() => {
+                    if (maximum != value) {
+                        maximum = value;
 
-                    if (maximum < minimum)
-                        minimum = maximum;
-                    if (Value > maximum)
-                        Value = maximum;
+                        if (maximum < minimum)
+                            minimum = maximum;
+                        if (Value > maximum)
+                            Value = maximum;
 
-                    UpdateFromValue (Value);
-                }
+                        UpdateFromValue (Value);
+                    }
+                });
             }
         }
 
@@ -76,16 +82,18 @@ namespace ModernFormsNext
         public int Minimum {
             get => minimum;
             set {
-                if (minimum != value) {
-                    minimum = value;
+                ChangeRange(() => {
+                    if (minimum != value) {
+                        minimum = value;
 
-                    if (minimum > maximum)
-                        maximum = minimum;
-                    if (Value < minimum)
-                        Value = minimum;
+                        if (minimum > maximum)
+                            maximum = minimum;
+                        if (Value < minimum)
+                            Value = minimum;
 
-                    UpdateFromValue (Value);
-                }
+                        UpdateFromValue (Value);
+                    }
+                });
             }
         }
 
@@ -100,13 +108,15 @@ namespace ModernFormsNext
         public int SmallChange {
             get => small_change;
             set {
-                if (value < 0)
-                    throw new ArgumentOutOfRangeException (nameof (SmallChange), $"Value '{value}' must be greater than or equal to 0.");
+                ChangeRange(() => {
+                    if (value < 0)
+                        throw new ArgumentOutOfRangeException (nameof (SmallChange), $"Value '{value}' must be greater than or equal to 0.");
 
-                if (small_change != value) {
-                    small_change = value;
-                    Invalidate ();
-                }
+                    if (small_change != value) {
+                        small_change = value;
+                        Invalidate ();
+                    }
+                });
             }
         }
 
@@ -131,8 +141,11 @@ namespace ModernFormsNext
         /// </summary>
         public event EventHandler? ValueChanged;
 
+        // Owning viewports need committed range changes even if the current raw value did not move.
+        internal event EventHandler? RangeMetadataChanged;
+
         // The number of possible ScrollBar values.
-        private int PossibleValuesCount => maximum - minimum + 1;
+        private long PossibleValuesCount => (long)maximum - minimum + 1;
 
         // Retrieves the effective track bounds from the renderer.
         private Rectangle GetEffectiveTrackBounds () => RenderManager.GetRenderer<ScrollBarRenderer> ()!.GetEffectiveTrackBounds (this);
@@ -178,20 +191,20 @@ namespace ModernFormsNext
 
             switch (GetElementAtLocation (e.Location)) {
                 case ScrollBarElement.DecrementArrow:
-                    Value = Math.Max (Value - SmallChange, Minimum);
+                    Value = (int)Math.Max ((long)Value - SmallChange, Minimum);
                     break;
                 case ScrollBarElement.DecrementTrack:
-                    Value = Math.Max (Value - LargeChange, Minimum);
+                    Value = (int)Math.Max ((long)Value - LargeChange, Minimum);
                     break;
                 case ScrollBarElement.Thumb:
                     thumb_pressed = true;
                     thumbclick_offset = (vertical ? e.Y : e.X) - thumb_drag_position;
                     break;
                 case ScrollBarElement.IncrementTrack:
-                    Value = Math.Min (Value + LargeChange, Maximum);
+                    Value = (int)Math.Min ((long)Value + LargeChange, Maximum);
                     break;
                 case ScrollBarElement.IncrementArrow:
-                    Value = Math.Min (Value + SmallChange, Maximum);
+                    Value = (int)Math.Min ((long)Value + SmallChange, Maximum);
                     break;
             }
         }
@@ -234,7 +247,7 @@ namespace ModernFormsNext
                 return;
 
             var previousValue = Value;
-            UpdateFromValue (Value - (delta * SmallChange));
+            UpdateFromValue ((int)Math.Clamp((long)Value - ((long)delta * SmallChange), Minimum, Maximum));
             e.Handled = Value != previousValue;
         }
 
@@ -262,8 +275,12 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnValueChanged (EventArgs e)
         {
-            ValueChanged?.Invoke (this, e);
-            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+            Exception? failure = null;
+            try { ValueChanged?.Invoke(this, e); }
+            catch (Exception exception) { failure = exception; }
+            try { if (!IsDisposed && !Disposing) NotifyAccessibilityClients(AccessibleEvents.ValueChange); }
+            catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+            if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         /// <inheritdoc/>
@@ -294,24 +311,21 @@ namespace ModernFormsNext
             pixel = Math.Max (pixel, vertical ? effective_track_bounds.Top : effective_track_bounds.Left);
             pixel = Math.Min (pixel, vertical ? effective_track_bounds.Bottom : effective_track_bounds.Right);
 
+            if ((vertical ? effective_track_bounds.Height : effective_track_bounds.Width) <= 0) return;
             var position_percent = 
                 vertical ? (double)(pixel - effective_track_bounds.Top) / effective_track_bounds.Height
                          : (double)(pixel - effective_track_bounds.Left) / effective_track_bounds.Width;
 
-            var value_position = (int)(position_percent * (PossibleValuesCount - 1));
+            var value_position = (long)(Math.Clamp(position_percent, 0d, 1d) * (PossibleValuesCount - 1));
 
-            var new_value = minimum + value_position;
+            var new_value = (int)Math.Clamp((long)minimum + value_position, minimum, maximum);
 
             thumb_drag_position = pixel;
 
-            if (current_value != new_value) {
-                current_value = new_value;
-                OnValueChanged (EventArgs.Empty);
-            }
-
-            // We need to invalidate even if the value didn't change, because the position
-            // changed, but each value may span multiple pixels
-            Invalidate ();
+            bool changed = current_value != new_value;
+            current_value = new_value;
+            // The position can change within one value; repaint even without ValueChanged.
+            PublishValueChange(changed);
         }
 
         // Updates thumb drag position from a ScrollBar value.
@@ -321,7 +335,7 @@ namespace ModernFormsNext
             value = Math.Min (value, maximum);
 
             var possible = PossibleValuesCount - 1;
-            var value_percent = possible > 0 ? (double)(value - minimum) / possible : 0d;
+            var value_percent = possible > 0 ? ((double)value - minimum) / possible : 0d;
 
             var effective_track_bounds = GetEffectiveTrackBounds ();
 
@@ -331,14 +345,40 @@ namespace ModernFormsNext
 
             thumb_drag_position = (int)new_pos;
 
-            Invalidate ();
-
-            if (current_value == value)
-                return;
-
+            bool changed = current_value != value;
             current_value = value;
+            // Commit before invalidation, whose observers may synchronously read or change Value.
+            PublishValueChange(changed);
+        }
 
-            OnValueChanged (EventArgs.Empty);
+        private void PublishValueChange(bool changed)
+        {
+            Exception? failure = null;
+            try { if (changed) OnValueChanged(EventArgs.Empty); }
+            catch (Exception exception) { failure = exception; }
+            try { if (!IsDisposed && !Disposing) Invalidate(); }
+            catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+            if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        private void ChangeRange(Action mutation)
+        {
+            var previous = (minimum, maximum, small_change, LargeChange);
+            Exception? failure = null;
+            try { mutation(); }
+            catch (Exception exception) { failure = exception; }
+            try
+            {
+                if (previous != (minimum, maximum, small_change, LargeChange) && !IsDisposed && !Disposing)
+                {
+                    try { RangeMetadataChanged?.Invoke(this, EventArgs.Empty); }
+                    catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+                    try { if (!IsDisposed && !Disposing) NotifyAccessibilityClients(AccessibleEvents.RangeValueChanged); }
+                    catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+                }
+            }
+            catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+            if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         private enum ScrollBarElement

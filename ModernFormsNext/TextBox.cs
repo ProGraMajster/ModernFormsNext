@@ -80,8 +80,11 @@ namespace ModernFormsNext
             scroll_x += x;
             scroll_y += y;
 
-            Invalidate ();
-            NotifyTextInputStateChanged();
+            try { Invalidate (); }
+            finally {
+                try { NotifyTextInputStateChanged(); }
+                finally { NotifyAccessibleScrollChanged(); }
+            }
         }
 
         // Gets the index of the character at the specified location.
@@ -218,6 +221,7 @@ namespace ModernFormsNext
         // so keyboard, paste, and cut/delete edits behave like setting Text.
         private bool ApplyTextEdit (Func<bool> edit)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var old_text = document.Text;
             var changed = edit ();
 
@@ -327,13 +331,17 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnFontChanged(EventArgs e)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             document.InvalidateTextBlock();
+            InvalidateAccessibleTextLayout();
+            AccessibleTextFormattingChanged();
             base.OnFontChanged(e);
         }
 
         /// <inheritdoc/>
         protected override void OnKeyDown (KeyEventArgs e)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var parent = Parent;
             var window = FindWindow();
             var selected = Selected;
@@ -355,6 +363,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnKeyPress (KeyPressEventArgs e)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             var parent = Parent;
             var window = FindWindow();
             var selected = Selected;
@@ -372,6 +381,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnMouseDown (MouseEventArgs e)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             base.OnMouseDown (e);
 
             if (e.Button != MouseButtons.Left)
@@ -390,6 +400,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnMouseMove (MouseEventArgs e)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             base.OnMouseMove (e);
 
             if (is_highlighting) {
@@ -403,6 +414,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnMouseUp (MouseEventArgs e)
         {
+            using var accessibleChange = BeginAccessibleTextChange();
             base.OnMouseUp (e);
 
             if (e.Button != MouseButtons.Left)
@@ -489,6 +501,7 @@ namespace ModernFormsNext
 
                 FinishTextInputBeforeExternalChange();
                 document.PasswordCharacter = value;
+                AccessibleTextPrivacyChanged();
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.StateChange);
                 NotifyAccessibilityClients (Accessibility.AccessibleEvents.ValueChange);
             }
@@ -570,7 +583,7 @@ namespace ModernFormsNext
         /// </summary>
         public int SelectionEnd {
             get => document.SelectionEnd;
-            set => document.SelectionEnd = value;
+            set { using var change = BeginAccessibleTextChange(); document.SelectionEnd = value; }
         }
 
         /// <summary>
@@ -578,13 +591,13 @@ namespace ModernFormsNext
         /// </summary>
         public int SelectionStart {
             get => document.SelectionStart;
-            set => document.SelectionStart = value;
+            set { using var change = BeginAccessibleTextChange(); document.SelectionStart = value; }
         }
 
         /// <summary>
         /// Selects all text in the TextBox.
         /// </summary>
-        public void SelectAll() => document.SelectAll();
+        public void SelectAll() { using var change = BeginAccessibleTextChange(); document.SelectAll(); }
 
         // Sets cursor to specified character index and scrolls TextBox to cursor.
         private void SetCursorToCharIndex (int index)
@@ -600,6 +613,7 @@ namespace ModernFormsNext
         public override string Text { 
             get => document.Text; 
             set {
+                using var accessibleChange = BeginAccessibleTextChange();
                 if (document.Text != value) {
                     document.Text = value;
                     ScrollToCaret ();
@@ -705,6 +719,7 @@ namespace ModernFormsNext
 
                 VerticalScrollBar.Enabled = false;
             }
+            NotifyAccessibleScrollChanged();
         }
     }
 }

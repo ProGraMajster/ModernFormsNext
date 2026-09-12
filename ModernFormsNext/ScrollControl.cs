@@ -71,12 +71,12 @@ namespace ModernFormsNext
                 var h = client_rect.Height - padding.Vertical;
 
                 if (hscrollbar.Visible)
-                    h -= hscrollbar.Height;
+                    h -= hscrollbar.ScaledHeight;
 
                 if (vscrollbar.Visible)
-                    w -= vscrollbar.Width;
+                    w -= vscrollbar.ScaledWidth;
 
-                return new Rectangle (x, y, w, h);
+                return new Rectangle (x, y, Math.Max(0, w), Math.Max(0, h));
             }
         }
 

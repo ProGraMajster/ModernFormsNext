@@ -22,6 +22,8 @@ internal sealed class ControlTextInputHost(Control root, Func<Control?> selected
     private Control? GetSelectedControl() => selected();
 
     public ITextInputClient? Client { get { Refresh(); return session; } }
+    // Pure metadata: accessibility reads must not acquire or retire an IME connection.
+    internal bool IsActive => active && !disposed;
     public event EventHandler? ClientChanged;
 
     internal bool IsCompositionEditingKey(Keys key)

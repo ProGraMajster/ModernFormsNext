@@ -183,6 +183,7 @@ public partial class Control
                     state |= AccessibleStates.Focusable;
 
                 state |= GetDefaultState(owner);
+                state |= GetScrollState(owner);
 
                 return state;
             }
@@ -190,12 +191,17 @@ public partial class Control
 
         /// <inheritdoc/>
         public override bool IsSensitive
-            => Owner is TextBox { PasswordCharacter: not null };
+            => Owner is TextBox { IsAccessibilitySensitive: true };
 
         /// <inheritdoc/>
         public override AccessibleRangeValue? RangeValue
             => Owner switch
             {
+                NumericUpDown { IsDisposed: false } numeric => new AccessibleRangeValue(
+                    (double)numeric.Value, (double)numeric.Minimum, (double)numeric.Maximum,
+                    (double)numeric.Increment, (double)numeric.Increment, isReadOnly: false),
+                ScrollBar { IsDisposed: false } bar => new AccessibleRangeValue(
+                    bar.Value, bar.Minimum, bar.Maximum, bar.SmallChange, bar.LargeChange, isReadOnly: false),
                 TrackBar trackBar => new AccessibleRangeValue(
                     trackBar.Value,
                     trackBar.Minimum,
@@ -219,6 +225,8 @@ public partial class Control
             get
             {
                 if (Owner is not { IsDisposed: false } owner
+                    || owner.Disposing
+                    || owner.FindWindow()?.InputBindingsClosed == true
                     || !owner.Enabled
                     || !owner.Visible
                     || owner.AccessibilityView == AccessibilityView.Hidden)
@@ -237,10 +245,11 @@ public partial class Control
                     TextBox { ReadOnly: false } => AccessibleActions.SetValue,
                     ComboBox { DroppedDown: true } => AccessibleActions.Collapse,
                     ComboBox comboBox when comboBox.FindForm() is not null => AccessibleActions.Expand,
-                    TrackBar => AccessibleActions.SetValue | AccessibleActions.Increment | AccessibleActions.Decrement,
+                    TrackBar or NumericUpDown or ScrollBar => AccessibleActions.SetValue | AccessibleActions.Increment | AccessibleActions.Decrement,
                     _ => AccessibleActions.None
                 };
 
+                actions |= GetScrollActions(owner);
                 return actions;
             }
         }
@@ -410,11 +419,16 @@ public partial class Control
             if (!IsSingleAction(action)
                 || (SupportedActions & action) == 0
                 || Owner is not { IsDisposed: false } owner
+                || owner.Disposing
+                || owner.FindWindow()?.InputBindingsClosed == true
                 || !owner.Enabled
                 || !owner.Visible)
             {
                 return false;
             }
+
+            if (action is AccessibleActions.Scroll or AccessibleActions.ScrollIntoView)
+                return PerformScrollAction(action, parameter);
 
             if (action != AccessibleActions.SetValue && parameter is not null)
                 return false;
@@ -462,6 +476,34 @@ public partial class Control
                     trackBar.Value = requestedValue;
                     return true;
 
+                case AccessibleActions.SetValue when owner is NumericUpDown numeric:
+                    if (!TryGetDecimalRangeActionValue(parameter, numeric.Minimum, numeric.Maximum, out decimal requestedDecimal))
+                        return false;
+                    numeric.Value = requestedDecimal;
+                    return true;
+
+                case AccessibleActions.Increment when owner is NumericUpDown numeric:
+                    numeric.UpButton();
+                    return true;
+
+                case AccessibleActions.Decrement when owner is NumericUpDown numeric:
+                    numeric.DownButton();
+                    return true;
+
+                case AccessibleActions.SetValue when owner is ScrollBar bar:
+                    if (!TryGetRangeActionValue(parameter, bar.Minimum, bar.Maximum, out int requestedBarValue))
+                        return false;
+                    bar.Value = requestedBarValue;
+                    return true;
+
+                case AccessibleActions.Increment when owner is ScrollBar bar:
+                    bar.Value = (int)Math.Min(bar.Maximum, (long)bar.Value + bar.SmallChange);
+                    return true;
+
+                case AccessibleActions.Decrement when owner is ScrollBar bar:
+                    bar.Value = (int)Math.Max(bar.Minimum, (long)bar.Value - bar.SmallChange);
+                    return true;
+
                 case AccessibleActions.Increment when owner is TrackBar trackBar:
                     trackBar.Value = (int)Math.Min(
                         trackBar.Maximum,
@@ -475,8 +517,9 @@ public partial class Control
                     return true;
 
                 case AccessibleActions.Focus:
+                    var lifetime = new AccessibilityControlLifetime(owner);
                     owner.Select();
-                    return owner.Focused;
+                    return lifetime.IsCurrent && owner.Focused;
 
                 default:
                     return false;
@@ -519,7 +562,7 @@ public partial class Control
 
             // Editable text is a value, not a label. Falling back to Text here would leak user
             // content into the accessible name and would conflate two distinct semantic fields.
-            if (owner is TextBox)
+            if (owner is TextBox or NumericUpDown)
                 return owner.Name;
 
             if (!string.IsNullOrEmpty(owner.Text))
@@ -579,6 +622,7 @@ public partial class Control
                 TrackBar => AccessibleControlType.Slider,
                 ProgressBar => AccessibleControlType.ProgressBar,
                 ScrollBar => AccessibleControlType.ScrollBar,
+                NumericUpDown => AccessibleControlType.Spinner,
                 Menu or MenuDropDown => AccessibleControlType.Menu,
                 ToolBar => AccessibleControlType.ToolBar,
                 Label => AccessibleControlType.Text,
@@ -668,9 +712,8 @@ public partial class Control
             }
             else if (owner is NumericUpDown numericUpDown)
             {
-                if (numericUpDown.ReadOnly)
-                    state |= AccessibleStates.ReadOnly;
-
+                // ReadOnly belongs to the real embedded editor; the owner range and buttons
+                // stay writable, matching NumericUpDown's established public contract.
                 if (numericUpDown.UpButtonPressed || numericUpDown.DownButtonPressed)
                     state |= AccessibleStates.Pressed;
             }
@@ -679,7 +722,7 @@ public partial class Control
                 if (textBox.ReadOnly)
                     state |= AccessibleStates.ReadOnly;
 
-                if (textBox.PasswordCharacter.HasValue)
+                if (textBox.IsAccessibilitySensitive)
                     state |= AccessibleStates.Protected;
             }
             else if (owner is TrackBar trackBar)
@@ -704,7 +747,8 @@ public partial class Control
                 NumericUpDown numericUpDown => numericUpDown.Text,
                 ProgressBar progressBar => progressBar.Value.ToString(CultureInfo.CurrentCulture),
                 TabControl tabControl => tabControl.SelectedTabPage?.Text,
-                TextBox textBox => textBox.PasswordCharacter.HasValue ? string.Empty : textBox.Text,
+                TextBox textBox => textBox.IsAccessibilitySensitive ? string.Empty : textBox.Text,
+                ScrollBar bar => bar.Value.ToString(CultureInfo.CurrentCulture),
                 TrackBar trackBar => trackBar.Value.ToString(CultureInfo.CurrentCulture),
                 Switch @switch => @switch.Value.ToString(CultureInfo.CurrentCulture),
                 _ => null
@@ -716,7 +760,12 @@ public partial class Control
             {
                 if (child is null
                     || child.View == AccessibilityView.Hidden
-                    || (child.State & AccessibleStates.Invisible) != 0)
+                    // The exact default peer's View already rejects invisible/disposed owners.
+                    // Membership queries must not repeatedly calculate its complete State,
+                    // including presentation clipping, for every preceding sibling. Derived
+                    // peers can independently report Invisible and retain the full state check.
+                    || (child.GetType() != typeof(ControlAccessibleObject)
+                        && (child.State & AccessibleStates.Invisible) != 0))
                 {
                     continue;
                 }

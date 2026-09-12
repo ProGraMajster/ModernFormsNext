@@ -24,6 +24,7 @@ public sealed class ModernFormsTestHost : IDisposable
     private readonly HashSet<Form> baselineForms;
     private readonly KeyValuePair<object, object?>[] baselineApplicationResources;
     private readonly ThemeDefinition baselineTheme;
+    private readonly double baselineTextScale;
     private readonly IDisposable windowFactoryScope;
     private readonly IDisposable applicationRuntimeScope;
     private readonly int ownerThreadId = Environment.CurrentManagedThreadId;
@@ -46,6 +47,7 @@ public sealed class ModernFormsTestHost : IDisposable
             baselineForms = Application.OpenForms.ToHashSet();
             baselineApplicationResources = Application.Resources.ToArray();
             baselineTheme = Dispatcher.Run(() => ThemeManager.Current.ActiveTheme ?? BuiltInThemes.Light);
+            baselineTextScale = Dispatcher.Run(() => ThemeManager.Current.ActiveSnapshot?.TextScale ?? 1d);
         }
         catch (Exception creationFailure)
         {
@@ -462,6 +464,7 @@ public sealed class ModernFormsTestHost : IDisposable
                 baselineTheme,
                 new ThemeApplyOptions
                 {
+                    TextScale = baselineTextScale,
                     Transition = new ThemeTransitionOptions { Enabled = false }
                 });
             if (!result.Success)

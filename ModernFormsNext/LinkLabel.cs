@@ -1,3 +1,4 @@
+using ModernFormsNext.Accessibility;
 ﻿using ModernFormsNext.Renderers;
 using SkiaSharp;
 using System.Drawing;
@@ -231,6 +232,7 @@ namespace ModernFormsNext
                 {
                     focus_link = value;
                     Invalidate();
+                    NotifyAccessibilityLinkChanged(value, Accessibility.AccessibleEvents.Focus);
                 }
             }
         }
@@ -294,7 +296,9 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnKeyDown(KeyEventArgs e)
         {
+            var lifetime = new Accessibility.AccessibilityControlLifetime(this);
             base.OnKeyDown(e);
+            if (!IsCurrentLinkInput(lifetime) || e.Handled) return;
 
             switch (e.KeyCode)
             {
@@ -327,12 +331,15 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnMouseDown(MouseEventArgs e)
         {
+            var lifetime = new Accessibility.AccessibilityControlLifetime(this);
             base.OnMouseDown(e);
+            if (!IsCurrentLinkInput(lifetime) || e.Handled) return;
 
             if (!Enabled || !e.Button.HasFlag(MouseButtons.Left))
                 return;
 
             Select();
+            if (!IsCurrentLinkInput(lifetime)) return;
 
             var link = PointInLink(e.Location);
             if (link is null || !link.Enabled)
@@ -372,7 +379,9 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnMouseMove(MouseEventArgs e)
         {
+            var lifetime = new Accessibility.AccessibilityControlLifetime(this);
             base.OnMouseMove(e);
+            if (!IsCurrentLinkInput(lifetime) || e.Handled) return;
 
             if (!Enabled)
                 return;
@@ -396,24 +405,16 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnMouseUp(MouseEventArgs e)
         {
+            var lifetime = new Accessibility.AccessibilityControlLifetime(this);
+            var pressed = pressed_link;
+            // Retire the old press even when a public MouseUp observer throws or reparents.
+            pressed_link = null;
+            if (pressed is not null) pressed.State &= ~LinkState.Active;
             base.OnMouseUp(e);
-
-            if (!Enabled || !e.Button.HasFlag(MouseButtons.Left))
-                return;
-
-            var released_link = PointInLink(e.Location);
-            var should_activate = pressed_link is not null && ReferenceEquals(pressed_link, released_link) && pressed_link.Enabled;
-
-            if (pressed_link is not null)
-            {
-                pressed_link.State &= ~LinkState.Active;
-                pressed_link = null;
-            }
-
-            if (should_activate && released_link is not null)
-                ActivateLink(released_link, e.Button);
-
-            Invalidate();
+            if (!IsCurrentLinkInput(lifetime) || e.Handled || !e.Button.HasFlag(MouseButtons.Left)) return;
+            var released = PointInLink(e.Location);
+            if (pressed is not null && ReferenceEquals(pressed, released)) ActivateLink(pressed, e.Button);
+            if (IsCurrentLinkInput(lifetime)) Invalidate();
         }
 
         /// <inheritdoc/>
@@ -456,12 +457,15 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void OnTextChanged(EventArgs e)
         {
-            base.OnTextChanged(e);
-
             NormalizeLinks();
-            UpdateSelectability();
             InvalidateLayout();
-            Invalidate();
+            UpdateSelectability();
+            Exception? failure = null;
+            try { base.OnTextChanged(e); }
+            catch (Exception exception) { failure = exception; }
+            try { OnLinkMetadataChanged(null, AccessibleEvents.Reorder, layout: true); }
+            catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+            if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         /// <inheritdoc/>
@@ -548,12 +552,12 @@ namespace ModernFormsNext
             for (var i = 0; i < Links.Count; i++)
             {
                 var left = Links[i];
-                var left_end = left.Start + left.Length;
+                var left_end = (long)left.Start + left.Length;
 
                 for (var j = i + 1; j < Links.Count; j++)
                 {
                     var right = Links[j];
-                    var right_end = right.Start + right.Length;
+                    var right_end = (long)right.Start + right.Length;
 
                     var max_start = Math.Max(left.Start, right.Start);
                     var min_end = Math.Min(left_end, right_end);
@@ -564,13 +568,26 @@ namespace ModernFormsNext
             }
         }
 
-        private void ActivateLink(Link link, MouseButtons button)
+        private bool ActivateLink(Link link, MouseButtons button)
         {
-            link.Visited = true;
-            FocusLink = link;
+            if (activatingLink || !IsAccessibilityLinkAttached(link) || !Enabled || !Visible || !link.Enabled)
+                return false;
+            activatingLink = true;
+            try
+            {
+                var lifetime = new Accessibility.AccessibilityControlLifetime(this);
+                var parent = Parent;
+                var window = FindWindow();
+                link.Visited = true;
+                if (!lifetime.IsCurrent || !IsCurrentAccessibilityLink(link, parent, window)) return false;
+                FocusLink = link;
+                if (!lifetime.IsCurrent || !IsCurrentAccessibilityLink(link, parent, window)) return false;
 
-            OnLinkClicked(new LinkLabelLinkClickedEventArgs(link, button));
-            Invalidate();
+                OnLinkClicked(new LinkLabelLinkClickedEventArgs(link, button));
+                if (IsCurrentAccessibilityLink(link, parent, window)) Invalidate();
+                return true;
+            }
+            finally { activatingLink = false; }
         }
 
         private bool FocusNextLink(bool forward)
@@ -627,20 +644,15 @@ namespace ModernFormsNext
 
             var text_length = Text?.Length ?? 0;
 
+            // Normalize all ranges without callbacks or sorting a live enumerator. The
+            // completed text/range state is published together by OnTextChanged.
             foreach (var link in Links)
             {
-                if (link.Start < 0)
-                    link.Start = 0;
-
-                if (link.Start > text_length)
-                    link.Start = text_length;
-
-                if (link.RawLength != -1 && link.RawLength < 0)
-                    link.RawLength = 0;
-
-                if (link.RawLength != -1 && link.Start + link.RawLength > text_length)
-                    link.RawLength = Math.Max(0, text_length - link.Start);
+                int start = Math.Clamp(link.Start, 0, text_length);
+                int length = link.RawLength == -1 ? -1 : Math.Clamp(link.RawLength, 0, text_length - start);
+                link.NormalizeRange(start, length);
             }
+            Links.SortByStart();
 
             ValidateNoOverlappingLinks();
         }
@@ -662,12 +674,12 @@ namespace ModernFormsNext
 
         private void UpdateSelectability()
         {
-            var selectable = Links.Any(link => link.Enabled && link.Length > 0);
+            var selectable = Links.Any(link => link.Enabled && IsAccessibilityLinkAttached(link));
 
             TabStop = selectable;
             SetControlBehavior(ControlBehaviors.Selectable, selectable);
 
-            if (!selectable)
+            if (!selectable || (FocusLink is { } focused && (!IsAccessibilityLinkAttached(focused) || !focused.Enabled)))
                 FocusLink = null;
         }
     }

@@ -13,6 +13,7 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
     private readonly List<AutomationIssue> issues = [];
     private int attempts;
     private long getterFaults;
+    private long privacySteps;
     internal List<Entry> Entries { get; } = [];
     internal bool Truncated { get; private set; }
     internal AutomationErrorCode Error => issues.Count > 0 ? issues[0].Code
@@ -84,7 +85,7 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
         bool sensitive = Read(entry, AutomationProperty.IsSensitive, () => peer.IsSensitive, true);
         // A custom ControlAccessibleObject must not be able to negate its known password owner
         // merely by overriding IsSensitive/State. Unknown custom owners still use the canonical markers.
-        sensitive |= peer is Control.ControlAccessibleObject { Owner: TextBox { PasswordCharacter: not null } };
+        sensitive |= peer is Control.ControlAccessibleObject { Owner: TextBox { IsAccessibilitySensitive: true } };
         entry.States = Read(entry, AutomationProperty.States, () => peer.State, AccessibleStates.Unavailable);
         entry.Redaction = parent?.Redaction ?? AutomationRedaction.None;
         if (getterFaults != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
@@ -141,12 +142,18 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
         RefreshPrivacy(entry);
         string? automationId = null, name = null, value = null;
         AccessibleRangeValue? range = null;
+        AccessibleScrollInfo? scroll = null;
+        AutomationGridInfo? grid = null;
+        AutomationGridCellInfo? gridCell = null;
         if (entry.Redaction == AutomationRedaction.None)
         {
-            automationId = Text(entry, AutomationProperty.AutomationId, () => peer.AutomationId);
-            name = Text(entry, AutomationProperty.Name, () => peer.Name);
-            value = Text(entry, AutomationProperty.Value, () => peer.Value);
-            range = Read(entry, AutomationProperty.RangeValue, () => peer.RangeValue, null);
+            automationId = Payload(entry, () => Text(entry, AutomationProperty.AutomationId, () => peer.AutomationId));
+            name = Payload(entry, () => Text(entry, AutomationProperty.Name, () => peer.Name));
+            value = Payload(entry, () => Text(entry, AutomationProperty.Value, () => peer.Value));
+            range = Payload(entry, () => Read(entry, AutomationProperty.RangeValue, () => peer.RangeValue, null));
+            scroll = Payload(entry, () => Read(entry, AutomationProperty.ScrollInfo, () => peer.ScrollInfo, null));
+            grid = Payload(entry, () => Read(entry, AutomationProperty.GridInfo, () => CaptureGridInfo(peer), null));
+            gridCell = Payload(entry, () => Read(entry, AutomationProperty.GridCell, () => CaptureGridCell(entry), null));
         }
         var role = Read(entry, AutomationProperty.Role, () => peer.Role, AccessibleRole.Default);
         var type = Read(entry, AutomationProperty.ControlType, () => peer.ControlType, AccessibleControlType.Custom);
@@ -155,22 +162,139 @@ internal sealed class SemanticTraversal(AutomationQueryOptions limits, Cancellat
         // A getter can reenter application code. Discard captured payload if privacy became
         // sensitive/unknown during capture instead of returning a value classified earlier.
         RefreshPrivacy(entry);
-        if (entry.Redaction != AutomationRedaction.None) { automationId = null; name = null; value = null; range = null; }
+        if (entry.Redaction != AutomationRedaction.None) { automationId = null; name = null; value = null; range = null; scroll = null; grid = null; gridCell = null; }
         return new(new(sessionId, entry.Id), rootId, automationId, name, role, type, entry.States,
             actions, value, range, new(bounds.X, bounds.Y, bounds.Width, bounds.Height, coordinates),
-            entry.Parent?.Id, entry.Children.Select(child => child.Id).ToImmutableArray(), entry.Redaction, captureId, entry.Truncated);
+            entry.Parent?.Id, entry.Children.Select(child => child.Id).ToImmutableArray(), entry.Redaction, captureId, entry.Truncated, scroll, grid, gridCell);
+    }
+
+    private static AutomationGridInfo? CaptureGridInfo(AccessibleObject peer)
+    {
+        if (peer.GridProvider is not { } grid) return null;
+        int rows = grid.RowCount, columns = grid.ColumnCount;
+        if (rows < 0 || columns < 0) throw new InvalidOperationException("Invalid grid counts.");
+        var traversal = grid.Traversal;
+        if (!Enum.IsDefined(traversal)) throw new InvalidOperationException("Invalid grid traversal.");
+        return new(rows, columns, grid.IsTable, traversal);
+    }
+
+    private AutomationGridCellInfo? CaptureGridCell(Entry entry)
+    {
+        if (entry.Peer.GridCell is not { } cell) return null;
+        if (!AssociationInRoot(entry, cell.Grid)) return null;
+        // Header association output is independently bounded. The immutable canonical metadata
+        // itself may describe a larger set; truncation remains visible to diagnostic consumers.
+        ImmutableArray<string> Headers(IReadOnlyList<AccessibleObject> headers)
+        {
+            int count = Math.Min(headers.Count, Math.Min(64, limits.MaxNodes));
+            if (count != headers.Count) Limit(entry, AutomationProperty.GridCell);
+            var result = ImmutableArray.CreateBuilder<string>(count);
+            for (int i = 0; i < count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                if (AssociationInRoot(entry, headers[i])) result.Add(headers[i].RuntimeId.ToString(CultureInfo.InvariantCulture));
+            }
+            return result.ToImmutable();
+        }
+        return new(cell.Grid.RuntimeId.ToString(CultureInfo.InvariantCulture), cell.Row, cell.Column,
+            cell.RowSpan, cell.ColumnSpan, Headers(cell.RowHeaders), Headers(cell.ColumnHeaders));
+    }
+
+    private bool AssociationInRoot(Entry entry, AccessibleObject peer)
+    {
+        var root = entry;
+        while (root.Parent is not null) root = root.Parent;
+        var visited = new HashSet<AccessibleObject>(ReferenceEqualityComparer.Instance);
+        for (AccessibleObject? current = peer; current is not null;)
+        {
+            token.ThrowIfCancellationRequested();
+            if (ReferenceEquals(current, root.Peer)) return true;
+            if (!visited.Add(current) || visited.Count > limits.MaxDepth) break;
+            current = current.Parent;
+        }
+        Add(AutomationErrorCode.MalformedTree, entry, AutomationProperty.GridCell);
+        return false;
     }
 
     private void RefreshPrivacy(Entry entry)
     {
-        long before = getterFaults;
-        bool sensitive = Read(entry, AutomationProperty.IsSensitive, () => entry.Peer.IsSensitive, true);
-        var state = Read(entry, AutomationProperty.States, () => entry.Peer.State, AccessibleStates.Unavailable);
         entry.Redaction |= entry.Parent?.Redaction ?? AutomationRedaction.None;
-        if (getterFaults != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
-        if (sensitive || (state & AccessibleStates.Protected) != 0
-            || entry.Peer is Control.ControlAccessibleObject { Owner: TextBox { PasswordCharacter: not null } })
-            entry.Redaction |= AutomationRedaction.Sensitive;
+        if (entry.Redaction != AutomationRedaction.None) return;
+
+        // Walk the live canonical ancestry, including omitted implementation peers and parents
+        // outside a scoped root. The traversal's cached parent classification predates payload
+        // callbacks and is only a conservative floor, never proof that this read is safe.
+        const int maximumAncestors = 512;
+        List<(AccessibleObject Peer, AccessibleObject? Parent)> path = [];
+        HashSet<AccessibleObject> visited = new(ReferenceEqualityComparer.Instance);
+        for (AccessibleObject? current = entry.Peer; current is not null;)
+        {
+            if (!TakePrivacyStep(entry)) return;
+            if (path.Count == maximumAncestors || !visited.Add(current))
+            {
+                entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+                if (path.Count == maximumAncestors) Limit(entry, AutomationProperty.Parent);
+                else Add(AutomationErrorCode.CycleDetected, entry, AutomationProperty.Parent);
+                return;
+            }
+            if (!Classify(current)) return;
+            long before = getterFaults;
+            var next = Read(entry, AutomationProperty.Parent, () => current.Parent, null);
+            if (getterFaults != before) { entry.Redaction |= AutomationRedaction.PrivacyUnknown; return; }
+            path.Add((current, next));
+            current = next;
+        }
+
+        // A farther ancestor's getter can protect an ancestor already visited on the upward
+        // pass. Verify backwards as well, and reject parent-edge changes instead of following
+        // a replacement route. This short-lived, bounded guard never enumerates children.
+        for (int index = path.Count - 1; index >= 0; index--)
+        {
+            if (!TakePrivacyStep(entry)) return;
+            var captured = path[index];
+            if (!Classify(captured.Peer)) return;
+            long before = getterFaults;
+            var parent = Read(entry, AutomationProperty.Parent, () => captured.Peer.Parent, null);
+            if (getterFaults != before || !ReferenceEquals(parent, captured.Parent))
+            {
+                entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+                if (getterFaults == before) Add(AutomationErrorCode.MalformedTree, entry, AutomationProperty.Parent);
+                return;
+            }
+        }
+
+        bool Classify(AccessibleObject current)
+        {
+            long before = getterFaults;
+            // Known password ownership must win before invoking custom metadata getters.
+            bool sensitive = current is Control.ControlAccessibleObject { Owner: TextBox { IsAccessibilitySensitive: true } }
+                || Read(entry, AutomationProperty.IsSensitive, () => current.IsSensitive, true);
+            var state = sensitive ? AccessibleStates.Protected
+                : Read(entry, AutomationProperty.States, () => current.State, AccessibleStates.Unavailable);
+            if (getterFaults != before) entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+            if (sensitive || (state & AccessibleStates.Protected) != 0) entry.Redaction |= AutomationRedaction.Sensitive;
+            return entry.Redaction == AutomationRedaction.None;
+        }
+    }
+
+    private bool TakePrivacyStep(Entry entry)
+    {
+        // Bound total ancestor work as well as each path: hostile getters must not multiply a
+        // maximum-node query by unbounded repeated ancestry validation. Each step reads at most
+        // IsSensitive, State and Parent, with cooperative cancellation around each getter.
+        if (++privacySteps <= 512L * limits.MaxNodes) return true;
+        entry.Redaction |= AutomationRedaction.PrivacyUnknown;
+        Limit(entry, AutomationProperty.Parent);
+        return false;
+    }
+
+    private T Payload<T>(Entry entry, Func<T> getter)
+    {
+        RefreshPrivacy(entry);
+        if (entry.Redaction != AutomationRedaction.None) return default!;
+        T value = getter();
+        RefreshPrivacy(entry);
+        return entry.Redaction == AutomationRedaction.None ? value : default!;
     }
 
     private string? Text(Entry entry, AutomationProperty property, Func<string?> getter)

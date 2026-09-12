@@ -137,7 +137,7 @@ internal sealed class AndroidAccessibilitySession : IDisposable
             Queue(id, 65536);
             return true;
         }
-        if (!AndroidAccessibilityMapper.PerformAction(node, action, parameter)) return false;
+        if (!AndroidAccessibilityMapper.PerformAction(node, action, parameter, () => ReferenceEquals(Find(id), node))) return false;
         if (action == ActionClick) Queue(id, 1);
         // Notifications from standard controls and custom peers are coalesced into these same
         // per-node event slots. Actions that silently implement custom state still invalidate it.
@@ -189,6 +189,9 @@ internal sealed class AndroidAccessibilitySession : IDisposable
             Prune();
             Queue(id, 2048, 1);
         }
+        else if (eventId == -2) Queue(id, 4096);
+        else if (eventId is -3 or -4 or -5 && !source.GetIsSensitive() && source.GetTextProvider() is not null)
+            Queue(id, eventId == -4 ? 8192 : eventId == -3 ? 16 : 2048, eventId == -5 ? 2 : 0);
         else if (eventId == PlatformAccessibilitySurfaceEvents.Invoked) Queue(id, 1);
         else if (eventId == 0x8005) Queue(id, 8);
         else if (eventId is >= 0x8006 and <= 0x8009) Queue(id, 4);
