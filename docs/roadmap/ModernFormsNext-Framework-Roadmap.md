@@ -52,6 +52,7 @@ already exist.
 | Animation | Shared monotonic `AnimationScheduler`, composable definitions/runs, handles, owner/key replacement, typed interpolators, Brush transitions, native reduced-motion policy, animated bounds, layout-aware state metrics, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; preserve the single scheduler and existing layout-transition contract. |
 | Input | Framework mouse/keyboard/text/IME pipeline, capture, hit testing, touch scrolling; [shared revocable composition clients](../text-input.md) with bounded state, editor checkpoints, Windows IMM32 and Android InputConnection adapters | Collection, SearchBar, pages, charts, and shapes share the same input path. Native language/vendor/device coverage and Windows TSF/touch-keyboard capabilities remain separate boundaries. |
 | Headless testing | `ModernFormsNext.Testing` hosts real layout/input/focus, modal forms/control popups, controlled animation/timer time, scoped platform services and optional raster snapshots; #63 adds shared activation/state handoff and actual `Application.Run` lifetime tests | Use the [TestHost](../testing/testhost.md) and [lifecycle guide](../application-lifecycle.md) for shared behavior. Future navigation/virtualization coverage follows #12/#55; native integration remains separate. |
+| Accessibility | One `AccessibleObject` hierarchy with Windows UIA/MSAA and Android virtual nodes; Phase 4 adds current composites, managed grid/calendar peers, viewport and text capabilities, opt-in preferences, snapshot diagnostics and Designer metadata | Reuse [the canonical model](../accessibility/semantic-model.md). Current Phase 4 final validation remains pending; future recycled containers (#55), inspector/picker UI (#61), Android windows (#72) and physical reliability (#69) remain distinct. |
 | Data binding | `IBindableComponent`, `Binding`, `BindingContext`, `BindingSource`, list managers and converters | Reuse for items sources and selected values; add collection-change/virtualization contracts instead of a parallel binding engine. |
 | Serialization | `System.Text.Json` in designer and binding conversion; stable design document serializer | Reuse conventions and converters, but keep theme/localization runtime schemas separate from designer files. |
 | Documents | `Documents.Document`, block/inline/table/image/list/code model, Markdown parser, layout/text map/selection/cache, `DocumentViewer` | Evolve and extract compatibly. Do not recreate the requested model under duplicate public names. |
@@ -64,8 +65,10 @@ already exist.
 - No page lifecycle, page host, navigation stack, route registry, deep-link contract, or back-request
   abstraction.
 - `ThemeManager` now provides strict JSON, validation, inheritance, atomic apply, dynamic-resource
-  defaults, state styles, and transitions. Automatic OS-theme reapply, file hot reload, a shared
-  shadow rendering contract, and an Android system-theme provider remain gaps.
+  defaults, state styles, and transitions. Phase 4 adds explicit typography scaling and a native
+  accessibility-preference consumer; it does not enable automatic OS-theme following globally.
+  File hot reload, a shared shadow rendering contract and a general Android ThemeVariant.System
+  provider remain gaps.
 - `ControlStyle` resolves Normal/Hover/Pressed/Focused/Disabled states with brush, typography,
   border, corner, transform, and transition data. Layout-aware interpolation is deliberately
   limited to padding and border widths; selected-state and broader metric contracts remain future.
@@ -87,8 +90,27 @@ already exist.
   Bezier editing remain future work.
 - No general document provider registry, MIME sniffing contract, paged render source, password
   request, or platform print adapter. Existing document code is in the main package.
-- Android does not yet host `Form`, multiple windows, general popups/dialogs, platform accessibility,
-  printing, clipboard parity, or native back/deep-link integration.
+- Android does not yet host `Form`, multiple windows or general popups/dialogs (#72), printing or
+  clipboard parity. Platform accessibility is implemented over the shared windowless tree; its
+  broader native/physical coverage remains open. Existing lifecycle activation accepts normalized
+  intents/URIs, while navigation-stack routing and general native back integration remain separate.
+
+### Accessibility Phase 4 status
+
+The current #59 implementation covers existing LinkLabel/NumericUpDown/ScrollBar composites,
+real viewport Scroll/reveal, managed DataGridView grid/table metadata and safe editing, the
+existing DateTimePicker/calendar, and Text/TextRange over TextBox, RichTextBox and Markdown's
+actual source editor. It extends the current control, document and renderer paths.
+Optional native contrast/text-scale detection feeds an explicitly opted-in authored theme;
+bounded diagnostics analyze existing AutomationSession captures and Designer tests preserve
+simple metadata without serializing runtime providers. See the [capability guides](../accessibility/semantic-model.md#current-implementation-and-remaining-boundaries).
+
+This is implementation under final validation, not completion of issue #59. Historical Phase 2
+Windows and Phase 3 Android/TalkBack results stay attached to their tested sources. Final build,
+package, native, screen-reader and physical results need separate evidence. Current managed
+rows/ranges do not wait for future virtualization (#55); the full Developer Tools inspector UI
+(#61), general Android windows (#72), broad physical reliability (#69), and rich embedded-document
+adapters remain actual follow-up boundaries.
 
 ### Potential API conflicts
 
@@ -264,8 +286,11 @@ optional backend system-theme service.
 
 Platform status: static `Theme` remains a compatibility projection. Windows reads system
 light/dark and reduced-motion settings on apply. Android remains experimental and uses an explicit
-System fallback; its existing lifecycle service pauses shared scheduler time. Live OS-theme change
-notifications and an Android theme provider remain future work.
+System fallback; its existing lifecycle service pauses shared scheduler time. Phase 4 provides an
+optional native contrast/text-scale capability on the existing platform settings service, plus an
+owned sample subscription and explicit `ThemeApplyOptions.TextScale`. This does not change default
+Apply behavior, scale explicit fonts, or provide universal automatic OS-theme following. See
+[accessibility preferences](../accessibility/preferences.md) for unknown detection and platform limits.
 
 Done/tests: light/dark/system/fallback, inheritance/cycles/depth/type validation, immutable Brush
 ownership, resource precedence and rollback, JSON round trip/allow-list/security limits, runtime

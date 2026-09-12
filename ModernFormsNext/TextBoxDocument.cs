@@ -8,7 +8,7 @@ using Topten.RichTextKit;
 
 namespace ModernFormsNext
 {
-    class TextBoxDocument
+    partial class TextBoxDocument
     {
         private readonly TextBox textbox;
 
@@ -32,8 +32,10 @@ namespace ModernFormsNext
         private int width = -1;
         private SKTypeface font = Theme.UIFont;
         private TextAlignment alignment = TextAlignment.Left;
-        private SKColor placeholder_font_color = Theme.ForegroundDisabledColor;
-        private SKColor selection_color = Theme.TextSelectionBackgroundColor;
+        // Unauthored colors follow the current theme. Explicit overrides remain distinct even
+        // when assigned the same color as today's default (Markdown supplies one intentionally).
+        private SKColor? placeholder_font_color;
+        private SKColor? selection_color;
 
         private static readonly string[] invalid_singleline_characters = new[] { "\r", "\n" };
 
@@ -180,7 +182,7 @@ namespace ModernFormsNext
             return new TextSelection (
                 GetLayoutCodePointIndex (start),
                 GetLayoutCodePointIndex (end),
-                selection_color);
+                SelectionColor);
         }
 
         public TextBlock GetTextBlock ()
@@ -194,7 +196,7 @@ namespace ModernFormsNext
             var max_size = new Size (width, int.MaxValue);
             var color = !Enabled ? Theme.ForegroundDisabledColor :
                         Text.HasValue () ? textbox.CurrentStyle.GetForegroundColor () : 
-                                placeholder_font_color;
+                                PlaceholderFontColor;
 
             return cached_text_block = TextMeasurer.CreateTextBlock(DisplayText, textbox.CurrentStyle.GetFont(), textbox.CurrentFontSize, max_size, alignment, color, MaxLines, fontStyle: textbox.CurrentStyle.GetFontStyle());
         }
@@ -221,6 +223,7 @@ namespace ModernFormsNext
             }
 
             text = text.Insert (cursor_index, str);
+            RecordAccessibleTextEdit(cursor_index, 0, str.Length);
             cached_text_block = null;
             code_point_to_utf16_offsets = null;
             if (str.Length > 0)
@@ -458,10 +461,11 @@ namespace ModernFormsNext
         }
 
         public SKColor PlaceholderFontColor {
-            get => placeholder_font_color;
+            get => placeholder_font_color ?? Theme.ForegroundDisabledColor;
             set {
-                if (placeholder_font_color != value) {
-                    placeholder_font_color = value;
+                bool changed = PlaceholderFontColor != value;
+                placeholder_font_color = value;
+                if (changed) {
                     cached_text_block = null;
                     Invalidate ();
                 }
@@ -481,6 +485,7 @@ namespace ModernFormsNext
         private void RemoveText (int start, int length)
         {
             text = text.Remove (start, length);
+            RecordAccessibleTextEdit(start, length, 0);
             cached_text_block = null;
             code_point_to_utf16_offsets = null;
             if (length > 0)
@@ -505,10 +510,11 @@ namespace ModernFormsNext
         public string SelectedText => IsTextSelected ? text.Substring (Math.Min (selection_start, selection_end), SelectionLength) : string.Empty;
 
         public SKColor SelectionColor {
-            get => selection_color;
+            get => selection_color ?? Theme.TextSelectionBackgroundColor;
             set {
-                if (selection_color != value) {
-                    selection_color = value;
+                bool changed = SelectionColor != value;
+                selection_color = value;
+                if (changed) {
                     Invalidate ();
                 }
             }
@@ -573,7 +579,9 @@ namespace ModernFormsNext
                 if (text != value) {
                     textbox.BeforeTextInputDocumentMutation(forceExternal: true);
                     ClearComposition ();
+                    var previousText = text;
                     text = value;
+                    RecordAccessibleTextReplacement(previousText, value);
                     cached_text_block = null;
                     code_point_to_utf16_offsets = null;
                     revision++;
@@ -723,6 +731,7 @@ namespace ModernFormsNext
         internal void RestoreTextInputFragment(int start, int length, string original)
         {
             text = text.Remove(start, length).Insert(start, original);
+            RecordAccessibleTextEdit(start, length, original.Length);
             cached_text_block = null;
             code_point_to_utf16_offsets = null;
             revision++;

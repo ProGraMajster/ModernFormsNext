@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\samples\ModernFormsNext.CrossPlatform.Sample\ModernFormsNext.CrossPlatform.Sample.csproj" />
+    <ProjectReference Include="..\ModernFormsNext.Testing\ModernFormsNext.Testing.csproj" />
   </ItemGroup>
 
 </Project>

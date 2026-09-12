@@ -3,6 +3,7 @@ using ModernFormsNext.WindowKit.Backend;
 using ModernFormsNext.WindowKit.Backend.Lifecycle;
 using ModernFormsNext.WindowKit.Input.Platform;
 using ModernFormsNext.WindowKit.Threading;
+using ModernFormsNext.WindowKit.Platform;
 
 namespace ModernFormsNext.Testing;
 
@@ -41,10 +42,12 @@ public sealed class TestPlatformServices
         Lifecycle = new TestApplicationLifecycle(dispatcher);
         ThemeSettings = new TestThemeSettings(dispatcher);
         AnimationSettings = new TestAnimationSettings(dispatcher);
+        Settings = new TestPlatformSettings(dispatcher);
         platformDispatcher = new TestPlatformDispatcher(dispatcher);
         try
         {
             scopes.Add(AvaloniaGlobals.PushServiceForTesting<IClipboard>(Clipboard));
+            scopes.Add(AvaloniaGlobals.PushServiceForTesting<IPlatformSettings>(Settings));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformApplicationLifecycle>(Lifecycle));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformThemeSettings>(ThemeSettings));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformAnimationSettings>(AnimationSettings));
@@ -69,6 +72,9 @@ public sealed class TestPlatformServices
     /// <summary>Gets deterministic motion preferences consumed by the production animation scheduler.</summary>
     public TestAnimationSettings AnimationSettings { get; }
 
+    /// <summary>Gets settings with optional detected contrast and text-scale preferences.</summary>
+    public TestPlatformSettings Settings { get; }
+
     internal void Dispose()
     {
         if (disposed)
@@ -85,6 +91,7 @@ public sealed class TestPlatformServices
         Clipboard.Dispose();
         ThemeSettings.Dispose();
         AnimationSettings.Dispose();
+        Settings.Dispose();
     }
 
     private sealed class TestPlatformDispatcher(UiTestDispatcher dispatcher) : IPlatformDispatcher

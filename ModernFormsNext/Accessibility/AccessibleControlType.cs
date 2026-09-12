@@ -144,5 +144,26 @@ public enum AccessibleControlType
     /// <summary>
     /// A visual or semantic separator.
     /// </summary>
-    Separator
+    Separator,
+
+    /// <summary>A clickable text range or other hyperlink target.</summary>
+    Hyperlink = 27,
+
+    /// <summary>A numeric field with increment and decrement controls.</summary>
+    Spinner = 28,
+
+    /// <summary>A grid of data rows and cells.</summary>
+    DataGrid = 29,
+
+    /// <summary>A row or cell in a data grid.</summary>
+    DataItem = 30,
+
+    /// <summary>A group of row or column headers.</summary>
+    Header = 31,
+
+    /// <summary>A row or column header.</summary>
+    HeaderItem = 32,
+
+    /// <summary>A calendar that displays and selects dates.</summary>
+    Calendar = 33
 }

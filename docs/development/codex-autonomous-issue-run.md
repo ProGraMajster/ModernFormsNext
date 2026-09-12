@@ -911,3 +911,258 @@ final documentation validation and required CI. The parent issue's remaining
 physical/native breadth does not prevent merging this useful scope under the user's
 finalization policy. No public API removal, renderer replacement, new command/tree
 system, dependency, package boundary, release publication or version bump is included.
+
+### Issue #109 — final documentation, PR and verified merge
+
+Final documentation head `479674524142b9cb4811293c3362ce23202d8007` passed 32 script
+assertions, DocFX with **1018 HTML files and zero warnings/errors**, and **4/4 archive
+validation**. `phase109-4796745-summary.json` independently checks all 18 TRXs,
+authoritative 13/13 API logs, the 40-assertion package consumer and Markdown-only
+changes since implementation 8fd3696. The final native report and independent review
+agree on all 16 observed cases and their limitations; no scoped code/docs blocker
+remained.
+
+Ready [PR #118](https://github.com/ProGraMajster/ModernFormsNext/pull/118) passed required
+CI [34621407730](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34621407730)
+at that exact head. Normal merge succeeded on 2026-09-11 at
+`f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`. Fetch/prune and fast-forward pull completed;
+local master equals origin/master and its entire tree equals the reviewed PR head.
+#109 remains OPEN/PARTIAL. The next #59 branch starts from this verified merge.
+
+Post-merge master CI [34622176286](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34622176286)
+also completed successfully at exact merge `f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`.
+
+## Issue #59 — Add accessibility and platform UI automation infrastructure
+
+Fresh baseline: `f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`; branch
+`codex/issue-59-accessibility-phase4`. The refreshed complete issue and all three
+comments match the preliminary audit, with no formal blockers. Existing Phases 1–3
+and their historical evidence are preserved. Related current issues, prior merged
+PRs, source, tests, platform adapters, samples, Designer metadata and documentation
+were audited; the original unrelated `.codex/config.toml` remains untouched.
+
+The [Phase 4 audit and technical plan](issue-59-accessibility-phase4-plan.md) commits
+the current scope before implementation: existing link/numeric/bar controls, viewport
+Scroll, grid/table, date/calendar, practical Text/TextRange, explicit preference
+consumption, bounded diagnostics/Designer and cross-layer acceptance. Concrete
+current editor, grid, popup, layout and privacy defects are prerequisites within
+these slices, not reasons to defer them to future virtualization or Android hosting.
+The technical plan was committed before the first Phase 4 source change.
+
+### Phase 4 implementation checkpoint — 2026-09-12, uncommitted work in progress
+
+The existing canonical hierarchy now has concrete link/numeric/bar, viewport,
+grid/table, date/calendar and practical text implementations under development.
+Optional preferences, bounded snapshot diagnostics and Designer metadata use their
+existing framework contracts. The new [grid/calendar guide](../accessibility/grids-and-calendars.md)
+documents identities, callbacks, input, platform boundaries and limits.
+
+These are **intermediate working-tree checks**, not final PR acceptance or native
+screen-reader evidence:
+
+- Initial Core grid/edit/text subset: **38/38**; initial Windows UIA provider suite:
+  **80/80**; initial Android mapping subset: **22/22**, plus native Android backend
+  compilation. Later changes require rerunning all these checks.
+- Grid/viewport Automation snapshot/action subset **5/5** and protocol subset
+  **5/5**; subsequent diagnostics/grid/viewport subset **13/13**.
+- Callback regressions against the previous working implementation reproduced all
+  **5/5 failures** (sparse-row reattachment, post-EndEdit reattachment, throwing
+  selection cleanup, publishing an incompletely bound row, and replacing DataSource
+  in a property getter). Their fixes are now present and passed the later full Core
+  run. Baseline grid editing probes also preserve the earlier **4 FAIL / 1 PASS**
+  result against exact master `f9e363f`, distinct from these working-tree probes.
+- New DPI/raster and viewport cases reached **56/56**, then **62/62** when the first
+  six viewport hardening cases were included: 25 current-controls, 5 pixel-parity,
+  13 composite viewport, 13 viewport, 6 hardening cases. More tests were added later.
+- First full Core run: **1369 PASS / 5 FAIL / 1374**. Four failures concern existing
+  presentation-padding behavior and the old generic action test's Scroll payload;
+  the fifth concerns the date popup's native-hide lifecycle. The next full Core run
+  passed **1377/1377** after the fixes; subsequent review added further regressions.
+- First Designer accessibility run: **10 PASS / 7 FAIL / 17**. Reverse parsing
+  preserved the metadata but normalized implicit Dock ordering; the test now authors
+  that existing property explicitly before requiring identical generated code.
+- The first new Windows preference reader compile exposed a generated-COM cleanup
+  pattern mismatch. The corrected reader compiled and its four focused tests passed,
+  including an actual Windows WinRT query/subscription/disposal smoke.
+- Subsequent Designer accessibility **17/17**, Testing preferences/hardening **18/18**,
+  cross-platform sample full suite **28/28**, and Automation full suite **160/160**
+  passed. The Automation first full run's two test-fixture/old-payload expectations
+  were corrected while retaining explicit invalid/unsupported and full diagnostic-budget coverage.
+- Independent calendar review reproduced **3/3** red probes for culture boundaries
+  and retired providers. Two grid probes reproduced unwanted second-axis scrolling
+  after row/column reinsertion. The corrected grid/calendar subset passed **38/38**.
+- Actual Windows out-of-process Text assertions passed. Native Scroll and password
+  privacy passed in the later 9-pass subset. A focus trace identified UIAutomationCore's
+  separate AutoSetFocus call; canonical Scroll preservation is checked independently.
+- The new actual HWND Grid/Table/Calendar scenario passed all **17** checks in its
+  fourth run, including edit event order, headers, sorting identity, reveal, read-only
+  values, stale actions, checkbox state, popup selection and native popup retirement.
+- Full Android managed run reached **356 PASS / 1 FAIL / 357**. The new own-password
+  action fixture lacked a visible host; its corrective surface setup awaits rerun.
+- `origin/master` was fetched again and still equals baseline `f9e363f`; no Phase 4
+  PR exists yet. The resumed environment initially had no running emulators; API 34
+  was started from the existing Pixel_8 AVD for the new standalone-APK checks.
+
+Restore metadata now reports NU1902 for the pre-existing private build dependency
+`Microsoft.Build.Tasks.Git` 10.0.301 through SourceLink. The existing master has the
+same pin; this is a known baseline warning, not a new Phase 4 runtime dependency.
+The [upstream advisory](https://github.com/advisories/GHSA-23fw-v26w-5fgq) identifies
+10.0.303 as the fixed 10.0.3xx package. Dependencies remain unchanged under this
+issue's committed scope; zero-warning build acceptance is not claimed.
+
+Further working-tree verification passed full Core **1389/1389**, Testing **435/435**,
+Windows **139/139**, Android **357/357**, and Windows Automation **66/66**. These
+precede the final review corrections below and are not attributed to a committed
+implementation revision.
+
+The third intermediate standalone APK, SHA-256
+`5D9E33E169246F91A2101C2AD396E81F4B0227357C0B96D4CADC505723DCD1F1`, passed the expanded
+native runner **64/64 on API 34 and 64/64 on API 36**. The earlier API 34 run stopped
+after 35 assertions on an incorrect fixture expectation that sensitive ancestry
+must reject ordinary Click. The corrected fixture preserves that assistive action,
+checks its actual callback, and separately proves redaction and rejected protected
+text/range operations on real controls. Sensitivity is not a blanket native-action
+authorization policy. The old failed result remains recorded separately.
+
+Native validation of the ordinary sample then exposed an **ANR on both emulators**,
+including API 34 with accessibility services temporarily disabled. A bounded API 36
+comparison installed the preceding #109 APK (the 564A74A2 hash recorded above): its
+ordinary launch remained responsive and an injected Save click increased only its
+editor counter from 0 to 1. The Phase 4 startup regression therefore blocks acceptance
+until diagnosed and corrected; passing the dedicated accessibility fixture does not
+establish ordinary-sample usability. Original emulator settings were recorded before
+changes and must be restored after the remaining native checks.
+
+Independent final review also reproduced four failing Windows UIA COLORREF tests
+(alpha roundtrip and alpha-only mixed spans) and a failing semantic grid edit test
+(a callback-owned replacement editor on the same cell was incorrectly overwritten).
+The color projection correction then passed **6/6**, including clipped forward and
+backward searches. Grid/date review passed **58/58** after exact edit-session ownership
+and popup privacy corrections. A further red probe found that the popup's independent
+name could inherit a protected picker label; the corrected complete DatePicker suite
+passed **29/29**. Activity recreation checks now wait for actual replacement host,
+node and subscription state instead of assuming a fixed delay is sufficient.
+
+The startup ANR was traced to repeated geometry during canonical child membership
+queries. A temporary, bounded native trace measured the fifth APK's first Resize at
+**10.473 seconds and 192088 GetScrollState calls**. The real-tree regression first
+reproduced 512 unnecessary geometry reads; it preserves offscreen membership and
+custom peers' independent Invisible state. The correction avoids full State reads
+only for the exact default peer when its View already determines membership, skips
+scroll geometry with no scrolling ancestor, and maps transformed corners without
+temporary arrays/LINQ. No tree cache or second membership contract was introduced.
+
+The sixth APK on the same API 34 emulator measured **0.209 seconds and 938 calls**
+for the same first Resize; the notification, registration and child-lookup counts
+were unchanged. Its ordinary launch exposed the native tree without an ANR. This is
+a scoped instrumented comparison, not a universal performance benchmark. Full Core
+then passed **1397/1397** on the working source. The actual sample's two-render test
+and a separate production Android session/render test also passed. All temporary
+trace fields, reflection and logging were removed afterward; final clean-source APK
+and broader native checks are still required.
+
+All final Debug/Release solution checks, unfiltered API comparison with exact master,
+package/consumer/docs checks, the expanded native Windows UIA scenarios, and new
+Android emulator observations still remain. Physical-device/screen-reader manual
+checks are **NOT EXECUTED — environment unavailable**. No Phase 4 PR, merge, release
+publication or issue closure is claimed at this checkpoint.
+
+### Phase 4 committed implementation and final validation — 2026-09-12
+
+The following evidence supersedes the pending statements in the working-tree
+checkpoint above for the explicitly identified revisions. The audit/plan was
+committed as `11ef3f9` before implementation. Changes are in dedicated
+[PR #119](https://github.com/ProGraMajster/ModernFormsNext/pull/119), based on merged
+master `f9e363fb8ed270c9db60a6e2e48f37d5a6b08f11`. Implementation, fixtures/guides,
+the Gallery compilation correction and the preserved public trimming annotation
+are separate commits. Final implementation source is
+`bc160dcbbe8f7ea0acff1cdee18569f8bb8cd50f`.
+
+Current controls now expose canonical link/numeric parts, viewport actions,
+grid/table metadata, date/calendar peers and practical text ranges. Native adapters
+invoke actual control operations. Optional system preference detection feeds an
+explicit, scoped sample consumer; diagnostics consume existing detached automation
+snapshots, and Designer retains simple accessibility metadata. The Gallery contains
+five integrated pages. The late privacy, edit-session, native text-color and startup
+performance corrections described above are included in this source.
+
+| Final gate | Result at the implementation revision |
+| --- | --- |
+| Restore and complete Debug / Release builds | PASS; serial MSBuild, shared compilation disabled. Local SDK 10.0.401 follows the existing global.json latestFeature policy. |
+| Nine test projects in each configuration | 3273/3273 Debug and 3273/3273 Release; zero failures or skipped tests. |
+| API against exact merged baseline | 13/13 per configuration, with the four compiler representation exclusions and independent semantic checks described below. |
+| Package validation | 11 nupkg and 10 snupkg at unchanged version 1.10.0; all repository package checks pass. |
+| Fresh external package consumer | 68 assertions across seven scenarios; fresh private cache and package hashes, zero ProjectReference inputs. |
+| Documentation | 32 script assertions, 1049 DocFX HTML pages, 0 DocFX warnings and four validated archives. |
+| CI for implementation | [.NET build](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34706397152) PASS; the workflow installs SDK 10.0.201 and builds Release. |
+
+
+The first consumer run passed all 68 runtime assertions and checked the installed
+package hashes, but its final provenance projection retained only one package entry.
+A separate rerun corrected that evidence projection and passed all 68 assertions
+with all five distinct package hashes recorded. An initial supplemental invocation
+used a relative export path and failed while saving the result after changing to
+the external directory; the subsequent absolute-path invocation completed with exit
+code 0. Original manifests and failed-command logs remain preserved. The final
+documentation check verifies both original and supplemental evidence separately.
+
+The test project totals in each configuration are Automation 160, Windows Automation
+66, cross-platform sample 29, Designer 657, Testing 435, Core 1397, VSIX 26, Android
+backend 358 and Windows backend 145. The full Windows suite includes real external
+Text, Scroll and Grid/Calendar clients, in addition to managed provider checks.
+The existing NU1902 SourceLink build-dependency warning remains as documented above;
+neither zero-warning solution builds nor a dependency upgrade is claimed.
+
+The unfiltered API attempt at `6a0a438` was retained as a **FAIL**, with 21 unique
+attribute diagnostics. The authored `DataGridView.EndEdit` trimming annotation was
+restored exactly in `bc160dc`; it is not excluded. Remaining differences concern
+`IteratorStateMachineAttribute`, `CompilerGeneratedAttribute`, `NullableAttribute`
+and `NullableContextAttribute`. The first two reflect private iterator identity and
+the change from automatic to authored visibility accessors. The latter two changed
+encoding placement, which was checked independently with SDK Roslyn metadata imports.
+
+All 13 assembly/TFM pairs in **both** configurations must pass effective-nullability
+comparison before filtered ApiCompat can run. Each configuration compares 22380
+existing declarations across its TFM matrix, with zero differences or unresolved
+types. Four checker controls prove detection of changed nullable returns, parameters
+and generic arguments, and acceptance of an equivalent contract despite a changed
+raw enclosing context. Structural, parameter-name and all other attribute rules
+remain enabled, including trimming, nullable-flow and platform annotations. The
+previous issue's AsyncStateMachine exclusion is not inherited. This is **filtered
+ApiCompat plus independent semantic proof**, not an unfiltered PASS. Hashes bind the
+comparisons to their binaries, references, helper, control cases and exact source.
+
+The final-source Android APK at **bc160dcbbe8f7ea0acff1cdee18569f8bb8cd50f**, SHA256 **F8857B4AEC0917B2FB9A10C81613EE554B458A36CD9B41FEC9D13240947AE914**, passed **64/64 real Phase 4 instrumentation assertions on API 34 and 64/64 on API 36**. Both fresh ordinary launches completed (1647 ms/3139 ms, individual observations rather than a benchmark); ready native XML shows command counts 0, preference opt-in off and Running/Foreground generation 1. Final device readbacks confirm eight original settings exactly restored per emulator, absent contrast keys, matching installed APK hashes and ADB uid 2000; original accessibility-service settings are restored. The separate native preference scenario remains attributed to **f92759ae2bdc4a482cb7fe4c3c7aa95edc13565b**, APK SHA256 **81F1ABE0C41213192F2194EF153197DB86654FB62B6B13D26F40B9A6ABD51EFC**: 18/18 artifact assertions and four inspected PNGs establish actual High/1.3 propagation, opt-out theme retention, exact row-geometry restoration and preserved command count across recreation on both APIs. These OS mutations were not rerun at bc160dc. The intervening commits only fix Gallery API usage and restore EndEdit's trimming annotation. Physical devices, a new human TalkBack speech/navigation assessment and vendor/OEM coverage remain **NOT EXECUTED**; bound-service restoration is not speech evidence.
+
+Windows ControlGallery at `bc160dc` passed 23 native UIA acceptance steps, including
+all five tabs, real list/grid mutations, stable sorting identity, denied read-only
+writes, retired rows, calendar popup lifetime, link/range actions, text selection,
+protected input and two-axis reveal. The client and Gallery closed normally with
+exit code 0. Five native window PNGs at 1082 by 756 were inspected. The principal
+controls and action labels were readable; the long Viewport footer's last edge was
+not clearly fully visible, and long sidebar/grid content clips within its viewport.
+This is one captured size and light appearance, not a full DPI/theme or human
+screen-reader matrix. Separate final-source native startup checks passed for the
+cross-platform sample, ControlGallery and the unchanged DemoApp reference app;
+all three windows responded and closed normally with exit code 0.
+
+### Issue #59 acceptance disposition
+
+| Live acceptance direction | Current implementable scope | Evidence / remaining qualification |
+| --- | --- | --- |
+| Useful common-control names, roles and state in native accessibility services | PASS | Existing controls and new logical peers are exercised by shared, Windows and Android checks. Universal physical-service usability remains unverified. |
+| Keyboard focus changes reflected correctly | PASS | Existing focus route, native focus/events and text caret/lifetime tests remain canonical. Accessibility focus and UIA's own AutoSetFocus are distinguished from control scrolling. |
+| Appropriate real actions and patterns | PASS | Existing Invoke/Toggle/Value/Selection/ExpandCollapse plus Scroll, Grid/Table and practical Text paths reach normal model operations. Unsupported Android windowless popup actions are not advertised. |
+| Custom-rendered logical semantic children/actions | PASS | Existing virtual accessibility hooks remain the extension seam; real link, grid and calendar peers and custom-peer tests use it. |
+| Platform-neutral public framework API | PASS | Shared contracts contain neutral types; native interop remains in backends. Compatibility evidence is qualified above. |
+| Sensible defaults without explicit metadata | PASS | Central defaults and fallback names are retained; editor values never become implicit field labels, and explicit empty names remain meaningful. |
+| Preserve existing rendering and control hierarchy | PASS | Text, grid, viewport, preference and diagnostic integrations use current documents, controls, ThemeManager and snapshots. |
+
+Issue #59 remains **OPEN/PARTIAL** overall. Future recycled containers (#55), full
+Developer Tools inspector UI (#61), general Android window/popup hosting (#72),
+broader physical reliability (#69) and separate embedded-document adapters retain
+their documented boundaries. Physical-device checks, a new human screen-reader
+assessment and unavailable manual tooling are **NOT EXECUTED — environment unavailable**.
+These boundaries do not prevent merging this completed, validated Phase 4 scope.
+No release, tag, dependency/version bump, package publication or issue closure is
+part of this change. The user's unrelated `.codex/config.toml` remains untouched.

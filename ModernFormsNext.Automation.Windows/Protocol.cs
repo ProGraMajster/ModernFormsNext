@@ -24,11 +24,13 @@ internal sealed class Operation
     public AccessibleActions Action { get; init; }
     public string? Text { get; init; }
     public double? Number { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ScrollOperation? Scroll { get; init; }
     public AutomationWaitCondition? Condition { get; init; }
     public AutomationWaitOptions? WaitOptions { get; init; }
 }
 
-internal static class Protocol
+internal static partial class Protocol
 {
     internal const int Version = 1;
     internal const int HandshakeLimit = 4096;
@@ -140,7 +142,9 @@ internal static class Protocol
                 Field<AccessibleStates>("states"), Field<AccessibleActions>("supportedActions"), Field<string?>("value"),
                 rangeValue, Field<AutomationBounds>("bounds"), Field<string?>("parentRuntimeId"),
                 Field<ImmutableArray<string>>("childRuntimeIds"), Field<AutomationRedaction>("redaction"),
-                Field<string>("captureId"), Field<bool>("truncated"));
+                Field<string>("captureId"), Field<bool>("truncated"), ReadScroll(e),
+                e.TryGetProperty("gridInfo", out var grid) ? grid.Deserialize<AutomationGridInfo>(options) : null,
+                e.TryGetProperty("gridCell", out var cell) ? cell.Deserialize<AutomationGridCellInfo>(options) : null);
         }
 
         public override void Write(Utf8JsonWriter writer, AutomationNodeSnapshot value, JsonSerializerOptions options)
@@ -151,6 +155,9 @@ internal static class Protocol
             Field("name", value.Name); Field("role", value.Role); Field("controlType", value.ControlType);
             Field("states", value.States); Field("supportedActions", value.SupportedActions); Field("value", value.Value);
             Field("rangeValue", value.RangeValue); Field("bounds", value.Bounds); Field("parentRuntimeId", value.ParentRuntimeId);
+            if (value.ScrollInfo is { } scroll) Field("scrollInfo", scroll);
+            if (value.GridInfo is { } grid) Field("gridInfo", grid);
+            if (value.GridCell is { } cell) Field("gridCell", cell);
             Field("childRuntimeIds", value.ChildRuntimeIds); Field("redaction", value.Redaction);
             Field("captureId", value.CaptureId); Field("truncated", value.Truncated); writer.WriteEndObject();
         }

@@ -59,7 +59,8 @@ public sealed class ThemeResolvedSnapshot
         Dictionary<string, double> corners,
         Dictionary<string, double> borderThickness,
         Dictionary<string, ThemeAnimationSettings> animations,
-        Dictionary<string, ThemeResourceValue> resources)
+        Dictionary<string, ThemeResourceValue> resources,
+        double textScale = 1d)
     {
         Id = source.Id;
         Name = source.Name;
@@ -68,6 +69,7 @@ public sealed class ThemeResolvedSnapshot
         SchemaVersion = source.SchemaVersion;
         DeclaredVariant = source.Variant;
         Variant = resolvedVariant;
+        TextScale = textScale;
         BaseChain = Array.AsReadOnly(baseChain.ToArray());
         Metadata = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(source.Metadata, StringComparer.Ordinal));
@@ -109,6 +111,8 @@ public sealed class ThemeResolvedSnapshot
     public ThemeVariant DeclaredVariant { get; }
     /// <summary>Gets the effective variant after resolving <see cref="ThemeVariant.System"/>.</summary>
     public ThemeVariant Variant { get; }
+    /// <summary>Gets the explicit multiplier already applied once to this snapshot's typography.</summary>
+    public double TextScale { get; }
     /// <summary>Gets base-theme identifiers from the root base through the direct base.</summary>
     public IReadOnlyList<string> BaseChain { get; }
     /// <summary>Gets immutable metadata.</summary>

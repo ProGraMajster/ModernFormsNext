@@ -13,6 +13,8 @@ namespace ModernFormsNext
         private string value = string.Empty;
         private DataGridViewRow? owner;
 
+        internal long OwnershipVersion { get; private set; }
+
         // Default style used as the base parent for all cell Style instances.
         internal static readonly ControlStyle DefaultCellStyleInternal = new ControlStyle(null,
             (style) => {
@@ -94,6 +96,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Sets the owning row.
         /// </summary>
-        internal void SetOwner(DataGridViewRow? row) => owner = row;
+        internal void SetOwner(DataGridViewRow? row)
+        {
+            if (ReferenceEquals(owner, row)) return;
+            owner = row;
+            OwnershipVersion++;
+        }
     }
 }

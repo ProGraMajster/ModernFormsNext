@@ -203,20 +203,15 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             if (msg == (uint)WindowsMessage.WM_POWERBROADCAST)
                 ApplicationLifecycle?.PowerChanged(unchecked((int)wParam.ToInt64()));
             
-            if (msg == (uint)WindowsMessage.WM_SETTINGCHANGE)
+            if (msg == (uint)WindowsMessage.WM_SETTINGCHANGE || msg == (uint)WindowsMessage.WM_THEMECHANGED || msg == (uint)WindowsMessage.WM_SYSCOLORCHANGE)
             {
                 // Microsoft documents that lParam does not reliably identify the exact system
-                // parameter. Re-read the one accessibility preference used by the framework.
+                // parameter. Re-read existing motion and optional color/text preferences.
                 AnimationSettings?.NotifySystemSettingsChanged();
 
                 if (PlatformSettings is Win32PlatformSettings win32PlatformSettings)
                 {
-                    var changedSetting = Marshal.PtrToStringAuto(lParam);
-                    if (changedSetting == "ImmersiveColorSet" // dark/light mode
-                        || changedSetting == "WindowsThemeElement") // high contrast mode
-                    {
-                        win32PlatformSettings.OnColorValuesChanged();
-                    }
+                    win32PlatformSettings.OnColorValuesChanged();
                 }
             }
             

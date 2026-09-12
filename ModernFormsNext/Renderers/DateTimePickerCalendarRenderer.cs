@@ -47,8 +47,8 @@ namespace ModernFormsNext.Renderers
                 Color = Theme.AccentColor
             };
 
-            canvas.DrawRect (new SKRect (0, 0, control.Width, control.Height), backgroundPaint);
-            canvas.DrawRect (new SKRect (0, 0, control.Width, control.Height), borderPaint);
+            canvas.DrawRect (new SKRect (0, 0, control.ScaledWidth, control.ScaledHeight), backgroundPaint);
+            canvas.DrawRect (new SKRect (0, 0, control.ScaledWidth, control.ScaledHeight), borderPaint);
 
             DrawHeader (control, canvas, textPaint, hoverPaint);
 
@@ -67,6 +67,7 @@ namespace ModernFormsNext.Renderers
                     DrawYearCells (control, canvas, textPaint, hoverPaint, borderPaint, accentPaint);
                     break;
             }
+            DrawKeyboardFocus(control, canvas);
         }
 
         private static void DrawHeader (DateTimePickerCalendar control, SKCanvas canvas, TextPaintResources textPaint, SKPaint hoverPaint)
@@ -102,7 +103,7 @@ namespace ModernFormsNext.Renderers
 
             for (int i = 0; i < 7; i++) {
                 int index = (firstDay + i) % 7;
-                var rect = new Rectangle (8 + i * 30, y, 30, 20);
+                var rect = control.DayHeaderRectangle(i);
                 DrawCenteredText (canvas, names[index], rect, textPaint);
             }
         }
@@ -183,6 +184,7 @@ namespace ModernFormsNext.Renderers
                 using var paint = CreateTextPaintFrom (textPaint, text);
                 if (isSelected)
                     paint.Paint.Color = SKColors.White;
+                if (!control.IsCalendarCellEnabled(i)) paint.Paint.Color = paint.Paint.Color.WithAlpha(90);
 
                 DrawCenteredText (canvas, text, rect, paint);
             }
@@ -208,6 +210,7 @@ namespace ModernFormsNext.Renderers
                 using var paint = CreateTextPaintFrom (textPaint, text);
                 if (isSelected)
                     paint.Paint.Color = SKColors.White;
+                if (!control.IsCalendarCellEnabled(i)) paint.Paint.Color = paint.Paint.Color.WithAlpha(90);
 
                 DrawCenteredText (canvas, text, rect, paint);
             }
@@ -244,8 +247,22 @@ namespace ModernFormsNext.Renderers
             };
             var font = new SKFont (
                 ResolveTypeface (control.CurrentStyle.Font ?? Theme.UIFont, sampleText),
-                control.CurrentStyle.FontSize ?? Theme.FontSize);
+                (control.CurrentStyle.FontSize ?? Theme.FontSize) * control.ScaleFactor.Height);
             return new TextPaintResources (paint, font);
+        }
+
+        private static void DrawKeyboardFocus(DateTimePickerCalendar control, SKCanvas canvas)
+        {
+            if (!control.Focused || !control.ShowFocusCues) return;
+            int index = control.ViewMode == DateTimePickerCalendarViewMode.Days
+                ? (control.FocusedDate - control.GetFirstVisibleDate()).Days : control.FocusedCell;
+            var cells = control.ViewMode == DateTimePickerCalendarViewMode.Days ? control.DayCellRectangles
+                : control.ViewMode == DateTimePickerCalendarViewMode.Months ? control.MonthCellRectangles : control.YearCellRectangles;
+            if (index < 0 || index >= cells.Length) return;
+            using var dash = SKPathEffect.CreateDash([2 * control.ScaleFactor.Width, 2 * control.ScaleFactor.Width], 0);
+            using var paint = new SKPaint { Color = control.CurrentStyle.ForegroundColor ?? Theme.ForegroundColor,
+                Style = SKPaintStyle.Stroke, StrokeWidth = control.ScaleFactor.Width, PathEffect = dash };
+            canvas.DrawRect(ToSKRect(cells[index]).Deflate(2, 2), paint);
         }
 
         private static TextPaintResources CreateTextPaintFrom (TextPaintResources source, string text)

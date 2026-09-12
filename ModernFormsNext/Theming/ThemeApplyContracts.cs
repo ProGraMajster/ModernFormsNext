@@ -102,6 +102,26 @@ public sealed class ThemeTransitionOptions
 public sealed class ThemeApplyOptions
 {
     private ThemeVariant systemFallbackVariant = ThemeVariant.Light;
+    private double textScale = 1d;
+
+    /// <summary>Gets or sets an explicit positive finite multiplier for authored typography. The default is 1.</summary>
+    /// <remarks>
+    /// Typography is merged through theme inheritance and scaled once before atomic application.
+    /// Reapplying the authored definition does not compound this value. Explicit control fonts,
+    /// rich-text run fonts, custom resources and non-typography metrics remain authored. Missing
+    /// typography tokens retain their existing behavior. This does not subscribe to system settings.
+    /// Effective sizes that cannot be represented safely are rejected before commit.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The multiplier is not finite and positive.</exception>
+    public double TextScale
+    {
+        get => textScale;
+        set
+        {
+            if (!double.IsFinite(value) || value <= 0) throw new ArgumentOutOfRangeException(nameof(value));
+            textScale = value;
+        }
+    }
 
     /// <summary>Gets or sets transition behavior.</summary>
     /// <remarks>
@@ -126,7 +146,8 @@ public sealed class ThemeApplyOptions
         => new()
         {
             Transition = (Transition ?? throw new InvalidOperationException("Transition options cannot be null.")).Clone(),
-            SystemFallbackVariant = SystemFallbackVariant
+            SystemFallbackVariant = SystemFallbackVariant,
+            TextScale = TextScale
         };
 }
 

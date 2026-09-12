@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
+using ModernFormsNext.Accessibility;
 
 namespace ModernFormsNext
 {
@@ -69,7 +70,7 @@ namespace ModernFormsNext
                         if ((State & (LinkState.Hover | LinkState.Active)) != 0)
                             State &= ~(LinkState.Hover | LinkState.Active);
 
-                        Owner?.Invalidate();
+                        Owner?.OnLinkMetadataChanged(this, AccessibleEvents.StateChange);
                     }
                 }
             }
@@ -84,7 +85,7 @@ namespace ModernFormsNext
                     if (length == -1)
                     {
                         var text_length = Owner?.Text?.Length ?? 0;
-                        return Math.Max(0, text_length - Start);
+                        return (int)Math.Clamp((long)text_length - Start, 0, int.MaxValue);
                     }
 
                     return length;
@@ -93,9 +94,9 @@ namespace ModernFormsNext
                 {
                     if (length != value)
                     {
+                        Owner?.Links.ValidateRange(this, start, value);
                         length = value;
-                        Owner?.InvalidateLayout();
-                        Owner?.Invalidate();
+                        Owner?.OnLinkMetadataChanged(this, AccessibleEvents.NameChange, layout: true, structure: true);
                     }
                 }
             }
@@ -111,7 +112,12 @@ namespace ModernFormsNext
             public string Name
             {
                 get => name ?? string.Empty;
-                set => name = value;
+                set
+                {
+                    if (name == value) return;
+                    name = value;
+                    Owner?.OnLinkMetadataChanged(this, AccessibleEvents.NameChange);
+                }
             }
 
             /// <summary>
@@ -120,8 +126,11 @@ namespace ModernFormsNext
             internal LinkLabel? Owner { get; set; }
 
             /// <summary>
-            /// Gets or sets the raw stored length value.
+            /// Commits normalization without publishing an intermediate text/range state.
             /// </summary>
+            internal void NormalizeRange(int normalizedStart, int normalizedLength)
+            { start = normalizedStart; length = normalizedLength; }
+
             internal int RawLength
             {
                 get => length;
@@ -138,14 +147,10 @@ namespace ModernFormsNext
                 {
                     if (start != value)
                     {
+                        Owner?.Links.ValidateRange(this, value, length);
                         start = value;
-
-                        if (Owner is not null)
-                        {
-                            Owner.Links.SortByStart();
-                            Owner.InvalidateLayout();
-                            Owner.Invalidate();
-                        }
+                        Owner?.Links.SortByStart();
+                        Owner?.OnLinkMetadataChanged(this, AccessibleEvents.NameChange, layout: true, structure: true);
                     }
                 }
             }
@@ -175,7 +180,7 @@ namespace ModernFormsNext
                         else
                             State &= ~LinkState.Visited;
 
-                        Owner?.Invalidate();
+                        Owner?.OnLinkMetadataChanged(this, AccessibleEvents.StateChange);
                     }
                 }
             }

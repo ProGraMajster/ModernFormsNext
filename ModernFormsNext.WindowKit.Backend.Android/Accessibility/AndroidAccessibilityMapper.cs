@@ -6,7 +6,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Accessibility;
 /// Converts canonical semantics to transient Android node properties. No semantic hierarchy or
 /// native wrappers are stored here; callers read on the UI thread at the time of a query.
 /// </summary>
-internal static class AndroidAccessibilityMapper
+internal static partial class AndroidAccessibilityMapper
 {
     internal const int Unavailable = 0x1, Selected = 0x2, Focused = 0x4, Checked = 0x10,
         Mixed = 0x20, ReadOnly = 0x40, Expanded = 0x200, Collapsed = 0x400,
@@ -38,6 +38,11 @@ internal static class AndroidAccessibilityMapper
         20 => "android.widget.SeekBar",
         21 => "android.widget.ProgressBar",
         24 => "android.widget.ImageView",
+        27 or 30 or 32 => "android.widget.TextView",
+        28 => "android.widget.NumberPicker",
+        29 => "android.widget.GridView",
+        31 => "android.view.ViewGroup",
+        33 => "android.widget.CalendarView",
         _ => "android.view.View"
     };
 
@@ -45,12 +50,36 @@ internal static class AndroidAccessibilityMapper
     {
         int type = node.GetControlType();
         int state = node.State;
-        bool sensitive = node.GetIsSensitive() || (state & Protected) != 0;
-        bool edit = type == 10;
-        // Never read Value at all for sensitive peers, including custom implementations whose
-        // getter might return plaintext. Explicit Name/Help/Description are metadata, not Value.
+        bool inherited = HasSensitiveParent(node), sensitive = false;
+        void RefreshPrivacy()
+        {
+            // Once protected during this read, the captured payload stays redacted even if a
+            // later getter removes the marker. Own password labels keep the Phase 3 contract;
+            // descendant names can be generated from private data and are not safe labels.
+            inherited |= HasSensitiveParent(node);
+            sensitive |= inherited || PlatformAccessibilityPrivacy.HasSensitiveAncestor(node);
+        }
+        string? Metadata(Func<string?> read)
+        {
+            RefreshPrivacy();
+            if (inherited) return null;
+            string? result = read();
+            RefreshPrivacy();
+            return inherited ? null : result;
+        }
+        RefreshPrivacy();
+        bool edit = type == 10 || !sensitive && SupportsStringValue(node, type);
+        RefreshPrivacy();
         string? value = sensitive ? null : node.Value;
-        string? label = node.Name;
+        RefreshPrivacy();
+        string? label = Metadata(() => node.Name);
+        string? help = Metadata(() => node.Help) ?? Metadata(() => node.Description);
+        RefreshPrivacy();
+        var range = sensitive ? null : ReadRange(node);
+        bool important = node.GetAccessibilityView() != 1;
+        RefreshPrivacy();
+        if (sensitive) { value = null; range = null; }
+        if (inherited) { label = null; help = null; }
         string? stateDescription = (state & Mixed) != 0 ? "Mixed"
             : (state & Expanded) != 0 ? "Expanded"
             : (state & Collapsed) != 0 ? "Collapsed" : null;
@@ -58,22 +87,52 @@ internal static class AndroidAccessibilityMapper
         // Switch.Value is numeric; publishing "0"/"1" overrides TalkBack's native Off/On speech.
         // Keep an explicit Mixed description for the canonical third state above.
         if (stateDescription is null && !edit && type is not (5 or 7 or 8 or 9 or 13 or 15 or 17 or 19)
-            && !string.IsNullOrEmpty(value) && value != label && node.GetRangeValue() is null)
+            && !string.IsNullOrEmpty(value) && value != label && range is null)
             stateDescription = value;
+        if (sensitive) stateDescription = null;
         return new(ClassName(type), label, edit ? value : type == 5 ? label : null,
-            node.Help ?? node.Description, stateDescription, sensitive,
+            help, stateDescription, sensitive,
             (state & Unavailable) == 0, (state & Focusable) != 0,
             (state & Focused) != 0, (state & Selected) != 0,
             type is 7 or 8 or 9 || (state & (Checked | Mixed)) != 0,
             (state & Checked) != 0, edit && (state & ReadOnly) == 0,
-            node.GetAccessibilityView() != 1,
-            sensitive ? null : ValidRange(node.GetRangeValue()));
+            important, range);
+    }
+
+    private static bool HasSensitiveParent(IPlatformAccessibleObject node)
+        => node.Parent is { } parent && PlatformAccessibilityPrivacy.HasSensitiveAncestor(parent);
+
+    // AutomationId is read outside the property projection by Android's native Extras path.
+    // Apply the same inherited-metadata rule before and after that custom getter.
+    internal static string? ReadAutomationId(IPlatformAccessibleObject node)
+    {
+        if (HasSensitiveParent(node)) return null;
+        string? value = node.GetAutomationId();
+        return HasSensitiveParent(node) ? null : value;
+    }
+
+    internal static bool CanExposeProperties(IPlatformAccessibleObject node, AndroidAccessibilityProperties properties, string? automationId)
+    {
+        bool sensitive = PlatformAccessibilityPrivacy.HasSensitiveAncestor(node);
+        bool inherited = HasSensitiveParent(node);
+        if (sensitive && !properties.Password) return false;
+        return !inherited || properties.Label is null && properties.Text is null && properties.Help is null
+            && properties.StateDescription is null && properties.Range is null && automationId is null;
     }
 
     internal static PlatformAccessibleRangeValue? ValidRange(PlatformAccessibleRangeValue? range)
         => range is { } r && double.IsFinite(r.Minimum) && double.IsFinite(r.Maximum)
             && double.IsFinite(r.Value) && r.Minimum >= -float.MaxValue && r.Maximum <= float.MaxValue
             && r.Minimum <= r.Maximum && r.Value >= r.Minimum && r.Value <= r.Maximum ? r : null;
+
+    private static PlatformAccessibleRangeValue? ReadRange(IPlatformAccessibleObject node)
+    {
+        // Actions are part of native node construction too. Never invoke a protected range
+        // getter simply to decide which adjustment actions the node should advertise.
+        if (PlatformAccessibilityPrivacy.HasSensitiveAncestor(node)) return null;
+        var range = ValidRange(node.GetRangeValue());
+        return PlatformAccessibilityPrivacy.HasSensitiveAncestor(node) ? null : range;
+    }
 
     internal static List<int> Actions(IPlatformAccessibleObject node)
     {
@@ -91,18 +150,27 @@ internal static class AndroidAccessibilityMapper
         if ((actions & Collapse) != 0 && (state & Collapsed) == 0) result.Add(ActionCollapse);
         if ((actions & SetValue) != 0 && (state & ReadOnly) == 0)
         {
-            if (type == 10) result.Add(ActionSetText);
-            else if (ValidRange(node.GetRangeValue()) is { IsReadOnly: false }
-                && !node.GetIsSensitive()) result.Add(ActionSetProgress);
+            if (SupportsStringValue(node, type)) result.Add(ActionSetText);
+            else if (ReadRange(node) is { IsReadOnly: false }) result.Add(ActionSetProgress);
         }
         if ((actions & ScrollIntoView) != 0) result.Add(ActionShowOnScreen);
-        // Android uses these actions for adjustable ranges too. No generic viewport scroll
-        // parameter is invented: the canonical Increment/Decrement operations are sufficient.
-        if (ValidRange(node.GetRangeValue()) is { IsReadOnly: false } range)
+        AddTextActions(result, node);
+        // Viewport actions and adjustable range actions share native IDs, but retain distinct
+        // canonical semantics. A viewport explicitly advertising Scroll owns those IDs.
+        if ((actions & 256) != 0 && node.GetScrollInfo() is { } viewport)
+            AddViewportActions(result, viewport);
+        else if (ReadRange(node) is { IsReadOnly: false } range)
         {
             if ((actions & Increment) != 0 && range.Value < range.Maximum) result.Add(ActionScrollForward);
             if ((actions & Decrement) != 0 && range.Value > range.Minimum) result.Add(ActionScrollBackward);
         }
+        // A later custom getter can protect the node after earlier actions were collected.
+        // Keep ordinary focus/click and write-only password input; withdraw payload-derived
+        // range, viewport and text-selection capabilities from this transient result.
+        if (PlatformAccessibilityPrivacy.HasSensitiveAncestor(node))
+            result.RemoveAll(action => action == ActionSetProgress || IsViewportAction(action)
+                || action is ActionSetTextSelection or ActionNextText or ActionPreviousText
+                || action == ActionSetText && type != 10);
         return result;
     }
 
@@ -115,6 +183,17 @@ internal static class AndroidAccessibilityMapper
         return 0;
     }
 
+    // Text editors, actual editable grid cells and the date picker's formatted value share
+    // the canonical SetValue(string) action. Numeric spinners retain SetProgress instead.
+    private static bool SupportsStringValue(IPlatformAccessibleObject node, int type)
+    {
+        if (type == 10) return true; // Password edits remain write-only without inspecting value/range.
+        if (PlatformAccessibilityPrivacy.HasSensitiveAncestor(node)) return false;
+        bool supported = node.GetGridCell() is not null
+            || type is 13 or 28 && ReadRange(node) is null && (node.GetSupportedActions() & SetValue) != 0;
+        return !PlatformAccessibilityPrivacy.HasSensitiveAncestor(node) && supported;
+    }
+
     private static bool CanClearSelection(IPlatformAccessibleObject node)
         => SupportsIndependentSelection(node) && (node.State & Selected) != 0;
 
@@ -123,15 +202,19 @@ internal static class AndroidAccessibilityMapper
             && (node.GetSupportedActions() & Select) != 0
             && node.Parent is { } parent && (parent.State & MultiSelectable) != 0;
 
-    internal static bool PerformAction(IPlatformAccessibleObject node, int action, object? parameter)
+    internal static bool PerformAction(IPlatformAccessibleObject node, int action, object? parameter, Func<bool>? isCurrent = null)
     {
         if (!Actions(node).Contains(action)) return false;
+        if (action is ActionSetTextSelection or ActionNextText or ActionPreviousText)
+            return PerformTextAction(node, action, parameter, isCurrent);
+        if (IsViewportAction(action) && (node.GetSupportedActions() & 256) != 0 && node.GetScrollInfo() is { } scroll)
+            return PerformViewportAction(node, action, parameter, scroll, isCurrent);
         if (action == ActionSetText)
             return parameter is string text && node.PerformUiaAction(SetValue, text);
         if (action == ActionSetProgress)
         {
             if (parameter is not double value || !double.IsFinite(value)
-                || ValidRange(node.GetRangeValue()) is not { IsReadOnly: false } range
+                || ReadRange(node) is not { IsReadOnly: false } range
                 || value < range.Minimum || value > range.Maximum) return false;
             return node.PerformUiaAction(SetValue, value);
         }
@@ -163,6 +246,8 @@ internal static class AndroidAccessibilityMapper
 
     internal static AndroidCollection? Collection(IPlatformAccessibleObject node)
     {
+        if (node.GetGridInfo() is { } grid)
+            return new(grid.Rows, grid.Columns, (node.State & MultiSelectable) != 0 ? 2 : 1);
         // Only a flat sequence of semantic ListItems has known row/column information.
         // Trees, menus and tabs retain their hierarchy without fabricated table coordinates.
         if (node.GetControlType() != 12) return null;

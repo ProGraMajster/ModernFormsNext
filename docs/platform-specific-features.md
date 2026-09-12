@@ -8,6 +8,49 @@ Windows is currently the primary and best-supported runtime target. When a backe
 provide a platform feature, the public framework API should fail clearly instead of pretending
 that the feature worked.
 
+## Accessibility
+
+The [canonical AccessibleObject model](accessibility/semantic-model.md) describes control
+identity, names, state, actions, ranges and logical children. Windows and Android adapt that
+same model. Phase 4's current implementation adds the following capabilities; final-source
+validation remains distinct from historical Phase 2/3 evidence.
+
+| Capability | Windows | Android |
+| --- | --- | --- |
+| Current link/numeric/scrollbar composites | Hyperlink/Spinner/RangeValue and real logical parts | Native labelled nodes, range metadata and actions over the same controls |
+| Viewports | Scroll/ScrollItem, native percentages and amounts | Directional/forward/backward actions, offsets and ShowOnScreen; granular amounts are API-gated |
+| Managed grids | Grid/GridItem/Table/TableItem, headers, selection and normal value editing | Collection/item metadata, headings, selection, SetText and reveal |
+| Date/calendar | Existing native popup root with date/month/year peers and grid semantics | Value, checkbox and stepping on the windowless host; no unsupported Form/calendar popup advertised |
+| Existing text editors | Text/TextRange, supported attributes, selection, shaped range geometry and scroll | Native selection and movement granularity over the same provider; no character-location extra-data claim |
+| Preference detection | High-contrast system colors and owned UISettings text-scale observation | Current Activity font scale and API 34+ contrast; unavailable fields remain unknown |
+
+The [current-control](accessibility/current-controls.md),
+[viewport](accessibility/scroll-viewports.md),
+[grid/calendar](accessibility/grids-and-calendars.md), and [text](accessibility-text.md)
+guides specify precision, privacy, thread affinity and retained-object rules. Optional native
+preference detection does not automatically replace an app's theme. The
+[opt-in preference consumer](accessibility/preferences.md) selects an authored ThemeDefinition
+and applies its typography multiplier once through the existing ThemeManager.
+
+Read-only [diagnostics and Designer metadata](accessibility/diagnostics-and-designer.md) consume
+the shared model. General recycled containers remain #55, the full inspector/picker remains
+#61, Android Form/window hosting remains #72, and physical Android reliability remains #69.
+The [Phase 4 Android runner](accessibility/android-phase4-validation.md) is explicitly enabled;
+its result does not substitute for TalkBack/manual or physical-device acceptance. Issue #59
+remains open while those coverage and validation boundaries remain.
+
+## Input, lifecycle and test infrastructure
+
+[Shared IME clients](text-input.md), [commands](commands.md),
+[Android hardware-key routing](android-hardware-input.md), and
+[application lifecycle/state handoff](application-lifecycle.md) are already implemented
+through the normal control and backend paths. Their native/vendor/device limits remain in
+their respective matrices. The [headless TestHost](testing/testhost.md) supplies deterministic
+input, focus, layout, scoped services and detached control/raster snapshots;
+[AutomationSession](automation.md) provides bounded semantic snapshots and actions, with a
+separately enabled [Windows live bridge](automation-live-bridge.md). These are available
+foundations, not prerequisites still missing from the accessibility model.
+
 ## NotifyIcon
 
 `NotifyIcon` represents an icon in the operating system notification area. The first

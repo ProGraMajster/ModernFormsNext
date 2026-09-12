@@ -53,7 +53,7 @@ namespace ModernFormsNext;
 /// viewer.LinkClicked += (_, e) => Console.WriteLine(e.Destination);
 /// </code>
 /// </example>
-public class DocumentViewer : ScrollControl
+public partial class DocumentViewer : ScrollControl
 {
     private MfnDocument document = MfnDocument.Empty;
     private DocumentStyle documentStyle = new();
@@ -781,7 +781,8 @@ public class DocumentViewer : ScrollControl
             return;
 
         scrollY = value;
-        Invalidate();
+        try { Invalidate(); }
+        finally { NotifyAccessibleScrollChanged(); }
     }
 
     private void UpdateScrollBars(DocumentLayout layout)
@@ -799,5 +800,6 @@ public class DocumentViewer : ScrollControl
             VerticalScrollBar.Value = value;
 
         scrollY = value;
+        NotifyAccessibleScrollChanged();
     }
 }

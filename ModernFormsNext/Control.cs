@@ -1693,7 +1693,9 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnParentVisibleChanged (EventArgs e)
         {
-            if (Visible)
+            // Use local visibility: effective Visible is already false when the parent hides.
+            // Testing it here used to suppress hide notifications throughout the visible subtree.
+            if (GetState(States.Visible))
                 OnVisibleChanged (e);
         }
 
@@ -2319,7 +2321,8 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the scaled height of the control.
         /// </summary>
-        public int ScaledHeight => (int)(Height * ScaleFactor.Height);
+        // Use the same rounded edges as the back buffer, including fractional-DPI positions.
+        public int ScaledHeight => ScaledBounds.Height;
 
         /// <summary>
         /// Gets the scaled left of the control.
@@ -2339,7 +2342,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the scaled width of the control.
         /// </summary>
-        public int ScaledWidth => (int)(Width * ScaleFactor.Width);
+        public int ScaledWidth => ScaledBounds.Width;
 
         /// <summary>
         /// Gets the current scale factor of the control.

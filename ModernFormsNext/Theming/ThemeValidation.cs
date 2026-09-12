@@ -57,7 +57,7 @@ internal sealed class ThemeResolver
         this.limits = limits;
     }
 
-    public ThemeResolutionResult Resolve(ThemeDefinition definition)
+    public ThemeResolutionResult Resolve(ThemeDefinition definition, double textScale = 1d)
     {
         ArgumentNullException.ThrowIfNull(definition);
         var diagnostics = new List<ThemeDiagnostic>();
@@ -110,6 +110,28 @@ internal sealed class ThemeResolver
         if (HasErrors(diagnostics))
             return new ThemeResolutionResult(null, diagnostics);
 
+        if (textScale != 1d)
+        {
+            // Scale only the final authored token, never a base and override independently and
+            // never the installed global font. Preserve layout hints and explicit resource fonts.
+            foreach ((string key, ThemeTypography value) in typography.ToArray())
+            {
+                double size = value.Size * textScale;
+                // Legacy control styles use integer point sizes; conversion must stay positive
+                // and below Int32.MaxValue even after the intermediate Single rounding.
+                float effective = (float)size;
+                if (!double.IsFinite(size) || !float.IsFinite(effective) ||
+                    Math.Round((double)effective) < 1 || Math.Round((double)effective) > int.MaxValue)
+                {
+                    diagnostics.Add(Error("THEME_TEXT_SCALE_RANGE",
+                        "Scaled typography cannot be represented by the renderer and integer control styles.", $"typography.{key}"));
+                    continue;
+                }
+                typography[key] = new ThemeTypography(value.FontFamily, effective, value.Style, value.LineHeight, value.LetterSpacing);
+            }
+            if (HasErrors(diagnostics)) return new ThemeResolutionResult(null, diagnostics);
+        }
+
         ThemeVariant variant = definition.Variant == ThemeVariant.System
             ? resolveSystemVariant()
             : definition.Variant;
@@ -133,7 +155,8 @@ internal sealed class ThemeResolver
             corners,
             borders,
             animations,
-            resources);
+            resources,
+            textScale);
         return new ThemeResolutionResult(snapshot, diagnostics);
     }
 

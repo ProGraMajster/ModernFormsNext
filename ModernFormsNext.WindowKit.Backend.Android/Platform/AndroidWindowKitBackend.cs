@@ -134,6 +134,8 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             PlatformServiceRegistry.Register<IPlatformAnimationSettings>(animationSettings);
             PlatformServiceRegistry.Register<IPlatformAnimationFrameSource>(animationFrameSource);
             PlatformServiceRegistry.Register<IPermissionService>(Permissions);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.IPlatformSettings>(
+                new AndroidPlatformSettings(ApplicationContext.Context, ActivityTracker, Dispatcher, options.DiagnosticSink));
 
             IsInitialized = true;
             AndroidLogger.Write(

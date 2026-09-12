@@ -44,7 +44,9 @@ public sealed class MainActivity : Activity
             AndroidAppHost.EnableInputDiagnosticsIntentExtra,
             defaultValue: false) == true;
         host = new AndroidAppHost(this, application.SharedApp, enableInputDiagnostics);
-        if (Intent?.GetBooleanExtra("ACCESSIBILITY_DEMO", false) == true)
+        if (Intent?.GetBooleanExtra("ACCESSIBILITY_PHASE4", false) == true)
+            ShowAccessibilityPhase4();
+        else if (Intent?.GetBooleanExtra("ACCESSIBILITY_DEMO", false) == true)
         {
             var root = application.SharedApp.Root;
             if (!root.Controls.OfType<AccessibilityDemoPanel>().Any())
@@ -135,6 +137,15 @@ public sealed class MainActivity : Activity
     {
         base.OnNewIntent(intent);
         Intent = intent;
+        if (intent?.GetBooleanExtra("ACCESSIBILITY_PHASE4", false) == true)
+            ShowAccessibilityPhase4();
         AndroidWindowKit.HandleNewIntent(this, intent);
+    }
+
+    private void ShowAccessibilityPhase4()
+    {
+        var root = ((SampleApplication)Application!).SharedApp.Root;
+        foreach (var child in root.Controls) child.Visible = child is AccessibilityPhase4Panel;
+        if (!root.Controls.OfType<AccessibilityPhase4Panel>().Any()) root.Controls.Add(new AccessibilityPhase4Panel());
     }
 }

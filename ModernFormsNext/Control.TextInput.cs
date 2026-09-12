@@ -15,6 +15,7 @@ public partial class Control
     protected virtual ITextInputClient? GetTextInputClient() => null;
 
     internal ITextInputClient? QueryTextInputClient() => GetTextInputClient();
+    internal bool IsTextInputHostActive => FindTextInputHost()?.IsActive == true;
 
     private ControlTextInputHost? FindTextInputHost()
     {

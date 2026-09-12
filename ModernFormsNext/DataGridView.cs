@@ -1,4 +1,4 @@
-﻿using ModernFormsNext.Renderers;
+using ModernFormsNext.Renderers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
@@ -10,7 +10,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a DataGridView control for displaying tabular data.
     /// </summary>
-    public class DataGridView : Control
+    public partial class DataGridView : Control
     {
         private int header_height = 30;
         private int row_height = 25;
@@ -33,9 +33,10 @@ namespace ModernFormsNext
         private DataGridViewSelectionMode selection_mode = DataGridViewSelectionMode.FullRowSelect;
         private bool read_only;
         private IList? data_source;
-        private TextBox? edit_textbox;
-        private int editing_row_index = -1;
-        private int editing_column_index = -1;
+        private long data_source_version;
+        private GridEditSession? active_edit;
+        private long edit_version;
+        private TextBox? edit_textbox => active_edit?.Editor;
 
         private readonly VerticalScrollBar vscrollbar;
         private readonly HorizontalScrollBar hscrollbar;
@@ -62,6 +63,7 @@ namespace ModernFormsNext
                 top_index = Math.Max(vscrollbar.Value, 0);
                 UpdateEditTextBoxPosition();
                 Invalidate();
+                NotifyAccessibleScrollChanged();
             };
 
             hscrollbar = new HorizontalScrollBar
@@ -78,6 +80,7 @@ namespace ModernFormsNext
                 horizontal_scroll_offset = Math.Max(hscrollbar.Value, 0);
                 UpdateEditTextBoxPosition();
                 Invalidate();
+                NotifyAccessibleScrollChanged();
             };
 
             Controls.AddImplicitControl(vscrollbar);
@@ -87,54 +90,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Begins editing the specified cell.
         /// </summary>
-        public void BeginEdit(int rowIndex, int columnIndex)
-        {
-            if (read_only || rowIndex < 0 || rowIndex >= Rows.Count || columnIndex < 0 || columnIndex >= Columns.Count)
-                return;
-
-            // End any current edit
-            EndEdit();
-
-            editing_row_index = rowIndex;
-            editing_column_index = columnIndex;
-
-            var cell_bounds = GetCellBounds(rowIndex, columnIndex);
-
-            if (cell_bounds.IsEmpty)
-                return;
-
-            var cell_value = columnIndex < Rows[rowIndex].Cells.Count
-                ? Rows[rowIndex].Cells[columnIndex].Value
-                : string.Empty;
-
-            // Raise CellBeginEdit event
-            var begin_args = new DataGridViewCellEditEventArgs(rowIndex, columnIndex);
-            OnCellBeginEdit(begin_args);
-
-            if (begin_args.Cancel)
-                return;
-
-            // GetCellBounds returns device pixel coordinates; child control bounds are
-            // in logical units, so convert before positioning the TextBox.
-            edit_textbox = new TextBox
-            {
-                Left = DeviceToLogicalUnits(cell_bounds.Left) + 1,
-                Top = DeviceToLogicalUnits(cell_bounds.Top) + 1,
-                Width = DeviceToLogicalUnits(cell_bounds.Width) - 2,
-                Height = DeviceToLogicalUnits(cell_bounds.Height) - 2,
-                Text = cell_value
-            };
-
-            edit_textbox.Style.Border.Width = 0;
-
-            edit_textbox.KeyDown += EditTextBox_KeyDown;
-            edit_textbox.LostFocus += EditTextBox_LostFocus;
-
-            Controls.Add(edit_textbox);
-
-            edit_textbox.Select();
-            edit_textbox.SelectAll();
-        }
+        public void BeginEdit(int rowIndex, int columnIndex) => BeginCellEdit(rowIndex, columnIndex);
 
         /// <summary>
         /// Raised when a cell begins editing.
@@ -231,72 +187,7 @@ namespace ModernFormsNext
         /// Commits the current edit and hides the edit TextBox.
         /// </summary>
         [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Data binding requires runtime reflection over user-provided types.")]
-        public bool EndEdit()
-        {
-            if (edit_textbox is null || editing_row_index < 0 || editing_column_index < 0)
-                return false;
-
-            var new_value = edit_textbox.Text;
-            var row = Rows[editing_row_index];
-
-            // Ensure enough cells exist
-            while (row.Cells.Count <= editing_column_index)
-                row.Cells.Add(string.Empty);
-
-            var old_value = row.Cells[editing_column_index].Value;
-
-            if (old_value != new_value)
-            {
-                row.Cells[editing_column_index].Value = new_value;
-                var committed = true;
-
-                // Update the data source if bound
-                if (data_source is not null && editing_row_index < data_source.Count)
-                {
-                    var item = data_source[editing_row_index];
-
-                    if (item is not null && editing_column_index < Columns.Count)
-                    {
-                        var prop = item.GetType().GetProperty(Columns[editing_column_index].HeaderText, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-                        if (prop?.CanWrite == true)
-                        {
-                            try
-                            {
-                                var converted = Convert.ChangeType(new_value, prop.PropertyType);
-                                prop.SetValue(item, converted);
-                            }
-                            catch
-                            {
-                                // Conversion failed - revert cell value
-                                row.Cells[editing_column_index].Value = old_value;
-                                committed = false;
-                            }
-                        }
-                    }
-                }
-
-                if (committed)
-                {
-                    var changed_args = new DataGridViewCellEditEventArgs(editing_row_index, editing_column_index);
-                    OnCellValueChanged(changed_args);
-                }
-            }
-
-            var end_args = new DataGridViewCellEditEventArgs(editing_row_index, editing_column_index);
-            OnCellEndEdit(end_args);
-
-            // Clean up the TextBox
-            edit_textbox.KeyDown -= EditTextBox_KeyDown;
-            edit_textbox.LostFocus -= EditTextBox_LostFocus;
-            Controls.Remove(edit_textbox);
-            edit_textbox.Dispose();
-            edit_textbox = null;
-            editing_row_index = -1;
-            editing_column_index = -1;
-
-            Invalidate();
-            return true;
-        }
+        public bool EndEdit() => EndCellEdit();
 
         // Handle key events during editing.
         private void EditTextBox_KeyDown(object? sender, KeyEventArgs e)
@@ -337,41 +228,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Cancels the current edit without committing changes.
         /// </summary>
-        public void CancelEdit()
-        {
-            if (edit_textbox is null)
-                return;
-
-            edit_textbox.KeyDown -= EditTextBox_KeyDown;
-            edit_textbox.LostFocus -= EditTextBox_LostFocus;
-            Controls.Remove(edit_textbox);
-            edit_textbox.Dispose();
-            edit_textbox = null;
-            editing_row_index = -1;
-            editing_column_index = -1;
-
-            Invalidate();
-        }
-
-        // Repositions the editing TextBox after a scroll; cancels the edit if the cell has scrolled out of view.
-        private void UpdateEditTextBoxPosition()
-        {
-            if (edit_textbox is null || editing_row_index < 0 || editing_column_index < 0)
-                return;
-
-            var cell_bounds = GetCellBounds(editing_row_index, editing_column_index);
-
-            if (cell_bounds.IsEmpty)
-            {
-                CancelEdit();
-                return;
-            }
-
-            edit_textbox.Left = DeviceToLogicalUnits(cell_bounds.Left) + 1;
-            edit_textbox.Top = DeviceToLogicalUnits(cell_bounds.Top) + 1;
-            edit_textbox.Width = DeviceToLogicalUnits(cell_bounds.Width) - 2;
-            edit_textbox.Height = DeviceToLogicalUnits(cell_bounds.Height) - 2;
-        }
+        public void CancelEdit() => CancelCellEdit();
 
         /// <summary>
         /// Gets or sets the index of the first row displayed on the DataGridView.
@@ -399,7 +256,7 @@ namespace ModernFormsNext
             if (rowIndex < 0 || rowIndex >= Rows.Count || columnIndex < 0 || columnIndex >= Columns.Count)
                 return Rectangle.Empty;
 
-            if (rowIndex < top_index)
+            if (rowIndex < top_index || !Columns[columnIndex].Visible)
                 return Rectangle.Empty;
 
             var client = GetContentArea();
@@ -439,7 +296,7 @@ namespace ModernFormsNext
             var client = ClientRectangle;
             var w = client.Width - (vscrollbar.Visible ? (int)Math.Ceiling(vscrollbar.Width * ScaleFactor.Width) : 0);
             var h = client.Height - (hscrollbar.Visible ? (int)Math.Ceiling(hscrollbar.Height * ScaleFactor.Height) : 0);
-            return new Rectangle(client.Left, client.Top, w, h);
+            return new Rectangle(client.Left, client.Top, Math.Max(0, w), Math.Max(0, h));
         }
 
         /// <summary>
@@ -691,38 +548,55 @@ namespace ModernFormsNext
         [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Data binding requires runtime reflection over user-provided types.")]
         private void OnDataSourceChanged()
         {
+            long request = ++data_source_version;
+            var source = data_source;
+            var lifetime = new AccessibilityControlLifetime(this);
+            bool IsCurrent() => request == data_source_version && ReferenceEquals(source, data_source) && lifetime.IsCurrent;
             Columns.Clear();
+            if (!IsCurrent()) return;
             Rows.Clear();
-
-            if (data_source is null || data_source.Count == 0)
+            if (!IsCurrent() || source is null || source.Count == 0)
                 return;
 
             // Get the element type
-            var element_type = GetElementType(data_source);
+            var element_type = GetElementType(source);
 
-            if (element_type is null)
+            if (!IsCurrent() || element_type is null)
                 return;
 
             // Auto-generate columns from public readable properties
             var properties = element_type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead)
+                .Where(p => p.CanRead && p.GetIndexParameters().Length == 0)
                 .ToArray();
 
             foreach (var prop in properties)
+            {
                 Columns.Add(prop.Name, EstimateColumnWidth(prop.Name));
+                if (!IsCurrent()) return;
+            }
 
             // Populate rows
-            foreach (var item in data_source)
+            foreach (var item in source)
             {
+                if (!IsCurrent()) return;
                 if (item is null)
                     continue;
 
                 var values = new string[properties.Length];
 
                 for (var i = 0; i < properties.Length; i++)
+                {
                     values[i] = properties[i].GetValue(item)?.ToString() ?? string.Empty;
+                    // Getters/ToString can replace DataSource, including A -> B -> A. The old
+                    // request must never append rows into the replacement's completed view.
+                    if (!IsCurrent()) return;
+                }
 
-                Rows.Add(values);
+                // Publish a fully bound row: Reorder callbacks may immediately edit this cell.
+                var row = new DataGridViewRow { BoundSource = source, BoundItem = item };
+                foreach (string text in values) row.Cells.Add(text);
+                Rows.Add(row);
+                if (!IsCurrent()) return;
             }
         }
 
@@ -843,8 +717,7 @@ namespace ModernFormsNext
                 else
                 {
                     var col = GetColumnAtLocation(e.Location);
-                    SelectedRowIndex = row;
-                    SelectedColumnIndex = col;
+                    SetCurrentCoordinates(row, col);
                 }
             }
         }
@@ -1061,8 +934,7 @@ namespace ModernFormsNext
         /// </summary>
         internal void OnRowsChanged()
         {
-            UpdateScrollBars();
-            Invalidate();
+            OnGridStructureChanged(updateScrollBars: true);
         }
 
         /// <summary>
@@ -1070,8 +942,7 @@ namespace ModernFormsNext
         /// </summary>
         internal void OnColumnsChanged()
         {
-            UpdateScrollBars();
-            Invalidate();
+            OnGridStructureChanged(updateScrollBars: true);
         }
 
         /// <summary>
@@ -1185,15 +1056,7 @@ namespace ModernFormsNext
         public int SelectedColumnIndex
         {
             get => selected_column_index;
-            set
-            {
-                if (selected_column_index != value)
-                {
-                    selected_column_index = value;
-                    OnSelectionChanged(EventArgs.Empty);
-                    Invalidate();
-                }
-            }
+            set => SetCurrentCoordinates(selected_row_index, value);
         }
 
         /// <summary>
@@ -1202,24 +1065,7 @@ namespace ModernFormsNext
         public int SelectedRowIndex
         {
             get => selected_row_index;
-            set
-            {
-                if (selected_row_index != value)
-                {
-                    // Deselect old row
-                    if (selected_row_index >= 0 && selected_row_index < Rows.Count)
-                        Rows[selected_row_index].Selected = false;
-
-                    selected_row_index = value;
-
-                    // Select new row
-                    if (selected_row_index >= 0 && selected_row_index < Rows.Count)
-                        Rows[selected_row_index].Selected = true;
-
-                    OnSelectionChanged(EventArgs.Empty);
-                    Invalidate();
-                }
-            }
+            set => SetCurrentCoordinates(value, selected_column_index);
         }
 
         /// <summary>
@@ -1309,58 +1155,61 @@ namespace ModernFormsNext
         /// </summary>
         private void UpdateScrollBars()
         {
-            var client = GetContentArea();
-            var header_offset = ColumnHeadersVisible ? ScaledHeaderHeight : 0;
-            var content_height = client.Height - header_offset;
-
-            // Count how many rows fit in the content area using their actual heights
-            var visible_rows = 0;
-            var rows_height = 0;
-
-            for (var i = 0; i < Rows.Count; i++)
+            // Start from the full client once. The two bars can force each other to appear;
+            // using GetContentArea here would subtract the previously visible bars twice.
+            if (updatingGridScrollBars) { gridScrollBarsPending = true; return; }
+            updatingGridScrollBars = true;
+            gridScrollUpdateDepth++;
+            try
             {
-                var rh = LogicalToDeviceUnits(Rows[i].Height);
-
-                if (rows_height + rh <= content_height)
+                int passCount = 0;
+                do
                 {
-                    visible_rows++;
-                    rows_height += rh;
-                }
-                else
+                if (++passCount > 64) throw new InvalidOperationException("Grid scrollbar layout did not stabilize after 64 changes.");
+                gridScrollBarsPending = false;
+                var client = ClientRectangle;
+                long rowsHeight = 0;
+                foreach (var row in Rows) rowsHeight += Math.Max(0, LogicalToDeviceUnits(row.Height));
+                int headerHeight = ColumnHeadersVisible ? ScaledHeaderHeight : 0;
+                int headerWidth = RowHeadersVisible ? ScaledRowHeadersWidth : 0;
+                int verticalWidth = (int)Math.Ceiling(vscrollbar.Width * ScaleFactor.Width);
+                int horizontalHeight = (int)Math.Ceiling(hscrollbar.Height * ScaleFactor.Height);
+                bool horizontal = false, vertical = false;
+                int width = 0, height = 0;
+                for (int pass = 0; pass < 3; pass++)
                 {
-                    break;
+                    width = Math.Max(0, client.Width - headerWidth - (vertical ? verticalWidth : 0));
+                    height = Math.Max(0, client.Height - headerHeight - (horizontal ? horizontalHeight : 0));
+                    horizontal |= TotalColumnsWidth > width;
+                    vertical |= rowsHeight > height;
                 }
-            }
+                width = Math.Max(0, client.Width - headerWidth - (vertical ? verticalWidth : 0));
+                height = Math.Max(0, client.Height - headerHeight - (horizontal ? horizontalHeight : 0));
 
-            // Vertical scrollbar
-            if (Rows.Count > visible_rows && visible_rows > 0)
-            {
-                vscrollbar.Visible = true;
-                vscrollbar.Maximum = Rows.Count - visible_rows;
-                vscrollbar.LargeChange = Math.Max(0, visible_rows);
+                // The last page is aligned to an actual row boundary, including when no full
+                // row fits. A single oversized row remains a documented row-scrolling limit.
+                int lastTop = Math.Max(0, Rows.Count - 1);
+                long trailingHeight = Rows.Count == 0 ? 0 : Math.Max(0, LogicalToDeviceUnits(Rows[lastTop].Height));
+                while (lastTop > 0)
+                {
+                    int preceding = Math.Max(0, LogicalToDeviceUnits(Rows[lastTop - 1].Height));
+                    if (trailingHeight + preceding > height) break;
+                    trailingHeight += preceding;
+                    lastTop--;
+                }
+                vscrollbar.Visible = vertical;
+                vscrollbar.Maximum = vertical ? lastTop : 0;
+                vscrollbar.Value = Math.Clamp(vscrollbar.Value, 0, vscrollbar.Maximum);
+                top_index = vscrollbar.Value;
+                vscrollbar.LargeChange = Math.Max(1, CountDisplayedRows(top_index, height));
+                hscrollbar.Visible = horizontal;
+                hscrollbar.Maximum = horizontal ? Math.Max(0, TotalColumnsWidth - width) : 0;
+                hscrollbar.Value = Math.Clamp(hscrollbar.Value, 0, hscrollbar.Maximum);
+                horizontal_scroll_offset = hscrollbar.Value;
+                hscrollbar.LargeChange = Math.Max(1, width);
+                } while (gridScrollBarsPending && !IsDisposed && !Disposing);
             }
-            else
-            {
-                vscrollbar.Visible = false;
-                vscrollbar.Value = 0;
-                top_index = 0;
-            }
-
-            // Horizontal scrollbar
-            var available_width = client.Width - (vscrollbar.Visible ? (int)Math.Ceiling(vscrollbar.Width * ScaleFactor.Width) : 0);
-
-            if (TotalColumnsWidth > available_width && available_width > 0)
-            {
-                hscrollbar.Visible = true;
-                hscrollbar.Maximum = TotalColumnsWidth - available_width;
-                hscrollbar.LargeChange = Math.Max(0, available_width);
-            }
-            else
-            {
-                hscrollbar.Visible = false;
-                hscrollbar.Value = 0;
-                horizontal_scroll_offset = 0;
-            }
+            finally { updatingGridScrollBars = false; gridScrollUpdateDepth--; NotifyAccessibleScrollChanged(); }
         }
 
         /// <summary>
@@ -1372,25 +1221,7 @@ namespace ModernFormsNext
             {
                 var content = GetContentArea();
                 var available = content.Height - (ColumnHeadersVisible ? ScaledHeaderHeight : 0);
-                var count = 0;
-                var h = 0;
-
-                for (var i = 0; i < Rows.Count; i++)
-                {
-                    var rh = LogicalToDeviceUnits(Rows[i].Height);
-
-                    if (h + rh <= available)
-                    {
-                        count++;
-                        h += rh;
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
-
-                return count;
+                return CountDisplayedRows(top_index, Math.Max(0, available));
             }
         }
 
@@ -1399,13 +1230,22 @@ namespace ModernFormsNext
         /// </summary>
         private void EnsureRowVisible(int index)
         {
-            if (DisplayedRowCount >= Rows.Count)
-                return;
-
-            if (index < top_index)
-                FirstDisplayedScrollingRowIndex = index;
-            else if (index >= top_index + DisplayedRowCount)
-                FirstDisplayedScrollingRowIndex = index - DisplayedRowCount + 1;
+            if (index < 0 || index >= Rows.Count) return;
+            if (index < top_index) { FirstDisplayedScrollingRowIndex = index; return; }
+            int available = GridScrollViewport.Height;
+            long height = 0;
+            for (int row = top_index; row <= index; row++) height += Math.Max(0, LogicalToDeviceUnits(Rows[row].Height));
+            if (height <= available) return;
+            int target = index;
+            height = Math.Max(0, LogicalToDeviceUnits(Rows[index].Height));
+            while (target > 0)
+            {
+                int preceding = Math.Max(0, LogicalToDeviceUnits(Rows[target - 1].Height));
+                if (height + preceding > available) break;
+                height += preceding;
+                target--;
+            }
+            FirstDisplayedScrollingRowIndex = target;
         }
 
         // Moves the selection to the next cell, wrapping to the next row.
@@ -1420,8 +1260,7 @@ namespace ModernFormsNext
             }
             else if (selected_row_index < Rows.Count - 1)
             {
-                SelectedColumnIndex = 0;
-                SelectedRowIndex = selected_row_index + 1;
+                SetCurrentCoordinates(selected_row_index + 1, 0);
                 EnsureRowVisible(selected_row_index);
             }
         }
@@ -1438,8 +1277,7 @@ namespace ModernFormsNext
             }
             else if (selected_row_index > 0)
             {
-                SelectedColumnIndex = Columns.Count - 1;
-                SelectedRowIndex = selected_row_index - 1;
+                SetCurrentCoordinates(selected_row_index - 1, Columns.Count - 1);
                 EnsureRowVisible(selected_row_index);
             }
         }

@@ -296,9 +296,11 @@ public sealed class WindowsAutomationServer : IAsyncDisposable
             RequestKind.FindOne when payload.Query is { } query => await session.FindOneAsync(payload.RootId!, query, token).ConfigureAwait(false),
             RequestKind.FindAll when payload.Query is { } query => await session.FindAllAsync(payload.RootId!, query, token).ConfigureAwait(false),
             RequestKind.PerformAction when payload.Handle is { } handle && !(payload.Text is not null && payload.Number is not null)
+                && (payload.Scroll is null || payload.Text is null && payload.Number is null)
                 => await session.PerformActionAsync(payload.RootId!, handle, payload.Action,
                     payload.Text is not null ? AutomationActionValue.FromText(payload.Text)
-                    : payload.Number is { } number ? AutomationActionValue.FromNumber(number) : null, token).ConfigureAwait(false),
+                    : payload.Number is { } number ? AutomationActionValue.FromNumber(number)
+                    : payload.Scroll is { } scroll ? AutomationActionValue.FromScroll(scroll.ToRequest()) : null, token).ConfigureAwait(false),
             RequestKind.WaitForCondition when payload.Condition is { } condition
                 => await session.WaitForConditionAsync(payload.RootId!, condition, payload.WaitOptions, token).ConfigureAwait(false),
             _ => throw new AutomationTransportException(AutomationTransportError.InvalidRequest)

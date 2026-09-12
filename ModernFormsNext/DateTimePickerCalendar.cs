@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
@@ -9,7 +9,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents the calendar surface displayed inside the DateTimePicker popup.
     /// </summary>
-    internal class DateTimePickerCalendar : Control
+    internal partial class DateTimePickerCalendar : Control
     {
         private const int HeaderHeight = 30;
         private const int DayHeaderHeight = 22;
@@ -40,6 +40,8 @@ namespace ModernFormsNext
 
         private DateTimePickerCalendarViewMode viewMode = DateTimePickerCalendarViewMode.Days;
         private int yearRangeStart;
+        private Size layoutSize;
+        private SizeF layoutScale;
 
         public DateTimePickerCalendar (DateTimePicker owner)
         {
@@ -63,7 +65,8 @@ namespace ModernFormsNext
                 this.value = value.Date;
                 displayMonth = new DateTime (this.value.Year, this.value.Month, 1);
                 yearRangeStart = GetYearRangeStart (displayMonth.Year);
-                Invalidate ();
+                focusedDate = this.value;
+                PublishCalendarView();
             }
         }
 
@@ -87,15 +90,15 @@ namespace ModernFormsNext
         internal DateTimePickerCalendarViewMode ViewMode => viewMode;
         internal int YearRangeStart => yearRangeStart;
 
-        internal Rectangle PreviousButtonRectangle => prevButtonRect;
-        internal Rectangle NextButtonRectangle => nextButtonRect;
-        internal Rectangle MonthTitleRectangle => monthTitleRect;
-        internal Rectangle YearTitleRectangle => yearTitleRect;
-        internal Rectangle TodayButtonRectangle => todayButtonRect;
+        internal Rectangle PreviousButtonRectangle { get { UpdateLayoutRects(); return prevButtonRect; } }
+        internal Rectangle NextButtonRectangle { get { UpdateLayoutRects(); return nextButtonRect; } }
+        internal Rectangle MonthTitleRectangle { get { UpdateLayoutRects(); return monthTitleRect; } }
+        internal Rectangle YearTitleRectangle { get { UpdateLayoutRects(); return yearTitleRect; } }
+        internal Rectangle TodayButtonRectangle { get { UpdateLayoutRects(); return todayButtonRect; } }
 
-        internal Rectangle[] DayCellRectangles => dayCellRects;
-        internal Rectangle[] MonthCellRectangles => monthCellRects;
-        internal Rectangle[] YearCellRectangles => yearCellRects;
+        internal Rectangle[] DayCellRectangles { get { UpdateLayoutRects(); return dayCellRects; } }
+        internal Rectangle[] MonthCellRectangles { get { UpdateLayoutRects(); return monthCellRects; } }
+        internal Rectangle[] YearCellRectangles { get { UpdateLayoutRects(); return yearCellRects; } }
 
         internal Rectangle HoveredRectangle => hoveredRect;
 
@@ -110,6 +113,7 @@ namespace ModernFormsNext
         protected override void OnMouseMove (MouseEventArgs e)
         {
             base.OnMouseMove (e);
+            UpdateLayoutRects();
 
             var newHover = HitTestInteractiveRectangle (e.Location);
             if (hoveredRect != newHover) {
@@ -130,102 +134,19 @@ namespace ModernFormsNext
 
         protected override void OnMouseDown (MouseEventArgs e)
         {
-            base.OnMouseDown (e);
-
-            if (prevButtonRect.Contains (e.Location)) {
-                NavigatePrevious ();
-                return;
-            }
-
-            if (nextButtonRect.Contains (e.Location)) {
-                NavigateNext ();
-                return;
-            }
-
-            if (viewMode == DateTimePickerCalendarViewMode.Days) {
-                if (monthTitleRect.Contains (e.Location)) {
-                    viewMode = DateTimePickerCalendarViewMode.Months;
-                    Invalidate ();
-                    return;
-                }
-
-                if (yearTitleRect.Contains (e.Location)) {
-                    viewMode = DateTimePickerCalendarViewMode.Years;
-                    yearRangeStart = GetYearRangeStart (displayMonth.Year);
-                    Invalidate ();
-                    return;
-                }
-
-                if (todayButtonRect.Contains (e.Location)) {
-                    GoToToday ();
-                    return;
-                }
-
-                if (TryGetDateAt (e.Location, out var date)) {
-                    if (date >= MinDate.Date && date <= MaxDate.Date)
-                        owner.ApplyDropDownValue (date);
-                }
-
-                return;
-            }
-
-            if (viewMode == DateTimePickerCalendarViewMode.Months) {
-                if (yearTitleRect.Contains (e.Location)) {
-                    viewMode = DateTimePickerCalendarViewMode.Years;
-                    yearRangeStart = GetYearRangeStart (displayMonth.Year);
-                    Invalidate ();
-                    return;
-                }
-
-                if (TryGetMonthAt (e.Location, out int month)) {
-                    displayMonth = new DateTime (displayMonth.Year, month, 1);
-                    viewMode = DateTimePickerCalendarViewMode.Days;
-                    Invalidate ();
-                }
-
-                return;
-            }
-
-            if (viewMode == DateTimePickerCalendarViewMode.Years) {
-                if (TryGetYearAt (e.Location, out int year)) {
-                    displayMonth = new DateTime (year, displayMonth.Month, 1);
-                    viewMode = DateTimePickerCalendarViewMode.Months;
-                    Invalidate ();
-                }
-            }
+            base.OnMouseDown(e);
+            HandleCalendarPointer(e);
         }
 
         protected override void OnKeyDown (KeyEventArgs e)
         {
-            base.OnKeyDown (e);
-
-            switch (e.KeyCode) {
-                case Keys.Escape:
-                    if (viewMode != DateTimePickerCalendarViewMode.Days) {
-                        viewMode = DateTimePickerCalendarViewMode.Days;
-                        Invalidate ();
-                    } else {
-                        owner.CloseDropDown ();
-                    }
-
-                    e.Handled = true;
-                    break;
-
-                case Keys.Left:
-                    NavigatePrevious ();
-                    e.Handled = true;
-                    break;
-
-                case Keys.Right:
-                    NavigateNext ();
-                    e.Handled = true;
-                    break;
-            }
+            base.OnKeyDown(e);
+            HandleCalendarKey(e);
         }
-
         protected override void OnPaint (PaintEventArgs e)
         {
             base.OnPaint (e);
+            UpdateLayoutRects();
             RenderManager.Render (this, e);
         }
 
@@ -236,55 +157,11 @@ namespace ModernFormsNext
             return firstOfMonth.AddDays (-offset);
         }
 
-        private void NavigatePrevious ()
-        {
-            switch (viewMode) {
-                case DateTimePickerCalendarViewMode.Days:
-                    displayMonth = displayMonth.AddMonths (-1);
-                    break;
-                case DateTimePickerCalendarViewMode.Months:
-                    displayMonth = displayMonth.AddYears (-1);
-                    break;
-                case DateTimePickerCalendarViewMode.Years:
-                    yearRangeStart -= 12;
-                    break;
-            }
-
-            Invalidate ();
-        }
-
-        private void NavigateNext ()
-        {
-            switch (viewMode) {
-                case DateTimePickerCalendarViewMode.Days:
-                    displayMonth = displayMonth.AddMonths (1);
-                    break;
-                case DateTimePickerCalendarViewMode.Months:
-                    displayMonth = displayMonth.AddYears (1);
-                    break;
-                case DateTimePickerCalendarViewMode.Years:
-                    yearRangeStart += 12;
-                    break;
-            }
-
-            Invalidate ();
-        }
-
-        private void GoToToday ()
-        {
-            var today = DateTime.Today;
-            if (today < MinDate.Date)
-                today = MinDate.Date;
-            if (today > MaxDate.Date)
-                today = MaxDate.Date;
-
-            displayMonth = new DateTime (today.Year, today.Month, 1);
-            viewMode = DateTimePickerCalendarViewMode.Days;
-            Invalidate ();
-        }
-
         private void UpdateLayoutRects ()
         {
+            if (layoutSize == Size && layoutScale == ScaleFactor && dayCellRects.Length != 0) return;
+            layoutSize = Size;
+            layoutScale = ScaleFactor;
             prevButtonRect = new Rectangle (PaddingSize, PaddingSize, 24, HeaderHeight);
             nextButtonRect = new Rectangle (Width - PaddingSize - 24, PaddingSize, 24, HeaderHeight);
 
@@ -338,6 +215,14 @@ namespace ModernFormsNext
                 Height - PaddingSize - FooterHeight + 2,
                 Width - PaddingSize * 2,
                 FooterHeight - 4);
+            prevButtonRect = ScaleCalendarRectangle(prevButtonRect);
+            nextButtonRect = ScaleCalendarRectangle(nextButtonRect);
+            monthTitleRect = ScaleCalendarRectangle(monthTitleRect);
+            yearTitleRect = ScaleCalendarRectangle(yearTitleRect);
+            todayButtonRect = ScaleCalendarRectangle(todayButtonRect);
+            for (int i = 0; i < dayCellRects.Length; ++i) dayCellRects[i] = ScaleCalendarRectangle(dayCellRects[i]);
+            for (int i = 0; i < monthCellRects.Length; ++i) monthCellRects[i] = ScaleCalendarRectangle(monthCellRects[i]);
+            for (int i = 0; i < yearCellRects.Length; ++i) yearCellRects[i] = ScaleCalendarRectangle(yearCellRects[i]);
         }
 
         private Rectangle HitTestInteractiveRectangle (Point point)
@@ -374,50 +259,9 @@ namespace ModernFormsNext
             return Rectangle.Empty;
         }
 
-        private bool TryGetDateAt (Point point, out DateTime date)
-        {
-            var firstVisible = GetFirstVisibleDate ();
-
-            for (int i = 0; i < dayCellRects.Length; i++) {
-                if (dayCellRects[i].Contains (point)) {
-                    date = firstVisible.AddDays (i);
-                    return true;
-                }
-            }
-
-            date = default;
-            return false;
-        }
-
-        private bool TryGetMonthAt (Point point, out int month)
-        {
-            for (int i = 0; i < monthCellRects.Length; i++) {
-                if (monthCellRects[i].Contains (point)) {
-                    month = i + 1;
-                    return true;
-                }
-            }
-
-            month = 1;
-            return false;
-        }
-
-        private bool TryGetYearAt (Point point, out int year)
-        {
-            for (int i = 0; i < yearCellRects.Length; i++) {
-                if (yearCellRects[i].Contains (point)) {
-                    year = yearRangeStart + i;
-                    return true;
-                }
-            }
-
-            year = displayMonth.Year;
-            return false;
-        }
-
         private static int GetYearRangeStart (int year)
         {
-            return year - (year % 12);
+            return Math.Clamp(year - (year % 12), 1, 9988);
         }
     }
 }

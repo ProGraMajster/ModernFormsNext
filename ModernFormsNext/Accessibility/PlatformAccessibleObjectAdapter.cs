@@ -13,7 +13,7 @@ namespace ModernFormsNext.Accessibility;
 /// contracts. Backend projects consume <see cref="IPlatformAccessibleObject"/> and do not need a
 /// reference back to the main ModernFormsNext assembly.
 /// </remarks>
-internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject,
+internal sealed partial class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject,
     IPlatformAccessibilityNotifications, IPlatformAccessibilitySelection
 {
     private static readonly ConditionalWeakTable<AccessibleObject, PlatformAccessibleObjectAdapter> s_cache = new();
@@ -94,7 +94,8 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleOb
     public int State => (int)accessible_object.State;
 
     /// <inheritdoc/>
-    public bool IsSensitive => accessible_object.IsSensitive;
+    public bool IsSensitive => accessible_object is Control.ControlAccessibleObject { Owner: TextBox { IsAccessibilitySensitive: true } }
+        || accessible_object.IsSensitive;
 
     /// <inheritdoc/>
     public PlatformAccessibleRangeValue? RangeValue
@@ -123,7 +124,8 @@ internal sealed class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleOb
 
     /// <inheritdoc/>
     public bool PerformAction(int action, object? parameter = null)
-        => accessible_object.PerformAction((AccessibleActions)action, parameter);
+        => accessible_object.PerformAction((AccessibleActions)action,
+            parameter is PlatformAccessibleScrollRequest scroll ? ConvertScrollRequest(scroll) : parameter);
 
     /// <inheritdoc/>
     public int GetHelpTopic(out string? fileName) => accessible_object.GetHelpTopic(out fileName);

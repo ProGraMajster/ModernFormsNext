@@ -38,6 +38,8 @@ internal static class AndroidAccessibilityBounds
             // expanded children. Clip against structural ancestors, not these logical rows.
             if (ReferenceEquals(current, node) || current.GetControlType() is not (13 or 15 or 17 or 19))
                 clipped = Intersect(clipped, current.Bounds);
+            if (!ReferenceEquals(current, node) && current.GetScrollInfo() is { } scroll)
+                clipped = Intersect(clipped, scroll.ViewportBounds);
             if (ReferenceEquals(current, root)) return Valid(clipped) ? clipped : default;
             if (current.Parent is not { } parent) return default;
             current = parent;

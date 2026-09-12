@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using ModernFormsNext.Accessibility;
 using ModernFormsNext.Layout;
 using ModernFormsNext.WindowKit;
@@ -8,6 +9,8 @@ namespace ModernFormsNext;
 
 public partial class Control
 {
+    // Reuse the parent's existing pre-callback assignment stamp, including remove/reinsert.
+    internal long AccessibilityTreeVersion => parentAssignmentVersion;
     private static readonly int s_accessibilityObjectProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleDefaultActionDescriptionProperty = PropertyStore.CreateKey();
     private static readonly int s_accessibleAutomationIdProperty = PropertyStore.CreateKey();
@@ -26,6 +29,7 @@ public partial class Control
     /// its role or text. Changing the value raises a platform-neutral
     /// <see cref="AccessibleEvents.DefaultActionChange"/> notification.
     /// </remarks>
+    [Category("Accessibility"), DefaultValue(null)]
     public string? AccessibleDefaultActionDescription
     {
         get => Properties.GetObject<string>(s_accessibleDefaultActionDescriptionProperty);
@@ -47,6 +51,7 @@ public partial class Control
     /// back to <see cref="Name"/>. This identifier is distinct from the process-local
     /// <see cref="AccessibleObject.RuntimeId"/> and does not change the accessible name.
     /// </remarks>
+    [Category("Accessibility"), DefaultValue(null)]
     public string? AccessibleAutomationId
     {
         get => Properties.GetObject<string>(s_accessibleAutomationIdProperty);
@@ -67,6 +72,7 @@ public partial class Control
     /// <see cref="AccessibleControlType.Default"/> lets <see cref="ControlAccessibleObject"/> infer a
     /// type while <see cref="AccessibleRole"/> continues to provide WinForms/MSAA compatibility.
     /// </remarks>
+    [Category("Accessibility"), DefaultValue(AccessibleControlType.Default)]
     public AccessibleControlType AccessibleControlType
     {
         get => Properties.GetEnum(s_accessibleControlTypeProperty, AccessibleControlType.Default);
@@ -93,6 +99,7 @@ public partial class Control
     /// Use this for additional context that is not part of the visual label. Changing the value
     /// raises a platform-neutral <see cref="AccessibleEvents.DescriptionChange"/> notification.
     /// </remarks>
+    [Category("Accessibility"), DefaultValue(null)]
     public string? AccessibleDescription
     {
         get => Properties.GetObject<string>(s_accessibleDescriptionProperty);
@@ -126,6 +133,7 @@ public partial class Control
     /// };
     /// </code>
     /// </example>
+    [Category("Accessibility"), DefaultValue(null)]
     public string? AccessibleName
     {
         get => Properties.GetObject<string>(s_accessibleNameProperty);
@@ -147,6 +155,7 @@ public partial class Control
     /// <see cref="ControlAccessibleObject"/> choose an appropriate generic role. Changing the value
     /// raises a platform-neutral <see cref="AccessibleEvents.StateChange"/> notification.
     /// </remarks>
+    [Category("Accessibility"), DefaultValue(AccessibleRole.Default)]
     public AccessibleRole AccessibleRole
     {
         get => Properties.GetEnum(s_accessibleRoleProperty, AccessibleRole.Default);
@@ -175,6 +184,7 @@ public partial class Control
     /// excludes the control from its parent's active accessibility children without changing the
     /// visual tree or <see cref="Visible"/> property.
     /// </remarks>
+    [Category("Accessibility"), DefaultValue(AccessibilityView.Default)]
     public AccessibilityView AccessibilityView
     {
         get => Properties.GetEnum(s_accessibilityViewProperty, AccessibilityView.Default);
@@ -203,6 +213,7 @@ public partial class Control
     /// lifetime of the control. Accessing this property does not create native accessibility
     /// providers by itself.
     /// </remarks>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public AccessibleObject AccessibilityObject
     {
         get
@@ -259,23 +270,36 @@ public partial class Control
     /// <param name="accEvent">The accessibility event being reported.</param>
     /// <param name="objectID">A platform object identifier. Shared ModernFormsNext code normally passes <c>0</c>.</param>
     /// <param name="childID">The child identifier, or <c>0</c> for this control.</param>
+    /// <remarks>
+    /// Call on the UI thread. Peer observers and the existing platform notification route both
+    /// run before failures are propagated; multiple failures are aggregated.
+    /// </remarks>
     public void NotifyAccessibilityClients(AccessibleEvents accEvent, int objectID, int childID)
     {
+        Exception? failure = null;
         if (IsAccessibilityObjectCreated)
         {
+            bool previous = raising_accessibility_notification;
             raising_accessibility_notification = true;
 
             try
             {
                 AccessibilityObject.NotifyClients(accEvent, objectID, childID);
             }
+            catch (Exception error) { failure = error; }
             finally
             {
-                raising_accessibility_notification = false;
+                raising_accessibility_notification = previous;
             }
         }
 
-        NotifyPlatformAccessibilityClients(accEvent, objectID, childID);
+        // The peer's user observers cannot prevent the existing platform route from seeing the
+        // committed change. Preserve failures after both routes have finished mandatory delivery.
+        try { NotifyPlatformAccessibilityClients(accEvent, objectID, childID); }
+        catch (Exception error) {
+            failure = failure is null ? error : new AggregateException("Accessibility observer and platform notification failed.", failure, error);
+        }
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     /// <summary>
@@ -344,7 +368,7 @@ public partial class Control
                 objectID,
                 childID);
         }
-        else
+        else if ((int)accEvent >= 0)
         {
             service.NotifyClients(owner.window, (int)accEvent, objectID, childID);
         }

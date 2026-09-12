@@ -9,7 +9,7 @@ using PlatformRect = ModernFormsNext.WindowKit.Rect;
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
 [Collection(WindowsUiCollection.Name)]
-public sealed class WindowsUiaProviderTests
+public sealed partial class WindowsUiaProviderTests
 {
     private const int ActionInvoke = 1 << 0;
     private const int ActionToggle = 1 << 1;
@@ -761,7 +761,7 @@ public sealed class WindowsUiaProviderTests
         StructureChangeType ChangeType,
         int[]? RuntimeId);
 
-    private sealed class TestAccessibleObject : IPlatformUiaAccessibleObject
+    private sealed partial class TestAccessibleObject : IPlatformUiaAccessibleObject
     {
         private static long nextRuntimeId;
 
@@ -784,7 +784,7 @@ public sealed class WindowsUiaProviderTests
 
         public long RuntimeId { get; }
 
-        public string? AutomationId { get; set; }
+        public string? AutomationId { get => AutomationIdReader is { } read ? read() : privacyAutomationId; set => privacyAutomationId = value; }
 
         public int ControlType { get; }
 
@@ -796,13 +796,13 @@ public sealed class WindowsUiaProviderTests
 
         public string? DefaultAction => null;
 
-        public string? Description { get; set; }
+        public string? Description { get => DescriptionReader is { } read ? read() : privacyDescription; set => privacyDescription = value; }
 
-        public string? Help { get; set; }
+        public string? Help { get => HelpReader is { } read ? read() : privacyHelp; set => privacyHelp = value; }
 
         public string? KeyboardShortcut => null;
 
-        public string? Name { get; set; }
+        public string? Name { get => NameReader is { } read ? read() : privacyName; set => privacyName = value; }
 
         public IPlatformAccessibleObject? Parent => ParentObject;
 
@@ -812,11 +812,11 @@ public sealed class WindowsUiaProviderTests
 
         public bool IsSensitive { get; set; }
 
-        public PlatformAccessibleRangeValue? RangeValue { get; set; }
+        public PlatformAccessibleRangeValue? RangeValue { get => RangeReader is { } read ? read() : privacyRange; set => privacyRange = value; }
 
         public int SupportedActions { get; set; }
 
-        public string? Value { get; set; }
+        public string? Value { get => ValueReader is { } read ? read() : privacyValue; set => privacyValue = value; }
 
         public TestAccessibleObject AddChild(TestAccessibleObject child)
         {
@@ -835,6 +835,7 @@ public sealed class WindowsUiaProviderTests
                 return false;
 
             LastAction = action;
+            LastParameter = parameter;
             if (action == ActionSetValue)
             {
                 if (RangeValue is { } range && parameter is double numeric)

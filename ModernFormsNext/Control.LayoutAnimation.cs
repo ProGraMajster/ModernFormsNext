@@ -173,6 +173,12 @@ public partial class Control
     // IME caret corners use the same presentation transform without rounding each ancestor.
     internal PointF ClientPointToParentPresentation(PointF clientPoint)
     {
+        // Ordinary buffers are composed at the integer ScaledLeft/Top origin, without
+        // stretching to fractional presentation bounds. Match that exact paint path;
+        // rounding the logical origin again shifts accessibility and input at fractional DPI.
+        if (!HasRenderTransform && !HasDistinctPresentationBounds)
+            return new PointF(ScaledLeft + clientPoint.X, ScaledTop + clientPoint.Y);
+
         RectangleF presentation = ScaledPresentationBounds;
         int targetWidth = ScaledWidth;
         int targetHeight = ScaledHeight;
@@ -197,6 +203,12 @@ public partial class Control
 
     private bool TryParentPresentationPointToClient(Point parentPoint, out PointF clientPoint)
     {
+        if (!HasRenderTransform && !HasDistinctPresentationBounds)
+        {
+            clientPoint = new PointF(parentPoint.X - ScaledLeft, parentPoint.Y - ScaledTop);
+            return ScaledWidth > 0 && ScaledHeight > 0;
+        }
+
         RectangleF presentation = ScaledPresentationBounds;
         int targetWidth = ScaledWidth;
         int targetHeight = ScaledHeight;
@@ -238,12 +250,7 @@ public partial class Control
         return float.IsFinite(clientPoint.X) && float.IsFinite(clientPoint.Y);
     }
 
-    internal void DrawBackBuffer(SKCanvas canvas, SKBitmap buffer, float parentOffsetX = 0f, float parentOffsetY = 0f)
-    {
-        ArgumentNullException.ThrowIfNull(canvas);
-        ArgumentNullException.ThrowIfNull(buffer);
-
-        bool hasRenderTransform =
+    private bool HasRenderTransform =>
             EffectiveOpacity < 0.999f ||
             Math.Abs(EffectiveRotation) > 0.0001f ||
             Math.Abs(EffectiveScaleX - 1f) > 0.0001f ||
@@ -251,6 +258,12 @@ public partial class Control
             Math.Abs(EffectiveTranslationX) > 0.0001f ||
             Math.Abs(EffectiveTranslationY) > 0.0001f;
 
+    internal void DrawBackBuffer(SKCanvas canvas, SKBitmap buffer, float parentOffsetX = 0f, float parentOffsetY = 0f)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        bool hasRenderTransform = HasRenderTransform;
         bool hasPresentationTransform = HasDistinctPresentationBounds;
         if (!hasRenderTransform && !hasPresentationTransform)
         {

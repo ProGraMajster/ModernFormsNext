@@ -52,6 +52,12 @@ public record PlatformColorValues
     /// System high contrast preference.
     /// </summary>
     public ColorContrastPreference ContrastPreference { get; init; }
+
+    /// <summary>Gets the detected system content background, or null when no palette value is available.</summary>
+    public Color? BackgroundColor { get; init; }
+
+    /// <summary>Gets the detected system content foreground, or null when no palette value is available.</summary>
+    public Color? ForegroundColor { get; init; }
     
     /// <summary>
     /// Primary system accent color.
@@ -83,4 +89,13 @@ public record PlatformColorValues
     {
         AccentColor1 = DefaultAccent;
     }
+
+    // Copy known storage without invoking a derived record's virtual Clone, retaining its
+    // payload, or normalizing optional accent backing fields (which would alter record equality).
+    internal PlatformColorValues Detach() => new()
+    {
+        ThemeVariant = ThemeVariant, ContrastPreference = ContrastPreference,
+        AccentColor1 = AccentColor1, _accentColor2 = _accentColor2, _accentColor3 = _accentColor3,
+        BackgroundColor = BackgroundColor, ForegroundColor = ForegroundColor
+    };
 }

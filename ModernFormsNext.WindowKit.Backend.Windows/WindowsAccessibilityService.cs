@@ -26,7 +26,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
 
             var handle = owner.Handle.Handle;
 
-            if (handle == IntPtr.Zero || eventId == 0)
+            // Negative IDs are framework metadata notifications, never native WinEvent IDs.
+            if (handle == IntPtr.Zero || eventId <= 0)
                 return;
 
             var host = owner.TryGetFeature<IPlatformAccessibilityHost>();

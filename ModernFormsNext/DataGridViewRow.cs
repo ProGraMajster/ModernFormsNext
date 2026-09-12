@@ -13,6 +13,11 @@ namespace ModernFormsNext
         private int height = 25;
         private DataGridView? owner;
 
+        // Attachment epochs distinguish sorting (same lifetime) from removal and reinsertion.
+        internal long OwnershipVersion { get; private set; }
+        internal System.Collections.IList? BoundSource { get; set; }
+        internal object? BoundItem { get; set; }
+
         /// <summary>
         /// Initializes a new instance of the DataGridViewRow class.
         /// </summary>
@@ -75,6 +80,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Sets the owning DataGridView.
         /// </summary>
-        internal void SetOwner(DataGridView? dataGridView) => owner = dataGridView;
+        internal void SetOwner(DataGridView? dataGridView)
+        {
+            if (ReferenceEquals(owner, dataGridView)) return;
+            owner = dataGridView;
+            OwnershipVersion++;
+        }
     }
 }

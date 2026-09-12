@@ -53,6 +53,10 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void InsertItem(int index, DataGridViewColumn item)
         {
+            ArgumentNullException.ThrowIfNull(item);
+            if (index < 0 || index > Count) throw new ArgumentOutOfRangeException(nameof(index));
+            if (item.DataGridView is not null || Contains(item))
+                throw new ArgumentException("A column must be removed from its current grid before it can be inserted.", nameof(item));
             item.SetOwner(owner);
             base.InsertItem(index, item);
             owner.OnColumnsChanged();
@@ -69,6 +73,10 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void SetItem(int index, DataGridViewColumn item)
         {
+            ArgumentNullException.ThrowIfNull(item);
+            if (ReferenceEquals(this[index], item)) return;
+            if (item.DataGridView is not null || Contains(item))
+                throw new ArgumentException("A column must be removed from its current grid before it can be inserted.", nameof(item));
             this[index].SetOwner(null);
             item.SetOwner(owner);
             base.SetItem(index, item);

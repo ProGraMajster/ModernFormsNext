@@ -34,7 +34,9 @@ logical list, tree, tab, menu, and custom children participate in the same fragm
 sibling, hit-test, and focus navigation delegate to the canonical object.
 
 Provider wrappers are cached per HWND with weak semantic keys. A living semantic object keeps the
-same provider and runtime ID across reorder operations. A detached child returns
+same provider and runtime ID across reorder operations. Each retained provider validates the
+complete current ancestry against its captured fragment root before and after semantic reads.
+A detached child, including a descendant of a detached container, returns
 `UIA_E_ELEMENTNOTAVAILABLE`; destroying the HWND invalidates the context and disconnects its root
 provider after the inbound window message has returned.
 
@@ -65,24 +67,35 @@ Pattern availability follows canonical capabilities:
 | ExpandCollapse | expand/collapse actions and expanded/collapsed state |
 | Selection | supported selection-container control types |
 | SelectionItem | `AccessibleActions.Select` and the canonical parent |
+| Scroll | `AccessibleScrollInfo` and typed `AccessibleScrollRequest` |
 | ScrollItem | `AccessibleActions.ScrollIntoView` |
+| Text / Text2 | The optional canonical text provider and revocable text ranges |
 
 `Invoke`, `Toggle`, value changes, range changes, expand/collapse, selection, scrolling into view,
 and focus all route through the canonical action or selection path. They do not invoke framework
 events or mutate control fields directly. List-box add/remove selection honors its real
 single/multiple selection mode.
 
-Full `TextPattern` is deferred because the shared model does not yet expose stable text ranges.
-Full `ScrollPattern` is also deferred until the shared controls have a canonical scroll viewport
-contract; advertising it now would create behavior that controls cannot honor. Logical items do
-expose `ScrollItemPattern` where `ScrollIntoView` is real.
+`ScrollPattern` exposes the six native axis metrics and routes percentages and small/page amounts
+through the same control scrollbars. Its native `-1` no-scroll sentinel is translated at this
+boundary, while public requests use nullable axes. See [scroll viewports](scroll-viewports.md)
+for row-aligned limits, geometry, typed actions and Android mapping. Logical items expose
+`ScrollItemPattern` where `ScrollIntoView` is real. See [text accessibility](../accessibility-text.md)
+for the supported text attributes, ranges, selection and lifetime rules.
 
 ## Privacy, threading, and failures
 
-Password controls report `IsPassword = true`. Their plaintext is never returned through the Value
-property or Value pattern getter; the getter fails predictably, while an enabled editable password
-control can still accept a replacement through the normal canonical `SetValue` action. Native
-callbacks report `E_ACCESSDENIED` for password reads. UIA
+Sensitive controls and descendants of protected ancestors report `IsPassword = true`. The backend
+checks the current ancestry before and after reading payloads, so a custom getter that marks its
+ancestor protected cannot export descendant metadata. Names, help, identifiers and custom class
+names of those descendants are redacted. A password field's own explicit label, help and identifier
+remain available so it can be identified. Value and retained numeric range reads fail with `E_ACCESSDENIED`. Protected
+scroll, grid and text metadata is unavailable. These guards do not read payload getters when the
+ancestor is already protected.
+
+An enabled editable password control retains its write-only Value pattern and can accept a
+replacement through canonical `SetValue`; this path does not read the previous value. Ordinary
+non-payload actions, such as focus or invoke, retain their canonical capability checks. UIA
 diagnostics include exception types only and never include names or values.
 
 All semantic reads and mutations cross the framework dispatcher. Calls already on the UI thread
@@ -95,7 +108,9 @@ boundary instead of escaping through the native callback.
 
 Canonical notifications map to UIA focus, property, selection, and structure notifications.
 Name/help/value/range/bounds/enabled/toggle/expand/selection state are mapped to their corresponding
-UIA property IDs. Password value notifications are suppressed. Reorder notifications use
+UIA property IDs. Payload notifications use the same ancestor privacy checks; protected value and
+numeric range notifications are suppressed. Scroll changes publish the current six axis properties
+and pattern availability. Reorder notifications use
 an event-only snapshot of child runtime IDs to distinguish `ChildAdded`, `ChildRemoved`, bulk
 changes, and `ChildrenReordered` without retaining semantic nodes or building another hierarchy.
 The native runtime-ID argument is supplied only for `ChildRemoved`, as required by
@@ -107,13 +122,27 @@ reports a listening client.
 
 `WindowsUiaProviderTests` covers properties, control types, views, pattern availability and
 behavior, logical/custom navigation, reorder/removal identity, password redaction, range metadata,
-selection, focus, dispatcher routing, event mapping, COM interface exposure, and disposal.
+selection, focus, dispatcher routing, event mapping, COM interface exposure, and disposal. Phase 4
+adds direct Scroll COM vtable checks for method order and native Boolean width, protected-ancestor
+and privacy-changing getter regressions, and retained descendant ancestry checks.
 
 The real integration smoke uses two test-only processes. The host creates and shows a real
 ModernFormsNext HWND. An isolated Windows UIA client calls `AutomationElement.FromHandle`, finds a
 semantic child, queries properties, obtains `InvokePattern`, invokes the control, sets focus, and
 then the test closes the window and verifies a clean process exit. This intentionally avoids a
 synthetic `WM_GETOBJECT` message.
+
+The test-only `--scroll` scenario additionally queries all six Scroll metrics through a real
+cross-process UIA client, scrolls by percentage and amount, reveals an offscreen child, preserves
+focus within the canonical Scroll action and verifies invalid requests and disabled-owner behavior. This is automated HWND/client
+coverage; it does not replace the manual accessibility-tool checklist below.
+
+The client's focus policy is separate from scrolling. Windows UIAutomationCore normally sends a
+distinct `SetFocus` before many pattern actions, as documented by
+[`IUIAutomation2.AutoSetFocus`](https://learn.microsoft.com/en-us/windows/win32/api/uiautomationclient/nf-uiautomationclient-iuiautomation2-put_autosetfocus).
+The framework honors this explicit request. Therefore a complete UIA client call can change focus
+even though the canonical Scroll action preserves the focus owner present at its entry. The native
+test observes entry/exit around the real action; it does not silently restore the client's old focus.
 
 ## Manual inspection checklist
 
@@ -143,5 +172,10 @@ not mark it complete.
 21. Inspect a custom semantic child that has no backing `Control`.
 22. Close and reopen the window and confirm stale elements disappear without client or app crashes.
 
-Screen-reader smoke testing remains a separate manual step. Android accessibility, TalkBack, Linux,
-macOS, developer tooling, agent automation, and broader Phase 4 coverage are outside this backend.
+Screen-reader smoke testing remains a separate manual step. This backend now projects the Phase 4
+Scroll, Grid/Table and Text capabilities of the shared model; final-source validation is recorded
+separately from the historical Phase 2 result. [Android/TalkBack](../android-accessibility.md) use
+their own provider and evidence. [Snapshot diagnostics and Designer](diagnostics-and-designer.md)
+and the [Windows automation bridge](../automation-live-bridge.md) consume the canonical model as
+separate components. Full inspector/picker UI, future recycled containers, Linux/macOS backends
+and broader physical-device coverage remain separate work.

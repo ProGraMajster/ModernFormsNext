@@ -132,7 +132,8 @@ public sealed class WindowsAutomationClient : IAsyncDisposable
     public async Task<AutomationActionResult> PerformActionAsync(string rootId, AutomationNodeHandle handle, AccessibleActions action,
         AutomationActionValue? value = null, CancellationToken cancellationToken = default)
         => Protocol.Read<AutomationActionResult>(await Call(RequestKind.PerformAction,
-            new() { RootId = rootId, Handle = handle, Action = action, Text = value?.Text, Number = value?.Number }, cancellationToken).ConfigureAwait(false));
+            new() { RootId = rootId, Handle = handle, Action = action, Text = value?.Text, Number = value?.Number,
+                Scroll = ScrollOperation.From(value?.Scroll) }, cancellationToken).ConfigureAwait(false));
 
     /// <summary>Waits on a canonical predicate in the application, using notifications and bounded reconciliation.</summary>
     /// <param name="rootId">The registration scope.</param>

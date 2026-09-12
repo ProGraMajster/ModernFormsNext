@@ -10,7 +10,7 @@ namespace ModernFormsNext
     /// Represents a control that displays a numeric value and allows the user
     /// to increment, decrement, or manually edit the value.
     /// </summary>
-    public class NumericUpDown : Control
+    public partial class NumericUpDown : Control
     {
         private decimal currentValue;
         private decimal minimum;
@@ -105,6 +105,10 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the current numeric value.
         /// </summary>
+        /// <remarks>The stored value remains <see cref="decimal"/>. Accessibility range
+        /// metadata uses finite doubles (Android may project floats), so native clients cannot
+        /// distinguish every decimal. Semantic numeric writes use the same precision rounding
+        /// and inclusive limits as this property; advertised endpoints remain writable.</remarks>
         public decimal Value {
             get => currentValue;
             set => SetValue (value, true);
@@ -116,17 +120,19 @@ namespace ModernFormsNext
         public decimal Minimum {
             get => minimum;
             set {
-                minimum = value;
+                ChangeRange(() => {
+                    minimum = value;
 
-                if (maximum < minimum)
-                    maximum = minimum;
+                    if (maximum < minimum)
+                        maximum = minimum;
 
-                if (currentValue < minimum)
-                    SetValue (minimum, true);
-                else
-                    UpdateEditText ();
+                    if (currentValue < minimum)
+                        SetValue (minimum, true);
+                    else
+                        UpdateEditText ();
 
-                Invalidate ();
+                    Invalidate ();
+                });
             }
         }
 
@@ -136,17 +142,19 @@ namespace ModernFormsNext
         public decimal Maximum {
             get => maximum;
             set {
-                maximum = value;
+                ChangeRange(() => {
+                    maximum = value;
 
-                if (minimum > maximum)
-                    minimum = maximum;
+                    if (minimum > maximum)
+                        minimum = maximum;
 
-                if (currentValue > maximum)
-                    SetValue (maximum, true);
-                else
-                    UpdateEditText ();
+                    if (currentValue > maximum)
+                        SetValue (maximum, true);
+                    else
+                        UpdateEditText ();
 
-                Invalidate ();
+                    Invalidate ();
+                });
             }
         }
 
@@ -160,11 +168,13 @@ namespace ModernFormsNext
         public decimal Increment {
             get => increment;
             set {
-                if (value <= 0m)
-                    throw new ArgumentOutOfRangeException (nameof (Increment), "Increment must be greater than zero.");
+                ChangeRange(() => {
+                    if (value <= 0m)
+                        throw new ArgumentOutOfRangeException (nameof (Increment), "Increment must be greater than zero.");
 
-                autoIncrement = false;
-                increment = value;
+                    autoIncrement = false;
+                    increment = value;
+                });
             }
         }
 
@@ -178,22 +188,25 @@ namespace ModernFormsNext
         public int DecimalPlaces {
             get => decimalPlaces;
             set {
-                if (value < 0 || value > 28)
-                    throw new ArgumentOutOfRangeException (nameof (DecimalPlaces), "DecimalPlaces must be between 0 and 28.");
+                ChangeRange(() => {
+                    if (value < 0 || value > 28)
+                        throw new ArgumentOutOfRangeException (nameof (DecimalPlaces), "DecimalPlaces must be between 0 and 28.");
 
-                decimalPlaces = value;
+                    decimalPlaces = value;
 
-                if (decimalPlaces > 0)
-                    allowDecimalValues = true;
+                    if (decimalPlaces > 0)
+                        allowDecimalValues = true;
 
-                if (!allowDecimalValues)
-                    decimalPlaces = 0;
+                    if (!allowDecimalValues)
+                        decimalPlaces = 0;
 
-                UpdateIncrementFromSettings ();
+                    UpdateIncrementFromSettings ();
 
-                currentValue = RoundToConfiguredPrecision (currentValue);
-                UpdateEditText ();
-                Invalidate ();
+                    currentValue = Clamp(RoundToConfiguredPrecision (currentValue), minimum, maximum);
+                    valueVersion++;
+                    UpdateEditText ();
+                    Invalidate ();
+                });
             }
         }
 
@@ -204,18 +217,21 @@ namespace ModernFormsNext
         public bool AllowDecimalValues {
             get => allowDecimalValues;
             set {
-                if (allowDecimalValues == value)
-                    return;
+                ChangeRange(() => {
+                    if (allowDecimalValues == value)
+                        return;
 
-                allowDecimalValues = value;
+                    allowDecimalValues = value;
 
-                if (!allowDecimalValues)
-                    decimalPlaces = 0;
+                    if (!allowDecimalValues)
+                        decimalPlaces = 0;
 
-                UpdateIncrementFromSettings ();
-                currentValue = RoundToConfiguredPrecision (currentValue);
-                UpdateEditText ();
-                Invalidate ();
+                    UpdateIncrementFromSettings ();
+                    currentValue = Clamp(RoundToConfiguredPrecision (currentValue), minimum, maximum);
+                    valueVersion++;
+                    UpdateEditText ();
+                    Invalidate ();
+                });
             }
         }
 
@@ -226,13 +242,15 @@ namespace ModernFormsNext
         public bool AutoIncrement {
             get => autoIncrement;
             set {
-                if (autoIncrement == value)
-                    return;
+                ChangeRange(() => {
+                    if (autoIncrement == value)
+                        return;
 
-                autoIncrement = value;
+                    autoIncrement = value;
 
-                if (autoIncrement)
-                    UpdateIncrementFromSettings ();
+                    if (autoIncrement)
+                        UpdateIncrementFromSettings ();
+                });
             }
         }
 
@@ -403,12 +421,15 @@ namespace ModernFormsNext
         /// <param name="e">The mouse event data.</param>
         protected override void OnMouseDown (MouseEventArgs e)
         {
+            var lifetime = new AccessibilityControlLifetime(this);
             base.OnMouseDown (e);
+            if (!IsCurrentNumericInput(lifetime) || e.Handled) return;
 
             if (!Enabled || e.Button != MouseButtons.Left)
                 return;
 
             Select ();
+            if (!IsCurrentNumericInput(lifetime)) return;
 
             if (UpButtonBounds.Contains (e.Location)) {
                 upButtonPressed = true;
@@ -429,13 +450,16 @@ namespace ModernFormsNext
         /// <param name="e">The mouse event data.</param>
         protected override void OnMouseUp (MouseEventArgs e)
         {
+            var lifetime = new AccessibilityControlLifetime(this);
+            bool wasUp = upButtonPressed, wasDown = downButtonPressed;
+            upButtonPressed = downButtonPressed = false;
             base.OnMouseUp (e);
 
-            if (!Enabled || e.Button != MouseButtons.Left)
+            if (!IsCurrentNumericInput(lifetime) || e.Handled || e.Button != MouseButtons.Left)
                 return;
 
-            var doUp = upButtonPressed && UpButtonBounds.Contains (e.Location);
-            var doDown = downButtonPressed && DownButtonBounds.Contains (e.Location);
+            var doUp = wasUp && UpButtonBounds.Contains (e.Location);
+            var doDown = wasDown && DownButtonBounds.Contains (e.Location);
 
             upButtonPressed = false;
             downButtonPressed = false;
@@ -445,6 +469,7 @@ namespace ModernFormsNext
 
             Invalidate ();
 
+            if (!IsCurrentNumericInput(lifetime)) return;
             if (doUp)
                 UpButton ();
             else if (doDown)
@@ -457,7 +482,9 @@ namespace ModernFormsNext
         /// <param name="e">The mouse event data.</param>
         protected override void OnMouseWheel (MouseEventArgs e)
         {
+            var lifetime = new AccessibilityControlLifetime(this);
             base.OnMouseWheel (e);
+            if (!IsCurrentNumericInput(lifetime) || e.Handled) return;
 
             if (e.Handled || !Enabled)
                 return;
@@ -477,7 +504,9 @@ namespace ModernFormsNext
         /// <param name="e">The key event data.</param>
         protected override void OnKeyDown (KeyEventArgs e)
         {
+            var lifetime = new AccessibilityControlLifetime(this);
             base.OnKeyDown (e);
+            if (!IsCurrentNumericInput(lifetime) || e.Handled) return;
 
             if (!Enabled)
                 return;
@@ -500,8 +529,7 @@ namespace ModernFormsNext
         /// </summary>
         public void UpButton ()
         {
-            ValidateEditText (false);
-            SetValue (currentValue + increment, true);
+            StepValue(true);
         }
 
         /// <summary>
@@ -509,8 +537,7 @@ namespace ModernFormsNext
         /// </summary>
         public void DownButton ()
         {
-            ValidateEditText (false);
-            SetValue (currentValue - increment, true);
+            StepValue(false);
         }
 
         /// <summary>
@@ -519,8 +546,7 @@ namespace ModernFormsNext
         /// <param name="e">The event data.</param>
         protected virtual void OnValueChanged (EventArgs e)
         {
-            ValueChanged?.Invoke (this, e);
-            NotifyAccessibilityClients (AccessibleEvents.ValueChange);
+            RunWithAccessibilityNotification(() => ValueChanged?.Invoke(this, e), AccessibleEvents.ValueChange);
         }
 
         /// <summary>
@@ -542,6 +568,7 @@ namespace ModernFormsNext
 
                 if (parsed != currentValue) {
                     currentValue = parsed;
+                    valueVersion++;
                     OnValueChanged (EventArgs.Empty);
                 }
             }
@@ -613,20 +640,30 @@ namespace ModernFormsNext
             }
 
             currentValue = clamped;
-            UpdateEditText ();
-
-            if (raiseEvent)
-                OnValueChanged (EventArgs.Empty);
-
-            Invalidate ();
+            long version = ++valueVersion;
+            var lifetime = new AccessibilityControlLifetime(this);
+            Exception? failure = null;
+            try { UpdateEditText(); }
+            catch (Exception exception) { failure = exception; }
+            try
+            {
+                if (raiseEvent && version == valueVersion && lifetime.IsCurrent && !Disposing)
+                    OnValueChanged(EventArgs.Empty);
+            }
+            catch (Exception exception) { failure = CombineFailure(failure, exception); }
+            try { if (lifetime.IsCurrent && !Disposing) Invalidate(); }
+            catch (Exception exception) { failure = CombineFailure(failure, exception); }
+            ThrowFailure(failure);
         }
 
         private void ValidateEditText (bool raiseCommittedEvent)
         {
+            if (IsDisposed || Disposing || editor.IsDisposed) return;
+            var lifetime = new AccessibilityControlLifetime(this);
             if (TryParseEditText (editor.Text, out var parsed)) {
                 SetValue (parsed, true);
 
-                if (raiseCommittedEvent)
+                if (raiseCommittedEvent && lifetime.IsCurrent && !Disposing)
                     OnValueCommitted (EventArgs.Empty);
             } else {
                 UpdateEditText ();
@@ -656,9 +693,11 @@ namespace ModernFormsNext
 
         private void UpdateEditText ()
         {
+            if (IsDisposed || Disposing || editor.IsDisposed) return;
+            bool previous = updatingEditorText;
             updatingEditorText = true;
-            editor.Text = FormatValue (currentValue);
-            updatingEditorText = false;
+            try { editor.Text = FormatValue(currentValue); }
+            finally { updatingEditorText = previous; }
         }
 
         private string FormatValue (decimal value)
@@ -727,44 +766,49 @@ namespace ModernFormsNext
 
         private void UpdateEditorBounds ()
         {
-            editor.Bounds = TextBounds;
+            if (editor is null || editor.IsDisposed) return;
+            editor.Bounds = GetLogicalTextBounds();
+        }
+
+        // Children store integer logical Bounds. Align the device client edges inward to that
+        // grid once, then derive both the real editor and rendered buttons from the same source.
+        // Converting each device rectangle back separately loses a 1px border at fractional DPI.
+        private Rectangle GetLogicalContentBounds()
+        {
+            var client = ClientRectangle;
+            var scale = ScaleFactor;
+            int left = (int)Math.Ceiling(client.Left / (double)scale.Width);
+            int top = (int)Math.Ceiling(client.Top / (double)scale.Height);
+            int right = Math.Max(left, (int)Math.Floor(client.Right / (double)scale.Width));
+            int bottom = Math.Max(top, (int)Math.Floor(client.Bottom / (double)scale.Height));
+            return Rectangle.FromLTRB(left, top, right, bottom);
+        }
+
+        private Rectangle GetLogicalTextBounds()
+        {
+            var content = GetLogicalContentBounds();
+            content.Width = Math.Max(0, content.Width - 18);
+            return content;
         }
 
         private Rectangle GetTextBounds ()
-        {
-            var client = ClientRectangle;
-            var buttonWidth = LogicalToDeviceUnits (18);
-
-            return new Rectangle (
-                client.Left,
-                client.Top,
-                Math.Max (0, client.Width - buttonWidth),
-                client.Height);
-        }
+            => GetScaledBounds(GetLogicalTextBounds(), ScaleFactor, BoundsSpecified.All);
 
         private Rectangle GetUpButtonBounds ()
         {
-            var client = ClientRectangle;
-            var buttonWidth = LogicalToDeviceUnits (18);
-
-            return new Rectangle (
-                client.Right - buttonWidth,
-                client.Top,
-                buttonWidth,
-                client.Height / 2);
+            var content = GetLogicalContentBounds();
+            int buttonWidth = Math.Min(18, content.Width);
+            return GetScaledBounds(new Rectangle(content.Right - buttonWidth, content.Top,
+                buttonWidth, content.Height / 2), ScaleFactor, BoundsSpecified.All);
         }
 
         private Rectangle GetDownButtonBounds ()
         {
-            var client = ClientRectangle;
-            var buttonWidth = LogicalToDeviceUnits (18);
-            var topHeight = client.Height / 2;
-
-            return new Rectangle (
-                client.Right - buttonWidth,
-                client.Top + topHeight,
-                buttonWidth,
-                client.Height - topHeight);
+            var content = GetLogicalContentBounds();
+            int buttonWidth = Math.Min(18, content.Width);
+            int topHeight = content.Height / 2;
+            return GetScaledBounds(new Rectangle(content.Right - buttonWidth, content.Top + topHeight,
+                buttonWidth, content.Height - topHeight), ScaleFactor, BoundsSpecified.All);
         }
 
         private static decimal Clamp (decimal value, decimal min, decimal max)
@@ -792,6 +836,23 @@ namespace ModernFormsNext
             public NumericUpDownTextBox (NumericUpDown owner)
             {
                 this.owner = owner;
+            }
+
+            protected override AccessibleObject CreateAccessibilityInstance()
+                => new NumericEditorAccessibleObject(this);
+
+            private sealed class NumericEditorAccessibleObject(NumericUpDownTextBox editor) : ControlAccessibleObject(editor)
+            {
+                public override AccessibleObject? Navigate(AccessibleNavigation direction)
+                    => direction == AccessibleNavigation.Next && Parent is { } parent ? parent.GetChild(1)
+                        : direction == AccessibleNavigation.Previous ? null : base.Navigate(direction);
+
+                public override string? Name
+                {
+                    get => Owner is NumericUpDownTextBox live && !live.IsDisposed
+                        ? live.AccessibleName ?? live.owner.AccessibilityObject.Name : null;
+                    set => base.Name = value;
+                }
             }
 
             /// <summary>

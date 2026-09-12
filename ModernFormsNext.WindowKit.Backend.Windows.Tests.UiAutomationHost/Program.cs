@@ -1,6 +1,24 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--grid-calendar", StringComparer.Ordinal))
+{
+    GridCalendarScenario.Run();
+    return;
+}
+
+if (args.Contains("--text", StringComparer.Ordinal))
+{
+    TextScenario.Run();
+    return;
+}
+
+if (args.Contains("--scroll", StringComparer.Ordinal))
+{
+    ScrollScenario.Run();
+    return;
+}
+
 if (args.Contains("--lifecycle", StringComparer.Ordinal))
 {
     Environment.ExitCode = LifecycleScenario.Run();

@@ -63,8 +63,10 @@ namespace ModernFormsNext.Renderers
         /// <param name="e">The paint event data.</param>
         private void DrawSeparator (NumericUpDown control, PaintEventArgs e)
         {
-            var separatorX = control.UpButtonBounds.Left;
-            var separatorBounds = new Rectangle (separatorX, 0, 1, control.Height);
+            var up = control.UpButtonBounds;
+            var down = control.DownButtonBounds;
+            var separatorBounds = new Rectangle(up.Left, up.Top,
+                Math.Max(1, control.LogicalToDeviceUnits(1)), Math.Max(0, down.Bottom - up.Top));
 
             e.Canvas.FillRectangle (separatorBounds, Theme.BorderLowColor);
         }

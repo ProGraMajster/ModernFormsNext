@@ -78,8 +78,6 @@ namespace ModernFormsNext.Renderers
             var lines = BuildLines(control.Text ?? string.Empty);
             var line_rectangles = MeasureLines(font, lines, layout.TextBounds, line_height, control.TextAlign);
 
-            var current_index = 0;
-
             for (var line_index = 0; line_index < lines.Count; line_index++)
             {
                 var line = lines[line_index];
@@ -88,12 +86,14 @@ namespace ModernFormsNext.Renderers
                 var x = line_rect.Left;
                 var baseline = line_rect.Top + baseline_offset;
 
-                for (var i = 0; i < line.Length; i++)
+                for (var i = 0; i < line.Text.Length;)
                 {
-                    var character = line[i].ToString();
+                    int characterLength = char.IsHighSurrogate(line.Text[i]) && i + 1 < line.Text.Length
+                        && char.IsLowSurrogate(line.Text[i + 1]) ? 2 : 1;
+                    var character = line.Text.Substring(i, characterLength);
                     var width = Math.Max(1f, font.MeasureText(character));
 
-                    var text_index = current_index + i;
+                    var text_index = line.Start + i;
                     var link = GetLinkAtIndex(control, text_index);
                     var bounds = Rectangle.Round(new RectangleF(x, line_rect.Top, width, line_height));
 
@@ -121,16 +121,13 @@ namespace ModernFormsNext.Renderers
                     }
 
                     x += width;
+                    i += characterLength;
                 }
 
-                current_index += line.Length;
-
-                if (line_index < lines.Count - 1)
-                    current_index += 1;
             }
         }
 
-        private void EnsureLayoutCache(LinkLabel control)
+        internal void EnsureLayoutCache(LinkLabel control)
         {
             if (!control.IsLayoutInvalidated)
                 return;
@@ -145,8 +142,6 @@ namespace ModernFormsNext.Renderers
             var lines = BuildLines(control.Text ?? string.Empty);
             var line_rectangles = MeasureLines(font, lines, layout.TextBounds, line_height, control.TextAlign);
 
-            var current_index = 0;
-
             for (var line_index = 0; line_index < lines.Count; line_index++)
             {
                 var line = lines[line_index];
@@ -154,11 +149,13 @@ namespace ModernFormsNext.Renderers
 
                 var x = line_rect.Left;
 
-                for (var i = 0; i < line.Length; i++)
+                for (var i = 0; i < line.Text.Length;)
                 {
-                    var character = line[i].ToString();
+                    int characterLength = char.IsHighSurrogate(line.Text[i]) && i + 1 < line.Text.Length
+                        && char.IsLowSurrogate(line.Text[i + 1]) ? 2 : 1;
+                    var character = line.Text.Substring(i, characterLength);
                     var width = Math.Max(1f, font.MeasureText(character));
-                    var text_index = current_index + i;
+                    var text_index = line.Start + i;
 
                     var link = GetLinkAtIndex(control, text_index);
                     if (link is not null)
@@ -168,12 +165,9 @@ namespace ModernFormsNext.Renderers
                     }
 
                     x += width;
+                    i += characterLength;
                 }
 
-                current_index += line.Length;
-
-                if (line_index < lines.Count - 1)
-                    current_index += 1;
             }
 
             control.ValidateLayout();
@@ -192,19 +186,28 @@ namespace ModernFormsNext.Renderers
                 control.CurrentStyle.GetFont(),
                 control.LogicalToDeviceUnits(control.CurrentStyle.GetFontSize()));
 
-        private static List<string> BuildLines(string text)
-        {
-            if (string.IsNullOrEmpty(text))
-                return [string.Empty];
+        private readonly record struct TextLine(string Text, int Start);
 
-            return text.Replace("\r\n", "\n").Split('\n').ToList();
+        private static List<TextLine> BuildLines(string text)
+        {
+            var lines = new List<TextLine>();
+            int start = 0;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] != '\n') continue;
+                int end = i > start && text[i - 1] == '\r' ? i - 1 : i;
+                lines.Add(new(text.Substring(start, end - start), start));
+                start = i + 1;
+            }
+            lines.Add(new(text.Substring(start), start));
+            return lines;
         }
 
         private static LinkLabel.Link? GetLinkAtIndex(LinkLabel control, int index)
         {
             foreach (var link in control.Links)
             {
-                var end = link.Start + link.Length;
+                var end = (long)link.Start + link.Length;
                 if (index >= link.Start && index < end)
                     return link;
             }
@@ -214,7 +217,7 @@ namespace ModernFormsNext.Renderers
 
         private static List<RectangleF> MeasureLines(
             SKFont font,
-            List<string> lines,
+            List<TextLine> lines,
             Rectangle available_bounds,
             float line_height,
             ContentAlignment alignment)
@@ -231,7 +234,7 @@ namespace ModernFormsNext.Renderers
 
             for (var i = 0; i < lines.Count; i++)
             {
-                var width = font.MeasureText(lines[i]);
+                var width = font.MeasureText(lines[i].Text);
                 var x = alignment switch
                 {
                     ContentAlignment.TopCenter or ContentAlignment.MiddleCenter or ContentAlignment.BottomCenter => available_bounds.Left + ((available_bounds.Width - width) / 2f),

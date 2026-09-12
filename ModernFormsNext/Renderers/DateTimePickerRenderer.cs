@@ -199,7 +199,7 @@ namespace ModernFormsNext.Renderers
                 IsAntialias = true,
                 Color = GetForegroundColor (control)
             };
-            using var font = new SKFont (GetTypeface (control), GetTextSize (control));
+            using var font = new SKFont (GetTypeface (control), GetTextSize (control) * control.ScaleFactor.Height);
 
             var metrics = font.Metrics;
             float baseline = rect.Top + ((rect.Height - (metrics.Descent - metrics.Ascent)) / 2f) - metrics.Ascent;

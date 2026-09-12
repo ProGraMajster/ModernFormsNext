@@ -879,11 +879,16 @@ public sealed class AccessibilitySemanticTests
             if (action == AccessibleActions.None || (advertised & action) == 0)
                 continue;
 
-            object? parameter = action == AccessibleActions.SetValue
-                ? accessible.ControlType == AccessibleControlType.Edit
+            object? parameter = action switch
+            {
+                AccessibleActions.SetValue => accessible.ControlType == AccessibleControlType.Edit
                     ? "updated"
-                    : accessible.RangeValue?.Value
-                : null;
+                    : accessible.RangeValue?.Value,
+                // A supported viewport may currently fit all its content. A typed request
+                // that leaves both axes unchanged is valid for that state as well.
+                AccessibleActions.Scroll => AccessibleScrollRequest.ToPercent(null, null),
+                _ => null
+            };
 
             Assert.True(
                 accessible.PerformAction(action, parameter),
