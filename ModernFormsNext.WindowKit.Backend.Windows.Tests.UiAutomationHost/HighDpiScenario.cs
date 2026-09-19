@@ -34,7 +34,7 @@ internal static partial class HighDpiScenario
                     ApplySuggestedDpi(hwnd, 1.25, new NativeRect { Left = 60, Top = 70, Right = 1560, Bottom = 970 });
                     GetWindowRect(hwnd, out var suggestedResult);
                     Require(suggestedResult.Left == 60 && suggestedResult.Top == 70 && suggestedResult.Right == 1560 && suggestedResult.Bottom == 970,
-                        $"WM_DPICHANGED did not apply the physical suggested rectangle exactly once: {suggestedResult.Left},{suggestedResult.Top}–{suggestedResult.Right},{suggestedResult.Bottom}; scale {form.Scaling}.");
+                        $"WM_DPICHANGED did not apply the physical suggested rectangle exactly once: {suggestedResult.Left},{suggestedResult.Top}-{suggestedResult.Right},{suggestedResult.Bottom}; scale {form.Scaling}.");
                     Require(form.ClientSize == new Size(1200, 720), "Suggested rectangle did not update logical client size.");
                     foreach (double scale in new[] { 1d, 1.25, 1.5, 1.75, 2, 2.25, 2.5 })
                         Measure(scale, (int)(1200 * scale), (int)(700 * scale), false);
