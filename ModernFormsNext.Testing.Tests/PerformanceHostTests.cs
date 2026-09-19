@@ -33,6 +33,7 @@ public sealed class PerformanceHostTests
         Assert.Equal(PerformanceRedraw.FullSurface, frame.RenderInfo.Redraw);
         Assert.Null(frame.RenderInfo.GpuDuration);
         Assert.Null(frame.RenderInfo.PresentationTimestamp);
+        Assert.Null(frame.RenderInfo.PresentationCpuTime);
         Assert.Null(frame.RenderInfo.GpuContextResetCount);
         Assert.Equal(prior.CopyPixels(), rendered.CopyPixels());
         Assert.Empty(window.Backend.Surfaces);

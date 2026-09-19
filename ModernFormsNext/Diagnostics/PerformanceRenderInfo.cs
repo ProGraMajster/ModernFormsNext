@@ -42,6 +42,13 @@ public readonly record struct PerformanceRenderInfo
     public TimeSpan? GpuDuration { get; init; }
     /// <summary>Gets a real presentation timestamp when supplied. Current backends report null.</summary>
     public TimeSpan? PresentationTimestamp { get; init; }
+    /// <summary>Gets CPU wall time spent submitting framebuffer pixels to the native device, when measured.</summary>
+    /// <remarks>
+    /// The Windows software backend measures its synchronous GDI transfer while profiling is enabled.
+    /// This is part of the native frame duration, not GPU time or completion of desktop composition.
+    /// Other backends report null. The copied value can be read from detached snapshots on any thread.
+    /// </remarks>
+    public TimeSpan? PresentationCpuTime { get; init; }
     /// <summary>Gets a provider's GPU context reset count, if supported.</summary>
     public long? GpuContextResetCount { get; init; }
 }

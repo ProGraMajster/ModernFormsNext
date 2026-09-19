@@ -89,6 +89,8 @@ internal static class PerformanceScenario
             "The native callback did not report its actual locked BGRA framebuffer.");
         Require(frame.RenderInfo.GpuDuration is null && frame.RenderInfo.PresentationTimestamp is null &&
             frame.Duration >= frame.Work.RenderTime, "Native callback metadata overstates GPU or presentation evidence.");
+        Require(frame.RenderInfo.PresentationCpuTime is { } transfer && transfer >= TimeSpan.Zero && transfer <= frame.Duration,
+            "Native frame did not report its bounded GDI submission time.");
     }
 
     private static void Paint(nint hwnd)

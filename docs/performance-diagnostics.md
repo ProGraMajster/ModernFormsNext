@@ -77,6 +77,7 @@ identities and control type metadata, not control names or entered text.
 | GC deltas | Optional process-wide collection counts. They do not establish that this control or frame caused collection. |
 | Shader creation / disposal | Framework-owned shader wrappers and transformed replacements in production gradient/glass/Hue/ColorBox paths. Counts cover explicit UI disposal, not native finalization, arbitrary consumer Skia objects or native-memory usage. |
 | Surface information | Actual backend, acceleration availability, scale, logical/device dimensions, format, stride and generation where the host supplies them. Unsupported data stays unavailable. |
+| `RenderInfo.PresentationCpuTime` | Elapsed wall time around the Windows GDI framebuffer submission while recording. Included in native frame duration; excludes later DWM composition. Other backends report null. For example, `frame.RenderInfo.PresentationCpuTime?.TotalMilliseconds` gives the measured submission in milliseconds. |
 | Slow frame | A callback duration exceeding the configured threshold, with bounded retained context. An idle gap by itself does not make the following render slow. |
 
 Compare frames from the same source and generation. The display uses the previous

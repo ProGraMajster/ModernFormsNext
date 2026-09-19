@@ -78,8 +78,11 @@ extracts a bounded bitmap subset before that safe copy. It does not lend mutable
 pixel storage to an image with an uncontrolled native lifetime.
 
 Windows presents damage through the BeginPaint DC and a bounded GDI transfer.
-Native memory-DC regression tests check top-down row selection and unchanged
-pixels outside damage. The diagnostic HUD/region visualizer intentionally requests
+The source pointer starts at the first damaged row; a local top-down bitmap header
+describes that row band while preserving the full framebuffer stride. Tests cover
+both DIB-section and device-dependent destinations, including damage ending at the
+bottom edge and nonzero source offsets. Both paths must preserve pixels outside damage.
+The diagnostic HUD/region visualizer intentionally requests
 full redraws; recording alone preserves partial presentation. Surface allocation
 counters cover explicit framework backbuffers, not every temporary internal Skia
 image allocation. Measurements are local elapsed work, not display-refresh/FPS
@@ -100,6 +103,6 @@ dotnet run --project ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomatio
 
 The first mode injects DPI messages on an owned HWND for all seven scales and runs
 in CI. The physical mode uses actual monitor moves and OS DPI notifications, saves
-pixel evidence and checks displayed button pixels against backing pixels. It does
+pixel evidence and checks the entire displayed client against backing pixels. It does
 not alter display settings. Pointer messages in both modes are automated inputs;
 manual hardware-pointer interaction is not implied by those results.

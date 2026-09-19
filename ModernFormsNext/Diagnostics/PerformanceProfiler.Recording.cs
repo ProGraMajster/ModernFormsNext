@@ -293,6 +293,7 @@ public sealed partial class PerformanceProfiler
         PixelWidth = info.PixelWidth, PixelHeight = info.PixelHeight, Scale = info.Scale ?? 0,
         PixelFormat = info.Format, RowBytes = info.RowBytes, BackingBytes = info.BackingBytes,
         HostGeneration = info.HostGeneration, BackingGeneration = info.BackingGeneration,
+        PresentationCpuTime = info.PresentationCpuTime,
         IsOffscreen = info.Boundary == PlatformRenderBoundary.OffscreenCapture,
         Redraw = info.FullRedraw switch { true => PerformanceRedraw.FullSurface, false => PerformanceRedraw.PartialSurface, _ => PerformanceRedraw.Unknown }
     };
@@ -312,6 +313,7 @@ public sealed partial class PerformanceProfiler
             PixelFormat = fresh.PixelFormat ?? prior.PixelFormat, RowBytes = fresh.RowBytes ?? prior.RowBytes,
             BackingBytes = fresh.BackingBytes ?? prior.BackingBytes, HostGeneration = fresh.HostGeneration ?? prior.HostGeneration,
             BackingGeneration = fresh.BackingGeneration ?? prior.BackingGeneration,
+            PresentationCpuTime = fresh.PresentationCpuTime ?? prior.PresentationCpuTime,
             IsOffscreen = prior.IsOffscreen || fresh.IsOffscreen,
             Redraw = fresh.Redraw != PerformanceRedraw.Unknown ? fresh.Redraw : prior.Redraw
         };

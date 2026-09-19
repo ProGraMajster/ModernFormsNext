@@ -389,6 +389,10 @@ public partial class Control
         ///  Removes control from this control. Inheriting controls should call
         ///  base.remove to ensure that the control is removed.
         /// </summary>
+        /// <remarks>
+        /// Invalidates the owner's composition so its background and remaining children
+        /// replace the removed child's pixels, including transformed presentation bounds.
+        /// </remarks>
         public virtual bool Remove (Control value)
         {
             // Sanity check parameter
@@ -400,6 +404,11 @@ public partial class Control
                 // A nested Add can observe the old Parent after the collection removal but
                 // before AssignParent finishes its callbacks. Do not detach that child twice.
                 value.AssignParent (null);
+
+                // The child no longer participates in NeedsPaint. Layout may leave every
+                // remaining bound unchanged, so retire the old owner's cached composition
+                // through its existing bounded invalidation path after detaching the child.
+                Owner.Invalidate ();
 
                 LayoutTransaction.DoLayout (Owner, value, PropertyNames.Parent);
                 Owner.OnControlRemoved (new EventArgs<Control> (value));
