@@ -233,3 +233,10 @@ offscreen 5K window using MaximumSize, since the runner's virtual desktop constr
 Windows' default maximum tracking size. This setting belongs only to the fixture;
 production maximum-size behavior and actual physical-monitor testing are unchanged.
 Both fixtures retain their behavioral assertions. CI must pass before merging PR #122.
+
+The visual review also confirmed that Label currently retains its specified preferred
+size rather than measuring text for AutoSize. The Gallery and DPI regression use the
+supported Panel AutoSize contract instead: growing a child from 130 to 180 logical
+pixels grows the container to exactly those widths at every scale and after return
+to 100%. The scenario's caption has explicit text bounds, avoiding a misleading
+text-driven AutoSize claim. No new label sizing feature is implied by this fix.

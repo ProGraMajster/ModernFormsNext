@@ -120,11 +120,14 @@ public sealed class HighDpiRegressionTests
         var anchored = root.Controls.Add(new Button { Bounds = new Rectangle(280, 260, 100, 30), Anchor = AnchorStyles.Right | AnchorStyles.Bottom });
         var flow = root.Controls.Add(new FlowLayoutPanel { Bounds = new Rectangle(10, 10, 220, 140), AutoScroll = true,
             FlowDirection = FlowDirection.TopDown, WrapContents = false });
-        var label = flow.Controls.Add(new Label { AutoSize = true, Text = "Logical label" });
+        var label = flow.Controls.Add(new Label { Size = new Size(140, 24), Text = "Logical label" });
         for (int index = 0; index < 8; index++) flow.Controls.Add(new Button { Size = new Size(170, 35), Text = $"Item {index}" });
+        var autoSize = root.Controls.Add(new Panel { AutoSize = true, Bounds = new Rectangle(250, 60, 120, 40) });
+        var autoChild = autoSize.Controls.Add(new Label { Size = new Size(130, 24), Margin = new Padding(0), Text = "Growing content" });
         var text = root.Controls.Add(new TextBox { Bounds = new Rectangle(10, 170, 180, 34), Text = "DPI text cache" });
         var window = host.Show(root, new TestViewport(400, 300, 1));
         window.LayoutUntilStable();
+        Assert.Equal(130, autoSize.Width);
         var labelSize = label.Size;
         var itemBounds = flow.Controls[1].Bounds;
         using var before = window.CaptureRenderedSnapshot();
@@ -133,6 +136,10 @@ public sealed class HighDpiRegressionTests
         Assert.Equal(new Size(400, 300), root.ClientSize);
         Assert.InRange(Math.Abs(label.Width - labelSize.Width), 0, 2); // Font hinting may round one logical pixel differently.
         Assert.Equal(itemBounds.Size, flow.Controls[1].Size);
+        Assert.Equal(130, autoSize.Width);
+        autoChild.Width = 180;
+        window.LayoutUntilStable();
+        Assert.Equal(180, autoSize.Width);
         window.Resize(500, 400);
         Assert.Equal(new Rectangle(380, 360, 100, 30), anchored.Bounds);
         int scroll = flow.VerticalScrollProperties.Value;
@@ -149,6 +156,7 @@ public sealed class HighDpiRegressionTests
         window.SetRenderScale(1);
         window.LayoutUntilStable();
         Assert.Equal(labelSize, label.Size);
+        Assert.Equal(180, autoSize.Width);
         Assert.Equal("DPI text cache", text.Text);
         window.Input.Click(anchored);
     }

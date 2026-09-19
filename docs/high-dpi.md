@@ -88,7 +88,7 @@ promises. See [the audit and measurements](development/issue-120-high-dpi.md).
 ## Reproduction
 
 ControlGallery's **High DPI** page contains nested/docked panels, an icon/text
-button, centered setup card, AutoSize label, anchored button with a layout transition,
+button, centered setup card, AutoSize caption container, anchored button with a layout transition,
 scrolling and a ComboBox popup. Move it between monitors, resize/maximize and return.
 The existing Windows UiAutomationHost also provides:
 

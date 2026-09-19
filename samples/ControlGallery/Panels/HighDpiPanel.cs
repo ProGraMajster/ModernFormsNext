@@ -25,7 +25,10 @@ public sealed class HighDpiPanel : BasePanel
             Text = "Move the window between monitors. Resize, maximize, hover and press the button. Scroll the list; open the popup." });
         card = content.Controls.Add(new Panel { Size = new Size(460, 290), Padding = new Padding(16) });
         card.Style.Border.Width = 1;
-        card.Controls.Add(new Label { Text = "Centered setup overlay", AutoSize = true, Location = new Point(16, 12) });
+        // Panel computes its preferred size from child bounds. Label currently keeps
+        // its specified preferred size, so use the supported container AutoSize contract.
+        var caption = card.Controls.Add(new Panel { AutoSize = true, Size = new Size(20, 20), Location = new Point(16, 12) });
+        caption.Controls.Add(new Label { Text = "Centered setup overlay", Size = new Size(220, 24), Margin = new Padding(0) });
         var combo = card.Controls.Add(new ComboBox { Bounds = new Rectangle(16, 50, 260, 34) });
         combo.Items.Add("Popup placement"); combo.Items.Add("Second choice"); combo.SelectedIndex = 0;
         var scroll = card.Controls.Add(new FlowLayoutPanel { Bounds = new Rectangle(16, 94, 280, 172), AutoScroll = true,
