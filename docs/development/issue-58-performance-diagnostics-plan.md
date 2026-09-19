@@ -185,3 +185,24 @@ and merge with the repository's normal merge-commit strategy once safe. Parent i
 OPEN/PARTIAL is not a reason to leave validated scope Draft. Fetch/pull the merged
 master before auditing #61. Implementation findings may refine this plan through
 documented compatible corrections; breaking API/package decisions require the owner.
+
+## Priority revision — 2026-09-19
+
+The owner's new instruction supersedes the queue and the completion scope above.
+Finish the already implemented coherent instrumentation/HUD checkpoint, validate and
+merge it, then start critical #120 from the newly merged master. Do not resume #61
+or any other queued issue without a new instruction.
+
+This checkpoint retains bounded frame/activity histories, native and shared paint
+boundaries, renderer/backing metadata, layout/input/invalidation/control/shader counters,
+opt-in allocation/GC and control detail, explicit snapshots/export, the existing HUD,
+Gallery workloads and the small existing Designer consumers. Correctness, lifecycle,
+disabled overhead, focused native integration and normal repository validation are
+required before merging. #58 remains OPEN/PARTIAL.
+
+Defer new explicit heap/working-set APIs, specialized virtualization producers,
+full workload allocation/timing budgets, larger stress benchmarking and broader
+Android/device performance qualification. Existing tests and Gallery scenarios must
+work, but do not add these future capabilities to delay the checkpoint. The focused
+before/after physical-framebuffer and DPI measurements belong to #120 immediately
+next. No package version, release or publication is authorized.
