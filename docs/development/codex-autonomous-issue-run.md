@@ -1202,3 +1202,49 @@ claimed at this planning checkpoint. Its five required workload families stay in
 existing tests/Gallery; the separate future PerformanceLab application (#114) is
 outside this queue. Physical-device performance remains **NOT EXECUTED — environment
 unavailable**. The plan is committed before code on `codex/issue-58-performance-diagnostics`.
+
+### #58 checkpoint — 2026-09-19 priority revision
+
+Status: **IMPLEMENTED / locally VALIDATED / PR CI pending** for the coherent current
+checkpoint in [PR #121](https://github.com/ProGraMajster/ModernFormsNext/pull/121).
+Production commit: `50756a11533848a45ed69e7ad903fcaba252828b`. The owner's new scope
+supersedes the old queue: merge this checkpoint, then investigate critical #120 from
+the newly merged master. No ordinary queued issue follows #120 without new direction.
+
+The checkpoint provides one bounded UI-thread recorder, independent immutable
+snapshots/explicit JSON export, native/shared frame boundaries, layout/render/input/
+animation timing, invalidation/control/cache/shader counters, actual framebuffer
+metadata, optional allocation/GC and control detail, slow-frame history, bounded
+numeric extension handles, and an input-transparent compact/expanded HUD. Existing
+Designer scopes and five ControlGallery workload buttons use the same recorder.
+The [guide](../performance-diagnostics.md) documents attribution, threading, ownership,
+privacy, availability and limitations. Existing authored APIs remain compatible.
+
+Validation of that production commit:
+
+| Check | Result |
+| --- | --- |
+| Restore; serial full Debug/Release solution, including Windows/Android/VSIX outputs | PASS; 0 errors and 4 inherited NU1902 warnings per build |
+| All nine test projects, Debug and Release | **3350/3350 each**, 0 failures/skips |
+| Unfiltered ApiCompat against `af6422a` | **13/13 each configuration**, attribute and parameter-name rules enabled; no exclusions |
+| Packages at unchanged 1.10.0 | **11 NuGet / 10 symbols**, validated locally, not published |
+| Fresh isolated package-only consumer | **28 assertions / 7 cases**, 5 distinct fresh package hash matches, no ProjectReference |
+| Documentation scripts / DocFX / archives | **32 assertions**, 1075 HTML pages, 0 warnings/errors, 4 validated archives |
+| Owned native HWND paint/resize/input integration | PASS in both test configurations; actual backing generations and one input event per route |
+| Native ControlGallery acceptance | **14/14**, all five workloads, hidden-HUD capture, stop/restart/unload and graceful exit 0 |
+| Visual inspection | Two actual native captures, compact/expanded HUD, reported 100% scale; readable metrics and bounded graph |
+| Disabled hooks / recording-only warmed collector | Zero measured managed allocations in focused regression loops; this is not a complete workload CPU budget |
+
+Evidence is retained locally under `artifacts/autonomous-audit/phase58-checkpoint/`,
+`phase58-gallery-accept-20260919-142434-210/` and `phase58-gallery-visual-review.json`.
+Early integration/test-fixture failures were corrected before these complete runs.
+No new template/startup contract was introduced; DemoApp was not used for test content.
+Final code/acceptance review found no unresolved blocker for this bounded checkpoint.
+
+#58 remains **OPEN/PARTIAL**. Explicit heap/working-set APIs, specialized virtualization
+producers, calibrated workload budgets and broader Android/device performance
+qualification are deferred. Android outputs and its existing automated suite passed;
+new Android emulator/physical performance validation is **NOT EXECUTED** in this
+checkpoint. GPU execution/presentation measurements remain unavailable. The critical
+high-DPI before/after investigation and any necessary rendering correction belong to
+#120 next. No release, version bump or package/extension publication occurred.
