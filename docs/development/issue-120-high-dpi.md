@@ -137,8 +137,8 @@ Screenshots and framebuffer pixels now agree for the sampled button region.
 
 ## Executed matrix and physical monitor acceptance
 
-The connected monitors were measured, not inferred: primary bounds 0,0–1920,1080
-with GetDpiForWindow=96; second bounds 1920,0–7040,2880 with GetDpiForWindow=216.
+The connected monitors were measured, not inferred: primary bounds 0,0-1920,1080
+with GetDpiForWindow=96; second bounds 1920,0-7040,2880 with GetDpiForWindow=216.
 The physical fixture moves its owned HWND and receives actual OS WM_DPICHANGED
 notifications. It does not change display settings or inject DPI messages.
 
@@ -191,7 +191,7 @@ Actual MainForm sidebar, first-run setup card, downloads content, resize/maximiz
 hover/press and return to the primary monitor were exercised. The fixture exposes
 the existing downloads view after the setup captures; it does not claim successful
 tool provisioning. Seven physical window cases passed, with mean hover frame times
-0.18–0.99 ms and maxima below 2.1 ms. Screen/framebuffer button pixels matched.
+0.18-0.99 ms and maxima below 2.1 ms. Screen/framebuffer button pixels matched.
 Maximized first-run and downloads screenshots were visually inspected. Source hashes
 are retained in `phase120-consumer/source-hashes.json`; source checkout is preserved.
 
