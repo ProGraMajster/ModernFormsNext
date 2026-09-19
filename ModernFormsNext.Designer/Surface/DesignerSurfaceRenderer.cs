@@ -1,4 +1,5 @@
 using ModernFormsNext;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Services;
@@ -23,6 +24,7 @@ internal sealed class DesignerSurfaceRenderer
 
     public void Render(PaintEventArgs e, DesignerSession state, int width, int height)
     {
+        using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerRender);
         LogFrameDiagnostics(state, width, height);
 
         var view = coordinateMapper.GetView(state, width, height);
@@ -66,6 +68,7 @@ internal sealed class DesignerSurfaceRenderer
                 : [];
             DesignerSelectionAdorner.Draw(e, formBounds, rootHandles);
         }
+        performance.Complete();
     }
 
     public bool TryMapToDocument(

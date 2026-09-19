@@ -1,5 +1,6 @@
 ﻿using ModernFormsNext.Accessibility;
 using ModernFormsNext.DataBinding;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.Help;
 using ModernFormsNext.Layout;
 using SkiaSharp;
@@ -879,6 +880,7 @@ namespace ModernFormsNext
             if (back_buffer != null) {
                 back_buffer.Dispose ();
                 back_buffer = null;
+                ReleasePerformanceBackBuffer ();
             }
         }
 
@@ -904,6 +906,7 @@ namespace ModernFormsNext
             if (back_buffer is null || back_buffer.Width != ScaledSize.Width || back_buffer.Height != ScaledSize.Height) {
                 FreeBackBuffer ();
                 back_buffer = new SKBitmap (ScaledSize.Width, ScaledSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+                CapturePerformanceBackBuffer ();
                 SetState (States.IsDirty, true);
             }
 
@@ -1217,7 +1220,11 @@ namespace ModernFormsNext
             if (!Created)
                 return;
 
+            PerformanceRecorder.Count (PerformanceCounterKind.InvalidationRequests, control: this);
             SetState (States.IsDirty, true);
+            // Invalidate(Rectangle) currently dirties the complete cached bitmap. Its
+            // callers use different coordinate spaces, so never reinterpret that argument.
+            RecordPerformanceRegion (PerformanceRegionKind.InvalidationRequest);
 
             if (FindWindow () is { } window)
                 Application.RequestVisualInvalidation (window);
@@ -1627,14 +1634,21 @@ namespace ModernFormsNext
         protected virtual void OnPaint (PaintEventArgs e)
         {
             // Controls enumerate from back to front, so the last/front-most child is composited last.
-            foreach (var control in Controls.GetAllControls ().Where (c => c.Visible).ToArray ()) {
-                if (control.Width <= 0 || control.Height <= 0)
+            foreach (var control in Controls.GetAllControls ().Where (IsVisibleForPainting).ToArray ()) {
+                if (control.Width <= 0 || control.Height <= 0) {
+                    PerformanceRecorder.Count (PerformanceCounterKind.ZeroSizeControlsSkipped, control: control);
                     continue;
+                }
 
                 var info = new SKImageInfo (control.ScaledSize.Width, control.ScaledSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
                 var buffer = control.GetBackBuffer ();
+                if (PerformanceRecorder.ShouldRecordRegions)
+                    control.RecordPerformancePaintRegions (this, e.Canvas.LocalClipBounds);
 
                 if (control.NeedsPaint) {
+                    using var measurement = PerformanceRecorder.Measure (PerformanceActivityKind.Render, control);
+                    PerformanceRecorder.Count (PerformanceCounterKind.ControlsRepainted, control: control);
+                    control.RecordPerformanceRegion (PerformanceRegionKind.Repaint);
                     using (var canvas = new SKCanvas (buffer)) {
                         // start drawing
                         var args = new PaintEventArgs (info, canvas, Scaling);
@@ -1644,10 +1658,25 @@ namespace ModernFormsNext
 
                         canvas.Flush ();
                     }
+                    measurement.Complete ();
+                } else {
+                    PerformanceRecorder.Count (PerformanceCounterKind.ControlCacheHits, control: control);
                 }
 
                 control.DrawBackBuffer (e.Canvas, buffer);
+                PerformanceRecorder.Count (PerformanceCounterKind.ControlsComposited, control: control);
             }
+        }
+
+        // Keep the existing visible-child snapshot: paint callbacks may mutate the tree.
+        // Counting in this predicate does not add another enumeration or visibility read.
+        internal static bool IsVisibleForPainting (Control control)
+        {
+            PerformanceRecorder.Count (PerformanceCounterKind.ControlsVisited, control: control);
+            bool visible = control.Visible;
+            if (!visible)
+                PerformanceRecorder.Count (PerformanceCounterKind.InvisibleControlsSkipped, control: control);
+            return visible;
         }
 
         /// <summary>

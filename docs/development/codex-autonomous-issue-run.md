@@ -1166,3 +1166,85 @@ assessment and unavailable manual tooling are **NOT EXECUTED — environment una
 These boundaries do not prevent merging this completed, validated Phase 4 scope.
 No release, tag, dependency/version bump, package publication or issue closure is
 part of this change. The user's unrelated `.codex/config.toml` remains untouched.
+
+### Issue #59 merge verification
+
+The final Markdown-only commit `75adf2f012197ae95d2ab21fd31f200cf2b9d1bd`
+passed a fresh 32 documentation assertions, DocFX (1049 HTML pages, zero warnings)
+and four archive checks. Original implementation binaries and evidence plus the
+separate five-package consumer proof were reverified without rebuilding them.
+Required [PR CI](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34708205488)
+passed. PR #119 was marked Ready and merged normally on 2026-09-12 as
+`af6422a108de78dd68ea6aca2f7d92c44550d4d4`.
+[Merged-master CI](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/34708696923)
+also passed. Fetch/pull confirmed master equals origin/master with zero divergence;
+issue #59 remains OPEN/PARTIAL with the boundaries above.
+
+## #58 — Add runtime performance overlay, profiling counters and diagnostics hooks
+
+Status: **AUDITED / implementation pending**. The fresh baseline is merged master
+`af6422a108de78dd68ea6aca2f7d92c44550d4d4`. The full issue has zero comments and
+no formal blocked-by dependencies. Existing animation/font/TestHost diagnostics do
+not provide a unified frame profiler. Native CPU paint, layout, cached composition,
+shader ownership and input/scheduler boundaries are available to instrument now.
+
+The [technical plan](issue-58-performance-diagnostics-plan.md) records API ownership,
+metric definitions, native/threading/lifetime boundaries, all seven acceptance
+directions and four shader/allocation additions. One opt-in UI-thread profiler and
+internal WindowKit transport will supply both programmatic snapshots and an optional
+post-content HUD. Requested invalidation, actual full-client painting and reuse of
+control backbuffers will remain distinct. GPU/presentation and future recycler
+metrics will report availability honestly.
+
+Independent detached baseline restore/Release build passed, with four inherited
+NU1902 warnings and zero errors. No #58 implementation or performance result is
+claimed at this planning checkpoint. Its five required workload families stay in
+existing tests/Gallery; the separate future PerformanceLab application (#114) is
+outside this queue. Physical-device performance remains **NOT EXECUTED — environment
+unavailable**. The plan is committed before code on `codex/issue-58-performance-diagnostics`.
+
+### #58 checkpoint — 2026-09-19 priority revision
+
+Status: **IMPLEMENTED / locally VALIDATED / PR CI pending** for the coherent current
+checkpoint in [PR #121](https://github.com/ProGraMajster/ModernFormsNext/pull/121).
+Production commit: `50756a11533848a45ed69e7ad903fcaba252828b`. The owner's new scope
+supersedes the old queue: merge this checkpoint, then investigate critical #120 from
+the newly merged master. No ordinary queued issue follows #120 without new direction.
+
+The checkpoint provides one bounded UI-thread recorder, independent immutable
+snapshots/explicit JSON export, native/shared frame boundaries, layout/render/input/
+animation timing, invalidation/control/cache/shader counters, actual framebuffer
+metadata, optional allocation/GC and control detail, slow-frame history, bounded
+numeric extension handles, and an input-transparent compact/expanded HUD. Existing
+Designer scopes and five ControlGallery workload buttons use the same recorder.
+The [guide](../performance-diagnostics.md) documents attribution, threading, ownership,
+privacy, availability and limitations. Existing authored APIs remain compatible.
+
+Validation of that production commit:
+
+| Check | Result |
+| --- | --- |
+| Restore; serial full Debug/Release solution, including Windows/Android/VSIX outputs | PASS; 0 errors and 4 inherited NU1902 warnings per build |
+| All nine test projects, Debug and Release | **3350/3350 each**, 0 failures/skips |
+| Unfiltered ApiCompat against `af6422a` | **13/13 each configuration**, attribute and parameter-name rules enabled; no exclusions |
+| Packages at unchanged 1.10.0 | **11 NuGet / 10 symbols**, validated locally, not published |
+| Fresh isolated package-only consumer | **28 assertions / 7 cases**, 5 distinct fresh package hash matches, no ProjectReference |
+| Documentation scripts / DocFX / archives | **32 assertions**, 1075 HTML pages, 0 warnings/errors, 4 validated archives |
+| Owned native HWND paint/resize/input integration | PASS in both test configurations; actual backing generations and one input event per route |
+| Native ControlGallery acceptance | **14/14**, all five workloads, hidden-HUD capture, stop/restart/unload and graceful exit 0 |
+| Visual inspection | Two actual native captures, compact/expanded HUD, reported 100% scale; readable metrics and bounded graph |
+| Disabled hooks / recording-only warmed collector | Zero measured managed allocations in focused regression loops; this is not a complete workload CPU budget |
+
+Evidence is retained locally under `artifacts/autonomous-audit/phase58-checkpoint/`,
+`phase58-gallery-accept-20260919-142434-210/` and `phase58-gallery-visual-review.json`.
+Early integration/test-fixture failures were corrected before these complete runs.
+No new template/startup contract was introduced; DemoApp was not used for test content.
+Final code/acceptance review found no unresolved blocker for this bounded checkpoint.
+
+#58 remains **OPEN/PARTIAL**. Explicit heap/working-set APIs, specialized virtualization
+producers, calibrated workload budgets and broader Android/device performance
+qualification are deferred. Android outputs and its existing automated suite passed;
+new Android emulator/physical performance validation is **NOT EXECUTED** in this
+checkpoint. GPU execution/presentation measurements remain unavailable. The critical
+high-DPI before/after investigation and any necessary rendering correction belong to
+#120 next. No release, version bump or package/extension publication occurred.

@@ -1,5 +1,7 @@
 ﻿using System.Drawing;
 using SkiaSharp;
+using System.Numerics;
+using ModernFormsNext.Rendering.Skia;
 
 namespace ModernFormsNext.Renderers
 {
@@ -52,7 +54,7 @@ namespace ModernFormsNext.Renderers
             }) 
             {
                 // Hue gradient
-                paint.Shader = SKShader.CreateLinearGradient (
+                using var shader = SkiaBrushFactory.CreateOwnedLinearGradient (
                     new SKPoint (rect.Left, rect.Top),
                     new SKPoint (rect.Left, rect.Bottom),
                     new[]
@@ -66,7 +68,8 @@ namespace ModernFormsNext.Renderers
                         new SKColor(255, 0, 0)      // 360 red
                     },
                     new[] { 0f, 1f / 6f, 2f / 6f, 3f / 6f, 4f / 6f, 5f / 6f, 1f },
-                    SKShaderTileMode.Clamp);
+                    SKShaderTileMode.Clamp, Matrix3x2.Identity);
+                paint.Shader = shader.Shader;
 
                 canvas.DrawRect (rect, paint);
                 canvas.DrawRect (rect, border);

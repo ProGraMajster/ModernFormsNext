@@ -8,6 +8,7 @@ using ModernFormsNext.WindowKit.Input.Raw;
 using ModernFormsNext.WindowKit.Platform;
 using ModernFormsNext.WindowKit.Skia;
 using SkiaSharp;
+using ModernFormsNext.Diagnostics;
 
 namespace ModernFormsNext
 {
@@ -330,6 +331,7 @@ namespace ModernFormsNext
                 ((WindowBase)popup).OnInput(e);
                 return;
             }
+            using var performance = PerformanceRecorder.BeginInput(adapter);
             if (e is RawPointerEventArgs me) {
                 // TODO: How do we want to handle this for real
                 me.Position *= window.RenderScaling;
@@ -461,16 +463,26 @@ namespace ModernFormsNext
             var scaled_display_rect = ScaledDisplayRectangle;
 
             using var surface = SKSurface.Create (framebufferImageInfo, framebuffer.Address, framebuffer.RowBytes);
+            using var performance = BeginPerformanceRender(framebuffer);
+            // Restore the content clip before drawing optional window-wide diagnostics. The
+            // same canvas/backing is reused; there is no second control tree or paint pass.
+            int saveCount = PerformanceRecorder.IsEnabled ? surface.Canvas.Save() : -1;
+            try {
+                var e = new PaintEventArgs (framebufferImageInfo, surface.Canvas, Scaling);
+                OnPaintBackground (e);
+                e.Canvas.DrawBorder (new System.Drawing.Rectangle (0, 0, (int)scaled_client_size.Width, (int)scaled_client_size.Height), CurrentStyle);
+                OnPaint (e);
 
-            var e = new PaintEventArgs (framebufferImageInfo, surface.Canvas, Scaling);
-            OnPaintBackground (e);
-            e.Canvas.DrawBorder (new System.Drawing.Rectangle (0, 0, (int)scaled_client_size.Width, (int)scaled_client_size.Height), CurrentStyle);
-            OnPaint (e);
+                e.Canvas.ClipRect (new SKRect (scaled_display_rect.Left, scaled_display_rect.Top, scaled_display_rect.Width + 1, scaled_display_rect.Height + 1));
 
-            e.Canvas.ClipRect (new SKRect (scaled_display_rect.Left, scaled_display_rect.Top, scaled_display_rect.Width + 1, scaled_display_rect.Height + 1));
-
-            adapter.RaisePaintBackground (e);
-            adapter.RaisePaint (e);
+                adapter.RaisePaintBackground (e);
+                adapter.RaisePaint (e);
+            }
+            finally { if (saveCount >= 0) surface.Canvas.RestoreToCount(saveCount); }
+            performance.Complete();
+            if (PerformanceRecorder.IsEnabled)
+                PerformanceRecorder.RenderOverlay(surface.Canvas, adapter,
+                    (int)window.ClientSize.Width, (int)window.ClientSize.Height, Scaling);
         }
 
         /// <summary>

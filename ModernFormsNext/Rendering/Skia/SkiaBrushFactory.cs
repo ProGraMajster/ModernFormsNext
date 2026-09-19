@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.Drawing;
 using SkiaSharp;
 
@@ -16,6 +17,34 @@ namespace ModernFormsNext.Rendering.Skia;
 internal static class SkiaBrushFactory
 {
     public static SKShader? CreateGradientShader(GradientBrush brush, SKRect bounds)
+    {
+        SKShader? shader = CreateUntransformedGradientShader(brush, bounds);
+        return shader is null ? null : ApplyTransform(shader, brush.Transform);
+    }
+
+    // Rendering callers use this ownership-aware variant. The raw factory above stays
+    // useful to callers that explicitly own SKShader themselves, outside our counters.
+    internal static SkiaShaderScope CreateOwnedGradientShader(GradientBrush brush, SKRect bounds)
+    {
+        using var measurement = PerformanceRecorder.Measure(PerformanceActivityKind.ShaderCreation);
+        var shader = new SkiaShaderScope(CreateUntransformedGradientShader(brush, bounds));
+        SkiaShaderScope result = ApplyOwnedTransform(shader, brush.Transform);
+        measurement.Complete();
+        return result;
+    }
+
+    internal static SkiaShaderScope CreateOwnedLinearGradient(
+        SKPoint start, SKPoint end, SKColor[] colors, float[]? positions,
+        SKShaderTileMode tileMode, Matrix3x2 transform)
+    {
+        using var measurement = PerformanceRecorder.Measure(PerformanceActivityKind.ShaderCreation);
+        var shader = new SkiaShaderScope(SKShader.CreateLinearGradient(start, end, colors, positions, tileMode));
+        SkiaShaderScope result = ApplyOwnedTransform(shader, transform);
+        measurement.Complete();
+        return result;
+    }
+
+    private static SKShader? CreateUntransformedGradientShader(GradientBrush brush, SKRect bounds)
     {
         ArgumentNullException.ThrowIfNull(brush);
         GradientStop[] stops = brush.GetOrderedStops();
@@ -39,7 +68,7 @@ internal static class SkiaBrushFactory
             _ => null
         };
 
-        return shader is null ? null : ApplyTransform(shader, brush.Transform);
+        return shader;
     }
 
     public static SKColor ApplyOpacity(SKColor color, float opacity)
@@ -66,7 +95,34 @@ internal static class SkiaBrushFactory
         if (transform.IsIdentity)
             return shader;
 
-        var matrix = new SKMatrix(
+        try
+        {
+            return shader.WithLocalMatrix(ToSkiaMatrix(transform));
+        }
+        finally
+        {
+            // Applying a transform consumes the original shader even if native creation fails.
+            shader.Dispose();
+        }
+    }
+
+    private static SkiaShaderScope ApplyOwnedTransform(SkiaShaderScope shader, Matrix3x2 transform)
+    {
+        if (shader.Shader is null || transform.IsIdentity)
+            return shader;
+
+        try
+        {
+            return new SkiaShaderScope(shader.Shader.WithLocalMatrix(ToSkiaMatrix(transform)));
+        }
+        finally
+        {
+            shader.Dispose();
+        }
+    }
+
+    private static SKMatrix ToSkiaMatrix(Matrix3x2 transform)
+        => new(
             transform.M11,
             transform.M21,
             transform.M31,
@@ -76,11 +132,6 @@ internal static class SkiaBrushFactory
             0f,
             0f,
             1f);
-
-        SKShader transformed = shader.WithLocalMatrix(matrix);
-        shader.Dispose();
-        return transformed;
-    }
 
     private static SKShader CreateLinearGradient(
         LinearGradientBrush brush,

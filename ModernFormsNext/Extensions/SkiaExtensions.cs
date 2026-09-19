@@ -92,13 +92,13 @@ namespace ModernFormsNext
                 return;
             }
 
-            using SKShader? shader = SkiaBrushFactory.CreateGradientShader(brush, bounds);
-            if (shader is null)
+            using var shader = SkiaBrushFactory.CreateOwnedGradientShader(brush, bounds);
+            if (shader.Shader is null)
                 return;
 
             using var paint = new SKPaint
             {
-                Shader = shader,
+                Shader = shader.Shader,
                 IsAntialias = true,
                 BlendMode = blendMode
             };
@@ -109,8 +109,7 @@ namespace ModernFormsNext
         private static void RenderGlassBackground (SKCanvas canvas, SKRect bounds, GlassBrush brush, SKBlendMode blendMode = SKBlendMode.SrcOver)
         {
             // Base translucent fill with a very subtle vertical depth gradient
-            using (var shader = SkiaBrushFactory.ApplyTransform(
-                SKShader.CreateLinearGradient (
+            using (var shader = SkiaBrushFactory.CreateOwnedLinearGradient (
                     new SKPoint (bounds.Left, bounds.Top),
                     new SKPoint (bounds.Left, bounds.Bottom),
                     new[] {
@@ -119,10 +118,10 @@ namespace ModernFormsNext
                         SkiaBrushFactory.ApplyOpacity(brush.SecondaryTintColor, brush.Opacity)
                     },
                     new[] { 0f, 0.28f, 1f },
-                    SKShaderTileMode.Clamp),
-                brush.Transform))
+                    SKShaderTileMode.Clamp,
+                    brush.Transform))
             using (var paint = new SKPaint {
-                Shader = shader,
+                Shader = shader.Shader,
                 IsAntialias = true,
                 BlendMode = blendMode
             }) {
@@ -134,8 +133,7 @@ namespace ModernFormsNext
                 var highlightHeight = MathF.Max (8f, bounds.Height * 0.32f);
 
                 SKColor highlightColor = SkiaBrushFactory.ApplyOpacity(brush.HighlightColor, brush.Opacity);
-                using var highlightShader = SkiaBrushFactory.ApplyTransform(
-                    SKShader.CreateLinearGradient (
+                using var highlightShader = SkiaBrushFactory.CreateOwnedLinearGradient (
                         new SKPoint (bounds.Left, bounds.Top),
                         new SKPoint (bounds.Left, bounds.Top + highlightHeight),
                         new[] {
@@ -143,11 +141,11 @@ namespace ModernFormsNext
                             new SKColor (highlightColor.Red, highlightColor.Green, highlightColor.Blue, 0)
                         },
                         new[] { 0f, 1f },
-                        SKShaderTileMode.Clamp),
+                        SKShaderTileMode.Clamp,
                     brush.Transform);
 
                 using var highlightPaint = new SKPaint {
-                    Shader = highlightShader,
+                    Shader = highlightShader.Shader,
                     IsAntialias = true,
                     BlendMode = blendMode
                 };
@@ -334,15 +332,15 @@ namespace ModernFormsNext
                 IsStroke = true,
                 Color = style.Border.GetColor ()
             };
-            SKShader? shader = null;
+            SkiaShaderScope shader = default;
             try {
                 if (brush is SolidColorBrush solid)
                     paint.Color = SkiaBrushFactory.ApplyOpacity (solid.Color, solid.Opacity);
                 else if (brush is GradientBrush gradient) {
-                    shader = SkiaBrushFactory.CreateGradientShader (
+                    shader = SkiaBrushFactory.CreateOwnedGradientShader (
                         gradient,
                         new SKRect (0, 0, bounds.Width, bounds.Height));
-                    paint.Shader = shader;
+                    paint.Shader = shader.Shader;
                 }
 
                 var radius = style.Border.GetRadius ();
@@ -373,8 +371,8 @@ namespace ModernFormsNext
                     static (target, offset, width, height, value) => target.DrawLine (0, height - offset, width, height - offset, value),
                     bounds.Width, bounds.Height);
             } finally {
-                shader?.Dispose ();
-                paint.Dispose ();
+                try { paint.Dispose (); }
+                finally { shader.Dispose (); }
             }
         }
 
