@@ -82,6 +82,9 @@ internal static partial class HighDpiScenario
                         var frames = profiler.Capture().Frames.Skip(2).ToArray();
                         if (requireFix) Require(frames.Length >= 12 && frames.All(frame => frame.Completed && frame.Work.LayoutPasses == 0 && frame.Work.SurfaceAllocations == 0),
                             "Physical hover layout/reallocation regression.");
+                        if (requireFix) Require(frames.Select(frame => frame.RenderInfo.BackingGeneration).Distinct().Count() == 1 &&
+                            areas.Skip(2).All(area => area > 0 && area < (long)client.Right * client.Bottom / 10),
+                            "Physical hover lost bounded damage or recreated the framebuffer.");
                         int clicks = 0;
                         EventHandler<MouseEventArgs> clicked = (_, _) => clicks++;
                         root.Button.Click += clicked;
@@ -120,17 +123,28 @@ internal static partial class HighDpiScenario
                             screenshot.Save(System.IO.Path.Combine(evidenceDirectory, name + ".png"), ImageFormat.Png);
                             if (requireFix) {
                                 using var expected = SkiaSharp.SKBitmap.Decode(System.IO.Path.Combine(evidenceDirectory, name + "-framebuffer.png"));
-                                for (int y = 24; y < 57; y += 5)
-                                    for (int x = 24; x < 200; x += 7) {
-                                        var actual = screenshot.GetPixel((int)(x * scale), (int)(y * scale));
-                                        var pixel = expected.GetPixel((int)(x * scale), (int)(y * scale));
-                                        Require(actual.R == pixel.Red && actual.G == pixel.Green && actual.B == pixel.Blue,
-                                            "Displayed button pixels differ from the rendered framebuffer.");
-                                    }
+                                // Compare the entire displayed client, including preserved pixels.
+                                // Sampling just the hovered button missed shifted ancestor regions.
+                                var bits = screenshot.LockBits(new Rectangle(Point.Empty, screenshot.Size),
+                                    ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                                try {
+                                    var actual = new byte[bits.Stride * screenshot.Height];
+                                    Marshal.Copy(bits.Scan0, actual, 0, actual.Length);
+                                    byte[] pixels = expected.Bytes;
+                                    for (int y = 0; y < screenshot.Height; y++)
+                                        for (int x = 0; x < screenshot.Width; x++) {
+                                            int source = y * expected.RowBytes + x * 4, destination = y * bits.Stride + x * 4;
+                                            Require(actual[destination] == pixels[source] && actual[destination + 1] == pixels[source + 1] &&
+                                                actual[destination + 2] == pixels[source + 2], "Displayed client pixels differ from the framebuffer.");
+                                        }
+                                }
+                                finally { screenshot.UnlockBits(bits); }
                             }
                         }
                         results.Add(new { name, scale, nativeDpi = GetDpiForWindow(hwnd), width = client.Right, height = client.Bottom,
                             meanMs = frames.Average(f => f.Duration.TotalMilliseconds), maxMs = frames.Max(f => f.Duration.TotalMilliseconds),
+                            meanRenderMs = frames.Average(f => f.Work.RenderTime.TotalMilliseconds),
+                            meanPresentationCpuMs = frames.Average(f => f.RenderInfo.PresentationCpuTime?.TotalMilliseconds),
                             meanDamagePixels = areas.Skip(2).Average(), layout = root.ClientSize == root.Size && new Rectangle(Point.Empty, root.Content.ClientSize).Contains(root.Card.Bounds), last = frames.Last(), clicks });
                     }
 

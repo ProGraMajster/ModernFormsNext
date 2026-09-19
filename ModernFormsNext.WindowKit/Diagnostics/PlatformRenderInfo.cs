@@ -29,4 +29,5 @@ internal readonly record struct PlatformRenderInfo(
     long? BackingBytes = null,
     long? HostGeneration = null,
     long? BackingGeneration = null,
-    bool? FullRedraw = null);
+    bool? FullRedraw = null,
+    TimeSpan? PresentationCpuTime = null);

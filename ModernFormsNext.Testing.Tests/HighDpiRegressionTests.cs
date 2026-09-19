@@ -191,7 +191,7 @@ public sealed class HighDpiRegressionTests
     // TestHost's public snapshots intentionally allocate fresh backing. This test instead
     // lends one persistent surface to its existing production Paint callback to verify that
     // damaged pixels can change without losing pixels outside the native-like dirty region.
-    private sealed class PersistentSurface : IFramebufferPlatformSurface, IDisposable
+    internal sealed class PersistentSurface : IFramebufferPlatformSurface, IDisposable
     {
         private static readonly FieldInfo SurfaceField = typeof(HeadlessWindowImpl).GetField("renderingSurfaces", BindingFlags.Instance | BindingFlags.NonPublic)!;
         private readonly TestWindowHost window;

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Threading;
+using System.Diagnostics;
+using ModernFormsNext.WindowKit.Diagnostics;
 using ModernFormsNext.WindowKit.Controls.Platform.Surfaces;
 using ModernFormsNext.WindowKit.Platform;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop;
@@ -30,6 +32,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         internal PixelSize? AllocatedSize => _framebufferData?.Size;
         internal int? AllocatedRowBytes => _framebufferData?.RowBytes;
         internal long BackingGeneration { get; private set; }
+        internal TimeSpan? PresentationCpuTime { get; private set; }
 
         public FramebufferManager(IntPtr hwnd, Func<double> getScaling)
         {
@@ -43,6 +46,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         // scope restores a prior context if application callbacks enter native painting again.
         internal PaintContext BeginPaint(IntPtr dc, UnmanagedMethods.RECT rectangle)
         {
+            PresentationCpuTime = null;
             var scope = new PaintContext(this, _paintDc, _paintRegion);
             _paintDc = dc;
             _paintRegion = rectangle;
@@ -108,11 +112,15 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             {
                 if (_framebufferData.HasValue) {
                     var data = _framebufferData.Value;
+                    bool measure = PlatformPerformanceDiagnostics.IsEnabled;
+                    long start = measure ? Stopwatch.GetTimestamp() : 0;
                     if (_paintDc == IntPtr.Zero) DrawToWindow(_hwnd, data);
                     else {
                         var header = data.Header;
                         DrawDamageToDevice(_paintDc, data.Data.Address, ref header, _paintRegion);
                     }
+                    // CPU submission only: GDI returning does not imply DWM presentation.
+                    if (measure) PresentationCpuTime = Stopwatch.GetElapsedTime(start);
                 }
             }
             finally
@@ -128,12 +136,20 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             int left = Math.Max(0, damage.left), top = Math.Max(0, damage.top);
             int width = Math.Min(header.biWidth, damage.right) - left;
             int height = Math.Min(backingHeight, damage.bottom) - top;
-            // Negative biHeight controls scanline storage. GDI's source y-coordinate still
-            // addresses the rectangle from the lower edge, unlike the top-left destination.
-            // Native memory-DC tests verify both halves and nonzero offsets independently of Skia.
             if (width > 0 && height > 0)
+            {
+                // Describe the damaged rows as a complete top-down DIB band. Cropping the
+                // original negative-height DIB with a bottom-origin source y can select
+                // different rows on DIB-section and device-dependent destinations (including
+                // HWNDs), notably when the damage reaches the bottom edge with source (0,0).
+                // Borrow the first damaged row, preserving the full framebuffer stride: no
+                // pixel copy/allocation is needed, and only the damaged columns are presented.
+                var bandHeader = header;
+                bandHeader.biHeight = -height;
+                var bandPixels = IntPtr.Add(pixels, checked(top * header.biWidth * _bytesPerPixel));
                 UnmanagedMethods.StretchDIBits(dc, left, top, width, height,
-                    left, backingHeight - top - height, width, height, pixels, ref header, 0, 0x00CC0020);
+                    left, 0, width, height, bandPixels, ref bandHeader, 0, 0x00CC0020);
+            }
         }
 
         private static FramebufferData AllocateFramebufferData(int width, int height)
