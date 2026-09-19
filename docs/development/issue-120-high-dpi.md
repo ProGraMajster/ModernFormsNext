@@ -240,3 +240,10 @@ supported Panel AutoSize contract instead: growing a child from 130 to 180 logic
 pixels grows the container to exactly those widths at every scale and after return
 to 100%. The scenario's caption has explicit text bounds, avoiding a misleading
 text-driven AutoSize claim. No new label sizing feature is implied by this fix.
+
+The next CI run passed all native DPI tests and exposed another existing fixture race:
+a Designer host opened a design directly under the shared temp root, so Solution
+Explorer traversed another test's directory while that test deleted it. Native host
+process tests now own a separate design workspace for their full lifetime and delete
+only that verified directory after the child processes exit. Designer production code
+is unchanged; the complete suite remains enabled in CI.
