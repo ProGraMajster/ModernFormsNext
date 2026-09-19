@@ -81,7 +81,9 @@ namespace ModernFormsNext
         {
             System.ObjectDisposedException.ThrowIf(InputBindingsClosed, this);
             System.ObjectDisposedException.ThrowIf(parent_form.InputBindingsClosed, parent_form);
-            var point = parent_form.PointToClient (new Point (x, y));
+            // Retain fractional logical coordinates until the positioner converts back to
+            // physical pixels. The public integer PointToClient would truncate twice at 175%.
+            var point = parent_form.window.PointToClient (new WindowKit.PixelPoint (x, y));
 
             var ppp = new PopupPositionerParameters {
                 AnchorRectangle = new WindowKit.Rect (point.X, point.Y, 1, 1),

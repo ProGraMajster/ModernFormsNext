@@ -476,6 +476,8 @@ public sealed class ThemeVisualRefreshTests
             : base(implementation)
         {
             proxy = (RecordingWindowProxy)implementation;
+            // Region invalidation needs a real nonempty viewport and a valid scale.
+            adapter.Bounds = new Rectangle(0, 0, 800, 600);
         }
 
         public int InvalidationCount => proxy.InvalidationCount;
@@ -489,6 +491,8 @@ public sealed class ThemeVisualRefreshTests
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            if (targetMethod?.Name is "get_RenderScaling" or "get_DesktopScaling") return 1d;
+            if (targetMethod?.Name == "get_ClientSize") return new ModernFormsNext.WindowKit.Size(800, 600);
             if (targetMethod?.Name == nameof(IWindowBaseImpl.Invalidate))
                 InvalidationCount++;
 

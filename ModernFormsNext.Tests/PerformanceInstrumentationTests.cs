@@ -262,6 +262,7 @@ public sealed class PerformanceInstrumentationTests
         {
             Proxy = (WindowProxy)implementation;
             Proxy.Scale = scale;
+            adapter.Bounds = new Rectangle(0, 0, 800, 600);
         }
         internal WindowProxy Proxy { get; }
     }
@@ -274,6 +275,7 @@ public sealed class PerformanceInstrumentationTests
         {
             if (targetMethod?.Name == nameof(IWindowBaseImpl.Invalidate)) Invalidations++;
             if (targetMethod?.Name is "get_RenderScaling" or "get_DesktopScaling") return Scale;
+            if (targetMethod?.Name == "get_ClientSize") return new ModernFormsNext.WindowKit.Size(800, 600);
             if (targetMethod is null || targetMethod.ReturnType == typeof(void)) return null;
             return targetMethod.ReturnType.IsValueType ? Activator.CreateInstance(targetMethod.ReturnType) : null;
         }

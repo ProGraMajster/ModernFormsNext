@@ -641,6 +641,13 @@ public partial class Control
         // rectangle. A re-entrant target change retargets from the current presentation state.
         UpdateLayoutPresentationBounds (oldBounds, new Rectangle (x, y, width, height));
 
+        if (oldBounds != new Rectangle (x, y, width, height) && Created) {
+            // Moving/resizing changes both the old and new composition, independently of
+            // whether a child remains visible in its parent's clip after the change.
+            Parent?.Invalidate ();
+            Invalidate ();
+        }
+
         if (newLocation)
             OnLocationChanged (EventArgs.Empty);
 

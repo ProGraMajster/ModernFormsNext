@@ -72,7 +72,7 @@ public sealed class PerformanceDiagnosticsPanel : BasePanel
         AddAction("Clipping / scroll", () => { var scroll = stage.VerticalScrollProperties; scroll.Value = scroll.Value == scroll.Minimum ? scroll.Maximum : scroll.Minimum; });
         AddAction("Animate card", () => { alternate = !alternate; cards[0].Bounds = alternate ? new Rectangle(25, 15, 190, 90) : new Rectangle(10, 10, 130, 75); });
         AddAction("Nested layout", () => { alternate = !alternate; foreach (var card in cards) card.Padding = new Padding(alternate ? 10 : 5); });
-        AddAction("Local invalidation", () => { cards[5].Invalidate(new Rectangle(0, 0, 12, 12)); status.Text = "Requested a small child region. Compare repainted buffers with cache reuse; the current native root may still repaint its full surface."; });
+        AddAction("Local invalidation", () => { cards[5].Invalidate(new Rectangle(0, 0, 12, 12)); status.Text = "Requested a small child region. Compare repainted buffers with cache reuse; the diagnostic HUD requests a full surface while recording alone preserves local damage."; });
         AddAction("Read snapshot", ReadSnapshot);
 
         toggle = new DelegateCommand(ToggleOverlay, () => profiler is not null && !unloaded);

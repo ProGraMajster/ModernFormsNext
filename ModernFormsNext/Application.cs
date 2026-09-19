@@ -164,9 +164,12 @@ namespace ModernFormsNext
             return new VisualInvalidationBatchScope();
         }
 
-        internal static void RequestVisualInvalidation(WindowBase window)
+        internal static void RequestVisualInvalidation(WindowBase window, Rect? rectangle = null)
         {
             ArgumentNullException.ThrowIfNull(window);
+            // Diagnostic visuals can cover the entire window and change on every observed
+            // frame. Recording alone keeps the ordinary local damage path.
+            window.AccumulateDamage(PerformanceRecorder.RequiresFullRedraw ? null : rectangle);
 
             if (visualInvalidationBatch is { Depth: > 0 } state)
             {

@@ -1,6 +1,18 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (Array.IndexOf(args, "--high-dpi-physical") is int physicalIndex && physicalIndex >= 0)
+{
+    Environment.ExitCode = HighDpiScenario.RunPhysical(args[physicalIndex + 1]);
+    return;
+}
+
+if (args.Contains("--high-dpi", StringComparer.Ordinal))
+{
+    Environment.ExitCode = HighDpiScenario.Run();
+    return;
+}
+
 if (args.Contains("--performance", StringComparer.Ordinal))
 {
     Environment.ExitCode = PerformanceScenario.Run();

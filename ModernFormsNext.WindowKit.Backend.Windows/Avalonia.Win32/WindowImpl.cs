@@ -143,7 +143,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             _wmPointerEnabled = Win32Platform.WindowsVersion >= PlatformConstants.Windows8;
 
             CreateWindow();
-            _framebuffer = new FramebufferManager(_hwnd);
+            _framebuffer = new FramebufferManager(_hwnd, () => RenderScaling);
             
             if (this is not PopupImpl)
             {
@@ -855,7 +855,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
             RegisterTouchWindow(_hwnd, 0);
 
-            if (ShCoreAvailable && Win32Platform.WindowsVersion > PlatformConstants.Windows8)
+            // Effective HWND DPI respects an embedding host's process/thread awareness.
+            // Query it only after creation; older Windows retains the monitor API fallback.
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 14393))
+            {
+                uint dpi = GetDpiForWindow(_hwnd);
+                if (dpi != 0) _scaling = dpi / 96.0;
+            }
+            else if (ShCoreAvailable && Win32Platform.WindowsVersion > PlatformConstants.Windows8)
             {
                 var monitor = MonitorFromWindow(
                     _hwnd,

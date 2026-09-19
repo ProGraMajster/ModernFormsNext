@@ -37,9 +37,9 @@ namespace ModernFormsNext
         {
             // This is the maximum Panel1 size taking the Panel2MinimumSize into account
             if (orientation == Orientation.Horizontal)
-                return PaddedClientRectangle.Width - SplitterWidth - panel2_min_size;
+                return LogicalPaddedClientRectangle.Width - SplitterWidth - panel2_min_size;
             else
-                return PaddedClientRectangle.Height - SplitterWidth - panel2_min_size;
+                return LogicalPaddedClientRectangle.Height - SplitterWidth - panel2_min_size;
         }
 
         /// <inheritdoc/>

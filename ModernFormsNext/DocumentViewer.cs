@@ -395,6 +395,13 @@ public partial class DocumentViewer : ScrollControl
     }
 
     /// <inheritdoc/>
+    protected override void OnDpiChanged(EventArgs e)
+    {
+        InvalidateDocumentLayout(refreshImageSources: false);
+        base.OnDpiChanged(e);
+    }
+
+    /// <inheritdoc/>
     protected override void OnDoubleClick(MouseEventArgs e)
     {
         base.OnDoubleClick(e);

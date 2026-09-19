@@ -71,8 +71,8 @@ identities and control type metadata, not control names or entered text.
 | `ThreadWorkSincePreviousFrame` | Work outside frames on the UI thread since the preceding outer frame start. It is context from all sources, not work assigned exclusively to the displayed window. Layout and input often occur here before paint. |
 | `UnframedWork` | Cumulative work outside frames since recording started, not another per-frame duration. |
 | Layout / preferred size | Executed layout and the current preferred-size query/cache/core boundaries. There is no fabricated universal measure/arrange split. |
-| Repainted / composited / cache reuse | An attempted dirty-buffer paint, a successful buffer composition into its parent, or reuse of a clean buffer. These are distinct operations. A cached parent need not visit its descendants; visually clipped controls may still incur CPU painting. Invisible and zero-size skips are separate. |
-| Invalidation / redraw | Requests to invalidate are separate from actual root redraw policy. A local request and cached child buffers do not imply native partial-window presentation. |
+| Repainted / composited / cache reuse | An attempted dirty-buffer paint, a successful buffer composition into its parent, or reuse of a clean buffer. These are distinct operations. A cached parent need not visit its descendants; composition culls children outside the active clip before allocating their backing. Invisible and zero-size skips are separate. |
+| Invalidation / redraw | Requests to invalidate are separate from actual root redraw policy. The Windows backend reports FullSurface or PartialSurface from native paint damage. Recording alone preserves local damage; the diagnostic HUD requests full presentation. |
 | Allocated bytes | Optional managed allocation on the UI thread during the frame, including application callbacks there. Native Skia, Java, GPU and other-thread allocations are excluded. |
 | GC deltas | Optional process-wide collection counts. They do not establish that this control or frame caused collection. |
 | Shader creation / disposal | Framework-owned shader wrappers and transformed replacements in production gradient/glass/Hue/ColorBox paths. Counts cover explicit UI disposal, not native finalization, arbitrary consumer Skia objects or native-memory usage. |
@@ -125,8 +125,8 @@ not exact paths for rotated or rounded content. They do not inspect another sema
 or provide GPU overdraw measurement. The recorder collects these regions when requested;
 enabling an option does not retroactively reconstruct older frames.
 
-Recorded invalidation rectangles describe the whole dirty backbuffer, not the ambiguous
-rectangle argument supplied by every `Invalidate(Rectangle)` caller. Window request counts
+Recorded diagnostic invalidation rectangles conservatively describe the whole dirty backbuffer.
+The rendering pipeline separately propagates the device-local `Invalidate(Rectangle)` damage. Window request counts
 observe actual `InvalidateCore` calls; coalesced counts describe duplicate entries in a
 framework invalidation batch. Clip diagnostics use the axis-aligned intersection of cached
 ancestor bounds and preserve the existing presentation coordinate transformations.
@@ -230,3 +230,5 @@ Android windows (#72), GPU acceleration (#46), shared virtualization (#55), and 
 inspector (#61) are distinct future capabilities. Existing borrowed Android control
 surfaces and Windows windows can use the current profiler without pretending those
 future implementations are complete.
+
+For coordinate units, monitor transitions and partial painting, see [High DPI](high-dpi.md).

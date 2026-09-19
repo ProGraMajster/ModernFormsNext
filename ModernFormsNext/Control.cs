@@ -464,22 +464,48 @@ namespace ModernFormsNext
         /// </summary>
         public virtual Rectangle ClientRectangle {
             get {
-                // TODO: We should be scaling the Border as well
-                var x = CurrentStyle.Border.Left.GetWidth ();
-                var y = CurrentStyle.Border.Top.GetWidth ();
-                var w = CurrentStyle.Border.Right.GetWidth () + x;
-                var h = CurrentStyle.Border.Bottom.GetWidth () + y;
+                var x = LogicalToDeviceUnits (CurrentStyle.Border.Left.GetWidth ());
+                var y = LogicalToDeviceUnits (CurrentStyle.Border.Top.GetWidth ());
+                var w = LogicalToDeviceUnits (CurrentStyle.Border.Right.GetWidth ()) + x;
+                var h = LogicalToDeviceUnits (CurrentStyle.Border.Bottom.GetWidth ()) + y;
 
                 var bounds = GetScaledBounds (Bounds, ScaleFactor, BoundsSpecified.All);
 
-                return new Rectangle (x, y, bounds.Width - w, bounds.Height - h);
+                return new Rectangle (x, y, Math.Max (0, bounds.Width - w), Math.Max (0, bounds.Height - h));
             }
         }
 
         /// <summary>
-        /// Gets the scaled size of the control.
+        /// Gets the client size in logical pixels, excluding borders.
         /// </summary>
-        public Size ClientSize => ClientRectangle.Size;
+        /// <remarks>Use this value for child layout. For device-space painting, use <see cref="ClientRectangle"/>.</remarks>
+        public Size ClientSize => LogicalClientRectangle.Size;
+
+        /// <summary>Gets the client bounds in logical pixels, excluding borders.</summary>
+        /// <remarks>
+        /// Use these bounds with child <see cref="Bounds"/>, <see cref="Padding"/> and layout APIs.
+        /// Unlike <see cref="DisplayRectangle"/>, this rectangle is not expanded or scrolled to fit content.
+        /// The existing <see cref="ClientRectangle"/> remains in device pixels for custom painting.
+        /// </remarks>
+        public virtual Rectangle LogicalClientRectangle {
+            get {
+                var border = CurrentStyle.Border;
+                int left = border.Left.GetWidth (), top = border.Top.GetWidth ();
+                return new Rectangle (left, top, Math.Max (0, Width - left - border.Right.GetWidth ()),
+                    Math.Max (0, Height - top - border.Bottom.GetWidth ()));
+            }
+        }
+
+        /// <summary>Gets the logical client bounds after subtracting the current presentation padding.</summary>
+        /// <remarks>Use for child layout on the UI thread. Padding transitions are reflected in the returned rectangle.</remarks>
+        public virtual Rectangle LogicalPaddedClientRectangle {
+            get {
+                var client = LogicalClientRectangle;
+                var padding = PresentationPadding;
+                return new Rectangle (client.Left + padding.Left, client.Top + padding.Top,
+                    Math.Max (0, client.Width - padding.Horizontal), Math.Max (0, client.Height - padding.Vertical));
+            }
+        }
 
         /// <summary>
         /// Gets a value indicating if the specified control is parented to this control or any of its children.
@@ -1209,12 +1235,12 @@ namespace ModernFormsNext
         /// Theme commits can coalesce requests from many controls into one platform-window
         /// invalidation while each control remains marked dirty.
         /// </remarks>
-        public void Invalidate () => Invalidate (Bounds);
+        public void Invalidate () => Invalidate (new Rectangle (Point.Empty, ScaledSize));
 
         /// <summary>
         /// Marks the specified portion of the control as needing to be redrawn.
         /// </summary>
-        /// <param name="rectangle">The portion of the control to be redrawn.</param>
+        /// <param name="rectangle">The damaged rectangle in control-local device pixels, as used by painting.</param>
         public void Invalidate (Rectangle rectangle)
         {
             if (!Created)
@@ -1222,12 +1248,9 @@ namespace ModernFormsNext
 
             PerformanceRecorder.Count (PerformanceCounterKind.InvalidationRequests, control: this);
             SetState (States.IsDirty, true);
-            // Invalidate(Rectangle) currently dirties the complete cached bitmap. Its
-            // callers use different coordinate spaces, so never reinterpret that argument.
             RecordPerformanceRegion (PerformanceRegionKind.InvalidationRequest);
 
-            if (FindWindow () is { } window)
-                Application.RequestVisualInvalidation (window);
+            InvalidateWindowRegion (rectangle);
 
             OnInvalidated (new EventArgs<Rectangle> (rectangle));
         }
@@ -1345,7 +1368,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Whether the control needs to be repainted.
         /// </summary>
-        internal bool NeedsPaint => GetState (States.IsDirty) || Controls.GetAllControls ().Any (c => c.NeedsPaint);
+        internal bool NeedsPaint => GetState (States.IsDirty) || HasPaintableDirtyChild ();
 
         /// <summary>
         /// The full control canvas.
@@ -1633,39 +1656,7 @@ namespace ModernFormsNext
         /// <param name="e">A PaintEventArgs that contains the event data.</param>
         protected virtual void OnPaint (PaintEventArgs e)
         {
-            // Controls enumerate from back to front, so the last/front-most child is composited last.
-            foreach (var control in Controls.GetAllControls ().Where (IsVisibleForPainting).ToArray ()) {
-                if (control.Width <= 0 || control.Height <= 0) {
-                    PerformanceRecorder.Count (PerformanceCounterKind.ZeroSizeControlsSkipped, control: control);
-                    continue;
-                }
-
-                var info = new SKImageInfo (control.ScaledSize.Width, control.ScaledSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
-                var buffer = control.GetBackBuffer ();
-                if (PerformanceRecorder.ShouldRecordRegions)
-                    control.RecordPerformancePaintRegions (this, e.Canvas.LocalClipBounds);
-
-                if (control.NeedsPaint) {
-                    using var measurement = PerformanceRecorder.Measure (PerformanceActivityKind.Render, control);
-                    PerformanceRecorder.Count (PerformanceCounterKind.ControlsRepainted, control: control);
-                    control.RecordPerformanceRegion (PerformanceRegionKind.Repaint);
-                    using (var canvas = new SKCanvas (buffer)) {
-                        // start drawing
-                        var args = new PaintEventArgs (info, canvas, Scaling);
-
-                        control.RaisePaintBackground (args);
-                        control.RaisePaint (args);
-
-                        canvas.Flush ();
-                    }
-                    measurement.Complete ();
-                } else {
-                    PerformanceRecorder.Count (PerformanceCounterKind.ControlCacheHits, control: control);
-                }
-
-                control.DrawBackBuffer (e.Canvas, buffer);
-                PerformanceRecorder.Count (PerformanceCounterKind.ControlsComposited, control: control);
-            }
+            PaintChildren (e);
         }
 
         // Keep the existing visible-child snapshot: paint callbacks may mutate the tree.
@@ -1695,7 +1686,14 @@ namespace ModernFormsNext
             }
 
             e.Canvas.DrawBackground (ScaledBounds, CurrentStyle, EffectiveBackgroundBrush);
-            e.Canvas.DrawBorder (ScaledBounds, CurrentStyle, EffectiveBorderBrush);
+            // Style border widths are logical; the general drawing helper accepts the
+            // current canvas units, so scale only this geometry, not the device-space painter.
+            e.Canvas.Save ();
+            try {
+                e.Canvas.Scale ((float)Scaling);
+                e.Canvas.DrawBorder (new Rectangle (Point.Empty, Size), CurrentStyle, EffectiveBorderBrush);
+            }
+            finally { e.Canvas.Restore (); }
         }
 
         /// <summary>
@@ -1869,6 +1867,9 @@ namespace ModernFormsNext
         protected virtual void OnVisibleChanged (EventArgs e)
         {
             CreateControl ();
+            // A hidden child retains its cache but no longer participates in NeedsPaint.
+            // Erase its previous pixels in the parent's composition when visibility changes.
+            Parent?.Invalidate ();
 
             (Events[s_visibleChangedEvent] as EventHandler)?.Invoke (this, e);
             NotifyAccessibilityClients(Visible ? AccessibleEvents.Show : AccessibleEvents.Hide);
@@ -1887,13 +1888,13 @@ namespace ModernFormsNext
         public virtual Rectangle PaddedClientRectangle {
             get {
                 var client_rect = ClientRectangle;
-                var padding = PresentationPadding;
+                var padding = LogicalToDeviceUnits (PresentationPadding);
 
                 var x = client_rect.Left + padding.Left;
                 var y = client_rect.Top + padding.Top;
                 var w = client_rect.Width - padding.Horizontal;
                 var h = client_rect.Height - padding.Vertical;
-                return new Rectangle (x, y, w, h);
+                return new Rectangle (x, y, Math.Max (0, w), Math.Max (0, h));
             }
         }
 
@@ -1934,16 +1935,12 @@ namespace ModernFormsNext
                 if (window is null)
                     return point;
 
-                var window_location = window.Location;
-                
-                // For Mac, the desktop coordinates are measured at a different scale than
-                // our form coordinates, so we need to fix that. For other platforms, ratio is 1.
-                var desktop_ratio = window.DesktopScaling / window.Scaling;
-                point = new Point ((int)(point.X * desktop_ratio), (int)(point.Y * desktop_ratio));
-
-                window_location.Offset (point);
-
-                return window_location;
+                // Control input/painting coordinates are device pixels. WindowKit owns the
+                // logical-client -> physical-screen boundary, including native nonclient chrome.
+                var screen = window.window.PointToScreen (new WindowKit.Point (
+                    (point.X + LogicalToDeviceUnits(window.CurrentStyle.Border.Left.GetWidth())) / window.Scaling,
+                    (point.Y + LogicalToDeviceUnits(window.CurrentStyle.Border.Top.GetWidth())) / window.Scaling));
+                return new Point (screen.X, screen.Y);
             }
 
             // If this isn't the top, we need to add our location to the point

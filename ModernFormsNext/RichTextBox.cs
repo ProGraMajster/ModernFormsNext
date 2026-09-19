@@ -931,6 +931,13 @@ namespace ModernFormsNext
         }
 
         /// <inheritdoc/>
+        protected override void OnDpiChanged(EventArgs e)
+        {
+            InvalidateRichText();
+            base.OnDpiChanged(e);
+        }
+
+        /// <inheritdoc/>
         protected override void OnEnabledChanged(EventArgs e)
         {
             InvalidateRichText();

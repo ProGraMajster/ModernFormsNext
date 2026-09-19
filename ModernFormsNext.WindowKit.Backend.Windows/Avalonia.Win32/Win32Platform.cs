@@ -313,16 +313,18 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private static void SetDpiAwareness()
         {
-            // Ideally we'd set DPI awareness in the manifest but this doesn't work for netcoreapp2.0
-            // apps as they are actually dlls run by a console loader. Instead we have to do it in code,
-            // but there are various ways to do this depending on the OS version.
+            // Establish one process default before the framework creates any HWND. A manifest
+            // or embedding host may already own that decision (ERROR_ACCESS_DENIED); preserve it
+            // instead of trying additional setters or changing the UI thread independently.
             var user32 = LoadLibrary("user32.dll");
             var method = GetProcAddress(user32, nameof(SetProcessDpiAwarenessContext));
 
             if (method != IntPtr.Zero)
                 {
                 if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) ||
-                    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE))
+                    Marshal.GetLastWin32Error() == 5 ||
+                    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE) ||
+                    Marshal.GetLastWin32Error() == 5)
                 {
                     return;
                 }

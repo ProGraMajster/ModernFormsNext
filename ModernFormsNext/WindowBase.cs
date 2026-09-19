@@ -48,6 +48,13 @@ namespace ModernFormsNext
             window.Input = OnInput;
             window.Paint = DoPaint;
             window.Resized = OnResize;
+            window.ScalingChanged = _ => {
+                if (backendClosed) return;
+                using var batch = Application.BeginVisualInvalidationBatch();
+                adapter.NotifyDpiChangedForSubtree();
+                OnResize(window.ClientSize, WindowResizeReason.DpiChange);
+                Invalidate();
+            };
             window.Closed = OnBackendClosed;
             window.Activated = () => {
                 if (backendClosed) return;
@@ -274,12 +281,29 @@ namespace ModernFormsNext
         /// </remarks>
         public void Invalidate () => Application.RequestVisualInvalidation (this);
 
+        private Rect? pendingDamage;
+        private bool pendingFullDamage;
+
+        internal void AccumulateDamage (Rect? rectangle)
+        {
+            if (rectangle is null) pendingFullDamage = true;
+            else if (!pendingFullDamage)
+                pendingDamage = pendingDamage is { } previous ? previous.Union (rectangle.Value) : rectangle;
+        }
+
+        internal void InvalidateLogicalRegion (Rect rectangle)
+            => Application.RequestVisualInvalidation (this, rectangle);
+
         internal void InvalidateCore ()
         {
             // Terminal document/focus cleanup can still notify managed controls after Closed.
             // Keep those notifications, but no native paint target exists at this point.
+            var damage = pendingFullDamage || pendingDamage is null ? new Rect (window.ClientSize) : pendingDamage.Value;
+            pendingDamage = null;
+            pendingFullDamage = false;
             if (backendClosed) return;
-            window.Invalidate (new Rect (window.ClientSize));
+            damage = damage.Intersect (new Rect (window.ClientSize));
+            if (damage.Width > 0 && damage.Height > 0) window.Invalidate (damage);
         }
 
         internal void RefreshThemeVisuals (EventArgs e)
@@ -300,8 +324,9 @@ namespace ModernFormsNext
         /// <summary>
         /// Marks the specified portion of the window as needing to be redrawn.
         /// </summary>
-        /// <param name="rectangle">The portion of the window to be redrawn.</param>
-        public void Invalidate (System.Drawing.Rectangle rectangle) => Invalidate ();
+        /// <param name="rectangle">The damaged rectangle in logical window-client pixels.</param>
+        public void Invalidate (System.Drawing.Rectangle rectangle)
+            => InvalidateLogicalRegion (new Rect (rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height));
 
         /// <summary>
         /// Gets the unscaled location of the control.
@@ -333,8 +358,11 @@ namespace ModernFormsNext
             }
             using var performance = PerformanceRecorder.BeginInput(adapter);
             if (e is RawPointerEventArgs me) {
-                // TODO: How do we want to handle this for real
+                // WindowKit supplies logical client coordinates. Controls keep their established
+                // device-space input contract, relative to the inside of the managed form border.
                 me.Position *= window.RenderScaling;
+                var contentPoint = new Point(me.Position.X - adapter.LogicalToDeviceUnits(CurrentStyle.Border.Left.GetWidth()),
+                    me.Position.Y - adapter.LogicalToDeviceUnits(CurrentStyle.Border.Top.GetWidth()));
 
                 switch (me.Type) {
                     case RawPointerEventType.CaptureLost:
@@ -346,11 +374,11 @@ namespace ModernFormsNext
                         if (Resizeable && HandleMouseDown ((int)me.Position.X, (int)me.Position.Y))
                             return;
 
-                        var lbd_e = new MouseEventArgs (MouseButtons.Left, 1, (int)me.Position.X, (int)me.Position.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var lbd_e = new MouseEventArgs (MouseButtons.Left, 1, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
                         adapter.RaiseMouseDown (lbd_e);
                         break;
                     case RawPointerEventType.LeftButtonUp:
-                        var lbu_e = BuildMouseClickArgs (MouseButtons.Left, me.Position, KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var lbu_e = BuildMouseClickArgs (MouseButtons.Left, contentPoint, KeyEventArgs.FromInputModifiers (me.InputModifiers));
 
                         if (lbu_e.Clicks > 1)
                             adapter.RaiseDoubleClick (lbu_e);
@@ -359,11 +387,11 @@ namespace ModernFormsNext
                         adapter.RaiseMouseUp (lbu_e);
                         break;
                     case RawPointerEventType.MiddleButtonDown:
-                        var mbd_e = new MouseEventArgs (MouseButtons.Middle, 1, (int)me.Position.X, (int)me.Position.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var mbd_e = new MouseEventArgs (MouseButtons.Middle, 1, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
                         adapter.RaiseMouseDown (mbd_e);
                         break;
                     case RawPointerEventType.MiddleButtonUp:
-                        var mbu_e = BuildMouseClickArgs (MouseButtons.Middle, me.Position, KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var mbu_e = BuildMouseClickArgs (MouseButtons.Middle, contentPoint, KeyEventArgs.FromInputModifiers (me.InputModifiers));
 
                         if (mbu_e.Clicks > 1)
                             adapter.RaiseDoubleClick (mbu_e);
@@ -372,11 +400,11 @@ namespace ModernFormsNext
                         adapter.RaiseMouseUp (mbu_e);
                         break;
                     case RawPointerEventType.RightButtonDown:
-                        var rbd_e = new MouseEventArgs (MouseButtons.Right, 1, (int)me.Position.X, (int)me.Position.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var rbd_e = new MouseEventArgs (MouseButtons.Right, 1, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
                         adapter.RaiseMouseDown (rbd_e);
                         break;
                     case RawPointerEventType.RightButtonUp:
-                        var rbu_e = BuildMouseClickArgs (MouseButtons.Right, me.Position, KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var rbu_e = BuildMouseClickArgs (MouseButtons.Right, contentPoint, KeyEventArgs.FromInputModifiers (me.InputModifiers));
 
                         if (rbu_e.Clicks > 1)
                             adapter.RaiseDoubleClick (rbu_e);
@@ -385,19 +413,19 @@ namespace ModernFormsNext
                         adapter.RaiseMouseUp (rbu_e);
                         break;
                     case RawPointerEventType.LeaveWindow:
-                        var lw_e = new MouseEventArgs (me.InputModifiers.ToMouseButtons (), 0, (int)me.Position.X, (int)me.Position.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var lw_e = new MouseEventArgs (me.InputModifiers.ToMouseButtons (), 0, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
                         adapter.RaiseMouseLeave (lw_e);
                         break;
                     case RawPointerEventType.Move:
                         if (Resizeable && HandleMouseMove ((int)me.Position.X, (int)me.Position.Y))
                             return;
 
-                        var mea = new MouseEventArgs (me.InputModifiers.ToMouseButtons (), 0, (int)me.Position.X, (int)me.Position.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                        var mea = new MouseEventArgs (me.InputModifiers.ToMouseButtons (), 0, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
                         adapter.RaiseMouseMove (mea);
                         break;
                     case RawPointerEventType.Wheel:
                         if (me is RawMouseWheelEventArgs raw) {
-                            var we = new MouseEventArgs (me.InputModifiers.ToMouseButtons (), 0, (int)me.Position.X, (int)me.Position.Y, new System.Drawing.Point ((int)raw.Delta.X, (int)raw.Delta.Y), keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
+                            var we = new MouseEventArgs (me.InputModifiers.ToMouseButtons (), 0, (int)contentPoint.X, (int)contentPoint.Y, new System.Drawing.Point ((int)raw.Delta.X, (int)raw.Delta.Y), keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
                             adapter.RaiseMouseWheel (we);
                         }
                         break;
@@ -463,17 +491,27 @@ namespace ModernFormsNext
             var scaled_display_rect = ScaledDisplayRectangle;
 
             using var surface = SKSurface.Create (framebufferImageInfo, framebuffer.Address, framebuffer.RowBytes);
-            using var performance = BeginPerformanceRender(framebuffer);
+            using var performance = BeginPerformanceRender(framebuffer, r);
             // Restore the content clip before drawing optional window-wide diagnostics. The
             // same canvas/backing is reused; there is no second control tree or paint pass.
             int saveCount = PerformanceRecorder.IsEnabled ? surface.Canvas.Save() : -1;
             try {
+                // Native damage is logical; this raster surface and all existing painters are
+                // device-space. Preserve untouched backing pixels outside the outward-rounded clip.
+                surface.Canvas.ClipRect (new SKRect ((float)Math.Floor (r.Left * Scaling),
+                    (float)Math.Floor (r.Top * Scaling), (float)Math.Ceiling (r.Right * Scaling),
+                    (float)Math.Ceiling (r.Bottom * Scaling)));
                 var e = new PaintEventArgs (framebufferImageInfo, surface.Canvas, Scaling);
                 OnPaintBackground (e);
-                e.Canvas.DrawBorder (new System.Drawing.Rectangle (0, 0, (int)scaled_client_size.Width, (int)scaled_client_size.Height), CurrentStyle);
+                e.Canvas.Save ();
+                try {
+                    e.Canvas.Scale ((float)Scaling);
+                    e.Canvas.DrawBorder (new System.Drawing.Rectangle (0, 0, (int)window.ClientSize.Width, (int)window.ClientSize.Height), CurrentStyle);
+                }
+                finally { e.Canvas.Restore (); }
                 OnPaint (e);
 
-                e.Canvas.ClipRect (new SKRect (scaled_display_rect.Left, scaled_display_rect.Top, scaled_display_rect.Width + 1, scaled_display_rect.Height + 1));
+                e.Canvas.ClipRect (new SKRect (scaled_display_rect.Left, scaled_display_rect.Top, scaled_display_rect.Right, scaled_display_rect.Bottom));
 
                 adapter.RaisePaintBackground (e);
                 adapter.RaisePaint (e);
@@ -514,7 +552,7 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnPaintBackground (PaintEventArgs e)
         {
-            e.Canvas.DrawBackground (Bounds, CurrentStyle);
+            e.Canvas.DrawBackground (new System.Drawing.Rectangle (System.Drawing.Point.Empty, ScaledSize), CurrentStyle);
         }
 
         private void OnResize (Size size, WindowResizeReason reason)
@@ -575,7 +613,16 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the scaled bounds of the form not including borders.
         /// </summary>
-        public System.Drawing.Rectangle ScaledDisplayRectangle => new System.Drawing.Rectangle (CurrentStyle.Border.Left.GetWidth (), CurrentStyle.Border.Top.GetWidth (), (int)ScaledClientSize.Width - CurrentStyle.Border.Right.GetWidth () - CurrentStyle.Border.Left.GetWidth (), (int)ScaledClientSize.Height - CurrentStyle.Border.Top.GetWidth () - CurrentStyle.Border.Bottom.GetWidth ());
+        public System.Drawing.Rectangle ScaledDisplayRectangle {
+            get {
+                var border = CurrentStyle.Border;
+                int left = adapter.LogicalToDeviceUnits(border.Left.GetWidth());
+                int top = adapter.LogicalToDeviceUnits(border.Top.GetWidth());
+                return new System.Drawing.Rectangle(left, top,
+                    Math.Max(0, (int)ScaledClientSize.Width - left - adapter.LogicalToDeviceUnits(border.Right.GetWidth())),
+                    Math.Max(0, (int)ScaledClientSize.Height - top - adapter.LogicalToDeviceUnits(border.Bottom.GetWidth())));
+            }
+        }
 
         /// <summary>
         /// Gets or sets the scaled size of the window.

@@ -1581,6 +1581,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool SetProcessDpiAwarenessContext(IntPtr dpiAWarenessContext);
 
+        [DllImport("user32.dll")]
+        internal static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("gdi32.dll")]
+        internal static extern int StretchDIBits(IntPtr hdc, int xDest, int yDest,
+            int destWidth, int destHeight, int xSrc, int ySrc, int srcWidth, int srcHeight,
+            IntPtr bits, ref BITMAPINFOHEADER info, uint usage, uint operation);
+
         [DllImport("shcore.dll")]
         public static extern long GetDpiForMonitor(IntPtr hmonitor, MONITOR_DPI_TYPE dpiType, out uint dpiX, out uint dpiY);
 

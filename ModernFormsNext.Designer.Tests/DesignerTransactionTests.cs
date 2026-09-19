@@ -871,12 +871,16 @@ public sealed class DesignerTransactionTests
     }
 
     [Fact]
-    public async Task TransactionManagerRejectsWrongThreadMutation()
+    public void TransactionManagerRejectsWrongThreadMutation()
     {
         using var session = CreateSession(out _);
-
-        var exception = await Task.Run(() => Record.Exception(() => session.Transactions.Begin("Wrong thread")));
-
+        Exception? exception = null;
+        // A Task.Run worker can reuse the creating pool thread after an await yields it,
+        // and the continuation can dispose the session on a different thread. An explicit
+        // worker proves wrong-thread rejection while keeping cleanup on the owning thread.
+        var worker = new Thread(() => exception = Record.Exception(() => session.Transactions.Begin("Wrong thread"))) { IsBackground = true };
+        worker.Start();
+        Assert.True(worker.Join(TimeSpan.FromSeconds(5)), "The wrong-thread probe did not complete.");
         Assert.IsType<InvalidOperationException>(exception);
     }
 

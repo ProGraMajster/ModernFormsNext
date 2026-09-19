@@ -8,8 +8,24 @@ using Xunit;
 
 namespace ModernFormsNext.Designer.Tests;
 
-public sealed class VisualStudioDesignerHostProcessTests
+public sealed class VisualStudioDesignerHostProcessTests : IDisposable
 {
+    private const string WorkspacePrefix = "ModernFormsNext-HostProcessTests-";
+    private static readonly string WorkspaceParent = IOPath.TrimEndingDirectorySeparator(IOPath.GetFullPath(IOPath.GetTempPath()));
+    // Each xUnit instance owns its design workspace. Opening a design directly under
+    // the shared temp root makes Solution Explorer traverse other tests' changing trees.
+    private readonly string workspaceDirectory = Directory.CreateDirectory(
+        IOPath.Combine(WorkspaceParent, WorkspacePrefix + Guid.NewGuid().ToString("N"))).FullName;
+
+    public void Dispose()
+    {
+        string directory = IOPath.GetFullPath(workspaceDirectory);
+        if (!string.Equals(IOPath.GetDirectoryName(directory), WorkspaceParent, StringComparison.OrdinalIgnoreCase) ||
+            !IOPath.GetFileName(directory).StartsWith(WorkspacePrefix, StringComparison.Ordinal))
+            throw new InvalidOperationException("Refusing to delete a directory outside the owned test workspace.");
+        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+    }
+
     private const int GwlStyle = -16;
     private const int GwlExStyle = -20;
     private const uint GwOwner = 4;
@@ -46,7 +62,7 @@ public sealed class VisualStudioDesignerHostProcessTests
 
         var pipeName = $"ModernFormsNext-EarlyStartup-{Guid.NewGuid():N}";
         var designPath = IOPath.Combine(
-            IOPath.GetTempPath(),
+            workspaceDirectory,
             $"ModernFormsNext-EarlyStartup-{Guid.NewGuid():N}.mfdesign");
         using var process = new Process
         {
@@ -172,7 +188,7 @@ public sealed class VisualStudioDesignerHostProcessTests
         using var firstParent = new NativeParentWindow(800, 600);
         var pipeName = $"ModernFormsNext-EmbeddedHost-{Guid.NewGuid():N}";
         var designPath = IOPath.Combine(
-            IOPath.GetTempPath(),
+            workspaceDirectory,
             $"ModernFormsNext-EmbeddedHost-{Guid.NewGuid():N}.mfdesign");
         using var process = StartHost(pipeName, designPath, firstParent.Handle);
         var logPath = DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), process.Id);
@@ -285,7 +301,7 @@ public sealed class VisualStudioDesignerHostProcessTests
         using var parent = new NativeParentWindow(840, 620);
         var pipeName = $"ModernFormsNext-ConcurrentSave-{Guid.NewGuid():N}";
         var designPath = IOPath.Combine(
-            IOPath.GetTempPath(),
+            workspaceDirectory,
             $"ModernFormsNext-ConcurrentSave-{Guid.NewGuid():N}.mfdesign");
         using var process = StartHost(pipeName, designPath, parent.Handle);
         var logPath = DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), process.Id);
@@ -337,8 +353,8 @@ public sealed class VisualStudioDesignerHostProcessTests
         using var secondParent = new NativeParentWindow(701, 501);
         var firstPipe = $"ModernFormsNext-IndependentHost-A-{Guid.NewGuid():N}";
         var secondPipe = $"ModernFormsNext-IndependentHost-B-{Guid.NewGuid():N}";
-        var firstDesignPath = IOPath.Combine(IOPath.GetTempPath(), $"Host-A-{Guid.NewGuid():N}.mfdesign");
-        var secondDesignPath = IOPath.Combine(IOPath.GetTempPath(), $"Host-B-{Guid.NewGuid():N}.mfdesign");
+        var firstDesignPath = IOPath.Combine(workspaceDirectory, $"Host-A-{Guid.NewGuid():N}.mfdesign");
+        var secondDesignPath = IOPath.Combine(workspaceDirectory, $"Host-B-{Guid.NewGuid():N}.mfdesign");
         using var firstProcess = StartHost(firstPipe, firstDesignPath, firstParent.Handle);
         using var secondProcess = StartHost(secondPipe, secondDesignPath, secondParent.Handle);
 

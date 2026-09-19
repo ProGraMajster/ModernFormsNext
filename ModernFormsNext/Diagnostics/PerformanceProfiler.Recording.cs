@@ -294,7 +294,7 @@ public sealed partial class PerformanceProfiler
         PixelFormat = info.Format, RowBytes = info.RowBytes, BackingBytes = info.BackingBytes,
         HostGeneration = info.HostGeneration, BackingGeneration = info.BackingGeneration,
         IsOffscreen = info.Boundary == PlatformRenderBoundary.OffscreenCapture,
-        Redraw = info.FullRedraw == true ? PerformanceRedraw.FullSurface : PerformanceRedraw.Unknown
+        Redraw = info.FullRedraw switch { true => PerformanceRedraw.FullSurface, false => PerformanceRedraw.PartialSurface, _ => PerformanceRedraw.Unknown }
     };
 
     private static int Dimension(double? value) => value is > 0 and <= int.MaxValue && double.IsFinite(value.Value) ? (int)value.Value : 0;

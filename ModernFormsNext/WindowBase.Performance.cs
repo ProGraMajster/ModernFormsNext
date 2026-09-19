@@ -6,7 +6,7 @@ namespace ModernFormsNext;
 
 public abstract partial class WindowBase
 {
-    private PerformanceRenderScope BeginPerformanceRender(ILockedFramebuffer framebuffer)
+    private PerformanceRenderScope BeginPerformanceRender(ILockedFramebuffer framebuffer, Rect damage)
     {
         if (!PerformanceRecorder.IsEnabled) return default;
         // The native boundary supplies backend/host generation. These are the actual locked
@@ -25,7 +25,7 @@ public abstract partial class WindowBase
                 framebuffer.Format == PixelFormat.Rgb565 ? "RGB565" : null,
             RowBytes = framebuffer.RowBytes,
             BackingBytes = (long)framebuffer.RowBytes * framebuffer.Size.Height,
-            Redraw = PerformanceRedraw.FullSurface
+            Redraw = damage.Contains(new Rect(window.ClientSize)) ? PerformanceRedraw.FullSurface : PerformanceRedraw.PartialSurface
         });
     }
 }
