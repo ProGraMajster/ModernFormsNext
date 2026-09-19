@@ -3,6 +3,7 @@ using ModernFormsNext.WindowKit;
 using ModernFormsNext.WindowKit.Controls.Platform.Surfaces;
 using ModernFormsNext.WindowKit.Platform;
 using SkiaSharp;
+using ModernFormsNext.WindowKit.Diagnostics;
 
 namespace ModernFormsNext.Testing;
 
@@ -10,6 +11,7 @@ internal sealed partial class HeadlessWindowImpl
 {
     internal const int MaximumSnapshotPixels = 16_777_216;
     private object[] renderingSurfaces = [];
+    private long snapshotBackingGeneration;
 
     internal void ValidateSnapshotSize(int maximumPixels)
         => GetSnapshotSize(maximumPixels);
@@ -25,13 +27,27 @@ internal sealed partial class HeadlessWindowImpl
         PixelSize size = GetSnapshotSize(maximumPixels);
         double capturedScale = renderScaling;
         using var framebuffer = new SnapshotFramebuffer(size, capturedScale);
+        snapshotBackingGeneration++;
         renderingSurfaces = [framebuffer];
         try
         {
             // This is the production backend callback registered by WindowBase. It discovers
             // the scoped framebuffer and paints normal Form chrome, the adapter and cached
             // control buffers. A separate surface/tree would hide runtime rendering regressions.
-            Paint(new Rect(clientSize));
+            // This boundary measures production offscreen paint, excluding allocation and the
+            // caller-owned detached pixel copy below. It does not represent a display refresh.
+            using (var performance = PlatformPerformanceDiagnostics.IsEnabled
+                ? PlatformPerformanceDiagnostics.BeginFrame(this,
+                    new PlatformRenderInfo(PlatformRenderBoundary.OffscreenCapture,
+                        PlatformRenderBackend.Headless, PlatformRenderMode.Software,
+                        clientSize.Width, clientSize.Height, size.Width, size.Height,
+                        size.Width * 4, "BGRA8888", capturedScale, (long)size.Width * size.Height * 4,
+                        HostGeneration: 1, BackingGeneration: snapshotBackingGeneration, FullRedraw: true))
+                : default)
+            {
+                Paint(new Rect(clientSize));
+                performance.Complete();
+            }
             ObjectDisposedException.ThrowIf(IsDisposed, this);
             return framebuffer.CopySnapshot(capturedScale);
         }

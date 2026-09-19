@@ -1,4 +1,5 @@
 using ModernFormsNext;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
 
@@ -11,11 +12,14 @@ internal sealed class DesignerLayoutEngine
 
     public DesignerLayoutResult Layout(DesignDocument document, DesignSize rootSize)
     {
+        using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerLayout);
         var normalizedRootSize = new DesignSize(Math.Max(1, rootSize.Width), Math.Max(1, rootSize.Height));
         var baseline = normalizedRootSize == document.Size
             ? null
             : LayoutCore(document, document.Size, baseline: null);
-        return LayoutCore(document, normalizedRootSize, baseline);
+        var result = LayoutCore(document, normalizedRootSize, baseline);
+        performance.Complete();
+        return result;
     }
 
     private static DesignerLayoutResult LayoutCore(

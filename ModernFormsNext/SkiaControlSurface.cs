@@ -4,6 +4,7 @@ using ModernFormsNext.Accessibility;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
 using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Platform;
+using ModernFormsNext.Diagnostics;
 
 namespace ModernFormsNext;
 
@@ -206,8 +207,18 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
             SKImageInfo.PlatformColorType,
             SKAlphaType.Premul);
         var args = new PaintEventArgs(info, canvas, scaling);
-        surfaceRoot.RaisePaintBackground(args);
-        surfaceRoot.RaisePaint(args);
+        using var performance = BeginPerformanceRender(scaling);
+        int saveCount = PerformanceRecorder.IsEnabled ? canvas.Save() : -1;
+        try
+        {
+            surfaceRoot.RaisePaintBackground(args);
+            surfaceRoot.RaisePaint(args);
+        }
+        finally { if (saveCount >= 0) canvas.RestoreToCount(saveCount); }
+        performance.Complete();
+        // The host already applied logical-to-device density to this borrowed canvas.
+        if (PerformanceRecorder.IsEnabled)
+            PerformanceRecorder.RenderOverlay(canvas, Root, LogicalSize.Width, LogicalSize.Height, 1);
     }
 
     /// <summary>
@@ -220,6 +231,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     {
         if (action == ControlSurfacePointerAction.Cancel)
         {
+            using var performance = PerformanceRecorder.BeginInput(Root);
             CancelAllPointers();
             return;
         }
@@ -240,6 +252,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     public void ProcessPointer(int pointerId, ControlSurfacePointerAction action, int x, int y)
     {
         ThrowIfDisposed();
+        using var performance = PerformanceRecorder.BeginInput(Root);
         var location = new Point(x, y);
         var hit = HitTest(surfaceRoot, location);
         var clickGenerated = false;
@@ -369,6 +382,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(text);
+        using var performance = PerformanceRecorder.BeginInput(Root);
 
         var selected = FindSelectedControl();
         if (selected is null)
@@ -401,6 +415,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(text);
+        using var performance = PerformanceRecorder.BeginInput(Root);
         TextInputClient?.SetComposingText(text, newCursorPosition);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -415,6 +430,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     public void SetComposingRegion(int start, int end)
     {
         ThrowIfDisposed();
+        using var performance = PerformanceRecorder.BeginInput(Root);
         TextInputClient?.SetComposingRegion(start, end);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -423,6 +439,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     public void FinishComposingText()
     {
         ThrowIfDisposed();
+        using var performance = PerformanceRecorder.BeginInput(Root);
         TextInputClient?.FinishComposition();
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -453,6 +470,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     public void SetTextSelection(int start, int end)
     {
         ThrowIfDisposed();
+        using var performance = PerformanceRecorder.BeginInput(Root);
         TextInputClient?.SetSelection(start, end);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -471,6 +489,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
             throw new ArgumentOutOfRangeException(nameof(beforeLength));
         if (afterLength < 0)
             throw new ArgumentOutOfRangeException(nameof(afterLength));
+        using var performance = PerformanceRecorder.BeginInput(Root);
         TextInputClient?.DeleteSurroundingText(beforeLength, afterLength);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -508,6 +527,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     public void DeleteBackward()
     {
         ThrowIfDisposed();
+        using var performance = PerformanceRecorder.BeginInput(Root);
         FindSelectedControl()?.RaiseKeyDown(new KeyEventArgs(Keys.Back));
         Invalidated?.Invoke(this, EventArgs.Empty);
     }

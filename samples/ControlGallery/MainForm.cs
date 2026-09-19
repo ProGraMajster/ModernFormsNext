@@ -52,6 +52,7 @@ namespace ControlGallery
             tree.Items.Add ("NotifyIcon", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Panel", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Paint & Gradients", ImageLoader.Get ("swatches.png"));
+            tree.Items.Add ("Performance diagnostics", ImageLoader.Get ("swatches.png"));
             tree.Items.Add ("PictureBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Printing", ImageLoader.Get ("print.png"));
             tree.Items.Add ("ProgressBar", ImageLoader.Get ("button.png"));
@@ -174,6 +175,8 @@ namespace ControlGallery
                     return new PanelPanel ();
                 case "Paint & Gradients":
                     return new PaintAndGradientsPanel ();
+                case "Performance diagnostics":
+                    return new PerformanceDiagnosticsPanel ();
                 case "PictureBox":
                     return new PictureBoxPanel ();
                 case "Printing":

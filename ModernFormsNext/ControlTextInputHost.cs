@@ -362,6 +362,7 @@ internal sealed class ControlTextInputHost(Control root, Func<Control?> selected
         private bool Edit(Func<ITextInputClient, bool> operation)
         {
             if (editing || CurrentHost() is null || client is null) return false;
+            using var performance = Diagnostics.PerformanceRecorder.BeginInput(Owner);
             editing = true;
             bool result = false;
             Exception? failure = null;

@@ -421,6 +421,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         if (disposed)
             return;
 
+        if (!state.IsSurfaceAttached) performanceHostGeneration++;
         if (state.AttachSurface())
             PostInvalidateOnAnimation();
         accessibilityProvider?.Attach();
@@ -441,6 +442,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         }
         var primaryPointerId = state.PrimaryPointerId;
         var cancellations = state.DetachSurface();
+        ResetPerformanceBackingInfo();
         InvalidateKeyboardRoute();
         try
         {
@@ -472,6 +474,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         if (disposed)
             return;
 
+        ResetPerformanceBackingInfo();
         if (ResizeFromPhysicalPixels(width, height) && state.CanRender)
             PostInvalidateOnAnimation();
         accessibilityProvider?.InvalidateGeometry();
@@ -496,6 +499,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
         if (disposed || !state.CanRender)
             return;
 
+        CapturePaintPerformanceInfo(e.Info);
         var density = Density;
         if (state.LogicalWidth == 0 && state.LogicalHeight == 0)
         {

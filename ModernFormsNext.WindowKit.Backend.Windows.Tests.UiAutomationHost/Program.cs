@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--performance", StringComparer.Ordinal))
+{
+    Environment.ExitCode = PerformanceScenario.Run();
+    return;
+}
+
 if (args.Contains("--grid-calendar", StringComparer.Ordinal))
 {
     GridCalendarScenario.Run();

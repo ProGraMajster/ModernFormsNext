@@ -8,6 +8,7 @@ using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Drawing;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.Layout;
 
 namespace ModernFormsNext;
@@ -114,6 +115,8 @@ public partial class Control
     /// <param name="proposedSize">A size the layout engine is proposing for the control.</param>
     public virtual Size GetPreferredSize (Size proposedSize)
     {
+        using var measurement = PerformanceRecorder.Measure (PerformanceActivityKind.PreferredSize, this);
+        PerformanceRecorder.Count (PerformanceCounterKind.PreferredSizeQueries, control: this);
         Size prefSize;
 
         if (GetState (States.Disposing | States.Disposed)) {
@@ -130,10 +133,14 @@ public partial class Control
                 var cachedSize = CommonProperties.xGetPreferredSizeCache (this);
 
                 // If the "default" preferred size is being requested, and we have a cached value for it, return it.
-                if (!cachedSize.IsEmpty && (proposedSize == LayoutUtils.s_maxSize))
+                if (!cachedSize.IsEmpty && (proposedSize == LayoutUtils.s_maxSize)) {
+                    PerformanceRecorder.Count (PerformanceCounterKind.PreferredSizeCacheHits, control: this);
+                    measurement.Complete ();
                     return cachedSize;
+                }
             }
 
+            PerformanceRecorder.Count (PerformanceCounterKind.PreferredSizeCoreCalls, control: this);
             prefSize = GetPreferredSizeCore (proposedSize);
 
             // There is no guarantee that GetPreferredSizeCore() return something within
@@ -145,6 +152,7 @@ public partial class Control
                 CommonProperties.xSetPreferredSizeCache (this, prefSize);
         }
 
+        measurement.Complete ();
         return prefSize;
     }
 
@@ -427,6 +435,8 @@ public partial class Control
         }
 
         // (Essentially the same as suspending layout while we layout, but we clear differently below.)
+        using var measurement = PerformanceRecorder.Measure (PerformanceActivityKind.Layout, this);
+        PerformanceRecorder.Count (PerformanceCounterKind.LayoutPasses, control: this);
         layout_suspend_count = 1;
 
         try {
@@ -446,6 +456,7 @@ public partial class Control
             if (Parent is not null && Parent.GetState (States.LayoutIsDirty))
                 LayoutTransaction.DoLayout (Parent, this, PropertyNames.PreferredSize);
         }
+        measurement.Complete ();
     }
 
     /// <summary>

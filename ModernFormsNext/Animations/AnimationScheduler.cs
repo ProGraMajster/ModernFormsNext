@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.WindowKit.Backend;
 using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
@@ -565,6 +566,9 @@ public sealed partial class AnimationScheduler : IDisposable
         lock (sync)
             now = GetEffectiveTimeLocked(clock.CurrentTime);
 
+        // One scheduler pass may update owners from several windows. Keep this work
+        // unattributed outside a host frame instead of selecting an arbitrary owner.
+        using var measurement = PerformanceRecorder.Measure(PerformanceActivityKind.Animation);
         try
         {
             using Application.VisualInvalidationBatchScope batch = Application.BeginVisualInvalidationBatch();
@@ -630,12 +634,14 @@ public sealed partial class AnimationScheduler : IDisposable
             tickBuffer.Clear();
             if (processedAny)
             {
+                PerformanceRecorder.Count(PerformanceCounterKind.AnimationTicks);
                 Interlocked.Increment(ref tickCount);
                 Interlocked.Add(ref totalTickTimestampDelta, Stopwatch.GetTimestamp() - tickStarted);
             }
             lock (sync)
                 StopTickSourceIfIdleLocked();
         }
+        measurement.Complete();
     }
 
     private void Complete(AnimationEntry entry)

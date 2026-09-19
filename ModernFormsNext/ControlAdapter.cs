@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using ModernFormsNext.Accessibility;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Platform;
 using ModernFormsNext.WindowKit.Platform.Accessibility;
@@ -54,15 +55,22 @@ namespace ModernFormsNext
             var form_y = form_border.Top.GetWidth ();
 
             // ControlCollection enumerates from back to front, matching Control.OnPaint.
-            foreach (var control in Controls.GetAllControls ().Where (c => c.Visible).ToArray ()) {
-                if (control.Width <= 0 || control.Height <= 0)
+            foreach (var control in Controls.GetAllControls ().Where (IsVisibleForPainting).ToArray ()) {
+                if (control.Width <= 0 || control.Height <= 0) {
+                    PerformanceRecorder.Count (PerformanceCounterKind.ZeroSizeControlsSkipped, control: control);
                     continue;
+                }
 
                 //var info = new SKImageInfo (control.Width, control.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
                 var info = new SKImageInfo (control.ScaledSize.Width, control.ScaledSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
                 var buffer = control.GetBackBuffer ();
+                if (PerformanceRecorder.ShouldRecordRegions)
+                    control.RecordPerformancePaintRegions (this, e.Canvas.LocalClipBounds);
 
                 if (control.NeedsPaint) {
+                    using var measurement = PerformanceRecorder.Measure (PerformanceActivityKind.Render, control);
+                    PerformanceRecorder.Count (PerformanceCounterKind.ControlsRepainted, control: control);
+                    control.RecordPerformanceRegion (PerformanceRegionKind.Repaint);
                     using (var canvas = new SKCanvas (buffer)) {
                         // start drawing
                         var args = new PaintEventArgs(info, canvas, Scaling);
@@ -72,9 +80,13 @@ namespace ModernFormsNext
 
                         canvas.Flush ();
                     }
+                    measurement.Complete ();
+                } else {
+                    PerformanceRecorder.Count (PerformanceCounterKind.ControlCacheHits, control: control);
                 }
 
                 control.DrawBackBuffer (e.Canvas, buffer, form_x, form_y);
+                PerformanceRecorder.Count (PerformanceCounterKind.ControlsComposited, control: control);
             }
         }
 

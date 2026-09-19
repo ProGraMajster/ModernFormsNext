@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading;
+using ModernFormsNext.Diagnostics;
 using ModernFormsNext.WindowKit;
 using ModernFormsNext.WindowKit.Threading;
 using ModernFormsNext.WindowKit.Backend;
@@ -169,10 +170,12 @@ namespace ModernFormsNext
 
             if (visualInvalidationBatch is { Depth: > 0 } state)
             {
-                state.Windows.Add(window);
+                if (!state.Windows.Add(window))
+                    PerformanceRecorder.Count(PerformanceCounterKind.CoalescedWindowInvalidations);
                 return;
             }
 
+            PerformanceRecorder.Count(PerformanceCounterKind.WindowInvalidationRequests);
             window.InvalidateCore();
         }
 
@@ -197,6 +200,7 @@ namespace ModernFormsNext
             {
                 try
                 {
+                    PerformanceRecorder.Count(PerformanceCounterKind.WindowInvalidationRequests);
                     window.InvalidateCore();
                 }
                 catch (Exception exception)

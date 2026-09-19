@@ -18,6 +18,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private FramebufferData? _framebufferData;
 
+        // These primitive facts describe real allocations, even when diagnostics starts after
+        // the window was shown. They do not expose or retain native memory in a snapshot.
+        internal PixelSize? AllocatedSize => _framebufferData?.Size;
+        internal int? AllocatedRowBytes => _framebufferData?.RowBytes;
+        internal long BackingGeneration { get; private set; }
+
         public FramebufferManager(IntPtr hwnd)
         {
             _hwnd = hwnd;
@@ -43,6 +49,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     _framebufferData?.Dispose();
 
                     _framebufferData = AllocateFramebufferData(width, height);
+                    BackingGeneration++;
                 }
 
                 var framebufferData = _framebufferData.Value;

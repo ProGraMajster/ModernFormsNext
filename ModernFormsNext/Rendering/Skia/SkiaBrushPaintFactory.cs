@@ -17,39 +17,51 @@ internal static class SkiaBrushPaintFactory
             Style = style
         };
 
-        switch (brush)
+        SkiaShaderScope shader = default;
+        try
         {
-            case SolidColorBrush solid:
-                paint.Color = SkiaBrushFactory.ApplyOpacity(solid.Color, solid.Opacity);
-                return new SkiaBrushPaint(paint, null);
+            switch (brush)
+            {
+                case SolidColorBrush solid:
+                    paint.Color = SkiaBrushFactory.ApplyOpacity(solid.Color, solid.Opacity);
+                    return new SkiaBrushPaint(paint, default);
 
-            case GradientBrush gradient:
-                GradientStop[] stops = gradient.GetOrderedStops();
-                if (stops.Length == 1 || gradient is RadialGradientBrush { Radius: 0f })
-                {
-                    paint.Color = SkiaBrushFactory.ApplyOpacity(stops[^1].Color, gradient.Opacity);
-                    return new SkiaBrushPaint(paint, null);
-                }
+                case GradientBrush gradient:
+                    GradientStop[] stops = gradient.GetOrderedStops();
+                    if (stops.Length == 1 || gradient is RadialGradientBrush { Radius: 0f })
+                    {
+                        paint.Color = SkiaBrushFactory.ApplyOpacity(stops[^1].Color, gradient.Opacity);
+                        return new SkiaBrushPaint(paint, default);
+                    }
 
-                SKShader? shader = SkiaBrushFactory.CreateGradientShader(gradient, EnsureUsableBounds(bounds));
-                if (shader is null)
-                {
+                    shader = SkiaBrushFactory.CreateOwnedGradientShader(gradient, EnsureUsableBounds(bounds));
+                    if (shader.Shader is null)
+                    {
+                        paint.Dispose();
+                        return null;
+                    }
+
+                    paint.Shader = shader.Shader;
+                    return new SkiaBrushPaint(paint, shader);
+
+                case GlassBrush glass:
+                    // A glass surface has multiple fill layers, but a stroke has only one path. Use
+                    // the brush's public border color as its deterministic stroke representation.
+                    paint.Color = SkiaBrushFactory.ApplyOpacity(glass.BorderColor, glass.Opacity);
+                    return new SkiaBrushPaint(paint, default);
+
+                default:
                     paint.Dispose();
                     return null;
-                }
-
-                paint.Shader = shader;
-                return new SkiaBrushPaint(paint, shader);
-
-            case GlassBrush glass:
-                // A glass surface has multiple fill layers, but a stroke has only one path. Use
-                // the brush's public border color as its deterministic stroke representation.
-                paint.Color = SkiaBrushFactory.ApplyOpacity(glass.BorderColor, glass.Opacity);
-                return new SkiaBrushPaint(paint, null);
-
-            default:
-                paint.Dispose();
-                return null;
+            }
+        }
+        catch
+        {
+            // Ownership is transferred only by a successful return. A failing shader
+            // factory or paint assignment must release both resources already acquired.
+            try { paint.Dispose(); }
+            finally { shader.Dispose(); }
+            throw;
         }
     }
 
@@ -82,9 +94,10 @@ internal static class SkiaBrushPaintFactory
 /// <summary>Owns a Skia paint and its optional shader for one draw operation.</summary>
 internal sealed class SkiaBrushPaint : IDisposable
 {
-    private readonly SKShader? shader;
+    private readonly SkiaShaderScope shader;
+    private bool disposed;
 
-    public SkiaBrushPaint(SKPaint paint, SKShader? shader)
+    public SkiaBrushPaint(SKPaint paint, SkiaShaderScope shader)
     {
         Paint = paint;
         this.shader = shader;
@@ -94,7 +107,10 @@ internal sealed class SkiaBrushPaint : IDisposable
 
     public void Dispose()
     {
-        Paint.Dispose();
-        shader?.Dispose();
+        if (disposed)
+            return;
+        disposed = true;
+        try { Paint.Dispose(); }
+        finally { shader.Dispose(); }
     }
 }

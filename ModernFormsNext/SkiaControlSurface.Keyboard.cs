@@ -1,3 +1,5 @@
+using ModernFormsNext.Diagnostics;
+
 namespace ModernFormsNext;
 
 public sealed partial class SkiaControlSurface
@@ -28,6 +30,7 @@ public sealed partial class SkiaControlSurface
     {
         VerifyKeyboardAccess();
         ArgumentNullException.ThrowIfNull(e);
+        using var performance = PerformanceRecorder.BeginInput(Root);
         if (isDeadKey) inputBindingResolver.ResetKey(e.KeyData);
         if (resettingKeyboardState) e.SuppressKeyPress = true;
         if (e.Handled || e.SuppressKeyPress) return true;
@@ -94,6 +97,7 @@ public sealed partial class SkiaControlSurface
     {
         VerifyKeyboardAccess();
         ArgumentNullException.ThrowIfNull(e);
+        using var performance = PerformanceRecorder.BeginInput(Root);
         if (resettingKeyboardState)
         {
             e.SuppressKeyPress = true;

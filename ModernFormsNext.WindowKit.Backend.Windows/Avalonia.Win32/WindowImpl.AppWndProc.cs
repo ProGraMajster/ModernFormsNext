@@ -648,17 +648,25 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 case WindowsMessage.WM_PAINT:
                     {
-                        //using (NonPumpingSyncContext.Use(NonPumpingWaitHelperImpl.Instance))
-                        //{
-                            if (BeginPaint(_hwnd, out PAINTSTRUCT ps) != IntPtr.Zero)
+                        if (BeginPaint(hWnd, out PAINTSTRUCT ps) != IntPtr.Zero)
+                        {
+                            using var performance = BeginPerformanceFrame();
+                            try
                             {
                                 var f = RenderScaling;
                                 var r = ps.rcPaint;
                                 Paint?.Invoke(new Rect(r.left / f, r.top / f, (r.right - r.left) / f,
                                     (r.bottom - r.top) / f));
-                                EndPaint(_hwnd, ref ps);
+                                performance.Complete();
                             }
-                        //}
+                            finally
+                            {
+                                // User painting can throw or close the window. Validate the native
+                                // paint region regardless, before profiler completion can run.
+                                EndPaint(hWnd, ref ps);
+                                UpdatePerformanceFrame(performance);
+                            }
+                        }
 
                         return IntPtr.Zero;
                     }

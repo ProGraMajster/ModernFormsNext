@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Drawing;
 using SkiaSharp;
+using System.Numerics;
+using ModernFormsNext.Rendering.Skia;
 
 namespace ModernFormsNext.Renderers
 {
@@ -54,7 +56,7 @@ namespace ModernFormsNext.Renderers
             canvas.DrawRect (rect, huePaint);
 
             // Saturation gradient (white → transparent)
-            whitePaint.Shader = SKShader.CreateLinearGradient (
+            using var whiteShader = SkiaBrushFactory.CreateOwnedLinearGradient (
                 new SKPoint (rect.Left, rect.Top),
                 new SKPoint (rect.Right, rect.Top),
                 new[]
@@ -63,12 +65,13 @@ namespace ModernFormsNext.Renderers
             new SKColor(255,255,255,0)
                 },
                 null,
-                SKShaderTileMode.Clamp);
+                SKShaderTileMode.Clamp, Matrix3x2.Identity);
+            whitePaint.Shader = whiteShader.Shader;
 
             canvas.DrawRect (rect, whitePaint);
 
             // Value gradient (transparent → black)
-            blackPaint.Shader = SKShader.CreateLinearGradient (
+            using var blackShader = SkiaBrushFactory.CreateOwnedLinearGradient (
                 new SKPoint (rect.Left, rect.Top),
                 new SKPoint (rect.Left, rect.Bottom),
                 new[]
@@ -77,7 +80,8 @@ namespace ModernFormsNext.Renderers
             SKColors.Black
                 },
                 null,
-                SKShaderTileMode.Clamp);
+                SKShaderTileMode.Clamp, Matrix3x2.Identity);
+            blackPaint.Shader = blackShader.Shader;
 
             canvas.DrawRect (rect, blackPaint);
 
