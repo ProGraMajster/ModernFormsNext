@@ -169,6 +169,7 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
     public void Invalidate(Rect rect)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        PendingInvalidationRegion = PendingInvalidationRegion is { } previous ? previous.Union(rect) : rect;
         pendingInvalidationCount++;
         TotalInvalidationCount++;
     }
@@ -322,10 +323,13 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
         ScalingChanged?.Invoke(scale);
     }
 
+    internal Rect? PendingInvalidationRegion { get; private set; }
+
     internal int ConsumePendingInvalidations()
     {
         var count = pendingInvalidationCount;
         pendingInvalidationCount = 0;
+        PendingInvalidationRegion = null;
         return count;
     }
 

@@ -267,7 +267,7 @@ public partial class Control
         bool hasPresentationTransform = HasDistinctPresentationBounds;
         if (!hasRenderTransform && !hasPresentationTransform)
         {
-            canvas.DrawBitmap(buffer, parentOffsetX + ScaledLeft, parentOffsetY + ScaledTop);
+            DrawClippedBackBuffer(canvas, buffer, parentOffsetX + ScaledLeft, parentOffsetY + ScaledTop);
             return;
         }
 

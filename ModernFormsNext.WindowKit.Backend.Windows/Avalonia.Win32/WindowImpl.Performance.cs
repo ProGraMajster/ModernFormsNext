@@ -32,6 +32,6 @@ internal partial class WindowImpl
             backing?.Width, backing?.Height, rowBytes, "BGRA8888", scale,
             backing is { } size && rowBytes is { } stride ? (long)stride * size.Height : null,
             HostGeneration: 1, BackingGeneration: _framebuffer.BackingGeneration,
-            FullRedraw: true);
+            FullRedraw: _framebuffer.IsFullPaint);
     }
 }

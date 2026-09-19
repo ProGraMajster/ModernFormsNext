@@ -15,6 +15,13 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private readonly IntPtr _hwnd;
         private readonly object _lock;
         private readonly Action _onDisposeAction;
+        private readonly Func<double> _getScaling;
+        private IntPtr _paintDc;
+        private UnmanagedMethods.RECT _paintRegion;
+
+        internal bool IsFullPaint => _paintDc == IntPtr.Zero || AllocatedSize is not { } size ||
+            (_paintRegion.left <= 0 && _paintRegion.top <= 0 &&
+             _paintRegion.right >= size.Width && _paintRegion.bottom >= size.Height);
 
         private FramebufferData? _framebufferData;
 
@@ -24,11 +31,28 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         internal int? AllocatedRowBytes => _framebufferData?.RowBytes;
         internal long BackingGeneration { get; private set; }
 
-        public FramebufferManager(IntPtr hwnd)
+        public FramebufferManager(IntPtr hwnd, Func<double> getScaling)
         {
             _hwnd = hwnd;
             _lock = new object();
             _onDisposeAction = DrawAndUnlock;
+            _getScaling = getScaling;
+        }
+
+        // Borrow BeginPaint's clipped DC only while the owning WM_PAINT is active. A stack
+        // scope restores a prior context if application callbacks enter native painting again.
+        internal PaintContext BeginPaint(IntPtr dc, UnmanagedMethods.RECT rectangle)
+        {
+            var scope = new PaintContext(this, _paintDc, _paintRegion);
+            _paintDc = dc;
+            _paintRegion = rectangle;
+            return scope;
+        }
+
+        internal readonly struct PaintContext(FramebufferManager owner, IntPtr previousDc,
+            UnmanagedMethods.RECT previousRegion) : IDisposable
+        {
+            public void Dispose() { owner._paintDc = previousDc; owner._paintRegion = previousRegion; }
         }
 
         public ILockedFramebuffer Lock()
@@ -56,7 +80,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 return fb = new LockedFramebuffer(
                     framebufferData.Data.Address, framebufferData.Size, framebufferData.RowBytes,
-                    GetCurrentDpi(), s_format, _onDisposeAction);
+                    new Vector(96 * _getScaling(), 96 * _getScaling()), s_format, _onDisposeAction);
             }
             finally
             {
@@ -82,8 +106,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         {
             try
             {
-                if (_framebufferData.HasValue)
-                    DrawToWindow(_hwnd, _framebufferData.Value);
+                if (_framebufferData.HasValue) {
+                    var data = _framebufferData.Value;
+                    if (_paintDc == IntPtr.Zero) DrawToWindow(_hwnd, data);
+                    else {
+                        var header = data.Header;
+                        DrawDamageToDevice(_paintDc, data.Data.Address, ref header, _paintRegion);
+                    }
+                }
             }
             finally
             {
@@ -91,30 +121,25 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             }
         }
 
-        private Vector GetCurrentDpi()
+        internal static void DrawDamageToDevice(IntPtr dc, IntPtr pixels,
+            ref UnmanagedMethods.BITMAPINFOHEADER header, UnmanagedMethods.RECT damage)
         {
-            if (UnmanagedMethods.ShCoreAvailable && Win32Platform.WindowsVersion > PlatformConstants.Windows8)
-            {
-                var monitor =
-                    UnmanagedMethods.MonitorFromWindow(_hwnd, UnmanagedMethods.MONITOR.MONITOR_DEFAULTTONEAREST);
-
-                if (UnmanagedMethods.GetDpiForMonitor(
-                    monitor,
-                    UnmanagedMethods.MONITOR_DPI_TYPE.MDT_EFFECTIVE_DPI,
-                    out var dpix,
-                    out var dpiy) == 0)
-                {
-                    return new Vector(dpix, dpiy);
-                }
-            }
-
-            return new Vector(96, 96);
+            int backingHeight = -header.biHeight;
+            int left = Math.Max(0, damage.left), top = Math.Max(0, damage.top);
+            int width = Math.Min(header.biWidth, damage.right) - left;
+            int height = Math.Min(backingHeight, damage.bottom) - top;
+            // Negative biHeight controls scanline storage. GDI's source y-coordinate still
+            // addresses the rectangle from the lower edge, unlike the top-left destination.
+            // Native memory-DC tests verify both halves and nonzero offsets independently of Skia.
+            if (width > 0 && height > 0)
+                UnmanagedMethods.StretchDIBits(dc, left, top, width, height,
+                    left, backingHeight - top - height, width, height, pixels, ref header, 0, 0x00CC0020);
         }
 
         private static FramebufferData AllocateFramebufferData(int width, int height)
         {
             var service = AvaloniaGlobals.GetRequiredService<IRuntimePlatform>();
-            var bitmapBlob = service.AllocBlob(width * height * _bytesPerPixel);
+            var bitmapBlob = service.AllocBlob(checked(width * height * _bytesPerPixel));
 
             return new FramebufferData(bitmapBlob, width, height);
         }

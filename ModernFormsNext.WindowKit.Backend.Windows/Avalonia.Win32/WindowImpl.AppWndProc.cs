@@ -169,7 +169,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         var dpi = ToInt32(wParam) & 0xffff;
                         var newDisplayRect = Marshal.PtrToStructure<RECT>(lParam);
                         _scaling = dpi / 96.0;
-                        ScalingChanged?.Invoke(_scaling);
 
                         using (SetResizeReason(WindowResizeReason.DpiChange))
                         {
@@ -182,6 +181,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                                 SetWindowPosFlags.SWP_NOZORDER |
                                 SetWindowPosFlags.SWP_NOACTIVATE);
                         }
+
+                        // Notify after the suggested physical rectangle is applied, so logical
+                        // layout observes the new client size and DPI together, even without WM_SIZE.
+                        ScalingChanged?.Invoke(_scaling);
 
                         RefreshTextInputGeometry();
 
@@ -648,8 +651,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 case WindowsMessage.WM_PAINT:
                     {
-                        if (BeginPaint(hWnd, out PAINTSTRUCT ps) != IntPtr.Zero)
+                        if (BeginPaint(hWnd, out PAINTSTRUCT ps) is var paintDc && paintDc != IntPtr.Zero)
                         {
+                            using var paintContext = _framebuffer.BeginPaint(paintDc, ps.rcPaint);
                             using var performance = BeginPerformanceFrame();
                             try
                             {

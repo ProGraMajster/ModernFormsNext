@@ -65,8 +65,12 @@ public sealed class PopupTests
 
     [Theory]
     [InlineData(1d)]
+    [InlineData(1.25d)]
     [InlineData(1.5d)]
+    [InlineData(1.75d)]
     [InlineData(2d)]
+    [InlineData(2.25d)]
+    [InlineData(2.5d)]
     public void PopupUsesManagedPlacementAndTheProductionScaledFramebuffer(double scale)
     {
         using var host = ModernFormsTestHost.Create();
@@ -74,12 +78,13 @@ public sealed class PopupTests
         TestWindowHost window = host.Show(form, new TestViewport(300, 240, scale));
         var canonical = new PopupWindow(form) { Size = new Size(60, 40) };
         var color = canonical.Controls.Add(new ColorControl { Dock = DockStyle.Fill });
-        canonical.Show(form.PointToScreen(new Point(20, 30)));
+        var screenAnchor = form.PointToScreen(new Point(20, 30));
+        canonical.Show(screenAnchor);
         TestPopupHost popup = Assert.IsType<TestPopupHost>(window.ActivePopup);
 
         using RenderedSnapshot first = popup.CaptureRenderedSnapshot();
 
-        Assert.Equal(new Point((int)(20 * scale), (int)(30 * scale)), canonical.Location);
+        Assert.Equal(screenAnchor, canonical.Location);
         Assert.Equal((int)(60 * scale), first.PixelWidth);
         Assert.Equal((int)(40 * scale), first.PixelHeight);
         Assert.Equal(scale, first.RenderScale);

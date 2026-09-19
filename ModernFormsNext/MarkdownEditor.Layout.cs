@@ -10,7 +10,7 @@ public partial class MarkdownEditor
     {
         base.OnLayout(e);
 
-        var bounds = PaddedClientRectangle;
+        var bounds = LogicalPaddedClientRectangle;
         var toolbarHeight = ShowToolbar ? Math.Min(34, Math.Max(0, bounds.Height)) : 0;
         toolbar.SetBounds(bounds.Left, bounds.Top, bounds.Width, toolbarHeight);
         toolbar.Visible = ShowToolbar;

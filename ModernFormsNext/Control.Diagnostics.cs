@@ -74,10 +74,10 @@ public partial class Control
             if (parent is ControlAdapter adapter)
             {
                 // ControlAdapter.OnPaint adds the managed form-border offset separately
-                // from each child's presentation transform. Mirror the literal pixels.
+                // from each child's presentation transform. Mirror the scaled border offset.
                 var border = adapter.ParentForm.CurrentStyle.Border;
-                float x = border.Left.GetWidth();
-                float y = border.Top.GetWidth();
+                float x = adapter.LogicalToDeviceUnits(border.Left.GetWidth());
+                float y = adapter.LogicalToDeviceUnits(border.Top.GetWidth());
                 first = new(first.X + x, first.Y + y);
                 second = new(second.X + x, second.Y + y);
                 third = new(third.X + x, third.Y + y);

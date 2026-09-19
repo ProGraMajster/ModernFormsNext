@@ -883,6 +883,7 @@ public sealed class InteractionEffectTests
         {
             proxy = (RecordingWindowProxy)implementation;
             proxy.RenderScaling = renderScaling;
+            adapter.Bounds = new Rectangle(0, 0, 800, 600);
         }
 
         public int InvalidationCount => proxy.InvalidationCount;
@@ -898,6 +899,7 @@ public sealed class InteractionEffectTests
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            if (targetMethod?.Name == "get_ClientSize") return new ModernFormsNext.WindowKit.Size(800, 600);
             if (targetMethod?.Name == nameof(IWindowBaseImpl.Invalidate))
                 InvalidationCount++;
             if (targetMethod?.Name == "get_RenderScaling")

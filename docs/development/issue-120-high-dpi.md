@@ -1,4 +1,4 @@
-# Issue #120: high-DPI audit and implementation plan
+# Issue #120: high-DPI audit, fix and validation
 
 ## Checkpoint and scope
 
@@ -6,7 +6,7 @@ Audit baseline: `b2c1985723a25db20a4e4a185608395b083c312b`, master after
 PR #121 merged the current #58 instrumentation checkpoint. That PR passed CI
 35448715433 and was made ready before merging. #58 remains open for later phases.
 Branch `codex/issue-120-high-dpi` starts at that freshly fetched master.
-This document is committed **before implementation**. Only #120 follows #58;
+The audit and plan below were committed **before implementation** (`6f57b83`). Only #120 follows #58;
 the earlier issue queue is suspended. No package version or release changes.
 
 ## Audited pipeline at baseline
@@ -106,8 +106,102 @@ a setup card almost entirely outside the lower-right viewport at 225%.
    focused and complete suites, ApiCompat, docs/package validation and diff review.
    Push dedicated PR, verify CI, ready/merge when safe, fetch master and stop.
 
-Physical validation limitation:
+## Implemented correction
 
-**NOT EXECUTED â€” exact physical 5K / 225% environment unavailable**
+The [coordinate contract](../high-dpi.md) documents the final API, transition,
+painting and input ownership. ClientSize is logical; the explicit logical client
+rectangles support layout while existing ClientRectangle/custom paint remains device
+space. Shared padding/image/border calculations, MarkdownEditor and SplitContainer
+are corrected. HWND DPI changes refresh preferred-size, text and bitmap caches.
+Control screen conversion includes the native client origin and managed border;
+popup placement retains fractional coordinates instead of truncating twice.
 
-Implementation and after-validation results will be appended when actually observed.
+Damage now reaches window batching, ancestor composition, raster clipping and GDI
+presentation. Hidden implicit scrollbars no longer keep buffers dirty. Moving,
+hiding and transformed children erase old areas conservatively. Pixel-equivalence
+regressions compare partial paints with full paints for overlapping transparency,
+rotation, move and visibility changes at all seven scales.
+
+A separate performance cause was verified in the pinned
+[SkiaSharp 3.119.2 canvas source](https://github.com/mono/SkiaSharp/blob/v3.119.2/binding/SkiaSharp/SKCanvas.cs):
+DrawBitmap converts a mutable bitmap to an immutable image before clipping its
+destination. Merely clipping the destination still copied each full 5K ancestor.
+The ordinary composition path now extracts a bounded source subset before that safe
+copy. It does not alias borrowed mutable pixels into a potentially retained image.
+
+Physical screenshot inspection also caught an error in the first partial GDI
+implementation: top-down bitmap storage does not make the StretchDIBits source
+rectangle's Y origin top-down. The corrected transfer is covered by native memory-DC
+pixel tests in both halves, at nonzero offsets and outside clipped boundaries.
+Screenshots and framebuffer pixels now agree for the sampled button region.
+
+## Executed matrix and physical monitor acceptance
+
+The connected monitors were measured, not inferred: primary bounds 0,0–1920,1080
+with GetDpiForWindow=96; second bounds 1920,0–7040,2880 with GetDpiForWindow=216.
+The physical fixture moves its owned HWND and receives actual OS WM_DPICHANGED
+notifications. It does not change display settings or inject DPI messages.
+
+Seven-scale deterministic tests cover 100%, 125%, 150%, 175%, 200%, 225% and 250%:
+logical client/layout sizes, Dock, right/bottom Anchor, AutoSize/FlowLayout, image and
+text spacing, wheel scrolling, press/capture/drag release, popup placement, resize,
+scale changes and return to 100%, framebuffer size, and partial/full pixel equality.
+A native owned-HWND matrix covers all seven scales plus exact 5120x2880 backing,
+maximization/restoration and local hover damage. Its injected DPI values are
+**synthetic**, separately labelled from physical monitor acceptance. A dedicated
+suggested-rectangle case changes origin and size without pre-sizing the HWND.
+
+Physical before/after uses the same fixture against baseline b2c1985 and the fix.
+Each case warms with a full frame, routes sixteen alternating pointer moves through
+native input and paints through WM_PAINT. The first two frames are excluded. These
+are local elapsed paint/presentation measurements, not DWM display latency or FPS.
+
+| Actual display / window | Baseline layout | Fixed layout | Before mean / max ms | After mean / max ms | Before / after dirty pixels |
+| --- | --- | --- | --- | --- | --- |
+| primary-100-normal | inside | inside | 3.84 / 5.11 | 0.32 / 0.41 | 840,000 / 9,312 |
+| second-225-normal | outside | inside | 22.94 / 24.04 | 1.14 / 1.92 | 4,252,500 / 46,004 |
+| second-225-maximized | outside | inside | 71.96 / 73.92 | 1.18 / 1.29 | 14,745,600 / 46,004 |
+| second-225-full-5k | outside | inside | 71.40 / 73.68 | 1.04 / 1.13 | 14,745,600 / 46,004 |
+| return-primary-100 | inside | inside | 3.87 / 4.78 | 0.13 / 0.17 | 840,000 / 9,312 |
+
+At physical 5K/225%, backing remains 5120x2880, stride 20,480 and 58,982,400 bytes.
+Hover causes zero control-surface allocations and zero layout passes; native backing
+generation remains stable. Every physical case verifies hover state, one click per
+press/release, and displayed button pixels against the framebuffer. Actual screenshots
+were inspected for the normal/maximized second-monitor and return paths.
+
+The identical forced-full offscreen snapshot benchmark improved from 139.49 ms to
+60.59 ms at 5K. It intentionally paints a full temporary TestHost surface and is not
+comparable to native partial hover. The reported two-second delay was not reproduced
+on this host; the measured full-window work and layout inflation were reproduced
+and removed. No constant 60 FPS claim is made. Recording counts explicit framework
+surface allocations; transient Skia copies are not counted as such.
+
+Local raw evidence: `artifacts/autonomous-audit/phase120-{before,after}/`,
+`phase120-native-{before,after}.log`, and `phase120-physical-{before,after}/` contain
+matrix results, profiler JSON, framebuffer captures and actual display screenshots.
+The tracked UiAutomationHost fixture and tests reproduce the acceptance paths.
+
+## Consumer retest
+
+ModernTubeDownloader was available with pre-existing local changes. A byte-preserved
+isolated source copy was built against this framework, with a separate data root
+and an offline HTTP fixture. No application DPI changes or workarounds were made.
+Actual MainForm sidebar, first-run setup card, downloads content, resize/maximize,
+hover/press and return to the primary monitor were exercised. The fixture exposes
+the existing downloads view after the setup captures; it does not claim successful
+tool provisioning. Seven physical window cases passed, with mean hover frame times
+0.18–0.99 ms and maxima below 2.1 ms. Screen/framebuffer button pixels matched.
+Maximized first-run and downloads screenshots were visually inspected. Source hashes
+are retained in `phase120-consumer/source-hashes.json`; source checkout is preserved.
+
+**NOT EXECUTED:** live yt-dlp/FFmpeg/Deno provisioning/downloads, manual hardware
+pointer latency measurement, and physical DPI settings other than these two displays.
+Those are distinct from the automated native-input and seven-scale regression tests.
+
+## Validation status
+
+Initial full Release restore/build passed (four pre-existing NU1902 SourceLink
+transitive dependency warnings, no errors); all 3381 tests in nine projects passed.
+The final committed-source Debug/Release, ApiCompat, docs/packages, Gallery, CI and
+merge results are recorded in the final validation section after execution.

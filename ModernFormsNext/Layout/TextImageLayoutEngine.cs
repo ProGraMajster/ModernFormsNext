@@ -25,10 +25,10 @@ internal static class TextImageLayoutEngine
     private static void CalculateFace (Control control, TextImageLayoutData layout)
     {
         BorderStyle border = control.CurrentStyle.Border;
-        var left_border = border.Left.GetWidth ();
-        var top_border = border.Top.GetWidth ();
-        var right_border = border.Right.GetWidth ();
-        var bottom_border = border.Bottom.GetWidth ();
+        var left_border = control.LogicalToDeviceUnits (border.Left.GetWidth ());
+        var top_border = control.LogicalToDeviceUnits (border.Top.GetWidth ());
+        var right_border = control.LogicalToDeviceUnits (border.Right.GetWidth ());
+        var bottom_border = control.LogicalToDeviceUnits (border.Bottom.GetWidth ());
 
         var face = new Rectangle (
             layout.Client.X + left_border,
@@ -43,7 +43,7 @@ internal static class TextImageLayoutEngine
     private static void CalculateInitialField (Control control, TextImageLayoutData layout)
     {
         // The initial field is Control's ClientRectangle minus the border and padding.
-        Padding padding = control.PresentationPadding;
+        Padding padding = control.LogicalToDeviceUnits (control.PresentationPadding);
         var left_padding = padding.Left;
         var top_padding = padding.Top;
         var right_padding = padding.Right;
@@ -155,7 +155,7 @@ internal static class TextImageLayoutEngine
         var image_align = text_image_control.ImageAlign;
         var text_align = text_image_control.TextAlign;
         var text_image_relation = text_image_control.TextImageRelation;
-        var image_size = text_image_control.GetImage ()?.GetSize () ?? Size.Empty;
+        var image_size = control.LogicalToDeviceUnits (text_image_control.GetImage ()?.GetSize () ?? Size.Empty);
         var maxBounds = layout.Field;
 
         var text_size = GetTextSize (control).ToSize ();

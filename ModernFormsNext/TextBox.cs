@@ -339,6 +339,16 @@ namespace ModernFormsNext
         }
 
         /// <inheritdoc/>
+        protected override void OnDpiChanged(EventArgs e)
+        {
+            using var accessibleChange = BeginAccessibleTextChange();
+            document.Width = PaddedClientRectangle.Width;
+            document.InvalidateTextBlock();
+            InvalidateAccessibleTextLayout();
+            base.OnDpiChanged(e);
+        }
+
+        /// <inheritdoc/>
         protected override void OnKeyDown (KeyEventArgs e)
         {
             using var accessibleChange = BeginAccessibleTextChange();

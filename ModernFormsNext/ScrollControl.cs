@@ -63,7 +63,7 @@ namespace ModernFormsNext
         public override Rectangle PaddedClientRectangle {
             get {
                 var client_rect = ClientRectangle;
-                var padding = PresentationPadding;
+                var padding = LogicalToDeviceUnits (PresentationPadding);
 
                 var x = client_rect.Left + padding.Left;
                 var y = client_rect.Top + padding.Top;

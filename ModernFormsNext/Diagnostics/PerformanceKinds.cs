@@ -109,7 +109,9 @@ public enum PerformanceRedraw
     /// <summary>The host does not establish its repaint coverage.</summary>
     Unknown,
     /// <summary>The current host paints the full surface.</summary>
-    FullSurface
+    FullSurface,
+    /// <summary>The host preserves backing pixels outside the current damage region.</summary>
+    PartialSurface
 }
 
 /// <summary>Defines whether an extension metric accumulates deltas or reports a current value.</summary>

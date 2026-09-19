@@ -7,8 +7,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
 public sealed class WindowsNativePerformanceTests
 {
-    [Fact]
-    public async Task NativePaintResizeAndInputUseOneOptionalRecorderOnTheOwningThread()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativePaintResizeAndInputUseOneOptionalRecorderOnTheOwningThread(bool highDpi)
     {
         if (!OperatingSystem.IsWindows()) return;
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
@@ -30,9 +32,9 @@ public sealed class WindowsNativePerformanceTests
             RedirectStandardOutput = true, RedirectStandardError = true
         };
         start.ArgumentList.Add(hostPath);
-        start.ArgumentList.Add("--performance");
+        start.ArgumentList.Add(highDpi ? "--high-dpi" : "--performance");
         using Process host = Process.Start(start) ?? throw new InvalidOperationException("Cannot start native performance host.");
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         Task<string> outputTask = host.StandardOutput.ReadToEndAsync(timeout.Token);
         Task<string> errorTask = host.StandardError.ReadToEndAsync(timeout.Token);
         try
@@ -41,6 +43,15 @@ public sealed class WindowsNativePerformanceTests
             string output = await outputTask;
             string errors = await errorTask;
             Assert.True(host.ExitCode == 0, $"Native host exited with {host.ExitCode}: {errors}\n{output}");
+            if (highDpi) {
+                string dpiLine = Assert.Single(output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
+                    item => item.StartsWith("HIGH_DPI:", StringComparison.Ordinal));
+                using var dpiResult = JsonDocument.Parse(dpiLine["HIGH_DPI:".Length..]);
+                Assert.Equal(8, dpiResult.RootElement.GetProperty("results").GetArrayLength());
+                Assert.True(dpiResult.RootElement.GetProperty("maximized").GetBoolean());
+                Assert.True(dpiResult.RootElement.GetProperty("restored").GetBoolean());
+                return;
+            }
             string line = Assert.Single(output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
                 item => item.StartsWith("PERFORMANCE:", StringComparison.Ordinal));
             using JsonDocument result = JsonDocument.Parse(line["PERFORMANCE:".Length..]);

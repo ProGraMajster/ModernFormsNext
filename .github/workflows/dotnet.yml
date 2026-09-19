@@ -27,3 +27,6 @@ jobs:
 
       - name: Build
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
+
+      - name: Regression tests (including high DPI and native partial presentation)
+        run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore -m:1 /p:UseSharedCompilation=false --logger "trx;LogFilePrefix=ci"

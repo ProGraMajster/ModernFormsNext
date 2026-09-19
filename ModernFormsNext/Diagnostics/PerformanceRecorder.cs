@@ -8,6 +8,8 @@ namespace ModernFormsNext.Diagnostics;
 internal static class PerformanceRecorder
 {
     internal static bool IsEnabled => PerformanceProfiler.Current is not null;
+    internal static bool RequiresFullRedraw => PerformanceProfiler.Current is { } profiler &&
+        (profiler.OverlayOptions.Visible || profiler.ShouldRecordRegions);
     internal static bool ShouldRecordRegions => PerformanceProfiler.Current?.ShouldRecordRegions == true;
     internal static PerformanceScope Measure(PerformanceActivityKind activity, Control? control = null)
     {
