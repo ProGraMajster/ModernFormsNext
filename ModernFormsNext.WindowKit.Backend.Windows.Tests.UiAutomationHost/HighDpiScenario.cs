@@ -13,6 +13,11 @@ internal static partial class HighDpiScenario
     {
         try {
             using var form = new Form { Text = "ModernFormsNext high DPI regression", ClientSize = new Size(1200, 700) };
+            // Windows limits an unconstrained top-level HWND to the virtual desktop's
+            // default maximum tracking size. CI desktops can be smaller than the raster
+            // cases below. Explicitly permit the fixture's offscreen 5K buffer without
+            // changing monitor settings or production defaults.
+            form.MaximumSize = new Size(8192, 8192);
             form.Style.Border.Width = 0;
             form.TitleBar.Visible = false;
             var root = new ScenarioRoot { Dock = DockStyle.Fill };
@@ -29,7 +34,7 @@ internal static partial class HighDpiScenario
                     ApplySuggestedDpi(hwnd, 1.25, new NativeRect { Left = 60, Top = 70, Right = 1560, Bottom = 970 });
                     GetWindowRect(hwnd, out var suggestedResult);
                     Require(suggestedResult.Left == 60 && suggestedResult.Top == 70 && suggestedResult.Right == 1560 && suggestedResult.Bottom == 970,
-                        "WM_DPICHANGED did not apply the physical suggested rectangle exactly once.");
+                        $"WM_DPICHANGED did not apply the physical suggested rectangle exactly once: {suggestedResult.Left},{suggestedResult.Top}–{suggestedResult.Right},{suggestedResult.Bottom}; scale {form.Scaling}.");
                     Require(form.ClientSize == new Size(1200, 720), "Suggested rectangle did not update logical client size.");
                     foreach (double scale in new[] { 1d, 1.25, 1.5, 1.75, 2, 2.25, 2.5 })
                         Measure(scale, (int)(1200 * scale), (int)(700 * scale), false);

@@ -199,9 +199,37 @@ are retained in `phase120-consumer/source-hashes.json`; source checkout is prese
 pointer latency measurement, and physical DPI settings other than these two displays.
 Those are distinct from the automated native-input and seven-scale regression tests.
 
-## Validation status
+## Committed-source validation and final review
 
-Initial full Release restore/build passed (four pre-existing NU1902 SourceLink
-transitive dependency warnings, no errors); all 3381 tests in nine projects passed.
-The final committed-source Debug/Release, ApiCompat, docs/packages, Gallery, CI and
-merge results are recorded in the final validation section after execution.
+Production source `48d1382a51f87c5164cfa40afb2dacd7c1f017a6` passed:
+
+- Restore and full Debug/Release builds; four inherited NU1902 warnings, zero errors.
+- 3381/3381 tests in each configuration across nine projects; no skipped cases.
+- All 13 unfiltered assembly/TFM ApiCompat comparisons in both configurations against
+  the baseline master b2c1985. No public members removed; logical ClientSize is an
+  intentional behavioral correction, documented for custom layout/painting authors.
+- 11 nupkg / 10 snupkg files at unchanged version 1.10.0, package validation and 28
+  isolated package-consumer assertions using a fresh private package cache.
+- 32 documentation checks, DocFX generation (1077 HTML files, zero warnings/errors),
+  and validation of four documentation archives against the exact source commit.
+- Real ControlGallery via external UIA: High DPI page, primary/second monitor moves,
+  animated card resize, maximization, popup open/close and return; all eight steps passed.
+- Repeated physical native-host and ModernTubeDownloader UI acceptance against the
+  committed binaries; the isolated consumer's complete 94-test suite also passed.
+
+`phase120-checkpoint/validation.json` retains stage hashes and source identity.
+Final review covered units at every native/layout/paint/input boundary; native buffer
+ownership and GDI row orientation; damage union/culling and old-pixel erasure; text
+cache refresh; additive XML-documented API; and observed monitor/consumer evidence.
+No framework DPI workaround was added to the consumer. Its original source hashes
+still match. Template startup was unchanged; native/consumer acceptance covered the
+changed window pipeline. Manual Android runtime validation was not performed.
+
+The first expanded CI run caught two test-fixture issues: a pre-existing Designer
+thread-affinity test used Task.Run/await, which could reuse its owning pool thread
+and dispose the session on another thread; it now uses an explicit bounded worker
+and same-thread cleanup. The synthetic native DPI fixture now explicitly permits an
+offscreen 5K window using MaximumSize, since the runner's virtual desktop constrains
+Windows' default maximum tracking size. This setting belongs only to the fixture;
+production maximum-size behavior and actual physical-monitor testing are unchanged.
+Both fixtures retain their behavioral assertions. CI must pass before merging PR #122.
