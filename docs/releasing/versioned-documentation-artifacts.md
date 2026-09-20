@@ -26,8 +26,8 @@ Every ZIP has one versioned top-level directory. Every bundle contains `metadata
   "schemaVersion": 1,
   "product": "ModernFormsNext",
   "bundle": "docs-html",
-  "version": "1.10.0",
-  "tag": "v1.10.0",
+  "version": "1.11.0",
+  "tag": "v1.11.0",
   "commit": "full-40-character-git-sha",
   "generatedAtUtc": "2026-08-16T12:00:00.000Z",
   "dotnetSdk": "10.0.201"
@@ -70,14 +70,14 @@ dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbo
 $commit = (git rev-parse HEAD).Trim()
 .\scripts\tests\Test-ReleaseDocumentation.ps1
 .\scripts\Build-ReleaseDocumentation.ps1 `
-    -Version 1.10.0-preview.docs.1 `
+    -Version 1.11.0-preview.docs.1 `
     -Tag local `
     -Commit $commit `
     -ReleaseNotesPath docs\1.9.0-release-notes.md `
     -OutputDirectory artifacts\release-docs
 .\scripts\Validate-ReleaseDocumentation.ps1 `
     -ArtifactDirectory artifacts\release-docs `
-    -ExpectedVersion 1.10.0-preview.docs.1 `
+    -ExpectedVersion 1.11.0-preview.docs.1 `
     -ExpectedCommit $commit `
     -ExpectedTag local
 ```
