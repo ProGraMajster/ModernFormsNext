@@ -161,8 +161,8 @@ The cache stores source JSON by canonical path, `LastWriteTimeUtc`, and length, 
 private document/layout projection per requested instance size. A source change replaces all size
 projections. The materialized tree may be normalized by the existing layout helpers, but it is not
 the identity document, is never attached to the parent session, and is never passed to save or code
-generation. Project source discovery itself is refreshed by reopening the designer; no separate
-watcher is introduced.
+generation. **Toolbox > Refresh** rereads source/reference metadata and replaces this cache without
+changing document/history state; no separate watcher is introduced.
 
 `DesignerSurfaceRenderer` paints the embedded root and its children through the same node rendering,
 property application, layout, clipping, DPI, and coordinate mapping paths used by an ordinary
@@ -180,7 +180,7 @@ renderer recursively. A canonical-type stack converts only a repeated edge into 
 covering direct and arbitrary-length cycles without aborting the rest of the frame.
 
 Known limitations are deliberate: custom runtime properties that require user code are not
-evaluated, binary-only controls are not source-discovered, and visual fidelity is limited to
+evaluated, binary-only controls without matching `.mfdesign` data use placeholders, and visual fidelity is limited to
 properties and controls already understood by the shared designer renderer. Safety and
 deterministic `.mfdesign` behavior take precedence over exact runtime side effects.
 
@@ -342,7 +342,11 @@ by conservative ModernFormsNext detection. Packaged build-transitive metadata ne
 project metadata. See [Visual Studio Designer host](visual-studio-designer-host.md) for process
 ownership, lifecycle, diagnostics, failure handling, and the interactive validation checklist.
 
-Custom-control metadata discovery and broader isolation remain separate work tracked by issue #68.
+Custom-control discovery extends `DesignerProjectUserControlDiscovery` with Roslyn source/PE
+inspection, detached property/event metadata and adapters into the existing grid/document pipeline.
+It does not load application assemblies or execute attributes/converters. Trusted framework runtime
+editors remain separate from that non-executing input boundary. Supported project resolution and
+metadata limitations are documented in [UserControls](user-controls.md#safe-custom-properties-events-and-references).
 `ModernFormsNext.VisualStudioExtension` must remain a thin host and must not duplicate Designer UI
 or code generation.
 

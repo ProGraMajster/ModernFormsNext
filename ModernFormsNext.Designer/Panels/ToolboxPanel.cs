@@ -1,5 +1,6 @@
 using ModernFormsNext;
 using ModernFormsNext.Designer.Layout;
+using ModernFormsNext.Designer.Localization;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designer.Surface;
 using SkiaSharp;
@@ -14,7 +15,9 @@ internal sealed class ToolboxPanel : DesignerPanelBase
 
     private readonly DesignerCommandService commands;
     private readonly ModernFormsDesignerOptions options;
-    private readonly IReadOnlyList<DesignerToolboxItem> items;
+    private IReadOnlyList<DesignerToolboxItem> items;
+    private readonly DesignerSession state;
+    private readonly Button refreshButton;
     private readonly List<ToolboxRow> rows = [];
     private readonly TextBox searchBox;
     private readonly string searchPlaceholder;
@@ -29,9 +32,18 @@ internal sealed class ToolboxPanel : DesignerPanelBase
         : base(title)
     {
         this.commands = commands;
+        this.state = state;
         this.options = options;
         searchPlaceholder = searchText;
         items = new DesignerToolboxService().GetItems(state.ProjectUserControls);
+        state.ToolboxChanged += OnToolboxChanged;
+        refreshButton = Controls.Add(new Button
+        {
+            Name = "RefreshToolbox",
+            Text = DesignerText.Get("RefreshToolbox", options.Language), Left = 170, Top = SearchTop, Width = 76, Height = SearchHeight
+        });
+        ApplyPanelInputStyle(refreshButton);
+        refreshButton.Click += (_, _) => state.RefreshToolbox();
 
         searchBox = Controls.Add(new TextBox
         {
@@ -95,7 +107,8 @@ internal sealed class ToolboxPanel : DesignerPanelBase
     {
         searchBox.Visible = options.ShowToolboxSearch;
         if (searchBox.Visible)
-            searchBox.SetBounds(8, SearchTop, Math.Max(1, Width - 16), SearchHeight);
+            searchBox.SetBounds(8, SearchTop, Math.Max(1, Width - 100), SearchHeight);
+        refreshButton.SetBounds(Math.Max(8, Width - 84), SearchTop, 76, SearchHeight);
         rows.Clear();
 
         var filter = GetFilterText();
@@ -212,9 +225,20 @@ internal sealed class ToolboxPanel : DesignerPanelBase
             _ => item.IsComponent ? "*" : "+"
         };
 
-    private int ListTop => options.ShowToolboxSearch
-        ? SearchTop + SearchHeight + 11
-        : HeaderHeight + 8;
+    private int ListTop => SearchTop + SearchHeight + 11;
+
+    private void OnToolboxChanged(object? sender, EventArgs e)
+    {
+        items = new DesignerToolboxService().GetItems(state.ProjectUserControls);
+        scrollOffset = 0;
+        Invalidate();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) state.ToolboxChanged -= OnToolboxChanged;
+        base.Dispose(disposing);
+    }
 
     private sealed record ToolboxRow(DesignerToolboxItem? Item, int Top);
 }

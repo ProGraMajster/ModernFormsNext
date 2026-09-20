@@ -96,8 +96,8 @@ that placeholder and writes a diagnostic instead of failing the designer.
 The renderer keeps a small cache of parsed source text and per-instance-size layout projections.
 The key includes the canonical document path, file timestamp/length, discovered type identity, and
 requested size. A changed `.mfdesign` is read again on the next render. Adding, removing, or
-renaming a project type changes source discovery and is picked up when the designer is reopened;
-there is intentionally no preview-only file watcher.
+renaming a project type is picked up with **Toolbox > Refresh**; this also clears the projection
+cache. There is intentionally no preview-only file watcher.
 
 The designer rejects a control that contains itself. Before adding a project UserControl it also
 reads project-local `.mfdesign` dependencies and rejects reachable transitive cycles, including
@@ -106,26 +106,74 @@ self-reference check so manually edited invalid documents cannot generate design
 
 ## Current design-time boundaries
 
-- Automatic Toolbox discovery covers public, non-abstract UserControls declared in the active
-  project's C# source tree. Nested and open generic controls, and controls supplied only by
-  referenced binary assemblies, remain code-first.
+- Toolbox discovery covers public, concrete, top-level `Control`/`UserControl` subclasses from
+  source and supported binary references. A public parameterless constructor must exist for
+  generated initialization, but discovery never calls it. Closed subclasses of generic bases
+  are supported; nested type declarations and open generic controls remain code-first.
 - Custom UserControls use a data-only `.mfdesign` projection in a parent preview and remain atomic;
   their user constructors and project assemblies are not executed or loaded to render the parent.
 - Preview fidelity is limited to data and framework properties understood by the existing designer
-  renderer. Runtime-only custom property behavior, referenced-binary-only controls, and user code
-  side effects are intentionally absent. The safe placeholder remains the fallback when a source
+  renderer. Runtime-only custom property behavior and user code side effects are intentionally
+  absent. Binary controls without a matching data document use the safe placeholder when a source
   document cannot be identified unambiguously.
-- The designer has in-session, single-control copy/paste and duplicate operations for child
-  controls. Cut, a system clipboard contract, complete cross-document behavior, transaction-based
-  undo/redo, and multi-select support are not implemented.
+- Property/event edits use the existing document transactions and Undo/Redo. Refresh does not
+  change saved values, selection, dirty state or history, including values whose metadata vanished.
 - The Visual Studio designer and interactive preview are currently Windows-first. `UserControl`
   itself remains in the shared, platform-neutral framework project.
 
-Source `.mfdesign` changes are re-read on the next render through the preview cache key. Changes to
-the set or identity of source-discovered types require reopening the Designer; binary-only discovery
-and a complete custom property/event metadata surface are not implemented. See
-[Known limitations](known-limitations.md) and the
-[1.10.0 audit proposal](audits/1.10.0-documentation-and-limitations-audit.md#p2-complete-safe-custom-control-discovery-and-metadata).
+Source `.mfdesign` changes are re-read on the next render through the preview cache key. After a
+rebuild, restore or reference change, click **Refresh** in Toolbox. Hosts can call
+`DesignerSession.RefreshToolbox()` on the UI thread. Discovery is synchronous file inspection;
+it does not build the project or evaluate MSBuild targets. See [Known limitations](known-limitations.md).
+
+## Safe custom properties, events and references
+
+Discovery reads Roslyn source/PE symbols into the existing Designer catalog, then adapts detached
+metadata to the same property editors and `DesignPropertyValue` document values. It never loads
+user assemblies or invokes startup, static initialization, constructors, getters, setters,
+attribute constructors, converters or delegates. Reflection-based `DesignMetadataReader` remains
+the trusted-framework path; do not use it to inspect untrusted application types in the Designer.
+
+```csharp
+[DesignableControl("Counter", Category = "My Widgets")]
+public class Counter : UserControl
+{
+    [Category("Data"), DefaultValue(10)]
+    public int Limit { get; set; } = 10;
+
+    public event EventHandler? LimitReached;
+}
+```
+
+Add `using ModernFormsNext;`, `using ModernFormsNext.Designing;` and
+`using System.ComponentModel;` to this example. `DefaultValue` describes a default; it does not
+initialize the runtime property. Discovery displays encoded defaults only, never constructor or
+getter results. Derived properties/events and closed generic base members are inspected without
+instantiation. ModernFormsNext design attributes take precedence over standard display/category,
+description, browsable, read-only and serialization metadata.
+
+The custom-member editor supports strings, booleans, Int32, finite Double, declared enum members
+and nullable value types in that set. The `(Type, string)` DefaultValue overload uses these same
+allow-listed conversions. Arbitrary TypeConverter code is ignored with an Output diagnostic.
+Single, decimal, object graphs and executable-only values remain read-only: the existing primitive
+document format cannot preserve every CLR numeric type through generation/reverse sync. Framework
+structured editors and layout properties retain their existing behavior. Custom metadata does not
+replace canonical layout fields or the framework's built-in property editors.
+
+Public `void` events with ordinary value parameters receive typed handler stubs using symbol type
+names. Non-void, ref/out, pointer and unresolved signatures are not bindable in the grid; bind them
+in source. Existing event bindings survive refresh. Custom code still runs normally when the
+generated application is deliberately started, outside discovery and safe preview.
+
+References are resolved from literal `Reference/HintPath`, conventional built `ProjectReference`
+outputs, and restored package compile assets in `obj/project.assets.json`. Debug is the default
+configuration unless an unconditional Configuration is specified. A multi-target project uses its
+first target, or a referenced target matching the consumer, with a diagnostic. Conditional/imported
+project evaluation, custom build targets, linked-source inclusion rules and arbitrary property
+functions are not evaluated. Supply an explicit built DLL HintPath for unsupported project layouts.
+Missing/invalid DLLs, ambiguous types, unresolved dependencies and stale project outputs/assets
+produce actionable Output messages. A refresh copies PE bytes and releases file handles, so rebuilding
+or removing a DLL does not require restarting the Designer. No previous binary snapshot is reused.
 
 ## Manual Visual Studio smoke test
 
@@ -145,4 +193,4 @@ and a complete custom property/event metadata surface are not implemented. See
    exclusively in `MyUserControl1.mfdesign`/`MyUserControl1.Designer.cs`.
 7. Temporarily make `MyUserControl1.mfdesign` unavailable or invalid. Confirm that `Form2` stays
    usable, shows the placeholder, and reports a preview fallback diagnostic; restore the file and
-   reopen the designer.
+   click **Toolbox > Refresh**.

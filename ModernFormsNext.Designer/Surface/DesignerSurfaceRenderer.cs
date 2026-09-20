@@ -19,6 +19,7 @@ internal sealed class DesignerSurfaceRenderer
     private readonly Dictionary<DesignControlNode, string> runtimeRenderDiagnostics = [];
     private readonly Dictionary<DesignControlNode, string> placeholderRenderDiagnostics = [];
     private DesignerEmbeddedPreviewCache? embeddedPreviewCache;
+    private int embeddedPreviewToolboxVersion = -1;
     private string? embeddedPreviewProjectPath;
     private string? lastFrameDiagnostics;
 
@@ -344,9 +345,11 @@ internal sealed class DesignerSurfaceRenderer
         var projectPath = state.CurrentProjectPath;
 
         if (embeddedPreviewCache is null
+            || embeddedPreviewToolboxVersion != state.ToolboxVersion
             || !string.Equals(embeddedPreviewProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
         {
             embeddedPreviewProjectPath = projectPath;
+            embeddedPreviewToolboxVersion = state.ToolboxVersion;
             embeddedPreviewCache = new DesignerEmbeddedPreviewCache(projectPath, state.ProjectUserControls);
             loggedEmbeddedPreviewMessages.Clear();
         }

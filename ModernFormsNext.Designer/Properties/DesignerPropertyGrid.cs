@@ -680,7 +680,9 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         if (fileService is null || eventDescriptor is null || string.IsNullOrWhiteSpace(handlerName))
             return;
 
-        var result = fileService.EnsureEventHandlerMethod(state.Session.Document, handlerName.Trim(), eventDescriptor.HandlerType);
+        var result = eventDescriptor.SafeParameters is { } parameters
+            ? fileService.EnsureEventHandlerMethodFromMetadata(state.Session.Document, handlerName.Trim(), parameters)
+            : fileService.EnsureEventHandlerMethod(state.Session.Document, handlerName.Trim(), eventDescriptor.HandlerType);
         state.Session.Log(result.Message);
     }
 }

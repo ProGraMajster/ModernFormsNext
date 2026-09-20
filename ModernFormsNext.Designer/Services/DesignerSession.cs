@@ -24,7 +24,8 @@ public sealed class DesignerSession : IDisposable
     private readonly List<DesignerOpenDocument> openDocuments = [];
     private readonly DesignerHitTestService hitTestService = new(new DesignerCoordinateMapper());
     private readonly IDesignerHostEnvironment? environment;
-    private readonly IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls;
+    private IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls = [];
+    private string? metadataProjectPath;
     private readonly DesignerHistory detachedHistory;
     private readonly IDesignerClipboard clipboard;
     private DesignerOpenDocument? activeDocument;
@@ -71,12 +72,17 @@ public sealed class DesignerSession : IDisposable
         this.clipboard = clipboard ?? throw new ArgumentNullException(nameof(clipboard));
         this.historyLimit = historyLimit;
         detachedHistory = new DesignerHistory(historyLimit, initiallyDirty: false);
-        projectUserControls = DesignerProjectUserControlDiscovery.Discover(environment?.CurrentProjectPath);
         ControlRenderMode = initialRenderMode;
         Host = new DesignerHost(CreateDefaultDocument());
         Transactions = new DesignerTransactionManager(this);
         Host.Selection.SelectionChanged += HostSelection_SelectionChanged;
         clipboard.Changed += Clipboard_Changed;
+        RefreshToolbox();
+        DocumentTabsChanged += (_, _) =>
+        {
+            if (!string.Equals(metadataProjectPath, CurrentProjectPath, StringComparison.OrdinalIgnoreCase))
+                RefreshToolbox();
+        };
         Log("Designer session ready.");
         Log($"Designer diagnostics log: {DesignerDiagnosticLog.Path}");
         Log($"Initial designer surface render mode: {ControlRenderMode}.");
@@ -180,6 +186,32 @@ public sealed class DesignerSession : IDisposable
     public string? CurrentProjectPath => activeDocument?.ProjectPath ?? environment?.CurrentProjectPath;
 
     internal IReadOnlyList<DesignerProjectUserControlInfo> ProjectUserControls => projectUserControls;
+
+    internal event EventHandler? ToolboxChanged;
+
+    internal int ToolboxVersion { get; private set; }
+
+    /// <summary>
+    /// Rereads source and referenced binary metadata and refreshes Toolbox, property editors and
+    /// safe previews without reopening the document or changing its values, selection or undo history.
+    /// </summary>
+    /// <remarks>
+    /// Call on the UI thread after a project rebuild or reference change. This synchronous operation
+    /// reads files but never builds the project, loads user assemblies or executes user code.
+    /// Missing, stale and unsupported metadata is reported through <see cref="OutputLines"/>.
+    /// </remarks>
+    public void RefreshToolbox()
+    {
+        ThrowIfDisposed();
+        var catalog = DesignerProjectUserControlDiscovery.DiscoverCatalog(CurrentProjectPath);
+        projectUserControls = catalog.Controls;
+        metadataProjectPath = CurrentProjectPath;
+        ToolboxVersion++;
+        foreach (var diagnostic in catalog.Diagnostics) Log($"Toolbox: {diagnostic}");
+        Log($"Toolbox refreshed: {projectUserControls.Count} custom controls. User code was not executed.");
+        ToolboxChanged?.Invoke(this, EventArgs.Empty);
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     internal IReadOnlyList<DesignAnimationDefinitionDescriptor> AnimationDefinitions
         => DesignerProjectAnimationDefinitionDiscovery.Discover(CurrentProjectPath);
@@ -1475,6 +1507,10 @@ public sealed class DesignerSession : IDisposable
     /// </summary>
     /// <param name="typeName">The control type name.</param>
     /// <returns>The runtime control type, or <see langword="null"/> when it cannot be found.</returns>
+    /// <remarks>
+    /// Only controls from the already-loaded framework assembly are resolved. Application types
+    /// use non-executing metadata discovery and always return <see langword="null"/> here.
+    /// </remarks>
     public Type? ResolveControlType(string typeName)
     {
         if (string.IsNullOrWhiteSpace(typeName))
@@ -1482,13 +1518,27 @@ public sealed class DesignerSession : IDisposable
 
         var frameworkAssembly = typeof(Control).Assembly;
 
-        return Type.GetType(typeName, throwOnError: false)
-            ?? frameworkAssembly.GetType(typeName, throwOnError: false)
-            ?? frameworkAssembly.GetType($"ModernFormsNext.{typeName}", throwOnError: false);
+        // Resolving an assembly-qualified user name with Type.GetType can load application code.
+        // Runtime property editors instantiate only trusted framework controls; custom metadata
+        // always travels through the detached discovery catalog, including already-loaded types.
+        var normalized = DesignerProjectUserControlDiscovery.NormalizeTypeName(typeName);
+        var type = frameworkAssembly.GetType(normalized, throwOnError: false)
+            ?? frameworkAssembly.GetType($"ModernFormsNext.{normalized}", throwOnError: false);
+        return type is not null && typeof(Control).IsAssignableFrom(type) ? type : null;
     }
 
     internal bool IsProjectUserControlType(string typeName)
-        => projectUserControls.Any(control => DesignerProjectUserControlDiscovery.Matches(control, typeName));
+        // Missing metadata must not turn an atomic component into an editable container merely
+        // because its name contains "Panel". Unknown controls keep the same safe placeholder and
+        // component boundary after references are removed, including when a document is reopened.
+        => projectUserControls.Any(control => DesignerProjectUserControlDiscovery.Matches(control, typeName))
+            || ResolveControlType(typeName) is null;
+
+    internal DesignerProjectUserControlInfo? GetCustomControlMetadata(string typeName)
+    {
+        var matches = projectUserControls.Where(control => DesignerProjectUserControlDiscovery.Matches(control, typeName)).Take(2).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
 
     private DesignControlNode? GetComponentBoundary(DesignControlNode? node)
     {
@@ -2338,6 +2388,7 @@ public sealed class DesignerSession : IDisposable
         clipboard.Clear();
         activeDocument = null;
         DocumentChanged = null;
+        ToolboxChanged = null;
         SelectionChanged = null;
         ClipboardChanged = null;
         OutputChanged = null;

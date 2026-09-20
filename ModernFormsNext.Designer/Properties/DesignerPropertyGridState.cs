@@ -57,6 +57,7 @@ internal sealed class DesignerPropertyGridState
         this.playgroundState = playgroundState;
         playgroundState.SelectionChanged += (_, _) => Refresh();
         playgroundState.DocumentChanged += (_, _) => Refresh();
+        playgroundState.ToolboxChanged += (_, _) => Refresh();
         Refresh();
     }
 
@@ -988,10 +989,25 @@ internal sealed class DesignerPropertyGridState
 
     private void AddMetadataDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode? node)
     {
-        if (node is null || playgroundState.IsProjectUserControlType(node.TypeName))
+        var custom = GetSelectedCustomMetadata(node);
+        if (custom is not null)
+        {
+            // Identity and canonical bounds are model fields, not executable custom properties.
+            // Standard hidden attributes still suppress ordinary inherited framework editors.
+            descriptors.RemoveAll(property => custom.HiddenPropertyNames.Contains(property.Name)
+                && property.Name is not ("Name" or "Type" or "MemberVisibility" or "Bounds" or "Location" or "Size" or "X" or "Y" or "Width" or "Height"));
+            foreach (var property in custom.Properties)
+                if (!descriptors.Any(existing => existing.Name == property.Name))
+                    descriptors.Add(property.CreateDescriptor(node?.Properties ?? playgroundState.Document.Properties));
+        }
+
+        if (node is null)
             return;
 
-        var controlType = playgroundState.ResolveControlType(node);
+        // Framework base editors remain on the canonical reflection path. Instantiate only that
+        // trusted base, never the user subtype, and prefer detached custom member descriptors.
+        var controlType = custom is null ? playgroundState.ResolveControlType(node)
+            : playgroundState.ResolveControlType(custom.FrameworkBaseTypeName);
 
         if (controlType is null)
             return;
@@ -1077,6 +1093,9 @@ internal sealed class DesignerPropertyGridState
         }
 
         AddRuntimeReflectionDescriptors(descriptors, node, controlType, defaultInstance);
+        if (custom is not null)
+            descriptors.RemoveAll(property => custom.HiddenPropertyNames.Contains(property.Name)
+                && property.Name is not ("Name" or "Type" or "MemberVisibility" or "Bounds" or "Location" or "Size" or "X" or "Y" or "Width" or "Height"));
     }
 
     private void AddRuntimeReflectionDescriptors(
@@ -1182,10 +1201,11 @@ internal sealed class DesignerPropertyGridState
         foreach (var fixedEvent in FixedEvents)
             descriptors[fixedEvent.Name] = CreateEventDescriptor(bindings, fixedEvent.Name, fixedEvent.DisplayName, fixedEvent.Category, fixedEvent.Description, handlerType: null);
 
+        var custom = GetSelectedCustomMetadata(node);
         var selectedType = node is null
             ? playgroundState.GetRootControlType()
-            : playgroundState.IsProjectUserControlType(node.TypeName)
-                ? null
+            : custom is not null
+                ? playgroundState.ResolveControlType(custom.FrameworkBaseTypeName)
                 : playgroundState.ResolveControlType(node);
 
         if (selectedType is { } controlType)
@@ -1219,6 +1239,14 @@ internal sealed class DesignerPropertyGridState
             }
         }
 
+        if (custom is not null)
+        {
+            foreach (var name in custom.HiddenEventNames) descriptors.Remove(name);
+            foreach (var metadata in custom.Events)
+                descriptors[metadata.Name] = CreateEventDescriptor(bindings, metadata.Name, metadata.DisplayName,
+                    metadata.Category, metadata.Description, handlerType: null, metadata.Parameters, metadata.Parameters is not null);
+        }
+
         return descriptors.Values
             .OrderBy(eventDescriptor => GetCategorySortKey(eventDescriptor.Category))
             .ThenBy(eventDescriptor => eventDescriptor.Category, StringComparer.Ordinal)
@@ -1233,7 +1261,9 @@ internal sealed class DesignerPropertyGridState
         string displayName,
         string category,
         string description,
-        Type? handlerType)
+        Type? handlerType,
+        string? safeParameters = null,
+        bool canBind = true)
         => new()
         {
             Name = name,
@@ -1241,9 +1271,12 @@ internal sealed class DesignerPropertyGridState
             Category = category,
             Description = description,
             HandlerType = handlerType,
+            SafeParameters = safeParameters,
             GetHandlerName = () => bindings.TryGetValue(name, out var handlerName) ? handlerName : null,
             CommitHandlerName = handlerName =>
             {
+                if (!canBind && !string.IsNullOrWhiteSpace(handlerName))
+                    return (false, "This delegate signature is unsupported. Bind it in source; discovery does not execute delegates.");
                 if (!string.IsNullOrWhiteSpace(handlerName) && !DesignDocumentValidator.IsValidCSharpIdentifier(handlerName))
                     return (false, "The handler name must be a valid C# identifier.");
 
@@ -1251,6 +1284,12 @@ internal sealed class DesignerPropertyGridState
                 return (true, null);
             }
         };
+
+    private DesignerProjectUserControlInfo? GetSelectedCustomMetadata(DesignControlNode? node)
+        => playgroundState.GetCustomControlMetadata(node?.TypeName
+            ?? (string.IsNullOrWhiteSpace(playgroundState.Document.Namespace)
+                ? playgroundState.Document.ClassName
+                : playgroundState.Document.Namespace + "." + playgroundState.Document.ClassName));
 
     private static string CreateDefaultEventHandlerName(string objectName, string eventName)
     {
