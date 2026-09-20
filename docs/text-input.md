@@ -213,3 +213,9 @@ validated source, builds, tests and native observations. Until those observation
 this guide is an implementation contract, not a passing native-language/device compatibility
 matrix. Physical-device, vendor IME, language/layout and manual candidate-window acceptance
 remain separate from deterministic protocol tests and native injected-message tests.
+
+The [1.11.0 scope-freeze report](development/1.11.0-roadmap-completion.md#issue-62--text-input-and-composition)
+tracks the current-master acceptance audit. The shared implementation is already merged;
+the final Android API/vendor/device observations are consolidated under issue #69.
+Issue #62 remains open for unverified native compatibility criteria rather than implying
+that another composition system needs to be implemented.
