@@ -29,11 +29,12 @@ internal sealed class DesignerToolboxService
 
         foreach (var control in projectUserControls ?? [])
         {
+            if (!control.VisibleInToolbox) continue;
             items.Add(new DesignerToolboxItem(
-                control.Name,
+                control.DisplayName ?? control.Name,
                 control.FullName,
-                "My Project",
-                $"Adds the project UserControl {control.FullName} as one component.",
+                control.Category,
+                control.Description ?? $"Adds the custom control {control.FullName} as one component. User code is not executed in preview.",
                 IsComponent: false));
         }
 

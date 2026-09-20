@@ -12,6 +12,8 @@ internal sealed class DesignerEventDescriptor
 
     public Type? HandlerType { get; init; }
 
+    public string? SafeParameters { get; init; }
+
     public Func<string?> GetHandlerName { get; init; } = () => null;
 
     public Func<string?, (bool Success, string? Error)> CommitHandlerName { get; init; } = _ => (false, "The event cannot be edited.");

@@ -399,7 +399,7 @@ public sealed class CustomUserControlPreviewTests
 
         Assert.Null(exception);
         Assert.Equal(0, ConstructorTrapUserControl.ConstructorCalls);
-        Assert.Contains(session.OutputLines, line => line.Contains("Could not safely create framework control", StringComparison.Ordinal));
+        Assert.Contains(session.OutputLines, line => line.Contains("not present in project discovery", StringComparison.Ordinal));
     }
 
     [Fact]

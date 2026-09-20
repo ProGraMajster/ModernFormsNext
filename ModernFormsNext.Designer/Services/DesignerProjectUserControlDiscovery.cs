@@ -8,14 +8,28 @@ namespace ModernFormsNext.Designer.Services;
 internal sealed record DesignerProjectUserControlInfo(
     string Name,
     string FullName,
-    string SourceFilePath);
+    string SourceFilePath)
+{
+    public string? DisplayName { get; init; }
+    public string Category { get; init; } = "My Project";
+    public string? Description { get; init; }
+    public bool VisibleInToolbox { get; init; } = true;
+    public string FrameworkBaseTypeName { get; init; } = "ModernFormsNext.UserControl";
+    public IReadOnlyList<DesignerCustomProperty> Properties { get; init; } = [];
+    public IReadOnlyList<DesignerCustomEvent> Events { get; init; } = [];
+    public IReadOnlyList<string> HiddenPropertyNames { get; init; } = [];
+    public IReadOnlyList<string> HiddenEventNames { get; init; } = [];
+}
 
 /// <summary>
 /// Discovers project-owned UserControl types without loading or executing the user assembly.
 /// </summary>
-internal static class DesignerProjectUserControlDiscovery
+internal static partial class DesignerProjectUserControlDiscovery
 {
     public static IReadOnlyList<DesignerProjectUserControlInfo> Discover(string? projectPath)
+        => DiscoverCatalog(projectPath).Controls;
+
+    private static IReadOnlyList<DesignerProjectUserControlInfo> DiscoverSourceCandidates(string? projectPath)
     {
         var projectDirectory = GetProjectDirectory(projectPath);
 

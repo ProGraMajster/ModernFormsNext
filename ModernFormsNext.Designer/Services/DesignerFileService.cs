@@ -94,9 +94,25 @@ internal sealed class DesignerFileService
         DesignDocument document,
         string handlerName,
         Type? eventHandlerType)
+        => EnsureEventHandlerMethodCore(document, handlerName, WriteEventHandlerParameters(eventHandlerType));
+
+    internal DesignerEventHandlerFileResult EnsureEventHandlerMethodFromMetadata(
+        DesignDocument document, string handlerName, string parameters)
+    {
+        var syntax = SyntaxFactory.ParseParameterList("(" + parameters + ")");
+        if (syntax.ContainsDiagnostics || syntax.ContainsDirectives
+            || syntax.Parameters.Any(p => p.Type is null || p.Default is not null || p.AttributeLists.Count != 0))
+            return new(false, string.Empty, "Cannot generate an unsupported event signature. Edit the handler in source.");
+        return EnsureEventHandlerMethodCore(document, handlerName, parameters);
+    }
+
+    private DesignerEventHandlerFileResult EnsureEventHandlerMethodCore(
+        DesignDocument document, string handlerName, string parameters)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentException.ThrowIfNullOrWhiteSpace(handlerName);
+        if (!DesignDocumentValidator.IsValidCSharpIdentifier(handlerName))
+            return new(false, string.Empty, "The handler name must be a valid C# identifier.");
 
         var codePath = GetFormCodePath(document);
 
@@ -122,7 +138,6 @@ internal sealed class DesignerFileService
         }
 
         var lineEnding = sourceText.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var parameters = WriteEventHandlerParameters(eventHandlerType);
         var methodText =
             $"{lineEnding}    private void {handlerName}({parameters}){lineEnding}" +
             $"    {{{lineEnding}" +
