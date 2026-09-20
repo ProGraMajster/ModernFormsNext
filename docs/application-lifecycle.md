@@ -257,6 +257,12 @@ automated emulator interaction, manual interaction, and physical-device checks a
 evidence categories. Executed commands and the current acceptance status belong in the
 [session acceptance report](development/codex-autonomous-issue-run.md).
 
+The [1.11.0 scope-freeze audit](development/1.11.0-roadmap-completion.md#issue-63--application-lifecycle-and-activation)
+checks this existing foundation against current master. Final current-APK lifecycle,
+inset and stress observations are consolidated in #69. Common hooks are available
+to future native-hosted products; this does not declare those products implemented
+or make their implementation part of the frozen lifecycle checkpoint.
+
 ### Initial Android emulator series — 2026-09-10
 
 Automated interaction with the existing Pixel_8 emulator exercised the cross-platform sample on
