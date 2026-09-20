@@ -4,6 +4,105 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [Unreleased] — 1.11.0 scope
+
+This section covers changes since the actual `v1.10.0` tag. Publication remains
+subject to the [release readiness report](docs/development/1.11.0-release-readiness.md).
+Windows remains the primary runtime; Android remains experimental.
+
+### Framework/runtime, commands and lifecycle
+
+- Added reusable command sources, scoped key gestures/input bindings, routed commands,
+  hierarchical command bindings, asynchronous commands and action-control integration
+  ([#105](https://github.com/ProGraMajster/ModernFormsNext/pull/105),
+  [#106](https://github.com/ProGraMajster/ModernFormsNext/pull/106),
+  [#107](https://github.com/ProGraMajster/ModernFormsNext/pull/107),
+  [#110](https://github.com/ProGraMajster/ModernFormsNext/pull/110)).
+- Added shared application lifecycle/activation, shutdown policy and state handoff hooks,
+  Windows multi-window integration and Android Activity recreation/Intent handling.
+  Future native-view/media integration and process-death restoration remain outside the
+  verified contract ([#115](https://github.com/ProGraMajster/ModernFormsNext/pull/115),
+  [#125](https://github.com/ProGraMajster/ModernFormsNext/pull/125)).
+
+### Input/IME and Android
+
+- Added canonical text composition contracts and Windows IMM32/Android InputConnection
+  adapters for TextBox, multiline TextBox, RichTextBox and MarkdownEditor, including
+  Unicode, selection, commit/cancel and focus/popup handoff. Wider vendor/CJK IME
+  validation remains partial ([#117](https://github.com/ProGraMajster/ModernFormsNext/pull/117),
+  [#124](https://github.com/ProGraMajster/ModernFormsNext/pull/124)).
+- Forwarded Android hardware shortcuts through shared input routing while retaining
+  documented platform/editor limitations
+  ([#118](https://github.com/ProGraMajster/ModernFormsNext/pull/118)).
+- Added repeatable API 34 emulator/API 36 physical-device validation for native input,
+  lifecycle, accessibility, reduced motion, shape/animation frames and bounded memory
+  observations. Debug/Release APK runtime checks and profiled Mono AOT/partial SDK trim
+  packaging are distinct from unexecuted 90/120 Hz, vendor, long-run and store lanes
+  ([#127](https://github.com/ProGraMajster/ModernFormsNext/pull/127)).
+
+### Designer
+
+- Added transactions, grouped undo/redo and rollback; copy/cut/paste/duplicate; autosave,
+  crash recovery and external-change conflict handling through the canonical session
+  ([#94](https://github.com/ProGraMajster/ModernFormsNext/pull/94),
+  [#95](https://github.com/ProGraMajster/ModernFormsNext/pull/95),
+  [#96](https://github.com/ProGraMajster/ModernFormsNext/pull/96)).
+- Stabilized typed native host handles, View Designer/Shift+F7 routing, companion-file
+  nesting and integrated/standalone hosting. Integrated Ctrl+S remains a tracked
+  limitation; toolbar Save and close-save use canonical persistence
+  ([#101](https://github.com/ProGraMajster/ModernFormsNext/pull/101)).
+- Completed safe source/binary custom-control metadata, properties/defaults/events,
+  inherited metadata, explicit toolbox refresh, stale/missing diagnostics and placeholders.
+  Discovery does not execute application startup, constructors, getters or custom
+  converters ([#126](https://github.com/ProGraMajster/ModernFormsNext/pull/126)).
+- Added Designer/runtime layout parity coverage using production layout
+  ([#92](https://github.com/ProGraMajster/ModernFormsNext/pull/92)).
+
+### Accessibility, automation and Testing/TestHost
+
+- Added the shared accessibility semantic tree, Windows UI Automation and Android
+  virtual-node adapters, then expanded composite, viewport, grid and text patterns.
+  Native/manual coverage limits remain explicit
+  ([#102](https://github.com/ProGraMajster/ModernFormsNext/pull/102),
+  [#103](https://github.com/ProGraMajster/ModernFormsNext/pull/103),
+  [#104](https://github.com/ProGraMajster/ModernFormsNext/pull/104),
+  [#119](https://github.com/ProGraMajster/ModernFormsNext/pull/119)).
+- Added optional semantic automation and an opt-in authenticated Windows local bridge
+  over the same accessibility contracts. Further automation phases are not included
+  ([#111](https://github.com/ProGraMajster/ModernFormsNext/pull/111),
+  [#112](https://github.com/ProGraMajster/ModernFormsNext/pull/112)).
+- Added the deterministic headless TestHost with input, controlled time, rendering and
+  ecosystem tests ([#93](https://github.com/ProGraMajster/ModernFormsNext/pull/93),
+  [#113](https://github.com/ProGraMajster/ModernFormsNext/pull/113)).
+
+### Rendering, High DPI, performance diagnostics and fixes
+
+- Added runtime PerformanceProfiler instrumentation, bounded frame/slow-frame history,
+  snapshots/JSON export and optional diagnostics HUD. GPU/scanout measurements and
+  wider calibrated workload budgets remain unclaimed
+  ([#121](https://github.com/ProGraMajster/ModernFormsNext/pull/121)).
+- Fixed Windows high-DPI layout/input coordinates and bounded damage propagation through
+  composition, Skia and GDI, with 100–250% regressions and native 5K/225% validation
+  ([#122](https://github.com/ProGraMajster/ModernFormsNext/pull/122)).
+- Fixed bounded GDI presentation and child removal ghosting, with partial/full-frame
+  pixel-oracle validation ([#123](https://github.com/ProGraMajster/ModernFormsNext/pull/123)).
+- Fixed ScrollableControl layout and mouse-wheel routing
+  ([#100](https://github.com/ProGraMajster/ModernFormsNext/pull/100)).
+- Restored the numeric raw-pointer event values published in 1.10.0; the new
+  `CaptureLost` event uses a distinct appended value instead of shifting existing events.
+
+### Tooling and documentation
+
+- Isolated repository validation from nested worktrees/generated artifacts
+  ([#91](https://github.com/ProGraMajster/ModernFormsNext/pull/91)).
+- Linked platform and Designer limitations to tracked work and recorded the ordered
+  1.11.0 acceptance audit ([#90](https://github.com/ProGraMajster/ModernFormsNext/pull/90),
+  [readiness report](docs/development/1.11.0-release-readiness.md)).
+- Updated the repository/CI SDK and explicit SourceLink build dependency to patched
+  10.0.401 tooling for CVE-2026-62900, retaining .NET 10 target frameworks.
+- Connected the offline API entry to its generated namespace/type navigation and refreshed
+  the profiler, Android validation and release-readiness documentation.
+
 ## [1.10.0] - 2026-08-16
 
 ModernFormsNext 1.10.0 adds reusable vector geometry and Shape controls, animated layout and

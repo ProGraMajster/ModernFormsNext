@@ -48,5 +48,7 @@
   href: content/CHANGELOG.md
 - name: Releasing
   href: content/RELEASING.md
+- name: 1.11.0 release readiness
+  href: content/docs/development/1.11.0-release-readiness.md
 - name: API reference
-  href: api/index.md
+  href: api/

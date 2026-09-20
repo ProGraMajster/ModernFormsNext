@@ -7,117 +7,121 @@ namespace ModernFormsNext.WindowKit.Input.Raw
     /// <summary>
     /// Identifies the kind of raw pointer event reported by a platform backend.
     /// </summary>
+    /// <remarks>
+    /// Numeric values are stable across compatible releases for already compiled backends.
+    /// New event kinds must use new values without renumbering existing members.
+    /// </remarks>
     public enum RawPointerEventType
     {
         /// <summary>
         /// The pointer left the top-level window.
         /// </summary>
-        LeaveWindow,
-
-        /// <summary>
-        /// The platform revoked pointer capture before the matching button release was received.
-        /// </summary>
-        CaptureLost,
+        LeaveWindow = 0,
 
         /// <summary>
         /// The left pointer button was pressed.
         /// </summary>
-        LeftButtonDown,
+        LeftButtonDown = 1,
 
         /// <summary>
         /// The left pointer button was released.
         /// </summary>
-        LeftButtonUp,
+        LeftButtonUp = 2,
 
         /// <summary>
         /// The right pointer button was pressed.
         /// </summary>
-        RightButtonDown,
+        RightButtonDown = 3,
 
         /// <summary>
         /// The right pointer button was released.
         /// </summary>
-        RightButtonUp,
+        RightButtonUp = 4,
 
         /// <summary>
         /// The middle pointer button was pressed.
         /// </summary>
-        MiddleButtonDown,
+        MiddleButtonDown = 5,
 
         /// <summary>
         /// The middle pointer button was released.
         /// </summary>
-        MiddleButtonUp,
+        MiddleButtonUp = 6,
 
         /// <summary>
         /// The first extended pointer button was pressed.
         /// </summary>
-        XButton1Down,
+        XButton1Down = 7,
 
         /// <summary>
         /// The first extended pointer button was released.
         /// </summary>
-        XButton1Up,
+        XButton1Up = 8,
 
         /// <summary>
         /// The second extended pointer button was pressed.
         /// </summary>
-        XButton2Down,
+        XButton2Down = 9,
 
         /// <summary>
         /// The second extended pointer button was released.
         /// </summary>
-        XButton2Up,
+        XButton2Up = 10,
 
         /// <summary>
         /// The pointer moved.
         /// </summary>
-        Move,
+        Move = 11,
 
         /// <summary>
         /// The pointer wheel changed.
         /// </summary>
-        Wheel,
+        Wheel = 12,
 
         /// <summary>
         /// The left button was pressed in the non-client area of a window.
         /// </summary>
-        NonClientLeftButtonDown,
+        NonClientLeftButtonDown = 13,
 
         /// <summary>
         /// A touch contact began.
         /// </summary>
-        TouchBegin,
+        TouchBegin = 14,
 
         /// <summary>
         /// A touch contact moved or changed.
         /// </summary>
-        TouchUpdate,
+        TouchUpdate = 15,
 
         /// <summary>
         /// A touch contact ended.
         /// </summary>
-        TouchEnd,
+        TouchEnd = 16,
 
         /// <summary>
         /// A touch contact was canceled by the platform.
         /// </summary>
-        TouchCancel,
+        TouchCancel = 17,
 
         /// <summary>
         /// A magnification gesture was reported.
         /// </summary>
-        Magnify,
+        Magnify = 18,
 
         /// <summary>
         /// A rotation gesture was reported.
         /// </summary>
-        Rotate,
+        Rotate = 19,
 
         /// <summary>
         /// A swipe gesture was reported.
         /// </summary>
-        Swipe
+        Swipe = 20,
+
+        /// <summary>
+        /// The platform revoked pointer capture before the matching button release was received.
+        /// </summary>
+        CaptureLost = 21
     }
 
     /// <summary>

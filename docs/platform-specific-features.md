@@ -12,8 +12,9 @@ that the feature worked.
 
 The [canonical AccessibleObject model](accessibility/semantic-model.md) describes control
 identity, names, state, actions, ranges and logical children. Windows and Android adapt that
-same model. Phase 4's current implementation adds the following capabilities; final-source
-validation remains distinct from historical Phase 2/3 evidence.
+same model. Phase 4's current implementation adds the following capabilities. Current native
+validation is recorded in the [release matrix](android-release-validation.md), separately from
+historical Phase 2/3 evidence.
 
 | Capability | Windows | Android |
 | --- | --- | --- |
@@ -35,9 +36,10 @@ and applies its typography multiplier once through the existing ThemeManager.
 Read-only [diagnostics and Designer metadata](accessibility/diagnostics-and-designer.md) consume
 the shared model. General recycled containers remain #55, the full inspector/picker remains
 #61, Android Form/window hosting remains #72, and physical Android reliability remains #69.
-The [Phase 4 Android runner](accessibility/android-phase4-validation.md) is explicitly enabled;
-its result does not substitute for TalkBack/manual or physical-device acceptance. Issue #59
-remains open while those coverage and validation boundaries remain.
+The [Phase 4 Android runner](accessibility/android-phase4-validation.md) is explicitly enabled.
+It passed bounded native checks on the API 34 emulator and API 36 physical device in Debug and
+Release. Those results do not substitute for human TalkBack assessment or broader vendor/device
+coverage. Issue #59 remains open while those coverage and validation boundaries remain.
 
 ## Input, lifecycle and test infrastructure
 
