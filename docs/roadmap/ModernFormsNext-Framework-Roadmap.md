@@ -3,7 +3,7 @@
 - Baseline audited: 2026-08-18 against ModernFormsNext 1.10.0
 - Paint/gradient foundation implemented: 2026-07-19
 - ThemeManager, composable animations, and platform animation polish implemented for 1.9.0
-- SDK baseline: .NET 10 (`10.0.201`)
+- SDK baseline: .NET 10 (`10.0.401`)
 - Runtime priority: Windows first; Android is an experimental shared-control Skia vertical slice
 - Purpose: architecture and delivery sequence, not a promise that every listed API is implemented
 

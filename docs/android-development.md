@@ -11,7 +11,7 @@ not use MAUI, XAML, AndroidX, or native Android controls as framework widgets.
 
 ## Requirements
 
-- the .NET SDK selected by `global.json` (`10.0.201`, with .NET 10 feature-band roll-forward);
+- the .NET SDK selected by `global.json` (`10.0.401`, with .NET 10 feature-band roll-forward);
 - the .NET Android workload (`dotnet workload install android` when it is not installed);
 - an Android SDK with platform tools, build tools, and a platform matching the installed workload;
 - the JDK selected by .NET for Android/Visual Studio;

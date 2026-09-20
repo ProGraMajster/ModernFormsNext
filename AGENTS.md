@@ -326,7 +326,7 @@ When behavior changes in a way users need to know, update docs.
 
 ## SDK, solution, and build
 
-The repository uses .NET SDK `10.0.201` through `global.json`.
+The repository uses .NET SDK `10.0.401` through `global.json`.
 
 Use this solution file:
 

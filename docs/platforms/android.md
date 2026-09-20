@@ -109,7 +109,7 @@ issues and audit proposals.
 
 ## Requirements
 
-- The .NET SDK selected by [`global.json`](../../global.json) (`10.0.201`, with .NET 10 feature-band
+- The .NET SDK selected by [`global.json`](../../global.json) (`10.0.401`, with .NET 10 feature-band
   roll-forward enabled).
 - The .NET Android workload: `dotnet workload install android` when it is not installed.
 - An Android SDK, matching build/platform tools, and a compatible JDK.

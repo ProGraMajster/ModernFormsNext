@@ -9,7 +9,7 @@ NuGet packages and GitHub release assets are published.
 
 ## Requirements
 
-- .NET SDK `10.0.201` or a compatible .NET 10 SDK feature band.
+- .NET SDK `10.0.401` or a compatible .NET 10 SDK feature band.
 - Windows for the current desktop backend and Visual Studio designer experience.
 - Visual Studio 2022/2026 for the VSIX designer extension.
 

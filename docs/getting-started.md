@@ -15,7 +15,7 @@ dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:Enable
 
 ## Requirements
 
-- .NET SDK `10.0.201`, configured by `global.json`.
+- .NET SDK `10.0.401`, configured by `global.json`.
 - SDK roll-forward is enabled for the latest installed .NET 10 feature band.
 - Windows is currently the primary and best-supported runtime target.
 

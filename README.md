@@ -79,7 +79,7 @@ known limitations, and sample commands.
 
 ## Installation
 
-ModernFormsNext 1.10.0 requires .NET 10. The repository selects SDK `10.0.201` in `global.json` and
+ModernFormsNext 1.10.0 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
 allows roll-forward to a later installed .NET 10 feature band.
 
 For an existing Windows application:
