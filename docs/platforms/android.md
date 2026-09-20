@@ -17,7 +17,7 @@ It is not yet a general replacement for the Windows `Form` and WindowKit windowi
 | Minimum Android version | API 23, through `SupportedOSPlatformVersion=23.0` |
 | UI host | One `AndroidSkiaHostView` / `SKCanvasView` |
 | Framework root | One shared ModernFormsNext `Control` tree through `SkiaControlSurface` |
-| Packaging exercised by the repository | APK |
+| Packaging exercised by the repository | Standalone APK and local Release AAB construction; no store submission claim |
 | Production support | Not supported; experimental evaluation only |
 
 The backend has no dependency on .NET MAUI, XAML, AndroidX, or native Android widgets as
@@ -78,8 +78,9 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   the corresponding device feature.
 - The [Android accessibility backend](../android-accessibility.md) exposes canonical virtual nodes,
   supported actions, focus and native events. Emulator instrumentation and the 20-point TalkBack
-  gesture checklist passed on Pixel_8/API 34. Physical-device validation, advanced text, scrolling
-  and broader control coverage remain open.
+  gesture checklist passed historically on Pixel_8/API 34. The current
+  [release matrix](../android-release-validation.md) also exercises the Phase 4 native fixture on
+  API 34 emulator and API 36 physical hardware. Broader manual TalkBack/vendor coverage remains open.
 - Focus, hardware keyboard behavior, and IME handling cover the current shared text-control path,
   but have not reached desktop parity across every control, keyboard, language, and vendor IME.
   The [hardware matrix](../android-hardware-input.md#validation-matrix) records API/device/layout
@@ -92,14 +93,16 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   platform-wide DPI, font-scaling, and system-UI integration.
 - Runtime permission requests require the host activity to forward the platform callback. Android
   14 selected-photo access is not represented as a partial grant.
-- The repository configures and validates APK output. Android App Bundle publishing and store
-  submission are not documented as supported release paths.
+- The repository validates standalone APK output and local Release AAB construction. Android
+  App Bundle publishing, distribution signing and store submission are not validated release paths.
 - The cross-platform sample exercises Release AOT. General trimming compatibility is not declared,
   and arbitrary applications, controls, and reflection-based dynamic resource references have not
   been validated as trim-safe.
-- Automated tests validate most backend rules without an emulator. A physical-device matrix,
-  production performance targets, long-running stability tests, and broad device/IME/accessibility
-  coverage are not yet part of the release gate.
+- Automated tests validate most backend rules without an emulator. The bounded
+  [device validation matrix](../android-release-validation.md) records current emulator/physical
+  observations separately. Production performance targets, long-running stability tests and broad
+  device/IME/accessibility coverage remain incomplete. Native surface dimensions do not establish
+  native-density rasterization of every windowless child-control back buffer.
 
 The [central known-limitations index](../known-limitations.md) maps these boundaries to existing
 issues and audit proposals.

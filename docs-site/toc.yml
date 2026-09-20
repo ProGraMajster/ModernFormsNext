@@ -36,6 +36,8 @@
   href: content/docs/android-accessibility.md
 - name: Android Phase 4 native checks
   href: content/docs/accessibility/android-phase4-validation.md
+- name: Android release validation matrix
+  href: content/docs/android-release-validation.md
 - name: Platform status
   href: content/docs/platform-specific-features.md
 - name: Known limitations

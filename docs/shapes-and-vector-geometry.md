@@ -151,8 +151,10 @@ joins, a reusable Bezier path, a vector transform, and stroke-safe control-bound
   primitives. It does not yet include arc segments, geometry groups/boolean operations, SVG import
   or a core SVG-style path string, a general `Stretch` contract, or generic Control geometry clips.
 - The Designer provides structured and compact text editors, not a graphical Bezier canvas.
-- Windows and Android share the Skia renderer, but the Android Shape path has no recorded physical-
-  device visual, touch-hit, GPU, or cache-profile matrix. An Android build is not that evidence.
+- Windows and Android share the Skia renderer. The [Android release matrix](android-release-validation.md)
+  records bounded emulator/physical ellipse and Bezier animation screenshots and software callback
+  profiles. Physical touch ergonomics, GPU/cache profiling and native-density child raster quality
+  remain unverified; a package build alone does not supply that evidence.
 
 See [Known limitations](known-limitations.md) and the
 [1.10.0 audit proposals](audits/1.10.0-documentation-and-limitations-audit.md#p3-extend-vector-geometry-and-path-designer-tooling)

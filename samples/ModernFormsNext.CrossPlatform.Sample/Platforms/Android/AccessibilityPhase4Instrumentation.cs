@@ -49,8 +49,11 @@ public sealed class AccessibilityPhase4Instrumentation : Instrumentation
             using var intent = new Intent(TargetContext!, typeof(MainActivity));
             intent.AddFlags(ActivityFlags.NewTask);
             intent.PutExtra("ACCESSIBILITY_PHASE4", true);
+            global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "STAGE launch");
             var activity = (MainActivity)StartActivitySync(intent)!;
+            global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "STAGE native-idle");
             Idle();
+            global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "STAGE native-root");
             var sharedApp = OnUi(() => ((SampleApplication)activity.Application!).SharedApp);
             var demo = OnUi(() => sharedApp.Root.Controls.OfType<AccessibilityPhase4Panel>().Single());
             using var root = automation.RootInActiveWindow;
@@ -61,13 +64,16 @@ public sealed class AccessibilityPhase4Instrumentation : Instrumentation
             Check(preferences is not null, "preferences-canonical-optional-capability");
             Check(initialPreferences.Scale > 0 && initialPreferences.ConfigurationScale > 0
                 && initialPreferences.Scale == initialPreferences.ConfigurationScale, "preferences-actual-configuration-text-scale");
+            global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "STAGE preferences-thread");
             int uiThread = OnUi(() => Environment.CurrentManagedThreadId);
             preferenceHandler = (_, _) =>
             {
                 Interlocked.Increment(ref preferenceEvents);
                 if (Environment.CurrentManagedThreadId != uiThread) Interlocked.Increment(ref wrongPreferenceThread);
             };
+            global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "STAGE preferences-subscribe");
             OnUi(() => { preferences!.AccessibilityPreferencesChanged += preferenceHandler; return true; });
+            global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "STAGE links-and-number");
             stage = "links-and-number"; CheckLinksAndNumber(demo);
             stage = "dates"; CheckDates(demo);
             stage = "text-and-privacy"; CheckTextAndPrivacy(demo);
@@ -306,7 +312,14 @@ public sealed class AccessibilityPhase4Instrumentation : Instrumentation
                     finally { if (!retained) node.Dispose(); }
                 }
             }
-            finally { while (pending.TryDequeue(out var node)) node.Dispose(); }
+            finally
+            {
+                // Drain this invocation's fixed remainder without a TryDequeue/out-variable loop
+                // in a return's finally. That form stalled the ARM64 Release fixture; diagnostic
+                // logging changed its behavior. Keep cleanup finite and retain every assertion.
+                int remainingNodes = pending.Count;
+                for (int index = 0; index < remainingNodes; index++) pending.Dequeue().Dispose();
+            }
             long remaining = until - Environment.TickCount64;
             if (remaining <= 0) break;
             // Poll native state from the instrumentation thread, never the UI thread. The
@@ -357,5 +370,7 @@ public sealed class AccessibilityPhase4Instrumentation : Instrumentation
             throw new InvalidOperationException();
         }
         assertions++;
+        // Constant categories make a stuck native call diagnosable without logging node/text data.
+        global::Android.Util.Log.Info("MFN.Accessibility.Phase4", "PASS category=" + category);
     }
 }

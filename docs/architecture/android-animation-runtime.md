@@ -207,6 +207,11 @@ regression check.
 
 ## Manual validation checklist
 
+The [Android release matrix](../android-release-validation.md) supplies a repeatable native runner,
+settings-preserving ADB wrapper and dated emulator/physical observations for a bounded subset of
+these scenarios. It distinguishes synthetic MotionEvents/InputConnection calls from human gestures,
+vendor IME interaction and TalkBack speech. Missing manual lanes below are not implied to pass.
+
 ### Recorded issue #29 evidence
 
 Automated validation and manual runtime evidence are intentionally separate:

@@ -64,6 +64,14 @@ write a constant check category or stage and exception type to the
 `MFN.Accessibility.Phase4` log tag. Record the tested source revision, installed APK
 hash, API level, device identity and complete result alongside any claimed outcome.
 
+The [release validation wrapper](../android-release-validation.md) adds package/device provenance,
+settings comparison and a host timeout. Constant stage/pass categories in the instrumentation log
+identify a stopped call without dumping node contents. Remaining native wrappers are drained with
+a fixed iteration count after a successful lookup: the former `TryDequeue(out ...)` loop in a return's
+`finally` stalled on the API 36 ARM64 Release fixture and changed behavior with diagnostic logging.
+The current form retains every assertion and wrapper-disposal obligation. This is a validation-helper
+workaround; the underlying runtime/compiler cause has not been established.
+
 ## Recorded native validation
 
 The final-source APK built from **bc160dcbbe8f7ea0acff1cdee18569f8bb8cd50f**
