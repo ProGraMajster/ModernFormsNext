@@ -126,7 +126,6 @@ try {
         $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."
     }
-    Write-Host "$Scenario passed on $($device[0].Kind); evidence: $destination"
 }
 finally {
     if ($Scenario -eq 'SystemReducedMotion') {
@@ -142,3 +141,4 @@ finally {
     $differences = @($initialSettings.Keys | Where-Object { $initialSettings[$_] -cne $finalSettings[$_] })
     if ($differences.Count) { throw "Settings differ after instrumentation: $($differences -join ', '). Original and final values are archived; inspect before accepting the run." }
 }
+Write-Host "$Scenario passed with settings preserved on $($device[0].Kind); evidence: $destination"
