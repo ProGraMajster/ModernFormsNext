@@ -4,8 +4,9 @@ This page is the central index of current ModernFormsNext limitations. It is int
 an index: follow the **Details** links for behavior, workarounds, and validation evidence. The
 historical baseline is tag `v1.10.0` / commit `3d3c05ed17de18267a65050d6b1384da928c3e9d`, re-audited on
 2026-08-18 against the code, automated tests, and GitHub issue state. Later entries identify
-post-baseline work explicitly; Phase 4 accessibility describes current implementation under final
-validation, not a new release or a completed cross-platform support claim.
+post-baseline work explicitly. The [1.11.0 readiness audit](development/1.11.0-release-readiness.md)
+records current validation separately from historical evidence; it is not a publication or a
+completed cross-platform support claim.
 
 Windows is the primary supported runtime. Android is an experimental shared-control vertical
 slice. A successful build or deterministic test does not imply emulator, physical-device, GPU,
@@ -69,7 +70,7 @@ not active limitations.
 | ACC-01 | Accessibility | Phase 4 supplies current managed controls, Text/TextRange, Scroll, Grid/Table, preference consumption, snapshot diagnostics and Designer metadata. It does not implement future recycled containers, a full Developer Tools inspector/picker, rich embedded-document adapters or universal compliance checks. Final build/package/native matrices remain separate from historical phases; the umbrella issue stays open. | Coverage / tooling / validation boundary | High | Accessibility [#59](https://github.com/ProGraMajster/ModernFormsNext/issues/59), virtualization [#55](https://github.com/ProGraMajster/ModernFormsNext/issues/55), inspector [#61](https://github.com/ProGraMajster/ModernFormsNext/issues/61) | [Semantic model](accessibility/semantic-model.md), [Diagnostics and Designer](accessibility/diagnostics-and-designer.md) |
 | PLT-01 | Cross-platform backends | Windows is the only supported full runtime backend; Android is experimental and there are no supported Linux or macOS application backends. | Platform limitation | High | Android host [#72](https://github.com/ProGraMajster/ModernFormsNext/issues/72); Linux/macOS [#80](https://github.com/ProGraMajster/ModernFormsNext/issues/80) | [README status](../README.md#current-status) |
 | REN-01 | Rendering/Skia | No explicit OpenGL/Vulkan/Metal/ANGLE backend selection or declared GPU-acceleration contract. | Performance limitation | Medium | [Tracked #46](https://github.com/ProGraMajster/ModernFormsNext/issues/46) | [Roadmap risks](roadmap/ModernFormsNext-Framework-Roadmap.md#known-cross-cutting-risks) |
-| REN-02 | Rendering/Skia | Bounds-dependent shaders are created per rendering scope and the framework has no unified render/layout allocation budget or profiler overlay. | Performance limitation | Low | Diagnostics work [tracked #58](https://github.com/ProGraMajster/ModernFormsNext/issues/58) | [Paint and gradients](paint-and-gradients.md#current-limitations) |
+| REN-02 | Rendering/Skia | Bounds-dependent shaders are created per rendering scope. PerformanceProfiler supplies bounded render/layout/allocation observations and an optional HUD; universal workload budgets, GPU/scanout timing and broad cache profiling remain unestablished. | Performance limitation | Low | Profiler foundation [#58](https://github.com/ProGraMajster/ModernFormsNext/issues/58); wider workload calibration remains future work | [Performance diagnostics](performance-diagnostics.md), [Paint and gradients](paint-and-gradients.md#current-limitations) |
 | SER-01 | `.mfdesign` / code generation | `.mfdesign` is the source of truth. Reverse parsing accepts the generator's conservative subset and reports unsupported arbitrary expressions rather than evaluating or merging them. | Compatibility limitation | Medium | Safe fidelity improvements [tracked #81](https://github.com/ProGraMajster/ModernFormsNext/issues/81); arbitrary code execution remains permanently out of scope | [Designer reverse sync](designer-architecture.md#current-designer-limitations) |
 | TPL-01 | Templates/compatibility | The packaged starter template is Windows-only and the published libraries target .NET 10; Android needs an explicit activity/surface host. | Compatibility limitation | Medium | Older .NET [#44](https://github.com/ProGraMajster/ModernFormsNext/issues/44); Android host [#72](https://github.com/ProGraMajster/ModernFormsNext/issues/72) | [Installation](installation.md#android) |
 | REL-01 | Documentation/release | Browser rendering, interactive VS Designer, Marketplace publication, and Android device observation remain manual gates outside deterministic DocFX/package tests. | Validation gap | Low | Automation and explicit handoffs [tracked #82](https://github.com/ProGraMajster/ModernFormsNext/issues/82) | [Versioned documentation](releasing/versioned-documentation-artifacts.md#current-validation-boundaries) |
@@ -96,10 +97,11 @@ not active limitations.
   fallback for incompatible values.
 - **Experimental:** Android shared-control hosting, animation frame pacing, lifecycle adapter,
   permissions, pointer routing, and TextBox IME integration.
-- **Implemented under final Phase 4 validation:** current-control accessibility composites,
+- **Implemented with bounded Phase 4 validation:** current-control accessibility composites,
   editor ranges, viewport and grid/table contracts, opt-in native preferences and scaled typography,
   bounded snapshot diagnostics and Designer metadata coverage. Historical Windows/Android
-  accessibility evidence is preserved; new native and physical results require their own record.
+  accessibility evidence is preserved; the [Android release matrix](android-release-validation.md)
+  records current API 34 emulator/API 36 physical checks without implying broad TalkBack/vendor parity.
 
 See the [1.10.0 documentation and limitations audit](audits/1.10.0-documentation-and-limitations-audit.md)
 for obsolete statements removed, issue coverage, proposed backlog items, and the TODO/FIXME review.

@@ -100,6 +100,8 @@ Windows remains the primary runtime; Android remains experimental.
   [readiness report](docs/development/1.11.0-release-readiness.md)).
 - Updated the repository/CI SDK and explicit SourceLink build dependency to patched
   10.0.401 tooling for CVE-2026-62900, retaining .NET 10 target frameworks.
+- Connected the offline API entry to its generated namespace/type navigation and refreshed
+  the profiler, Android validation and release-readiness documentation.
 
 ## [1.10.0] - 2026-08-16
 

@@ -183,8 +183,9 @@ diagnostic comparison, not equivalent release coverage.
   `launchSettings.json` workaround.
 - Android Hot Reload is intentionally disabled for this project-system combination; normal F5
   debugging remains available.
-- Release builds can emit `XA0141` for the current HarfBuzzSharp native assets and 16 KB page-size
-  compatibility. Treat it as a known dependency warning, not as proof of full device compatibility.
+- Older HarfBuzzSharp native assets emitted `XA0141` for 16 KB page-size compatibility. The current
+  dependency set builds without that warning in the [1.11.0 audit](../development/1.11.0-release-readiness.md).
+  A warning-free build alone does not establish runtime compatibility on a 16 KB page-size device.
 - Use `Watch-ModernFormsNextLogcat.ps1` and `Collect-AndroidDiagnostics.ps1` for tagged runtime logs,
   package/activity state, device properties, and host emulator failures.
 
