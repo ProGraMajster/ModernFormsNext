@@ -10,12 +10,12 @@ It complements Windows/Android native integration tests.
 Reference the package from a .NET 10 test project:
 
 ```xml
-<PackageReference Include="ModernFormsNext.Testing" Version="1.10.0" />
+<PackageReference Include="ModernFormsNext.Testing" Version="1.11.0" />
 ```
 
 The package uses the shared runtime and WindowKit contracts. It does not load the Windows or
-Android backend, Designer, or VSIX. New APIs described here are in the current source tree;
-this development change does not publish a package or change its version.
+Android backend, Designer, or VSIX. The package is first published as part of the
+coordinated 1.11.0 release; its version follows the framework packages.
 
 ## First test
 

@@ -23,7 +23,7 @@ namespace ModernFormsNext.VisualStudioExtension;
 /// only exposes Visual Studio registration and validation commands needed to deploy the extension.
 /// </remarks>
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
-[InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.10.0")]
+[InstalledProductRegistration("ModernFormsNext Designer", "Visual Studio designer support for ModernFormsNext.", "1.11.0")]
 [ProvideMenuResource("ModernFormsNext.VisualStudioExtension.CTMENU", 1)]
 [ProvideEditorFactory(typeof(MfDesignEditorFactory), 101)]
 [ProvideEditorExtension(typeof(MfDesignEditorFactory), DesignFileExtension, 50, DefaultName = ExtensionDisplayName)]

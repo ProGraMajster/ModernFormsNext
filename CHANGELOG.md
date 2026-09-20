@@ -4,7 +4,7 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
-## [Unreleased] — 1.11.0 scope
+## [1.11.0] — 2026-09-20
 
 This section covers changes since the actual `v1.10.0` tag. Publication remains
 subject to the [release readiness report](docs/development/1.11.0-release-readiness.md).
@@ -599,6 +599,7 @@ Published packages:
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
 [1.10.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.9.0...v1.10.0
+[1.11.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.11.0
 [1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.7.0
