@@ -13,20 +13,20 @@ NuGet package versions use SemVer without a `v` prefix. The shared value is stor
 `Directory.Build.props`:
 
 ```xml
-<ModernFormsNextPackageVersion>1.11.0</ModernFormsNextPackageVersion>
+<ModernFormsNextPackageVersion>1.11.1</ModernFormsNextPackageVersion>
 ```
 
 Git tags use the same version with a `v` prefix:
 
 ```text
-v1.11.0
+v1.11.1
 ```
 
 The Visual Studio extension version is stored separately so an emergency extension-only patch
 remains possible:
 
 ```xml
-<ModernFormsNextVisualStudioExtensionVersion>1.11.0</ModernFormsNextVisualStudioExtensionVersion>
+<ModernFormsNextVisualStudioExtensionVersion>1.11.1</ModernFormsNextVisualStudioExtensionVersion>
 ```
 
 For coordinated framework minor/major releases, the VSIX version must match the framework release.
@@ -45,10 +45,13 @@ publisher, Package ID, or Marketplace identity during an ordinary release.
 
 ## Assembly version strategy
 
-Library projects use the .NET SDK version defaults. Package `Version` and `FileVersion` follow the
-release; `InformationalVersion` may also include source revision information. `AssemblyVersion`
-remains at `major.minor.0.0` for compatible patch releases to avoid unnecessary binary binding
-breaks. The VSIX assembly/file versions use the four-part form `major.minor.patch.0`.
+Package `Version` and `FileVersion` follow the release; `InformationalVersion` may also include
+source revision information. `ModernFormsNextAssemblyVersion` in `Directory.Build.props` stays at
+`major.minor.0.0` for compatible patch releases (`1.11.0.0` for the 1.11.x line).
+`Directory.Build.targets` applies it only to published library projects, overriding the SDK's
+package-derived assembly version to avoid unnecessary binary binding breaks. Update this value
+deliberately for a new minor/major release. The VSIX assembly/file versions use the four-part form
+`major.minor.patch.0`; apps, tests and content-only templates retain their own defaults.
 
 ## Choose the next version
 
@@ -72,7 +75,7 @@ the tag.
    symbol-package policy.
 5. Confirm the VSIX manifest, registration attributes, assets, prerequisites, and Visual Studio
    installation targets.
-6. Review platform claims. For 1.11.0, Android must remain explicitly **Experimental** and must not
+6. Review platform claims. For 1.11.1, Android must remain explicitly **Experimental** and must not
    be described as a complete `Application.Run(Form)` or WindowKit implementation.
 7. Review `git diff`, stage only the intended files, and create focused commits. Do not use
    `git add .` without auditing the entire worktree.
@@ -95,7 +98,7 @@ repository-wide traversal. A clean external exact-SHA worktree remains recommend
 while `-m:1 /p:UseSharedCompilation=false` remains necessary to avoid genuine concurrent writes to
 shared MicroCom intermediate outputs.
 
-For 1.11.0, additionally validate:
+For 1.11.1, additionally validate:
 
 - `net10.0-windows` framework and samples;
 - the `net10.0-android` backend, cross-platform sample, and Android backend tests when the workload
@@ -125,13 +128,13 @@ dotnet tool restore
 $commit = (git rev-parse HEAD).Trim()
 .\scripts\tests\Test-ReleaseDocumentation.ps1
 .\scripts\Build-ReleaseDocumentation.ps1 `
-    -Version 1.11.0 `
+    -Version 1.11.1 `
     -Tag local `
     -Commit $commit `
     -OutputDirectory .\artifacts\release-docs
 .\scripts\Validate-ReleaseDocumentation.ps1 `
     -ArtifactDirectory .\artifacts\release-docs `
-    -ExpectedVersion 1.11.0 `
+    -ExpectedVersion 1.11.1 `
     -ExpectedCommit $commit `
     -ExpectedTag local
 ```
@@ -146,7 +149,7 @@ the tag resolves to `github.sha`, and validates every archive before publication
 
 After the release commit is reviewed and the normal `.NET` workflow is green:
 
-1. Replace `Unreleased` with the actual release date in `CHANGELOG.md` and update the 1.11.0 link
+1. Replace `Unreleased` with the actual release date in `CHANGELOG.md` and update the 1.11.1 link
    from a comparison URL to the final tag URL.
 2. Commit that final release-note change and push it through the normal review path.
 3. Create the annotated or lightweight `vX.Y.Z` tag on the exact reviewed commit.
@@ -164,8 +167,8 @@ Example commands are intentionally explicit:
 ```powershell
 git status
 git log --oneline --decorate -n 20
-git tag v1.11.0
-git push origin v1.11.0
+git tag v1.11.1
+git push origin v1.11.1
 ```
 
 Do not run the tag or push commands until the release is approved. Never force-push or move a

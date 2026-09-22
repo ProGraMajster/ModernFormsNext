@@ -10,7 +10,7 @@ It complements Windows/Android native integration tests.
 Reference the package from a .NET 10 test project:
 
 ```xml
-<PackageReference Include="ModernFormsNext.Testing" Version="1.11.0" />
+<PackageReference Include="ModernFormsNext.Testing" Version="1.11.1" />
 ```
 
 The package uses the shared runtime and WindowKit contracts. It does not load the Windows or
