@@ -2766,6 +2766,10 @@ namespace ModernFormsNext
             }
         }
 
+        // Local visibility remains meaningful while an ancestor is hidden. Layout and
+        // scrollbar geometry must not change just because effective visibility changes.
+        internal bool DesiredVisibility => GetState (States.Visible);
+
         /// <summary>
         /// Gets or sets whether the control is displayed to the user.
         /// </summary>

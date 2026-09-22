@@ -13,6 +13,11 @@ can clamp a page to the movement range. A disabled viewport still reports geomet
 but rejects movement. Sensitive peers and descendants of protected peers do not
 export viewport extents through native or automation adapters.
 
+For ordinary `ScrollableControl` content, layout and scrolling share the same
+translated display origin. Hiding and showing a view preserves a valid offset;
+range clamping also updates child geometry while an ancestor is hidden. See the
+[scroll layout contract and native regression](../development/scroll-layout-regression.md).
+
 ```csharp
 var peer = panel.AccessibilityObject;
 if (peer.ScrollInfo is { Vertical.IsScrollable: true })

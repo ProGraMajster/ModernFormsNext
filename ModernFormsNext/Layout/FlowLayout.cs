@@ -71,7 +71,9 @@ internal partial class FlowLayout : LayoutEngine
         if (!wrapContents) {
             // pretend that the container is infinitely wide to prevent wrapping.
             // DisplayRectangle.Right is Width + X - subtract X to prevent overflow.
-            displayRect.Width = int.MaxValue - displayRect.X;
+            // Scrolling can make the origin negative. Subtracting it would overflow
+            // Width and give auto-sized children a negative measurement constraint.
+            displayRect.Width = int.MaxValue - Math.Max (0, displayRect.X);
         }
 
         for (var i = 0; i < container.Children.Count ();) {

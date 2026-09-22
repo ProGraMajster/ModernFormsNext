@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--scroll-layout", StringComparer.Ordinal))
+{
+    Environment.ExitCode = ScrollLayoutScenario.Run();
+    return;
+}
+
 if (Array.IndexOf(args, "--high-dpi-physical") is int physicalIndex && physicalIndex >= 0)
 {
     Environment.ExitCode = HighDpiScenario.RunPhysical(args[physicalIndex + 1]);

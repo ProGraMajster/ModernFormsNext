@@ -127,34 +127,13 @@ internal partial class FlowLayout
             var newBounds = bounds;
             newBounds.X = DisplayRect.Right - bounds.X - bounds.Width + ElementProxy.Margin.Left - ElementProxy.Margin.Right;
 
-            // TODO: RTL
-            // Since DisplayRect.Right and bounds.X are both adjusted for the AutoScrollPosition, we need add it back here.
-            //if (Container is FlowLayoutPanel flp) {
-                //Point ptScroll = flp.AutoScrollPosition;
-                //if (ptScroll != Point.Empty)
-                //{
-                //    Point pt = new Point(newBounds.X, newBounds.Y);
-                //    if (IsVertical)
-                //    {
-                //        // We need to treat Vertical a little differently. It really helps if you draw this out.
-                //        // Remember that when we layout BottomUp, we first layout TopDown, then call this method.
-                //        // When we layout TopDown we layout in flipped rectangles. I.e. x becomes y, y becomes x,
-                //        // height becomes width, width becomes height. We do our layout, then when we eventually
-                //        // set the bounds of the child elements, we flip back. Thus, x will eventually
-                //        // become y. We need to adjust for scrolling - but only in the y direction -
-                //        // and since x becomes y, we adjust x. But since AutoScrollPosition has not been swapped,
-                //        // we need to use its Y coordinate when offsetting.
-
-                //        pt.Offset(ptScroll.Y, 0);
-                //    }
-                //    else
-                //    {
-                //        pt.Offset(ptScroll.X, 0);
-                //    }
-
-                //    newBounds.Location = pt;
-                //}
-            //}
+            // Mirroring subtracts bounds.X from DisplayRect.Right, cancelling the scroll
+            // origin shared by both. Restore that origin once, using the canonical offset
+            // already shared by pointer/touch scrolling; no public AutoScrollPosition is needed.
+            if (Container is ScrollableControl scrollable) {
+                var offset = scrollable.TouchScrollPosition;
+                newBounds.X -= IsVertical ? offset.Y : offset.X;
+            }
 
             return newBounds;
         }
