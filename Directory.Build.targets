@@ -1,0 +1,18 @@
+<Project>
+  <!-- Project package flags are available here, after each project has been evaluated.
+       Keep published library identities stable across patches without changing apps,
+       test assemblies, content-only templates, or the independent VSIX version policy. -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true' and '$(IncludeBuildOutput)' != 'false'">
+    <AssemblyVersion>$(ModernFormsNextAssemblyVersion)</AssemblyVersion>
+  </PropertyGroup>
+
+  <!-- The SDK otherwise defaults FileVersion to AssemblyVersion. Use its own NuGet
+       version conversion so file versions advance with patches and support prereleases. -->
+  <Target Name="SetModernFormsNextLibraryFileVersion"
+          BeforeTargets="GetAssemblyVersion"
+          Condition="'$(IsPackable)' == 'true' and '$(IncludeBuildOutput)' != 'false' and '$(FileVersion)' == ''">
+    <GetAssemblyVersion NuGetVersion="$(Version)">
+      <Output TaskParameter="AssemblyVersion" PropertyName="FileVersion" />
+    </GetAssemblyVersion>
+  </Target>
+</Project>

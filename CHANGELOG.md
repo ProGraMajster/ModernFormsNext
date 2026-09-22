@@ -4,6 +4,17 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.11.1] — Unreleased
+
+- Fixed [#130](https://github.com/ProGraMajster/ModernFormsNext/issues/130): scrollable derived
+  layouts, including FlowLayoutPanel, preserve and reconcile their scroll position across
+  hide/show, relayout and range changes.
+- Kept scrollbar value, canonical scroll offset, DisplayRectangle/layout origin and child
+  geometry synchronized.
+- Fixed Anchor behavior when resizing shrinks the scroll range.
+- Added regression coverage for FlowLayoutPanel, TableLayoutPanel, custom layouts, accessibility
+  and wheel/thumb/track scrolling, including a real Windows HWND scenario.
+
 ## [1.11.0] — 2026-09-20
 
 This section covers changes since the actual `v1.10.0` tag. Publication remains
@@ -599,6 +610,7 @@ Published packages:
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
 [1.10.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.9.0...v1.10.0
+[1.11.1]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.11.0...master
 [1.11.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.11.0
 [1.9.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.7.0...v1.8.0

@@ -1,7 +1,9 @@
 <Project>
 	<PropertyGroup>
-		<ModernFormsNextPackageVersion>1.11.0</ModernFormsNextPackageVersion>
-		<ModernFormsNextVisualStudioExtensionVersion>1.11.0</ModernFormsNextVisualStudioExtensionVersion>
+		<ModernFormsNextPackageVersion>1.11.1</ModernFormsNextPackageVersion>
+		<ModernFormsNextVisualStudioExtensionVersion>1.11.1</ModernFormsNextVisualStudioExtensionVersion>
+		<!-- Compatible patches retain the library assembly identity of the minor release. -->
+		<ModernFormsNextAssemblyVersion>1.11.0.0</ModernFormsNextAssemblyVersion>
 
 		<!-- Shared assembly and publication identity. Project-specific package names,
 		     descriptions, products, and tags remain in the owning project. -->
