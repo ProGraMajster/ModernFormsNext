@@ -23,8 +23,8 @@ public partial class ScrollableControl
         get
         {
             var rect = base.DisplayRectangle;
-            if (vscrollbar.Visible) rect.Width -= vscrollbar.Width;
-            if (hscrollbar.Visible) rect.Height -= hscrollbar.Height;
+            if (vscrollbar.DesiredVisibility) rect.Width -= vscrollbar.Width;
+            if (hscrollbar.DesiredVisibility) rect.Height -= hscrollbar.Height;
             return new(rect.X, rect.Y, Math.Max(0, rect.Width), Math.Max(0, rect.Height));
         }
     }

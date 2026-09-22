@@ -185,18 +185,29 @@ namespace ModernFormsNext
             canvas_size.Height = height;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Gets the layout viewport in logical pixels, inset by padding and scrollbars,
+        /// with its origin translated by the current scroll offset.
+        /// </summary>
+        /// <remarks>
+        /// Layout engines must position children relative to this origin to preserve scrolling
+        /// when arranging them again. Its size remains the available viewport size; content
+        /// extent is measured separately. Read this property on the UI thread.
+        /// </remarks>
         public override Rectangle DisplayRectangle {
             get {
                 // A ScrollableControl DisplayRectangle includes Padding, while a normal Control does not.
                 var rect = base.DisplayRectangle;
 
-                if (hscrollbar.Visible)
+                if (hscrollbar.DesiredVisibility)
                     rect.Height -= hscrollbar.Height;
 
-                if (vscrollbar.Visible)
+                if (vscrollbar.DesiredVisibility)
                     rect.Width -= vscrollbar.Width;
 
+                // ScrollWindow moves existing bounds by a delta. A subsequent layout must
+                // recreate those same bounds from the canonical origin, even while hidden.
+                rect.Offset (-scroll_position.X, -scroll_position.Y);
                 return LayoutUtils.DeflateRect (rect, PresentationPadding);
             }
         }
@@ -204,9 +215,11 @@ namespace ModernFormsNext
         // Handles events from the scrollbars to update the window position.
         private void HandleScroll (object? sender, EventArgs e)
         {
-            if (sender == vscrollbar && vscrollbar.Visible)
+            // Range clamping also occurs under a hidden ancestor. Use the scrollbar's
+            // local state so Value changes still move children and the canonical offset.
+            if (sender == vscrollbar && vscrollbar.DesiredVisibility)
                 ScrollWindow (0, vscrollbar.Value - vscrollbar.Minimum - scroll_position.Y);
-            else if (sender == hscrollbar && hscrollbar.Visible)
+            else if (sender == hscrollbar && hscrollbar.DesiredVisibility)
                 ScrollWindow (hscrollbar.Value - hscrollbar.Minimum - scroll_position.X, 0);
         }
 
@@ -339,10 +352,9 @@ namespace ModernFormsNext
                 hscrollbar.SmallChange = 5;
                 hscrollbar.Maximum = ScrollMaximum(hscrollbar.Minimum, canvas.Width, right_edge);
             } else {
-                if (hscrollbar.Visible)
-                    ScrollWindow (-scroll_position.X, 0);
-
-                scroll_position.X = 0;
+                // Reset through the displacement path even under a hidden ancestor.
+                // Assigning only scroll_position would leave retained children shifted.
+                ScrollWindow (-scroll_position.X, 0);
             }
 
             if (vscroll_visible) {
@@ -350,10 +362,7 @@ namespace ModernFormsNext
                 vscrollbar.SmallChange = 5;
                 vscrollbar.Maximum = ScrollMaximum(vscrollbar.Minimum, canvas.Height, bottom_edge);
             } else {
-                if (vscrollbar.Visible)
-                    ScrollWindow (0, -scroll_position.Y);
-
-                scroll_position.Y = 0;
+                ScrollWindow (0, -scroll_position.Y);
             }
 
             SuspendLayout ();
@@ -399,6 +408,11 @@ namespace ModernFormsNext
             if (xOffset == 0 && yOffset == 0)
                 return;
 
+            // A resize may clamp the scroll position before DefaultLayout consumes the old
+            // anchor distances. Move as layout (not an explicit Location edit) in that case,
+            // and avoid ResumeLayout(false), which also reinitializes those distances.
+            var preserveAnchors = preserve_anchor_layout_during_scrollbar_adjustment
+                && LayoutEngine == DefaultLayout.Instance;
             scroll_update_depth++;
             SuspendLayout ();
             try {
@@ -410,12 +424,20 @@ namespace ModernFormsNext
                 foreach (var c in Controls.ToArray()) {
                     if (!lifetime.IsCurrent || IsDisposed) break;
                     if (IsInternalScrollControl (c) || c.IsDisposed || !ReferenceEquals(c.Parent, this)) continue;
-                    try { c.Location = new Point (c.Left - xOffset, c.Top - yOffset); }
+                    try {
+                        if (preserveAnchors) {
+                            var bounds = c.Bounds;
+                            bounds.Offset (-xOffset, -yOffset);
+                            ((IArrangedElement)c).SetBounds (bounds, BoundsSpecified.None);
+                        } else {
+                            c.Location = new Point (c.Left - xOffset, c.Top - yOffset);
+                        }
+                    }
                     catch (Exception error) { (failures ??= []).Add(error); }
                 }
                 if (failures is not null) throw new AggregateException(failures);
             } finally {
-                try { ResumeLayout (false); }
+                try { ResumeLayout (preserveAnchors); }
                 finally { EndScrollUpdate(); }
             }
         }
