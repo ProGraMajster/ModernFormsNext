@@ -28,7 +28,6 @@
     <VSSDKBuildToolsVersion>17.14.2142</VSSDKBuildToolsVersion>
     <UseCodebase>true</UseCodebase>
     <DesignerHostProject>..\ModernFormsNext.VisualStudioDesignerHost\ModernFormsNext.VisualStudioDesignerHost.csproj</DesignerHostProject>
-    <DesignerHostPublishDir>$(IntermediateOutputPath)DesignerHost\</DesignerHostPublishDir>
     <DesignerHostRuntimeIdentifier>win-x64</DesignerHostRuntimeIdentifier>
   </PropertyGroup>
 
@@ -92,6 +91,15 @@
   <Import Project="$(NuGetPackageRoot)microsoft.vssdk.buildtools\$(VSSDKBuildToolsVersion)\tools\vssdk\Microsoft.VsSDK.targets"
           Condition="Exists('$(NuGetPackageRoot)microsoft.vssdk.buildtools\$(VSSDKBuildToolsVersion)\tools\vssdk\Microsoft.VsSDK.targets')" />
 
+  <PropertyGroup>
+    <!-- Evaluate after the SDK: the early IntermediateOutputPath was empty,
+         accidentally making Debug and Release share a source-tree staging folder. -->
+    <DesignerHostPublishDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'DesignerHost'))</DesignerHostPublishDir>
+    <!-- Publish changes global properties. Isolate its whole dependency graph,
+         including tools, XML docs, generated sources and package outputs. -->
+    <_DesignerHostProperties>Configuration=$(Configuration);TargetFramework=net10.0-windows;RuntimeIdentifier=$(DesignerHostRuntimeIdentifier);PublishDir=$(DesignerHostPublishDir);SelfContained=false;EnableWindowsTargeting=true;ModernFormsNextBuildVariant=vsix-host</_DesignerHostProperties>
+  </PropertyGroup>
+
   <Target Name="CreateModernFormsNextVsixAfterBuild"
           AfterTargets="Build"
           DependsOnTargets="GeneratePkgDef;CopyPkgDef;CreateVsixContainer"
@@ -126,7 +134,7 @@
     <RemoveDir Directories="$(DesignerHostPublishDir)" />
     <MSBuild Projects="$(DesignerHostProject)"
              Targets="Publish"
-             Properties="Configuration=$(Configuration);TargetFramework=net10.0-windows;RuntimeIdentifier=$(DesignerHostRuntimeIdentifier);PublishDir=$(MSBuildProjectDirectory)\$(DesignerHostPublishDir);SelfContained=false;EnableWindowsTargeting=true" />
+             Properties="$(_DesignerHostProperties)" />
     <ItemGroup>
       <ModernFormsNextDesignerHostFile Include="$(DesignerHostPublishDir)**\*" />
       <Content Include="@(ModernFormsNextDesignerHostFile)">
@@ -134,5 +142,13 @@
         <VSIXSubPath>DesignerHost\%(ModernFormsNextDesignerHostFile.RecursiveDir)</VSIXSubPath>
       </Content>
     </ItemGroup>
+  </Target>
+
+  <Target Name="CleanModernFormsNextDesignerHost" AfterTargets="Clean"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <!-- Use the same property set as Publish so dotnet clean visits the variant's
+         file-write logs without removing ordinary build outputs or restore assets. -->
+    <MSBuild Projects="$(DesignerHostProject)" Targets="Clean" Properties="$(_DesignerHostProperties)" />
+    <RemoveDir Directories="$(DesignerHostPublishDir)" />
   </Target>
 </Project>

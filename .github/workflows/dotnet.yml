@@ -66,7 +66,7 @@ jobs:
 
       - name: Build
         if: steps.changes.outputs.full != 'false'
-        # The shared MicroCom/VSIX output graph is still serialized; see docs/ci.md.
+        # Parallel build/test qualification is incomplete; retain the policy in docs/ci.md.
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
 
       - name: Regression tests (including high DPI and native partial presentation)

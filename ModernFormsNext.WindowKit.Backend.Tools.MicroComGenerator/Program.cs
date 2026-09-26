@@ -40,10 +40,9 @@ namespace ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator
             {
                 File.WriteAllText(opts.CSharpOutput, new CSharpGen(ast).Generate());
 
-                // HACK: Can't work out how to get the VS project system's fast up-to-date checks
-                // to ignore the generated code, so as a workaround set the write time to that of
-                // the input.
-                File.SetLastWriteTime(opts.CSharpOutput, File.GetLastWriteTime(opts.Input));
+                // Keep the actual generation time. MSBuild compares this output
+                // with the IDL, generator sources and resolved runtime payload;
+                // backdating it to the IDL would invalidate every later build.
             }
 
             return 0;

@@ -1,0 +1,12 @@
+<Project>
+  <!-- Restore runs once before build. Both variants consume the same immutable
+       NuGet assets, but own separate compiler, cache, package and binary outputs.
+       The host already restores win-x64 through RuntimeIdentifiers. -->
+  <PropertyGroup Condition="'$(ModernFormsNextBuildVariant)' == 'vsix-host'">
+    <MSBuildProjectExtensionsPath Condition="'$(MSBuildProjectExtensionsPath)' == ''">$(MSBuildProjectDirectory)\obj\</MSBuildProjectExtensionsPath>
+    <BaseIntermediateOutputPath>obj\vsix-host\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\vsix-host\</BaseOutputPath>
+    <!-- Changing the base paths must not expose ordinary obj/bin sources to globs. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>
