@@ -54,21 +54,14 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Cache NuGet packages
-        if: steps.changes.outputs.full != 'false'
-        uses: actions/cache@v4
-        with:
-          # Cache downloaded packages only, never obj/bin or release binaries.
-          # Exact keys; restore still evaluates the current dependency graph.
-          path: ~/.nuget/packages
-          key: nuget-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('global.json', '**/*.csproj', '**/*.props', '**/*.targets', '**/*.slnx', '**/packages.lock.json', '**/packages.config', '**/[Nn]u[Gg]et.[Cc]onfig', '.config/dotnet-tools.json') }}
-
       - name: .NET Info
         if: steps.changes.outputs.full != 'false'
         run: dotnet --info
 
       - name: Restore
         if: steps.changes.outputs.full != 'false'
+        # Normal NuGet caches are permitted on this runner. Persisting the full
+        # package folder across PR runs was slower overall; see the measured audit.
         run: dotnet restore ModernFormsNext.slnx
 
       - name: Build

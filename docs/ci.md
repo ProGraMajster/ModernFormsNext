@@ -48,17 +48,19 @@ projects as before, with `-m:1 /p:UseSharedCompilation=false`. Tests use
 `--no-build --no-restore`. No controls, Android targets, VSIX packaging, native tests
 or test projects are excluded. CI classification and release-script tests also run.
 
-`actions/setup-dotnet` reads the SDK version from `global.json`. The NuGet package
-cache key includes OS, architecture, SDK configuration, project/solution files,
-props/targets, NuGet configuration, package lock/config files and the tool manifest.
-There are no broad fallback keys and no `obj`, `bin`, assets files or release
-binaries in the cache. Restore always executes and evaluates current dependencies;
-ordinary PRs omit `--force --no-cache`. Release retains that clean-runner restore.
+`actions/setup-dotnet` reads the SDK version from `global.json`. Restore always
+executes and evaluates current dependencies. Ordinary PRs omit `--force --no-cache`
+and can use NuGet's normal caches on the runner. Release retains that clean-runner
+restore. No `obj`, `bin`, assets files or earlier PR binaries are reused.
 
-GitHub scopes caches created by PRs to their merge ref: later revisions/reruns of
-the same PR can benefit, but a first run on another PR may be cold. Removing the
-master build also removes automatic default-branch cache warming. A cache hit is
-never evidence that source was validated, and no PR binary is reused for release.
+Persisting `~/.nuget/packages` with an exact SDK/dependency/configuration key was
+tested and rejected: saving the 913 MB archive cost **257 s**; a later hit took
+**31 s** plus **8 s** restore, saving only **34 s** against the **73 s** cold restore.
+That requires about eight later hits to recover the initial saving cost. GitHub
+scopes PR-created caches to their merge ref, so an unrelated PR cannot amortize
+that expense. The final workflow has **no Actions cache step**. See the
+[measured experiment](development/ci-performance-audit.md#persisted-nuget-cache-experiment)
+before reintroducing one; do not add a cache based only on its restore-step timing.
 
 Concurrency groups contain the workflow name and PR number, with
 `cancel-in-progress: true`. Updating one PR supersedes its stale run; other PRs

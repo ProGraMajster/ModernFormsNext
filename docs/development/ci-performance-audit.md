@@ -156,3 +156,85 @@ and TRX files are under ignored `artifacts/ci-audit/`. They are local diagnostic
 not release assets or committed binaries. This report contains the reviewable
 results and canonical Actions links. The operational contract and final comparison
 are documented in [CI policy](../ci.md).
+
+## Validation after implementation
+
+At implementation commit `e855f70a09fa407f366b4e6c6ebc5385639dfce3`:
+
+- Debug and Release builds: zero warnings/errors; VSIX creation and its existing
+  validation target passed in both configurations.
+- Debug **3,625/3,625**, Release **3,625/3,625**, nine TRX files per configuration,
+  zero failed and zero skipped tests. No test implementation or attribute changed.
+- CI classification: **45 assertions** using real Git fixtures, including mixed
+  changes, code-to-Markdown and docs renames, deleted inputs, executable/symlink
+  modes, spaces/Unicode/literal shell-like filenames, more than 300 files, empty
+  diffs, missing history and malformed documentation. The actual historical
+  `ab54cac... -> dc55839...` diff correctly selects only `CHANGELOG.md`; the current
+  branch correctly selects full CI.
+- Release documentation scripts: **32 assertions**.
+- Package validation: **11 NuGet packages and 10 symbol packages**, still version
+  `1.11.1`. No package was published.
+- DocFX **2.78.5** restored; all **four** versioned documentation archives built and
+  validated with expected local tag and exact commit metadata.
+- **actionlint 1.7.12**, PowerShell syntax parsing and `git diff --check`: passed.
+- Protect master was reread and compared with the baseline snapshot: unchanged.
+- No visible framework behavior or startup changed. Manual Visual Studio/device/UI
+  and generated-template launches were not required and were not performed.
+
+Local profile (seconds; warm package cache, same machine, forced Release rebuild):
+
+| Stage | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Restore | 2.77 | 1.81 | 34.5% less |
+| Release rebuild | 143.43 | 146.53 | 2.2% more |
+| Release tests | 82.55 | 82.81 | 0.3% more |
+| Sum of those three commands | 228.74 | 231.15 | 1.1% more |
+
+The new classification/script gates add time to full CI; no compiler or test-runner
+speedup is claimed. Debug build/test took 66.04 / 78.94 s. Release pack took 3.01 s;
+documentation build/validation took 100.01 / 9.99 s. These are distinct from hosted
+release timings and were run without publishing or creating a version tag.
+
+The local replay of the actual PR #136 diff plus the complete new lightweight gates
+took **10.82 s** (classification 0.18 s, classifier regression tests 10.37 s,
+changed-document checks 0.01 s, existing release-script tests for the remainder).
+Restore, framework build and framework tests are all **0 s** on that path. This
+does not include hosted checkout/startup and is not a hosted end-to-end benchmark.
+
+Hosted image drift also matters: #136 ran `windows-2025-vs2026` image
+`20260907.229.1`; #139 ran `20260922.246.2`. Even two baseline jobs on September 26
+vary: the PR #139 build/test steps took 215/104 s, while its successful
+[master run](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/36250490355)
+took 338/154 s (restore 64 s, total job 578 s). Do not attribute this existing
+runner variance to the workflow changes.
+
+## Persisted NuGet cache experiment
+
+The initial implementation was benchmarked on
+[PR #140, attempt 1](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/36252204602/attempts/1).
+The whole job passed in **870 s**: checkout 6 s, SDK setup 3 s, classification 1 s,
+classifier tests 13 s, restore **73 s**, build **349 s**, framework tests **153 s**.
+All **3,625** framework tests passed with zero skipped. Release-script tests also
+passed. The first cache lookup took 1 s and its post-job save took **257 s**.
+
+The cache stored downloaded/expanded NuGet packages only, never `bin`/`obj` or
+binaries from this repository. Its exact key included OS, architecture, global.json,
+all projects/solutions/props/targets, NuGet configuration, lock/config files and the
+tool manifest, with no fallback key. The compressed archive was **913,227,745 bytes**.
+The log shows GNU tar with `zstd -T0`; archive creation dominated, while the transfer
+reported 266.6 MB/s. This was a measured serialization cost, not a speculative
+network explanation.
+
+Attempt 2 of the same run and source revision hit that exact cache. Cache download
+and extraction took **31 s**, and restore still ran successfully in **8 s**. The
+combined dependency preparation cost was therefore **39 s**, against **73 s**
+without a hit: **46.6% less**, but only **34 s** saved per later hit. Paying 257 s
+upfront needs approximately eight later hits within the **same PR** to break even.
+The audited examples have far fewer revisions; #136 had only a single docs change.
+
+**Decision:** remove the persisted cache from the final workflow, retain ordinary
+NuGet caching within a runner, and keep release's fresh-runner/no-cache restore.
+The final PR was updated while attempt 2 was active to exercise cancellation of a
+stale PR revision. The partial warm-cache experiment is not reported as a completed
+full test run. It demonstrates why caching was not accepted solely on a green first
+run or the shorter restore step.
