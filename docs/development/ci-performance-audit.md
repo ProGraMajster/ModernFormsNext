@@ -238,3 +238,19 @@ The final PR was updated while attempt 2 was active to exercise cancellation of 
 stale PR revision. The partial warm-cache experiment is not reported as a completed
 full test run. It demonstrates why caching was not accepted solely on a green first
 run or the shorter restore step.
+
+## Build architecture follow-up (2026-09-26)
+
+The [MSBuild instance-isolation follow-up](msbuild-build-architecture.md) starts at
+`71a1b8b`, preserves this audit and the PR #140 workflow decisions, and rechecks the
+graph using fresh Debug/Release logs. It repairs the MicroCom references and shared
+generated source, isolates VSIX host publication, and handles additional Android
+packaging property sets found during the deeper audit.
+
+Six final local `-m:4` full rebuilds passed the isolation gate. Median build times
+changed from 85.687 to 63.049 seconds (Debug) and 134.905 to 84.949 seconds (Release).
+The report includes every restore/build/test timing and failure, including a
+superseded preliminary implementation whose incremental audit exposed additional
+transitive Android writers. Sporadic tests prevent a clean qualification result, so both CI and release
+retain `-m:1 /p:UseSharedCompilation=false`. The historical shared-write findings
+above explain the original policy; they are not claims about the repaired graph.
