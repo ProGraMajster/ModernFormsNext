@@ -103,8 +103,10 @@ Repository-level structure and version tests use Git-tracked files when availabl
 filesystem fallback for source archives. Generated directories and nested worktrees are not release
 inputs; see [Repository validation inputs](docs/repository-validation.md) before adding a new
 repository-wide traversal. A clean external exact-SHA worktree remains recommended for provenance,
-while `-m:1 /p:UseSharedCompilation=false` remains necessary to avoid genuine concurrent writes to
-shared MicroCom intermediate outputs.
+while `-m:1 /p:UseSharedCompilation=false` remains the release policy. The
+[MSBuild architecture follow-up](docs/development/msbuild-build-architecture.md) repairs the known
+shared writers, but repeated parallel-build/test qualification is not fully green. Local timing
+improvements do not qualify publication builds for parallel execution.
 
 For 1.11.1, additionally validate:
 

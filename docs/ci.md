@@ -87,11 +87,21 @@ is **not** claimed as a measured release speedup. Publication gates are retained
 
 ## MSBuild and tests
 
-Keep sequential builds. The [audit](development/ci-performance-audit.md) identifies
-different MicroCom global-property instances writing identical `obj`/`bin`, shared
-generated interop and VSIX publish variants. Changing only `-m` or a single output
-property does not solve the whole graph. Likewise, test-process separation does
-not isolate shared Windows desktop resources. No new parallelism is enabled.
+Keep `-m:1 /p:UseSharedCompilation=false` in CI and release. The
+[architecture follow-up](development/msbuild-build-architecture.md) repairs the
+MicroCom dependency graph, moves generation into per-instance intermediates,
+isolates the complete VSIX host publication graph and normalizes Android packaging
+properties at project-reference boundaries. Six local `-m:4` rebuilds passed their
+output-isolation checks, with lower median build times in both configurations.
+
+Qualification is still incomplete: one final Release test run failed an allocation
+assertion. Two preliminary test runs and one baseline test run also had sporadic
+failures. Native input tests ran on an actively used desktop; the allocation-test
+failures remain unexplained.
+Those results are retained, not replaced by retries. Test-process separation does
+not isolate shared Windows desktop resources. Repeat qualification on an idle,
+controlled desktop and investigate the allocation failure before enabling parallel
+builds in CI; release needs its own evidence. No workflow parallelism is enabled.
 
 ## Reproducing measurements
 

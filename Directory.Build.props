@@ -1,4 +1,5 @@
 <Project>
+	<Import Project="build\BuildVariants.props" />
 	<PropertyGroup>
 		<ModernFormsNextPackageVersion>1.11.1</ModernFormsNextPackageVersion>
 		<ModernFormsNextVisualStudioExtensionVersion>1.11.1</ModernFormsNextVisualStudioExtensionVersion>

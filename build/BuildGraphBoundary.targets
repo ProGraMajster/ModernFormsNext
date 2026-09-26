@@ -1,0 +1,23 @@
+<Project>
+  <!-- The Android SDK's per-RID packaging request carries the *application's*
+       scratch paths and SkipCompilerExecution into ProjectReferences. These do
+       not describe a library build. Remove them at that boundary so references
+       reuse the already-built canonical library instance. Preserve RID/TFM
+       selection through normal SDK framework negotiation.
+
+       Scoped to the SDK packaging phase; real IDE design-time properties and
+       ordinary command-line properties are unchanged. Re-audit on SDK upgrades. -->
+  <Target Name="NormalizeAndroidPackagingProjectReferences"
+          BeforeTargets="AssignProjectConfiguration"
+          DependsOnTargets="ResolvePackageDependenciesForBuild"
+          Condition="'$(_ComputeFilesToPublishForRuntimeIdentifiers)' == 'true'">
+    <!-- NuGet adds transitive ProjectReferences during target execution. An
+         evaluation-time item update misses them, especially on incremental builds.
+         Normalize the complete list before the common targets copy its metadata. -->
+    <ItemGroup>
+      <ProjectReference Update="@(ProjectReference)">
+        <GlobalPropertiesToRemove>%(ProjectReference.GlobalPropertiesToRemove);_ComputeFilesToPublishForRuntimeIdentifiers;_OuterIntermediateAssembly;_OuterIntermediateSatelliteAssembliesWithTargetPath;_OuterIntermediateOutputPath;_OuterOutputPath;_OuterCustomViewMapFile;_AndroidNdkDirectory;SkipCompilerExecution;DesignTimeBuild;AppendRuntimeIdentifierToOutputPath;ResolveAssemblyReferencesFindRelatedSatellites</GlobalPropertiesToRemove>
+      </ProjectReference>
+    </ItemGroup>
+  </Target>
+</Project>

@@ -15,4 +15,5 @@
       <Output TaskParameter="AssemblyVersion" PropertyName="FileVersion" />
     </GetAssemblyVersion>
   </Target>
+  <Import Project="build\BuildGraphBoundary.targets" />
 </Project>
