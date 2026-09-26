@@ -1,51 +1,86 @@
-<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project>
+  <!-- Import after Sdk.targets: IntermediateOutputPath must already contain the
+       configuration, framework, build variant and (when applicable) RID. -->
+  <PropertyGroup>
+    <MicroComGeneratorProject Condition="'$(MicroComGeneratorProject)' == ''">$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.csproj</MicroComGeneratorProject>
+    <_MicroComGeneratorDirectory>$([System.IO.Path]::GetDirectoryName('$(MicroComGeneratorProject)'))\</_MicroComGeneratorDirectory>
+    <MicroComGeneratedFile>$(IntermediateOutputPath)MicroCom\Windows.Interop.Generated.cs</MicroComGeneratedFile>
+  </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-      <ExcludeAssets>all</ExcludeAssets>
-      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-    </ProjectReference>
+    <!-- Normal framework discovery coalesces this with the solution instance.
+         OutputItemType supplies the real tool path, including any build variant.
+         The dormant patcher remains a solution tool, not a backend dependency. -->
+    <ProjectReference Include="$(MicroComGeneratorProject)"
+                      ReferenceOutputAssembly="false" PrivateAssets="all"
+                      OutputItemType="MicroComGeneratorAssembly" />
+    <AvnComIdl Update="@(AvnComIdl)" OutputFile="$(MicroComGeneratedFile)" />
+    <_MicroComGeneratorSource Include="$(_MicroComGeneratorDirectory)**\*.cs"
+                              Exclude="$(_MicroComGeneratorDirectory)obj\**;$(_MicroComGeneratorDirectory)bin\**" />
 
-    <ProjectReference Include="$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher.csproj">
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-      <ExcludeAssets>all</ExcludeAssets>
-      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-    </ProjectReference>
+    <!-- The tracked snapshot supports IDE navigation before the first real build.
+         Normal builds only compile their private generated file, never the snapshot. -->
+    <Compile Remove="@(AvnComIdl->'%(SnapshotFile)')" />
+    <Compile Include="$(MicroComGeneratedFile)"
+             Condition="'$(DesignTimeBuild)' != 'true' or Exists('$(MicroComGeneratedFile)')"
+             AutoGen="true" Visible="false" />
+    <Compile Include="@(AvnComIdl->'%(SnapshotFile)')"
+             Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(MicroComGeneratedFile)')" />
+    <!-- An obj source has no repository URL. Embed its exact bytes in portable
+         PDBs so debugging and symbol packages remain self-contained. -->
+    <EmbeddedFiles Include="$(MicroComGeneratedFile)" Condition="'$(DesignTimeBuild)' != 'true'" />
+    <UpToDateCheckInput Include="@(AvnComIdl);@(_MicroComGeneratorSource);$(MicroComGeneratorProject);$(MSBuildThisFileFullPath)" />
+    <UpToDateCheckOutput Include="$(MicroComGeneratedFile)" />
   </ItemGroup>
 
-  <Target Name="GenerateAvaloniaNativeComInterop"
-          BeforeTargets="CoreCompile"
-          DependsOnTargets="ResolveReferences"
-          Inputs="@(AvnComIdl);$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\**\*.cs"
-          Outputs="%(AvnComIdl.OutputFile)">
-    <Message Importance="high" Text="Generating file %(AvnComIdl.OutputFile) from @(AvnComIdl)" />
-    <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\bin\$(Configuration)\net10.0\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator.dll&quot; -i @(AvnComIdl) --cs %(AvnComIdl.OutputFile)"
-          LogStandardErrorAsError="true" />
+  <!-- CPS collects these inputs from design-time target results. Resolve the tool
+       path without building it, so direct binary/dependency changes also make
+       Visual Studio's fast up-to-date check request the incremental MSBuild target. -->
+  <Target Name="CollectMicroComDesignTimeInputs" BeforeTargets="CollectUpToDateCheckInputDesignTime">
+    <MSBuild Projects="$(MicroComGeneratorProject)" Targets="GetTargetPath"
+             Properties="Configuration=$(Configuration)"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_MicroComDesignTimeAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <_MicroComDesignTimeDirectory>@(_MicroComDesignTimeAssembly->'%(RootDir)%(Directory)')</_MicroComDesignTimeDirectory>
+    </PropertyGroup>
     <ItemGroup>
-      <Compile Remove="%(AvnComIdl.OutputFile)" />
-      <Compile Include="%(AvnComIdl.OutputFile)" />
+      <UpToDateCheckInput Include="@(_MicroComDesignTimeAssembly);$(_MicroComDesignTimeDirectory)*.dll;$(_MicroComDesignTimeDirectory)*.json" />
     </ItemGroup>
   </Target>
 
-  <ItemGroup>
-    <UpToDateCheckInput Include="@(AvnComIdl)" />
-    <UpToDateCheckInput Include="$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComGenerator\**\*.cs" />
-  </ItemGroup>
+  <Target Name="CollectMicroComGeneratorInputs" DependsOnTargets="ResolveReferences"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="'@(MicroComGeneratorAssembly->Count())' != '1'"
+           Text="Expected exactly one resolved MicroCom generator assembly." />
+    <Error Condition="'@(AvnComIdl->Count())' != '1'" Text="Expected exactly one Win32 IDL input." />
+    <PropertyGroup>
+      <_MicroComGeneratorBinaryDirectory>@(MicroComGeneratorAssembly->'%(RootDir)%(Directory)')</_MicroComGeneratorBinaryDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <!-- Package upgrades can change a generator dependency without changing
+           the tool's own sources. Track the resolved runtime payload as well. -->
+      <_MicroComGeneratorInput Include="$(_MicroComGeneratorBinaryDirectory)*.dll;$(_MicroComGeneratorBinaryDirectory)*.json" />
+      <FileWrites Include="$(MicroComGeneratedFile)" />
+    </ItemGroup>
+  </Target>
 
-  <PropertyGroup>
-    <_AvaloniaPatchComInterop>true</_AvaloniaPatchComInterop>
-  </PropertyGroup>
+  <Target Name="GenerateAvaloniaNativeComInterop" BeforeTargets="CoreCompile"
+          DependsOnTargets="CollectMicroComGeneratorInputs"
+          Condition="'$(DesignTimeBuild)' != 'true'"
+          Inputs="@(AvnComIdl);@(_MicroComGeneratorSource);@(_MicroComGeneratorInput);$(MicroComGeneratorProject);$(MSBuildThisFileFullPath)"
+          Outputs="$(MicroComGeneratedFile)">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(MicroComGeneratedFile)'))" />
+    <Message Importance="high" Text="Generating $(MicroComGeneratedFile) from @(AvnComIdl)" />
+    <Exec Command="dotnet &quot;@(MicroComGeneratorAssembly)&quot; -i &quot;@(AvnComIdl)&quot; --cs &quot;$(MicroComGeneratedFile)&quot;"
+          LogStandardErrorAsError="true" />
+  </Target>
 
-  <!--
-<Target Name="PatchMicroComAssembly"
-        AfterTargets="CoreCompile">
-  <Message Importance="high" Text="Patching MicroCom assembly $(IntermediateOutputPath)$(AssemblyName).dll" />
-  <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)..\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher\bin\$(Configuration)\net10.0\ModernFormsNext.WindowKit.Backend.Tools.MicroComPatcher.dll&quot; &quot;$(IntermediateOutputPath)$(AssemblyName).dll&quot;"
-        LogStandardErrorAsError="true" />
-</Target>
--->
-
+  <!-- Explicit maintainer operation after an IDL/generator change. Build, Rebuild,
+       Clean and design-time evaluation never write into the tracked source tree. -->
+  <Target Name="UpdateMicroComInteropSnapshot" DependsOnTargets="GenerateAvaloniaNativeComInterop"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Copy SourceFiles="$(MicroComGeneratedFile)" DestinationFiles="@(AvnComIdl->'%(SnapshotFile)')" />
+  </Target>
 </Project>
