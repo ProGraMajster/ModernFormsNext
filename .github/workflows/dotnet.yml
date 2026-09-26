@@ -1,32 +1,74 @@
 name: .NET
 
 on:
-  push:
-    branches: [ "master" ]
+  # Protect master requires this PR check with strict up-to-date checks and no
+  # bypass. Rebuilding again on push repeats validation; tags have their own gate.
+  # Never add workflow-level paths/paths-ignore: required `build` must be emitted.
   pull_request:
     branches: [ "master" ]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
+  # Keep this job ID/name stable: Protect master requires the `build` context.
   build:
     runs-on: windows-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The default PR checkout is its merge revision. Local Git avoids API
+          # pagination/file limits and includes both sides of renames/deletions.
+          fetch-depth: 0
+
+      - name: Classify changes
+        id: changes
+        shell: pwsh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.sha }}
+        run: ./scripts/Get-CiChanges.ps1 -BaseCommit $env:BASE_SHA -HeadCommit $env:MERGE_SHA
+
+      - name: Test CI change classification
+        shell: pwsh
+        run: ./scripts/tests/Test-CiChanges.ps1
+
+      - name: Validate changed documentation
+        if: steps.changes.outputs.full == 'false'
+        shell: pwsh
+        run: ./scripts/Test-CiDocumentation.ps1
+
+      - name: Test release documentation scripts
+        shell: pwsh
+        run: ./scripts/tests/Test-ReleaseDocumentation.ps1
 
       - name: Setup .NET
+        if: steps.changes.outputs.full != 'false'
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.401
+          global-json-file: global.json
 
       - name: .NET Info
+        if: steps.changes.outputs.full != 'false'
         run: dotnet --info
 
       - name: Restore
-        run: dotnet restore ModernFormsNext.slnx --force --no-cache
+        if: steps.changes.outputs.full != 'false'
+        # Normal NuGet caches are permitted on this runner. Persisting the full
+        # package folder across PR runs was slower overall; see the measured audit.
+        run: dotnet restore ModernFormsNext.slnx
 
       - name: Build
+        if: steps.changes.outputs.full != 'false'
+        # The shared MicroCom/VSIX output graph is still serialized; see docs/ci.md.
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
 
       - name: Regression tests (including high DPI and native partial presentation)
+        if: steps.changes.outputs.full != 'false'
         run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore -m:1 /p:UseSharedCompilation=false --logger "trx;LogFilePrefix=ci"

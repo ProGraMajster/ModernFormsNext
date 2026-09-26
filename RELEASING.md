@@ -2,6 +2,14 @@
 
 This repository creates releases from Git tags, not from ordinary pushes to `master`.
 
+PRs targeting `master` always report the required `build` check. Code/build changes
+run the full Release solution build and tests; allowlisted Markdown-only changes
+run source-documentation and script checks in the same job. Ordinary master pushes
+do not repeat the PR build under the existing strict, non-bypassable PR protection.
+See [CI policy](docs/ci.md) for exact paths, cache/concurrency behavior and the audit.
+The tag workflow remains an independent full publication gate, with no PR cache,
+binary reuse or cancellation of an in-progress release.
+
 > [!WARNING]
 > Pushing a tag that matches `v*.*.*` starts `.github/workflows/release.yml`. That workflow creates
 > a GitHub Release and publishes `.nupkg` packages to NuGet. A release tag is therefore a publication
@@ -86,9 +94,9 @@ Use `ModernFormsNext.slnx`:
 
 ```powershell
 dotnet restore .\ModernFormsNext.slnx
-dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
+dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore -m:1 /p:UseSharedCompilation=false /p:EnableWindowsTargeting=true
 dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
-dotnet test .\ModernFormsNext.slnx --configuration Debug --no-restore
+dotnet test .\ModernFormsNext.slnx --configuration Debug --no-build --no-restore -m:1 /p:UseSharedCompilation=false
 ```
 
 Repository-level structure and version tests use Git-tracked files when available and a bounded
@@ -147,7 +155,7 @@ the tag resolves to `github.sha`, and validates every archive before publication
 
 ## Publication workflow
 
-After the release commit is reviewed and the normal `.NET` workflow is green:
+After the release PR is reviewed and its required `.NET` / `build` check is green:
 
 1. Replace `Unreleased` with the actual release date in `CHANGELOG.md` and update the 1.11.1 link
    from a comparison URL to the final tag URL.
@@ -161,6 +169,11 @@ After the release commit is reviewed and the normal `.NET` workflow is green:
    uploads NuGet packages and symbols but does not upload the VSIX automatically.
 8. Verify the public NuGet indexes, package contents, GitHub assets, and VSIX version after
    publication.
+
+There is no second `.NET` run on the ordinary merge push. A green docs-only PR
+check is not proof of newly built release binaries. The tag workflow always performs
+its own restore/build/tests/package/documentation validation on the tagged source
+before publishing. Its test step uses `--no-build --no-restore` against those outputs.
 
 Example commands are intentionally explicit:
 

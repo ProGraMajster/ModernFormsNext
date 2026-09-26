@@ -11,6 +11,8 @@ permissions:
   id-token: write
 
 jobs:
+  # Publication is deliberately outside PR concurrency/caching. Never cancel an
+  # in-progress publisher to replace it with a newer PR or tag run.
   release:
     runs-on: windows-latest
 
@@ -30,6 +32,7 @@ jobs:
         run: dotnet --info
 
       - name: Restore
+        # A fresh hosted runner and no package-cache action form the final gate.
         run: dotnet restore ModernFormsNext.slnx --force --no-cache
 
       - name: Restore documentation tools
@@ -39,7 +42,7 @@ jobs:
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
 
       - name: Test
-        run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --verbosity minimal -m:1 /p:UseSharedCompilation=false
+        run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore --verbosity minimal -m:1 /p:UseSharedCompilation=false
 
       - name: Pack
         run: dotnet pack ModernFormsNext.slnx --configuration Release --no-build --output artifacts/packages
