@@ -1121,11 +1121,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 UnmanagedMethods.ShowWindow(_hwnd, command.Value);
         }
 
-            if (state == WindowState.Maximized)
-        {
-                MaximizeWithoutCoveringTaskbar();
-            }
-
             //if (!Design.IsDesignMode && activate)
             //{
             //    SetFocus(_hwnd);
@@ -1168,37 +1163,28 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         }
         }
 
-        private void MaximizeWithoutCoveringTaskbar()
+        /// <summary>
+        /// Excludes the offscreen native frame from a maximized custom-chrome client rectangle.
+        /// </summary>
+        /// <remarks>
+        /// Both rectangles use physical virtual-screen coordinates, including negative origins.
+        /// No RenderScaling conversion or assumed frame thickness is needed. Intersect rather
+        /// than expand so explicit size constraints remain effective. The native outer rectangle,
+        /// restore placement and monitor selection remain owned by Windows.
+        /// </remarks>
+        internal static RECT GetMaximizedClientRect(RECT window, RECT workArea)
         {
-            IntPtr monitor = MonitorFromWindow(_hwnd, MONITOR.MONITOR_DEFAULTTONEAREST);
+            var client = new RECT
+            {
+                left = Math.Max(window.left, workArea.left),
+                top = Math.Max(window.top, workArea.top),
+                right = Math.Min(window.right, workArea.right),
+                bottom = Math.Min(window.bottom, workArea.bottom)
+            };
 
-            if (monitor != IntPtr.Zero)
-        {
-                var monitorInfo = MONITORINFO.Create();
-
-                if (GetMonitorInfo(monitor, ref monitorInfo))
-                {
-                    var x = monitorInfo.rcWork.left;
-                    var y = monitorInfo.rcWork.top;
-                    var cx = Math.Abs(monitorInfo.rcWork.right - x);
-                    var cy = Math.Abs(monitorInfo.rcWork.bottom - y);
-                    var style = (WindowStyles)GetWindowLong(_hwnd, (int)WindowLongParam.GWL_STYLE);
-
-                    if (!style.HasFlag(WindowStyles.WS_SIZEFRAME))
-                    {
-                        // When calling SetWindowPos on a maximized window it automatically adjusts
-                        // for "hidden" borders which are placed offscreen, EVEN IF THE WINDOW HAS
-                        // NO BORDERS, meaning that the window is placed wrong when we have CanResize
-                        // == false. Account for this here.
-                        var borderThickness = BorderThickness;
-                        x -= (int)borderThickness.Left;
-                        cx += (int)borderThickness.Left + (int)borderThickness.Right;
-                        cy += (int)borderThickness.Bottom;
-                    }
-
-                    SetWindowPos(_hwnd, WindowPosZOrder.HWND_NOTOPMOST, x, y, cx, cy, SetWindowPosFlags.SWP_SHOWWINDOW | SetWindowPosFlags.SWP_FRAMECHANGED);
-                }
-            }
+            // A transient/offscreen rectangle may not overlap the nearest monitor's work
+            // area. Keep it intact instead of returning an inverted or empty client area.
+            return client.Width > 0 && client.Height > 0 ? client : window;
         }
 
         private WindowStyles GetWindowStateStyles()

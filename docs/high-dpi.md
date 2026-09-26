@@ -62,6 +62,14 @@ at fractional scales. The existing positioner constrains against physical work
 areas. Managed window border offsets are included in control screen conversion
 and removed before routing input into the content tree.
 
+On Windows, maximizing a Form with a managed title bar uses the same native
+geometry for the title-bar button and Aero Snap. The custom client area is bounded
+by the destination monitor's physical work area. The native outer window can
+still extend beyond it by Windows' invisible resize frame; use client-to-screen
+conversion when locating visible content instead of treating GetWindowRect as the
+client origin. No application-side DPI or title-bar offset is required. See the
+[maximize geometry audit and validation](development/issue-137-snap-maximize.md).
+
 ## Damage and performance
 
 A local invalidation accumulates a bounded union through batching. Transformed
