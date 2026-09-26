@@ -126,8 +126,19 @@ public sealed class WindowMaximizeGeometryTests
             var origin = new POINT();
             Assert.True(ClientToScreen(hwnd, ref origin));
             Assert.True(GetClientRect(hwnd, out var client));
-            Assert.True(origin.X >= monitor.rcWork.left && origin.Y > monitor.rcWork.top);
-            Assert.True(origin.X + client.Width <= monitor.rcWork.right && origin.Y + client.Height <= monitor.rcWork.bottom);
+            // Native fixed-frame maximization can extend past rcWork on some Windows
+            // configurations (including the CI runner). Its contract is DefWindowProc's
+            // client calculation, not the custom-chrome work-area intersection above.
+            nint memory = Marshal.AllocHGlobal(Marshal.SizeOf<RECT>());
+            try
+            {
+                Marshal.StructureToPtr(managed, memory, false);
+                DefWindowProc(hwnd, (uint)WindowsMessage.WM_NCCALCSIZE, IntPtr.Zero, memory);
+                var expected = Marshal.PtrToStructure<RECT>(memory);
+                Assert.Equal((expected.left, expected.top, expected.Width, expected.Height),
+                    (origin.X, origin.Y, client.Width, client.Height));
+            }
+            finally { Marshal.FreeHGlobal(memory); }
         }
         window.WindowState = WindowState.Normal;
         AssertWindowRect(hwnd, normal);
