@@ -67,10 +67,28 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                 case WindowsMessage.WM_NCCALCSIZE:
                     {
-                        if (ToInt32(wParam) == 1 && !HasFullDecorations || _isClientAreaExtended)
+                        if ((ToInt32(wParam) == 1 && !HasFullDecorations) || _isClientAreaExtended)
                         {
+                            var style = GetStyle();
+                            if (!_isFullScreenActive && !style.HasFlag(WindowStyles.WS_CHILD) &&
+                                (style & WindowStateMask) == WindowStyles.WS_MAXIMIZE)
+                            {
+                                // Both NCCALCSIZE_PARAMS (wParam != 0) and RECT (wParam == 0)
+                                // start with the proposed window rectangle. Do not marshal the
+                                // remaining NCCALCSIZE_PARAMS or overwrite its preservation data.
+                                var rect = Marshal.PtrToStructure<RECT>(lParam);
+                                var monitorInfo = MONITORINFO.Create();
+                                if (GetMonitorInfo(MonitorFromRect(rect, MONITOR.MONITOR_DEFAULTTONEAREST), ref monitorInfo))
+                                {
+                                    // Windows has already selected the target monitor and included
+                                    // its invisible maximized resize frame. Keep that frame outside
+                                    // our client area, independent of how maximization was initiated.
+                                    rect = GetMaximizedClientRect(rect, monitorInfo.rcWork);
+                                    Marshal.StructureToPtr(rect, lParam, false);
+                                }
+                            }
                             return IntPtr.Zero;
-                    }
+                        }
 
                         break;
                     }
