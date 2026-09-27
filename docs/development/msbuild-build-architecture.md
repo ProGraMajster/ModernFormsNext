@@ -347,3 +347,199 @@ qualified by this experiment.
 - [Incremental target inputs/outputs](https://learn.microsoft.com/en-us/visualstudio/msbuild/incremental-builds)
 - [Visual Studio up-to-date inputs](https://github.com/dotnet/project-system/blob/main/docs/up-to-date-check.md)
 - [Portable PDB embedded source](https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md#embedded-source-c-and-vb-compilers)
+
+## Post-merge qualification, 26-27 September 2026
+
+**Qualification: INCOMPLETE. Ordinary CI and release remain
+`-m:1 /p:UseSharedCompilation=false`.** All sixteen prescribed builds and test
+suites eventually returned success, but the fifth parallel Debug test run crossed
+host hibernation. Its eventual pass is not evidence of an uninterrupted, controlled
+qualification. The earlier post-rebase native UIA failure is also retained below.
+No parallelism-enabling PR is proposed from this attempt.
+
+### Dependency cleanup and post-rebase validation
+
+[PR #140](https://github.com/ProGraMajster/ModernFormsNext/pull/140) merged first at
+`5f102428b83cc1462ad72691d7d3c9416f3ee3c4`. The three commits belonging to #141
+were rebased onto that master without conflicts, producing head
+`bd7af412ae42b66a6e6deddde6af7574c1123c82`. Its file tree was unchanged by rebase;
+the diff against the new master contained only the 19 architecture, regression and
+documentation files. The CI changes from #140 were no longer part of that diff.
+
+The active `Protect master` ruleset required an up-to-date `build`, a pull request
+and resolved review conversations, with no bypass actors. Fresh required
+[run 36261496995](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/36261496995)
+passed on merge revision `2d2e84f5e6abb61947b7b2fd70e6ed86bf6309cc`: zero build
+warnings/errors and 3625/3625 tests, zero skipped. Only then was
+[PR #141](https://github.com/ProGraMajster/ModernFormsNext/pull/141) merged at
+`e20f7c4f7e5300f39574d86cb7ca4209fdd22622`.
+
+Local post-rebase validation used `-m:1` and disabled shared compilation:
+
+| Check | Result |
+| --- | --- |
+| Restore, Debug/Release rebuilds | PASS; zero warnings/errors. |
+| Debug tests | 3625/3625, zero skipped. |
+| Release tests | **3624/3625**, zero skipped; native calendar UIA discovery failed. |
+| Full-build ownership | 52 build owners, 51 compilations, zero isolation failures in each configuration. |
+| Regression scripts | PASS: BuildGraphAudit four scenarios, BuildGraphBoundary three scenarios, MicroCom 24 assertions. |
+| Clean, snapshot and incremental behavior | PASS; ordinary/variant generated files and VSIX staging removed, snapshot preserved; second unchanged incremental build ran zero compilers. |
+| Standalone Windows backend, VSIX Debug/Release, DesignerHost publish | PASS. |
+| VS MSBuild backend, actionlint, diff check | PASS. |
+| NuGet pack and package validation | PASS; 11 nupkg and 10 snupkg, version unchanged at 1.11.1. |
+| Strict ApiCompat | PASS for all twelve baseline assembly/TFM pairs. |
+| PDB and VSIX payload checks | PASS; exact embedded interop source, packaged PDB match, all 72 host staging files match each VSIX. |
+
+The failed test was
+`WindowsUiaProviderTests.RealHwndGridAndCalendarExposeLiveTableEditSelectionAndPopupLifetime`:
+`Native calendar popup was not discoverable` in `GridCalendarScenario.cs:74`.
+This occurred after a sequential build. `PopupWindow` hides its window when the
+parent deactivates, and the user explicitly continued using the desktop. That
+makes foreground interference plausible, but no event trace proves the cause of
+this particular failure. The hosted pass and later local passes do not replace it.
+
+### Fixed matrix and environment
+
+Both BEFORE and AFTER here use the **repaired graph at the same merge commit
+`e20f7c4`**. These are not the earlier unsafe-graph measurements above. BEFORE uses
+`-m:1`, AFTER uses `-m:4`; shared compilation stays disabled. Each of the fixed
+sixteen runs performs restore, clean/rebuild, binlog audit, all tests, local pack,
+package validation, embedded-source checks and payload hashes. Test invocations
+remain `--no-build --no-restore -m:1`. No failed or interrupted run was replaced.
+
+Environment: Intel Core i9-14900K (24 cores / 32 logical processors), Windows 11
+Home build 26200, SDK 10.0.401, SDK MSBuild 18.9.11.42413, runtime 10.0.12,
+Android workload 36.1.69/10.0.100 (manifest set 10.0.400-manifests.b0700452).
+NuGet caches were warm. Commands were serialized in one checkout; the user
+continued using the desktop. These are local observations, not hosted CI timings.
+
+| Mode | Configuration | Run | Rebuild s | Tests s | Passed / total | Context |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| -m:1 | Debug | 1 | 93.343 | 68.608 | 3625 / 3625 | Active desktop |
+| -m:1 | Release | 1 | 133.870 | 66.617 | 3625 / 3625 | Active desktop |
+| -m:1 | Debug | 2 | 93.499 | 68.832 | 3625 / 3625 | Active desktop |
+| -m:1 | Release | 2 | 131.843 | 67.061 | 3625 / 3625 | Active desktop |
+| -m:1 | Debug | 3 | 91.755 | 67.894 | 3625 / 3625 | Active desktop |
+| -m:1 | Release | 3 | 129.733 | 66.669 | 3625 / 3625 | Active desktop |
+| -m:4 | Debug | 1 | 61.924 | 84.625 | 3625 / 3625 | Active desktop |
+| -m:4 | Release | 1 | 76.722 | 84.007 | 3625 / 3625 | Active desktop |
+| -m:4 | Debug | 2 | 63.152 | 84.137 | 3625 / 3625 | Active desktop |
+| -m:4 | Release | 2 | 117.950 | 66.765 | 3625 / 3625 | Active desktop |
+| -m:4 | Debug | 3 | 61.288 | 67.454 | 3625 / 3625 | Active desktop |
+| -m:4 | Release | 3 | 94.329 | 67.070 | 3625 / 3625 | Active desktop |
+| -m:4 | Debug | 4 | 56.925 | 67.882 | 3625 / 3625 | Active desktop |
+| -m:4 | Release | 4 | 93.387 | 67.276 | 3625 / 3625 | Active desktop |
+| -m:4 | Debug | 5 | 66.007 | 65756.842 | 3625 / 3625 | Tests interrupted by hibernation |
+| -m:4 | Release | 5 | 102.643 | 86.386 | 3625 / 3625 | After next-day resume |
+
+All sixteen rebuilds had zero warnings/errors, 52 owners, 51 compilations and
+zero reported shared writers. Every test run ultimately returned 3625/3625,
+with zero skipped: 58,000 test executions across the prescribed matrix.
+
+However, Windows Power-Troubleshooter event 1 records sleep at
+`2026-09-26T19:04:54.0405286Z` and wake at `2026-09-27T13:19:24.7257424Z`.
+Parallel Debug 5's test stage lasted **65,756.842 seconds**, including that
+hibernation. Its 66-test Windows automation suite spans the interruption in TRX.
+The build finished before sleep; parallel Release 5 ran after the next-day resume.
+All observations are retained, but this is **not** a completed stable qualification.
+
+### Build timing observations
+
+| Configuration | Nodes | Runs | Minimum s | Maximum s | Median s | Mean s | Median reduction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Debug | 1 | 3 | 91.755 | 93.499 | 93.343 | 92.866 | — |
+| Debug | 4 | 5 | 56.925 | 66.007 | 61.924 | 61.859 | 33.66% |
+| Release | 1 | 3 | 129.733 | 133.870 | 131.843 | 131.815 | — |
+| Release | 4 | 5 | 76.722 | 117.950 | 94.329 | 97.006 | 28.45% |
+
+These describe the observed rebuilds only. They include the slower Release 2 and
+the post-resume Release 5; no best-run selection or replacement is used. Restore,
+clean, tests, pack and inspection time are outside the build timer. The desktop
+activity, Release spread and hibernation prevent using the apparent speedup alone
+as a production acceptance result.
+
+### Determinism and Android diagnostic
+
+Each run records 181 required payload hashes: twelve packable DLL/PDB pairs,
+two generated interop files, 72 VSIX host staging files and 83 unpacked NuGet/symbol
+package entries. All eight Release manifests are identical; all eight Debug
+manifests are also identical, including comparisons across node counts. Generated
+interop retains the snapshot SHA-256 recorded above, and its exact bytes are
+embedded in both ordinary and variant PDBs after every run.
+
+NuGet comparisons include nuspec, assembly, XML, PDB and template content. ZIP
+container timestamps, OPC relationship/property bookkeeping, content-type records
+and signature entries are outside this payload comparison. No assertion of whole
+archive byte equality is made.
+
+A supplemental comparison covers all 51 compiler outputs and their PDBs (102
+hashes), using the third sequential build of each configuration as baseline.
+Ninety-six hashes agree throughout the parallel series. The six differences are
+the DLL/PDB pairs for the `net10.0-android` backend, Android SmokeTest and
+CrossPlatform sample; these are not packable assemblies.
+
+Two further standalone Android backend Release rebuilds at `-m:1` reproduce the
+changing DLL hash. Their 72 PDB source-document checksums and 1211 method IL bodies
+are unchanged. The only changed compilation-reference record is SDK-generated
+`_Microsoft.Android.Resource.Designer.dll`, whose timestamp and MVID change
+between builds. Two parallel Debug backend samples likewise have unchanged source
+checksums and 1216 method IL bodies. Roslyn includes reference timestamp, size and
+MVID in its [compilation-reference PDB record](https://github.com/dotnet/roslyn/blob/main/src/Compilers/Core/Portable/PEWriter/MetadataWriter.PortablePdb.cs).
+
+This demonstrates Android output variation without parallel MSBuild. It is retained
+as a separate Android SDK/resource-generation reproducibility limitation, not
+silently excluded from the supplemental results or described as a fixed runtime
+regression. No SDK/workload or framework change was made to suppress it.
+
+### Allocation investigation and remaining limits
+
+Both named allocation tests pass in the post-rebase Debug/Release suites and all
+sixteen matrix suites. A separate diagnostic invokes the unchanged test bodies
+800 times: 50 fresh managed threads for each combination of two tests, Debug/Release,
+default/disabled tiered compilation and zero/eight synthetic CPU spin workers.
+All calls pass on runtime 10.0.12. This short diagnostic bypasses xUnit scheduling;
+it does not establish the cause of the historical 7320-byte and 7216-byte failures.
+
+The disabled-ingress test warms `BeginFrame`/`Dispose`, while its measured loop also
+calls `UpdateInfo` and `Complete`. That is a methodology question to investigate,
+not proof that a larger warm-up fixes the historical failure. No allocation limit,
+warm-up, collection, skip, retry or runtime implementation was changed. No stale
+framework/testhost process was found before validation. CPU/tiering causality and
+the historical allocation failure remain unproven; a future occurrence needs an
+allocation trace in the actual xUnit context.
+
+Additional `-m:4` builds after the matrix also passed: standalone Windows backend,
+Debug clean/rebuild, VSIX Debug/Release, DesignerHost publish and both incremental
+builds. NuGet pack remained `-m:1`; package validation, strict ApiCompat, embedded
+source, actionlint and diff checks also passed. All compatible additional binlogs
+had zero isolation failures. After the separate Android experiments, the first incremental build
+performed 30 compilations; the next unchanged build performed zero (10.442 s).
+Clean removed both generated variants and host staging while preserving the tracked
+snapshot. The two VSIX files again contained 72 host files matching their staging.
+
+The actual Visual Studio CPS input/output targets return 30 up-to-date inputs,
+one private generated output and one interop Compile item. The first direct query
+omitted required design-time flags and was rejected; the corrected query sets
+`DesignTimeBuild=true`, `BuildingInsideVisualStudio=true`,
+`SkipCompilerExecution=true` and `ProvideCommandLineArgs=true`, and passes without
+diagnostics. This command correction is retained in the raw logs.
+
+Manual Visual Studio navigation/fast-up-to-date UX and Android device/emulator
+checks remain **NOT EXECUTED**. Automated CPS/VSIX checks do not replace them.
+ControlGallery and template/reference-app manual launches were not needed for this
+build-system/documentation scope; automated VSIX/template validators did run.
+The SDK audit reader still cannot read Visual Studio's newer binlog format 27;
+ownership claims above use compatible SDK binlogs. This is not an OS file-write trace.
+
+The next qualification must be a separately identified, uninterrupted full matrix
+on a controlled Windows desktop, preserving this attempt's logs and failures.
+Capture allocation diagnostics if the assertion recurs, and investigate Android
+resource-generation determinism separately. Only then consider an ordinary-CI
+`-m:4` PR; release publication needs independent evidence. Unbounded `-m` remains
+unqualified. No release, tag, version, public API or production parallelism changed.
+
+Raw evidence is retained locally under ignored `artifacts/msbuild-qualification/`:
+`before-measurements.json`, `after-measurements.json`, `qualification-analysis.json`,
+`qualification-context.json`, power-event records, binlogs, per-run TRX, payload
+hash manifests, PDB/IL diagnostics and post-rebase/additional validation logs.
+The historical `artifacts/msbuild-audit/` evidence was preserved.

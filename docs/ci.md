@@ -127,3 +127,39 @@ is explicitly intended; pushing a benchmark version tag would publish packages.
 - [GitHub concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
 - [GitHub cache keys and scope](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)
 - [NuGet cache behavior](https://learn.microsoft.com/en-us/nuget/consume-packages/managing-the-global-packages-and-cache-folders)
+
+## Post-merge qualification, 26-27 September 2026
+
+**Keep ordinary CI and release at `-m:1 /p:UseSharedCompilation=false`.**
+PR #140 merged first, then #141 was rebased onto the new master and merged only
+after a fresh required `build` passed. The repaired graph is on master at
+`e20f7c4f7e5300f39574d86cb7ca4209fdd22622`.
+
+A separate fixed matrix on that commit completed Debug/Release three times at
+`-m:1` and five times at `-m:4`. All sixteen builds had zero warnings/errors and
+zero reported shared writers; all sixteen test invocations eventually reported
+3625/3625 and zero skipped. The required package/assembly/PDB/interop/VSIX payload
+hashes agree across repeats and node counts.
+
+**This attempt is not a completed stable qualification.** The fifth parallel
+Debug test run crossed approximately 18 hours of host hibernation, verified by
+Windows power events and TRX. Its eventual pass is retained as an interrupted
+observation. The fifth parallel Release ran after the next-day resume. An earlier
+local post-rebase Release run also failed native calendar UIA discovery on the
+actively used desktop; the fresh hosted check passed, but does not erase that
+local failure. No replacement run, retry, skipped collection or weakened assertion
+was used.
+
+Observed build medians were Debug 93.343 → 61.924 seconds (33.66% reduction) and
+Release 131.843 → 94.329 seconds (28.45%). These local timings include every build,
+including the slower and post-resume observations; they do not establish production
+readiness. Allocation failures were not reproduced in this matrix or 800 isolated
+calls, so their historical cause remains unresolved. A supplemental Android hash
+variation was reproduced at `-m:1` and traced to changing resource-designer
+reference metadata; Android reproducibility remains a separate limitation.
+
+See the [complete follow-up](development/msbuild-build-architecture.md#post-merge-qualification-26-27-september-2026)
+for all runs, min/max/mean values, diagnostics and evidence boundaries. A future
+CI change needs a separately recorded, uninterrupted qualification on a controlled
+Windows desktop. No PR enabling parallelism is created from this attempt; release
+and unbounded `-m` remain outside the proposed scope.
