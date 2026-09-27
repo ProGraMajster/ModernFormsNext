@@ -163,3 +163,43 @@ for all runs, min/max/mean values, diagnostics and evidence boundaries. A future
 CI change needs a separately recorded, uninterrupted qualification on a controlled
 Windows desktop. No PR enabling parallelism is created from this attempt; release
 and unbounded `-m` remain outside the proposed scope.
+
+## Final bounded parallel qualification
+
+**27 September 2026: NOT QUALIFIED. Ordinary PR CI, tests and release retain
+`-m:1 /p:UseSharedCompilation=false`.**
+
+[PR #142](https://github.com/ProGraMajster/ModernFormsNext/pull/142) merged after
+its required documentation check passed, with no unresolved review threads and
+an up-to-date, mergeable head. The new attempt started from master
+`dce9cd7bfbcf29150a30c89aa33956307e8a05c2` on a new qualification branch.
+The previous unsafe-graph, repaired-graph and interrupted-attempt evidence above
+remains historical evidence; none substitutes for this attempt.
+
+Sequential preflight passed both rebuilds, all 3625 tests in each configuration,
+build ownership and regression checks, package validation and strict ApiCompat.
+However, **the first BEFORE Debug run failed at 3624/3625, zero skipped**:
+`BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame`
+measured **3136 bytes** against its unchanged maximum of **256 bytes**. Its build
+used `-m:1`, took 98.926 seconds, and had zero warnings/errors and zero isolation
+failures. Tests took 86.768 seconds. The matrix stopped there; no AFTER build ran.
+
+Automatic idle sleep was inhibited with a temporary Windows execution-state
+request. No sleep/resume event occurred during validation, the request was cleared
+after diagnostics, and power-plan settings were unchanged. The user continued
+using the desktop, so this was not an isolated desktop experiment. The observed
+allocation failure has not been attributed to desktop activity, tiered JIT or
+parallel MSBuild. Native calendar UIA and the other historical allocation test
+passed in preflight and in the failed matrix suite.
+
+Bounded diagnostics captured allocation/GC/JIT events in the real xUnit testhost
+without changing test bodies, thresholds, collection settings or production
+runtime configuration. The failure did not recur under instrumentation; those
+passes do not replace the failed qualification. There is no new paired benchmark,
+full-matrix determinism result or hosted parallel-build result from this attempt.
+
+See the [final qualification report](development/msbuild-build-architecture.md#final-bounded-parallel-qualification)
+for every executed and unexecuted stage, trace limitations and the next diagnostic
+step. Only a documentation report is proposed. A CI-enabling PR requires a new
+complete qualification after the allocation instability is understood; release
+publication remains a separate qualification scope.

@@ -543,3 +543,197 @@ Raw evidence is retained locally under ignored `artifacts/msbuild-qualification/
 `qualification-context.json`, power-event records, binlogs, per-run TRX, payload
 hash manifests, PDB/IL diagnostics and post-rebase/additional validation logs.
 The historical `artifacts/msbuild-audit/` evidence was preserved.
+
+## Final bounded parallel qualification
+
+**27 September 2026: NOT QUALIFIED. Ordinary CI and release continue to use
+`-m:1 /p:UseSharedCompilation=false`; tests also remain `-m:1`.** The first
+sequential BEFORE test suite failed an allocation assertion. No parallel matrix
+build ran, no failed run was replaced, and no CI-enabling branch or PR was created.
+This is a new failed attempt, separate from the earlier unsafe graph, the repaired
+graph experiments and the hibernation-interrupted qualification recorded above.
+
+### Exact starting point and environment
+
+[PR #142](https://github.com/ProGraMajster/ModernFormsNext/pull/142) was current
+against master, mergeable, and had no review threads. Its required `build` passed
+in [run 36322877210](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/36322877210).
+The active `Protect master` ruleset still required an up-to-date check and resolved
+review threads, with no bypass actors. A normal merge produced master
+**`dce9cd7bfbcf29150a30c89aa33956307e8a05c2`** at `2026-09-27T14:06:10Z`.
+The new branch `codex/msbuild-parallel-final-qualification` started from that master;
+all validation and diagnostic test binaries below belong to that SHA.
+
+The tracked working tree and index were clean before validation. The pre-existing
+untracked `.codex/config.toml` was preserved and excluded from the report commit.
+New evidence was written to ignored `artifacts/msbuild-final-qualification/`;
+previous attempt outputs were neither moved nor used as current measurements.
+Existing local diagnostic readers and the twelve-assembly API compatibility
+baseline were reused as tools/reference inputs, not as replacement build results.
+
+Environment: Intel Core i9-14900K, 24 cores / 32 logical processors; Windows 11 Home
+10.0.26200; SDK 10.0.401; SDK MSBuild 18.9.11.42413; .NET runtime 10.0.12;
+Android workload 36.1.69/10.0.100; Visual Studio 2026 Community 18.10.2.
+NuGet caches were warm. Restore/build/clean commands were serialized in one checkout.
+The user explicitly continued using the desktop. Foreground HWND/process changes
+and last-input timestamps were recorded without recording typed text or clipboard
+contents. Desktop isolation is not claimed, and those observations do not establish
+the cause of a managed allocation assertion.
+
+A dedicated thread held a continuous system/display execution-state request from
+`2026-09-27T14:08:24.6772936Z` to `2026-09-27T14:29:32.5867992Z` to inhibit automatic
+idle sleep. No Windows sleep/resume event occurred in that interval. The request
+was explicitly cleared afterward. The balanced power plan and its settings were
+not changed. This does not claim to prevent an explicit user-initiated hibernation.
+
+### Sequential preflight
+
+Both rebuilds used `-m:1 /p:UseSharedCompilation=false`; tests additionally used
+`--no-build --no-restore`. Preflight passed before the fixed matrix was started.
+
+| Check | Result |
+| --- | --- |
+| Restore | PASS, 1.939 s. |
+| Debug rebuild | PASS, 108.721 s; zero warnings/errors. |
+| Release rebuild | PASS, 153.977 s; zero warnings/errors. |
+| Debug tests | 3625/3625, zero skipped, 74.669 s. |
+| Release tests | 3625/3625, zero skipped, 71.804 s. |
+| BuildGraphAudit on each rebuild | 51 compilations, 52 build owners, zero isolation failures. |
+| Test-BuildGraphAudit | PASS, four scenarios. |
+| Test-BuildGraphBoundary | PASS, three scenarios. |
+| Test-MicroComBuild | PASS, 24 assertions. |
+| Release package validation | PASS, 11 nupkg and 10 snupkg, version 1.11.1 unchanged. |
+| Strict ApiCompat | PASS, twelve baseline assembly/TFM pairs, no API incompatibilities. |
+
+An initial preflight harness check mistakenly included the previous attempt's
+resume event because `Get-WinEvent` interpreted a UTC filter value as local time.
+No restore, build or test had started in that rejected setup invocation. The
+filter was corrected to use local query time plus an explicit UTC comparison;
+the original setup record and earlier event were retained. They are not a failed
+test rerun or evidence of a new hibernation.
+
+### Fixed matrix: stopped at the first failure
+
+The prescribed order was BEFORE Debug/Release three times at `-m:1`, then AFTER
+Debug/Release five times at `-m:4`, with shared compilation disabled and all tests
+remaining at `-m:1`. Each run was to perform restore, clean/rebuild, binary-log
+ownership audit, all 3625 tests, then package, embedded-source and payload checks.
+
+| Mode | Configuration and run | Build s | Tests s | Tests passed / total | Result |
+| --- | --- | ---: | ---: | ---: | --- |
+| BEFORE, -m:1 | Debug 1 | 98.926 | 86.768 | **3624 / 3625**, zero skipped | FAILED; allocation assertion. |
+| BEFORE, -m:1 | Debug 2-3 | — | — | — | NOT EXECUTED; stopped after Debug 1. |
+| BEFORE, -m:1 | Release 1-3 | — | — | — | NOT EXECUTED; stopped after Debug 1. |
+| AFTER, -m:4 | Debug 1-5 | — | — | — | NOT EXECUTED; sequential matrix failed. |
+| AFTER, -m:4 | Release 1-5 | — | — | — | NOT EXECUTED; sequential matrix failed. |
+
+Debug 1 restored in 1.746 s and cleaned in 3.270 s. Its rebuild had zero warnings
+and errors, 51 compilations, 52 owners and zero output-isolation failures. The
+complete test invocation finished writing all nine TRX files before the harness
+stopped. End-to-end time to the failed gate was 192.877 s, including audit/harness
+overhead; the run never reached package or payload checks.
+
+For completeness, the single observed BEFORE Debug build has min/max/median/mean
+**98.926/98.926/98.926/98.926 s**, but it is not a qualified benchmark sample set.
+BEFORE Release and both AFTER distributions are unavailable. Debug/Release median
+reductions and total wall-clock reductions are **not calculable**. The preflight
+timings are not substituted for missing matrix runs; previous attempt timings
+are not reused. No local speedup or hosted-runner forecast is asserted.
+
+### Allocation failure and real xUnit traces
+
+The failed test was
+`BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame`
+at `BrushInterpolationCompatibilityTests.cs:256`. TRX records its start at
+`2026-09-27T14:19:53.2596673Z`; the assertion measured **3136 bytes** against the
+unchanged range **0-256 bytes**. The test warms 32 calls to `Apply(0.5f)` and then
+measures 1000 calls using `GC.GetAllocatedBytesForCurrentThread`.
+
+This recurrence occurred after a sequential build, before any parallel matrix
+build. It therefore provides no evidence that `-m:4` caused it. The same unchanged
+test passed both preflight suites. `DisabledIngressDoesNotAllocateOrRetainAFrame`
+and `RealHwndGridAndCalendarExposeLiveTableEditSelectionAndPopupLifetime` passed
+both preflight suites and the failed matrix suite. No native UIA failure was
+observed in this attempt.
+
+A fixed diagnostic plan ran the complete 1464-test `ModernFormsNext.Tests` project
+in its real xUnit/VSTest context, against the existing sequentially built binaries:
+
+| Diagnostic | Result | Allocation ticks recovered |
+| --- | --- | ---: |
+| Debug, default tiering | 1464/1464, zero skipped | 6477 |
+| Release, default tiering | 1464/1464, zero skipped | 5914 |
+| Debug, tiering disabled for this testhost only | 1464/1464, zero skipped | 6267 |
+| Release, tiering disabled for this testhost only | 1464/1464, zero skipped | 5397 |
+
+Environment-started EventPipe captured GC, sampled allocation stacks and JIT
+events. These four streams did not have clean stream terminators at testhost
+exit; strict conversion reported an end-of-stream error. They were preserved
+and inspected with `ContinueOnError`, explicitly as **partial traces**. Reported
+event-loss counters alone do not make those streams complete. Assembly hashes
+before/after each diagnostic invocation confirm the binaries were unchanged.
+
+A subsequent controlled diagnostic attached before test execution through the
+runtime diagnostic port and explicitly stopped collection after ten seconds,
+before testhost exit. This produced a normally readable trace with rundown:
+**237,505 events, 4205 sampled allocation ticks with stacks, 31 GC starts,
+108 tiered-compilation events, and zero reported lost events**. The trace includes
+the target test's time window and identifies the actual `testhost` process and
+command line. The complete project again passed 1464/1464, zero skipped.
+
+No sampled allocation stack in that successful trace contains the measured
+test or `BrushAnimationPlan`. This is not proof of zero allocations: EventPipe
+allocation events are sampled, and the original failing loop was not traced.
+Other xUnit tests, GC and JIT were active during diagnostic test windows, but
+their presence does not attribute the original 3136 bytes to that thread or loop.
+Passing with tiering both enabled and disabled does not establish a JIT cause.
+See Microsoft's [EventPipe configuration](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/eventpipe)
+and [trace collection documentation](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace).
+
+Instrumentation setup failures are retained separately: VSTest verbose logging
+rejected a `{pid}` output-path placeholder before launching testhost; a later
+named-port spelling mismatch left another diagnostic testhost suspended until
+VSTest's existing 90-second connection timeout. No test body ran in either setup
+failure. The working port capture used the endpoint name printed by the tool.
+No timeout was increased. Only the orphaned listener owned by this diagnostic
+was explicitly stopped; qualification test processes were not killed.
+
+None of these diagnostic passes replaces BEFORE Debug 1. No test body, warm-up,
+allocation threshold, collection, skip, retry policy or production runtime setting
+was changed. The allocation root cause remains **unresolved**.
+
+### Unexecuted gates and production decision
+
+Matrix-wide DLL/PDB/XML, interop, VSIX staging, NuGet payload and symbol comparisons
+are **NOT EXECUTED**: the first run stopped at tests, before capturing its package
+and hash manifests. The planned manifest extended the earlier 181 entries with
+11 XML documentation files, for 192 entries; it is a plan, not a passing result.
+Android source/IL/resource-designer comparisons were likewise not reached. The
+earlier sequentially reproduced Android metadata variation remains historical
+context, not a new result from this attempt.
+
+Post-matrix standalone Windows backend, Debug clean/rebuild, VSIX Debug/Release,
+DesignerHost publish, incremental builds, package/embedded-source checks,
+Visual Studio command-line MSBuild and CPS validation are **NOT EXECUTED** after
+the stop. Preflight package and ApiCompat passes remain valid only within their
+stated scope. Manual Visual Studio, Android device/emulator, ControlGallery and
+template-app checks were not performed; no manual UI change was being qualified.
+
+The release workflow and ordinary PR workflow are unchanged. There is no
+parallelism-enabling PR or hosted `-m:4` timing to report. A documentation-only
+required check validates the report itself and must not be counted as a fresh
+full framework test run. No release, tag, version, dependency or public API changed.
+
+The next step is a focused investigation of the allocation assertion with an
+attributed failure captured inside xUnit, preserving this counterexample. A future
+fix must be justified by evidence and separately validated; neither raising the
+threshold nor repeating qualification until green is acceptable. Only afterward
+should a new, separately identified full BEFORE/AFTER matrix be considered.
+Release publication still requires its own qualification.
+
+Raw evidence remains local under `artifacts/msbuild-final-qualification/`:
+the merge/ruleset snapshot, environment and power records, preflight logs and TRX,
+`matrix-result.json`, `matrix-measurements.json`, the failed TRX, per-build binlogs
+and ownership reports, diagnostic plans/settings/TRX, EventPipe traces and their
+analysis. Logs, binaries, benchmark JSON and machine configuration are excluded
+from the documentation change.
