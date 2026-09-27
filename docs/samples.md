@@ -1,46 +1,34 @@
 # Samples
 
-ModernFormsNext includes several sample applications that demonstrate how to use the framework.
+[Documentation index](README.md)
 
-These examples showcase layout, controls, rendering, and real-world UI scenarios.
+Use **ControlGallery** to explore controls and **ModernFormsNext.DemoApp** to learn the recommended
+starter structure. Explorer and Outlaw demonstrate larger desktop layouts. Windows is the primary
+runtime target; the shared Windows/Android sample has a separate, experimental Android host.
 
----
+Run the commands below from the repository root with the SDK selected by `global.json`.
 
-## Explorer
-
-A file explorer-style application demonstrating:
-
-- layout system
-- navigation
-- file-like UI structure
-
-### Run
-
-```bash
-cd samples/Explorer
-dotnet run
-```
-
----
-
-## Outlaw
-
-An Outlook-style application demonstrating:
-
-- complex layouts
-- toolbars and menus
-- list + detail UI pattern
-
-### Run
-
-```bash
-cd samples/Outlaw
-dotnet run
-```
-
----
+| Application | Purpose |
+| --- | --- |
+| ControlGallery | Controls, layout, rendering, themes, input, and visual regression checks. |
+| Explorer | File browsing, ribbon groups, tree navigation, and icon lists. |
+| Outlaw | Mail-style navigation, toolbars, and an owner-drawn message list with sample data. |
+| ModernFormsNext.DemoApp | Minimal template/reference application. |
+| ModernFormsNext.DesignerPlayground | Standalone Designer development and manual checks. |
+| ModernFormsNext.CrossPlatform.Sample | One shared control tree hosted on Windows and Android. |
+| ModernFormsNext.Android.SmokeTest | Technical Android lifecycle, manifest, and permission checks. |
 
 ## ControlGallery
+
+The main visual gallery covers buttons, inputs, checked and selectable lists, rich text, Markdown,
+menus, tooltips, containers, and layout elements. The screenshot shows the **DataGridView** page
+with cell selection, row headers, and a second data-bound grid.
+
+![ControlGallery on Windows: DataGridView cell selection and data binding](controlgallery-windows.png)
+
+```powershell
+dotnet run --project .\samples\ControlGallery\ControlGallery.csproj
+```
 
 The **Animations and Interaction Effects** page demonstrates pointer- and center-origin ripple,
 rapid bounded waves, press scale, hover/focus/disabled transitions, sequence, parallel, timeline,
@@ -48,92 +36,93 @@ keyframes, repeat, auto-reverse, custom definitions and interpolators, cancellat
 policies, reduced motion, animations disabled, and scheduler/ripple diagnostics. It is opt-in and
 restores the animation policy when unloaded.
 
-The `MarkdownEditor` page demonstrates Editor, Preview, and Split modes, the public command
+The **MarkdownEditor** page demonstrates Editor, Preview, and Split modes, the public command
 toolbar, Ctrl+K, hosted link and image request dialogs built only from ModernFormsNext controls,
 preview link forwarding, and optional proportional scroll synchronization. Its source includes
 editable links and images, Unicode, local and HTTP image sources, and enough content for manual
-scroll testing. Its hosted image dialog can insert a reference unchanged or choose a local raster
+scroll testing. The hosted image dialog can insert a reference unchanged or choose a local raster
 image with the ModernFormsNext file picker and copy it into `MarkdownEditorAssets` beside the
-sample output. Collision handling is selectable and no source-repository directory is modified.
+sample output. Collision handling is selectable; no source-repository directory is modified.
+The editor also demonstrates list-aware Enter/Tab/Backspace, AltGr-safe shortcuts, and undo/redo.
 
-A showcase of available controls and components.
+## Explorer
 
-Includes:
+Explorer demonstrates ribbon groups, theme choices, a directory tree, and a file list. The
+screenshot shows the Windows system directory. Directory navigation is implemented; several
+ribbon actions deliberately show a "Functionality not available in demo" message.
 
-- buttons
-- inputs
-- checked and selectable list controls
-- rich text editing controls
-- Markdown source editing with a grouped toolbar, list-aware Enter/Tab/Backspace behavior, AltGr-safe shortcuts, undo/redo, and native split preview
-- menus
-- tooltips
-- containers
-- layout elements
+![Explorer on Windows: ribbon and file list for the Windows directory](explorer-windows.png)
 
-### Run
-
-```bash
-cd samples/ControlGallery
-dotnet run
+```powershell
+dotnet run --project .\samples\Explorer\Explore.csproj
 ```
 
----
+The directory is named `Explorer`, while the project file is `Explore.csproj`.
 
-## ModernFormsNext.DemoApp
+## Outlaw
 
-The template/reference application for the generated ModernFormsNext app experience.
+Outlaw demonstrates a mail-style layout with navigation, tabbed toolbars, an owner-drawn message
+list, and a placeholder reading pane. The messages are generated sample data; this is a UI example,
+not a connected mail client.
 
-Use this sample to validate that the default application structure remains clean, minimal, beginner-friendly, and aligned with `ModernFormsNext.Templates`. Do not use it as a playground for random controls or visual regression experiments.
+![Outlaw on Windows: navigation, message list, and placeholder reading pane](outlaw-windows.png)
 
-### Run
-
-```bash
-cd samples/ModernFormsNext.DemoApp
-dotnet run
+```powershell
+dotnet run --project .\samples\Outlaw\Outlaw.csproj
 ```
 
----
+## Template and Designer hosts
 
-## ModernFormsNext.CrossPlatform.Sample
+### ModernFormsNext.DemoApp
 
-One MAUI-like (but non-MAUI), multi-target project organized around shared `App` and `MainPage`
-files plus thin `Platforms/Windows` and `Platforms/Android` hosts. Both targets use the same real
-ModernFormsNext control tree. Android currently reaches that tree through the transitional
-`SkiaControlSurface` rather than a complete Android `IWindowingPlatform`.
+The template/reference application validates that the default generated application stays clean,
+minimal, beginner-friendly, and aligned with `ModernFormsNext.Templates`. Control experiments and
+visual regressions belong in ControlGallery.
+
+```powershell
+dotnet run --project .\samples\ModernFormsNext.DemoApp\ModernFormsNext.DemoApp.csproj
+```
+
+See [getting started](getting-started.md) and [installation](installation.md).
+
+### ModernFormsNext.DesignerPlayground
+
+The standalone host is for Designer development and manual validation. Running it does not replace
+verification of the Visual Studio extension and its out-of-process host.
+
+```powershell
+dotnet run --project .\samples\ModernFormsNext.DesignerPlayground\ModernFormsNext.DesignerPlayground.csproj
+```
+
+See [Designer architecture](designer-architecture.md) and
+[Visual Studio host](visual-studio-designer-host.md).
+
+## Android and shared hosts
+
+### ModernFormsNext.CrossPlatform.Sample
+
+A multi-target project organized around shared `App` and `MainPage` files plus thin
+`Platforms/Windows` and `Platforms/Android` hosts. Both targets use the same real ModernFormsNext
+control tree. Android reaches that tree through the transitional `SkiaControlSurface` rather than
+a complete Android `IWindowingPlatform`.
 
 ```powershell
 .\scripts\windows\Run-CrossPlatformSample.ps1
 .\scripts\android\Run-CrossPlatformSample.ps1 -DeviceId <serial>
 ```
 
-See [Cross-platform sample](cross-platform-sample.md).
+See the [cross-platform sample guide](cross-platform-sample.md) and
+[Android support matrix](platforms/android.md) for prerequisites and current limitations.
 
----
+### ModernFormsNext.Android.SmokeTest
 
-## Notes
+This technical host exercises Android lifecycle, manifests, permissions, and backend integration.
+Use the [Android development guide](android-development.md) for setup and the
+[release validation matrix](android-release-validation.md) for the scope of device evidence.
 
-- Samples are the best way to learn ModernFormsNext
-- They reflect current framework capabilities
-- `ControlGallery` is the preferred place for control demos and visual/manual regression checks
-- `ModernFormsNext.DemoApp` represents the generated template application and should stay minimal
-- `ModernFormsNext.CrossPlatform.Sample` validates the shared Windows/Android application pipeline
-- Some features may still be experimental
+## Screenshot provenance
 
----
-
-## Screenshots
-
-### Explorer (Windows)
-![Explorer Windows](explorer-windows.png)
-
-### Explorer (Linux)
-![Explorer Linux](explorer-ubuntu.png)
-
-### Explorer (macOS)
-![Explorer macOS](explorer-osx.png)
-
-### Outlaw
-![Outlaw](outlaw-windows.png)
-
-### ControlGallery
-![ControlGallery](controlgallery-windows.png)
+The Windows images above were refreshed on **2026-09-27** from the source checkout, at 100% display
+scaling. See [screenshot provenance and refresh guidance](screenshots.md) for the source revision,
+capture details, and historical images. Historical Linux/macOS images are not evidence of current
+platform support.
