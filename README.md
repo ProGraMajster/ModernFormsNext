@@ -9,6 +9,9 @@ programming model while owning its control tree, layout, input, styling, and Ski
 
 ![ModernFormsNext ControlGallery on Windows](docs/controlgallery-windows.png)
 
+ControlGallery's DataGridView page on Windows. See the [sample gallery](docs/samples.md) and
+[screenshot provenance](docs/screenshots.md).
+
 > [!NOTE]
 > ModernFormsNext is under active development. Windows is the primary and most mature platform;
 > APIs and designer workflows continue to evolve.
@@ -208,25 +211,14 @@ even after the documentation on `master` changes. See the
 [versioned documentation artifact workflow](docs/releasing/versioned-documentation-artifacts.md)
 for bundle contents and local validation.
 
-- [Getting started](docs/getting-started.md)
-- [Installation and Visual Studio Designer](docs/installation.md)
-- [Changelog](CHANGELOG.md)
-- [ModernFormsNext 1.11.1 release notes](docs/1.11.1-release-notes.md)
-- [Historical migration from 1.9.0 to 1.10.0](docs/migrations/1.9.0-to-1.10.0.md)
-- [Android platform status](docs/platforms/android.md)
-- [Designer architecture](docs/designer-architecture.md)
-- [Dynamic resources](docs/dynamic-resources.md)
-- [Themes](docs/themes.md) and [theme JSON schema](docs/theme-json-schema.md)
-- [Paint and gradients](docs/paint-and-gradients.md)
-- [Shapes and vector geometry](docs/shapes-and-vector-geometry.md)
-- [UI animations and interaction effects](docs/animations.md)
-- [Markdown viewing](docs/markdown.md) and [Markdown editing](docs/markdown-editor.md)
-- [Data binding](docs/data-binding.md)
-- [Commands and action sources](docs/commands.md)
-- [Styling](docs/styling.md)
-- [Platform-specific architecture](docs/platform-specific-code.md) and
-  [platform-specific features](docs/platform-specific-features.md)
-- [Framework roadmap](docs/roadmap/ModernFormsNext-Framework-Roadmap.md)
+The **[documentation index](docs/README.md)** groups the complete guides by topic.
+
+- [Getting started](docs/getting-started.md) and [installation](docs/installation.md)
+- [Sample applications and screenshots](docs/samples.md)
+- [Platform support](docs/platform-specific-features.md) and [Android status](docs/platforms/android.md)
+- [Architecture and decisions](docs/architecture/README.md) and [development reports](docs/development/README.md)
+- [Changelog](CHANGELOG.md), [1.11.1 release notes](docs/1.11.1-release-notes.md), and
+  [migration guides](docs/README.md#releases-and-migration)
 - [Release process](RELEASING.md)
 
 ## Known limitations

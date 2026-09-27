@@ -1,56 +1,164 @@
 - name: Overview
   href: index.md
-- name: Project README
-  href: content/README.md
-- name: Getting started
-  href: content/docs/getting-started.md
-- name: Application lifecycle
-  href: content/docs/application-lifecycle.md
-- name: Text input and composition
-  href: content/docs/text-input.md
-- name: Installation
-  href: content/docs/installation.md
-- name: Designer transactions and undo
-  href: content/docs/designer-transactions-and-undo.md
-- name: Designer copy and paste
-  href: content/docs/designer-copy-paste.md
-- name: Designer autosave and recovery
-  href: content/docs/designer-autosave-and-recovery.md
-- name: Visual Studio Designer host
-  href: content/docs/visual-studio-designer-host.md
-- name: Samples
-  href: content/docs/samples.md
-- name: Headless testing
-  href: content/docs/testing/testhost.md
-- name: Commands and action sources
-  href: content/docs/commands.md
-- name: In-process semantic automation
-  href: content/docs/automation.md
-- name: Windows live automation bridge
-  href: content/docs/automation-live-bridge.md
-- name: Accessibility semantic model
-  href: content/docs/accessibility/semantic-model.md
-- name: Accessible grids and calendars
-  href: content/docs/accessibility/grids-and-calendars.md
-- name: Android accessibility backend
-  href: content/docs/android-accessibility.md
-- name: Android Phase 4 native checks
-  href: content/docs/accessibility/android-phase4-validation.md
-- name: Android release validation matrix
-  href: content/docs/android-release-validation.md
-- name: Platform status
-  href: content/docs/platform-specific-features.md
-- name: Known limitations
-  href: content/docs/known-limitations.md
-- name: Architecture
-  href: content/docs/architecture.md
-- name: Changelog
-  href: content/CHANGELOG.md
-- name: Releasing
-  href: content/RELEASING.md
-- name: 1.11.1 release notes
-  href: content/docs/1.11.1-release-notes.md
-- name: 1.11.0 release readiness
-  href: content/docs/development/1.11.0-release-readiness.md
+- name: Start here
+  items:
+  - name: Project README
+    href: content/README.md
+  - name: Documentation index
+    href: content/docs/README.md
+  - name: Getting started
+    href: content/docs/getting-started.md
+  - name: Installation
+    href: content/docs/installation.md
+  - name: Samples and screenshots
+    href: content/docs/samples.md
+  - name: Application lifecycle
+    href: content/docs/application-lifecycle.md
+  - name: Platform support
+    href: content/docs/platform-specific-features.md
+  - name: Known limitations
+    href: content/docs/known-limitations.md
+- name: Controls, input, and data
+  items:
+  - name: UserControls
+    href: content/docs/user-controls.md
+  - name: Data binding
+    href: content/docs/data-binding.md
+  - name: Commands and shortcuts
+    href: content/docs/commands.md
+  - name: Text input and composition
+    href: content/docs/text-input.md
+  - name: RichTextBox
+    href: content/docs/richtextbox.md
+  - name: Markdown viewing
+    href: content/docs/markdown.md
+  - name: MarkdownEditor
+    href: content/docs/markdown-editor.md
+  - name: Tooltips
+    href: content/docs/tooltips.md
+- name: Appearance and animation
+  items:
+  - name: Styling
+    href: content/docs/styling.md
+  - name: Dynamic resources
+    href: content/docs/dynamic-resources.md
+  - name: Themes
+    href: content/docs/themes.md
+  - name: Theme JSON schema
+    href: content/docs/theme-json-schema.md
+  - name: Paint and gradients
+    href: content/docs/paint-and-gradients.md
+  - name: Shapes and vector geometry
+    href: content/docs/shapes-and-vector-geometry.md
+  - name: High DPI
+    href: content/docs/high-dpi.md
+  - name: UI animations
+    href: content/docs/animations.md
+  - name: Composable animations and effects
+    href: content/docs/composable-animations.md
+- name: Designer
+  items:
+  - name: Designer architecture
+    href: content/docs/designer-architecture.md
+  - name: Visual Studio host
+    href: content/docs/visual-studio-designer-host.md
+  - name: Transactions and undo
+    href: content/docs/designer-transactions-and-undo.md
+  - name: Copy and paste
+    href: content/docs/designer-copy-paste.md
+  - name: Autosave and recovery
+    href: content/docs/designer-autosave-and-recovery.md
+  - name: Animation and interaction effects
+    href: content/docs/designer-animation-effects.md
+- name: Accessibility
+  items:
+  - name: Shared semantic model
+    href: content/docs/accessibility/semantic-model.md
+  - name: Windows UI Automation
+    href: content/docs/accessibility/windows-ui-automation.md
+  - name: Editor text
+    href: content/docs/accessibility-text.md
+  - name: Links and numeric controls
+    href: content/docs/accessibility/current-controls.md
+  - name: Grids and calendars
+    href: content/docs/accessibility/grids-and-calendars.md
+  - name: Viewports and scrolling
+    href: content/docs/accessibility/scroll-viewports.md
+  - name: Preferences and themes
+    href: content/docs/accessibility/preferences.md
+  - name: Diagnostics and Designer metadata
+    href: content/docs/accessibility/diagnostics-and-designer.md
+- name: Android and shared applications
+  items:
+  - name: Android support matrix
+    href: content/docs/platforms/android.md
+  - name: Backend
+    href: content/docs/android-backend.md
+  - name: Development setup
+    href: content/docs/android-development.md
+  - name: ADB commands
+    href: content/docs/android-adb.md
+  - name: Cross-platform sample
+    href: content/docs/cross-platform-sample.md
+  - name: Manifests and permissions
+    href: content/docs/android-permissions.md
+  - name: Hardware input
+    href: content/docs/android-hardware-input.md
+  - name: Accessibility backend
+    href: content/docs/android-accessibility.md
+  - name: Accessibility native checks
+    href: content/docs/accessibility/android-phase4-validation.md
+  - name: Release validation matrix
+    href: content/docs/android-release-validation.md
+- name: Testing and diagnostics
+  items:
+  - name: Headless TestHost
+    href: content/docs/testing/testhost.md
+  - name: Application test template
+    href: content/docs/testing/testhost-template.md
+  - name: Semantic automation
+    href: content/docs/automation.md
+  - name: Windows live automation bridge
+    href: content/docs/automation-live-bridge.md
+  - name: Performance diagnostics
+    href: content/docs/performance-diagnostics.md
+- name: Architecture and contributing
+  items:
+  - name: Architecture guide and ADRs
+    href: content/docs/architecture/README.md
+  - name: Framework layers
+    href: content/docs/architecture.md
+  - name: Platform boundaries
+    href: content/docs/platform-specific-code.md
+  - name: CI and release gates
+    href: content/docs/ci.md
+  - name: Repository validation
+    href: content/docs/repository-validation.md
+  - name: Development reports and audits
+    href: content/docs/development/README.md
+  - name: Roadmap
+    href: content/docs/roadmap/ModernFormsNext-Framework-Roadmap.md
+  - name: Screenshot provenance
+    href: content/docs/screenshots.md
+- name: Releases and migration
+  items:
+  - name: Changelog
+    href: content/CHANGELOG.md
+  - name: 1.11.1 release notes
+    href: content/docs/1.11.1-release-notes.md
+  - name: 1.11.0 release notes
+    href: content/docs/1.11.0-release-notes.md
+  - name: 1.10.0 release notes
+    href: content/docs/1.10.0-release-notes.md
+  - name: 1.9.0 release notes
+    href: content/docs/1.9.0-release-notes.md
+  - name: Migration 1.9.0 to 1.10.0
+    href: content/docs/migrations/1.9.0-to-1.10.0.md
+  - name: Migration 1.8.0 to 1.9.0
+    href: content/docs/migrations/1.8.0-to-1.9.0.md
+  - name: Release process
+    href: content/RELEASING.md
+  - name: Versioned documentation artifacts
+    href: content/docs/releasing/versioned-documentation-artifacts.md
 - name: API reference
   href: api/
