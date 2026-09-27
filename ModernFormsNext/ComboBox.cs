@@ -13,6 +13,7 @@ namespace ModernFormsNext
         private PopupWindow? popup;
         private readonly ListBox popup_listbox;
         private bool suppress_popup_close;
+        private bool retiring;
 
         /// <summary>
         /// Initializes a new instance of the ComboBox class.
@@ -21,17 +22,7 @@ namespace ModernFormsNext
         {
             popup_listbox = new ListBox { Dock = DockStyle.Fill, SelectItemOnMouseUp = true, ShowHover = true };
             popup_listbox.SelectedIndexChanged += ListBox_SelectedIndexChanged;
-            popup_listbox.Items.AccessibilityCollectionChanged += selectionChanged => {
-                if (IsAccessibilityObjectCreated)
-                    _ = AccessibilityObject.GetChildCount();
-
-                NotifyAccessibilityClients(AccessibleEvents.Reorder);
-
-                if (selectionChanged) {
-                    NotifyAccessibilityClients(AccessibleEvents.Selection);
-                    NotifyAccessibilityClients(AccessibleEvents.ValueChange);
-                }
-            };
+            popup_listbox.Items.AccessibilityCollectionChanged += Items_AccessibilityCollectionChanged;
         }
 
         /// <inheritdoc/>
@@ -55,12 +46,53 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void Dispose (bool disposing)
         {
-            base.Dispose (disposing);
+            if (!disposing) { base.Dispose(false); return; }
+            if (retiring) return;
+            retiring = true;
 
-            popup?.Close ();
+            // Retire ownership before callbacks: closing a popup can reenter this control's
+            // disposal. A caller retaining Items must not retain/call the retired ComboBox.
+            var ownedPopup = popup;
             popup = null;
+            popup_listbox.SelectedIndexChanged -= ListBox_SelectedIndexChanged;
+            popup_listbox.Items.AccessibilityCollectionChanged -= Items_AccessibilityCollectionChanged;
 
-            popup_listbox.Dispose ();
+            System.Collections.Generic.List<Exception>? failures = null;
+            void Attempt(Action cleanup)
+            {
+                try { cleanup(); }
+                catch (Exception failure) { (failures ??= []).Add(failure); }
+            }
+
+            // PopupWindow.Close destroys its backend and retires text input, but deliberately
+            // does not dispose borrowed controls. This ComboBox owns its list in every state,
+            // including never opened, hidden for reuse, or already closed with its owner.
+            if (ownedPopup is not null) {
+                Attempt(ownedPopup.Close);
+                // Unlike general borrowed PopupWindow content, this popup's adapter/tree is
+                // owned exclusively by the ComboBox, including its implicit scroll controls.
+                if (!ownedPopup.adapter.IsDisposed) Attempt(ownedPopup.adapter.Dispose);
+            }
+            if (!popup_listbox.IsDisposed) Attempt(popup_listbox.Dispose);
+            Attempt(() => base.Dispose(true));
+
+            if (failures is { Count: 1 })
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (failures is not null)
+                throw new AggregateException("ComboBox popup and control disposal failed.", failures);
+        }
+
+        private void Items_AccessibilityCollectionChanged(bool selectionChanged)
+        {
+            if (IsAccessibilityObjectCreated)
+                _ = AccessibilityObject.GetChildCount();
+
+            NotifyAccessibilityClients(AccessibleEvents.Reorder);
+
+            if (selectionChanged) {
+                NotifyAccessibilityClients(AccessibleEvents.Selection);
+                NotifyAccessibilityClients(AccessibleEvents.ValueChange);
+            }
         }
 
         /// <summary>
@@ -76,9 +108,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets whether the drop down portion of the ComboBox is currently shown.
         /// </summary>
+        /// <remarks>Access on the owning UI thread. A hidden popup is retained for reuse;
+        /// explicit disposal closes the popup and disposes its owned list. An opening request
+        /// during or after disposal throws <see cref="ObjectDisposedException"/>.</remarks>
         public bool DroppedDown {
             get => popup?.Visible == true;
             set {
+                if (value) ObjectDisposedException.ThrowIf(retiring || IsDisposed || Disposing, this);
                 if (DroppedDown && !value) {
                     popup?.Hide ();
                     OnDropDownClosed (EventArgs.Empty);

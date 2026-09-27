@@ -242,9 +242,14 @@ public abstract class Shape : Control
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
-        geometrySubscription?.Dispose();
-        geometrySubscription = null;
-        DisposeNativeCaches();
+        if (disposing)
+        {
+            geometrySubscription?.Dispose();
+            geometrySubscription = null;
+            // SKPath owns/finalizes its native handle. Do not dispose managed wrappers or
+            // subscriptions from Control's finalizer, where their order is unspecified.
+            DisposeNativeCaches();
+        }
         base.Dispose(disposing);
     }
 

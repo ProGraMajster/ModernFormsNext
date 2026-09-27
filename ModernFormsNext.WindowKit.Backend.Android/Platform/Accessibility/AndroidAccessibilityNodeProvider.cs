@@ -344,7 +344,9 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
 
     protected override void Dispose(bool disposing)
     {
-        if (!disposed)
+        // The Java peer finalizer must not dispatch UI work or unsubscribe managed semantic
+        // callbacks. The host explicitly disposes its provider on the UI thread.
+        if (disposing && !disposed)
         {
             Detach();
             session.Dispose();

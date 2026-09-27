@@ -9,6 +9,46 @@ namespace ModernFormsNext.Tests;
 
 public sealed class ShapeGeometryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FinalizerPathPreservesPointAndGeometrySubscriptionsUntilExplicitDisposal(bool closed)
+    {
+        var points = new PointCollection { new(10, 10), new(90, 10), new(90, 90) };
+        using Shape shape = closed
+            ? new Polygon { Points = points }
+            : new Polyline { Points = points };
+        shape.Size = new Size(100, 100);
+        shape.Stroke = new SolidColorBrush(Color.Black);
+        shape.StrokeThickness = 4;
+        Assert.True(shape.HitTestClient(new PointF(50, 10)));
+        var cacheField = typeof(Shape).GetField("cachedPath",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var path = Assert.IsType<SKPath>(cacheField.GetValue(shape));
+        var dispose = typeof(Control).GetMethod("Dispose",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            [typeof(bool)])!;
+        Exception? failure = null;
+        var thread = new Thread(() => failure = Record.Exception(() => dispose.Invoke(shape, [false])));
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(10)));
+
+        Assert.Null(failure);
+        Assert.Same(path, cacheField.GetValue(shape));
+        Assert.NotEqual(IntPtr.Zero, path.Handle);
+        Assert.False(shape.IsDisposed);
+        points[0] = new PointF(10, 50);
+        points[1] = new PointF(90, 50);
+        Assert.False(shape.HitTestClient(new PointF(50, 10)));
+        Assert.True(shape.HitTestClient(new PointF(50, 50)));
+        var replacement = Assert.IsType<SKPath>(cacheField.GetValue(shape));
+
+        shape.Dispose();
+
+        Assert.Equal(IntPtr.Zero, replacement.Handle);
+        Assert.Null(cacheField.GetValue(shape));
+    }
+
     [Fact]
     public void EllipseFollowsCurrentBoundsAndRejectsCornerHits()
     {

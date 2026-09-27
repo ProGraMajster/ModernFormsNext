@@ -274,7 +274,7 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         protected override void Dispose(bool disposing)
         {
-            commandSource?.Dispose();
+            if (disposing) commandSource?.Dispose();
             base.Dispose(disposing);
         }
 
