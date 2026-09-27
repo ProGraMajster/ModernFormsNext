@@ -58,7 +58,7 @@ public sealed class Polyline : Shape
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
-        points.Changed -= HandlePointsChanged;
+        if (disposing) points.Changed -= HandlePointsChanged;
         base.Dispose(disposing);
     }
 

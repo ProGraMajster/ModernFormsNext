@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--combo-disposal", StringComparer.Ordinal))
+{
+    Environment.ExitCode = ComboDisposalScenario.Run();
+    return;
+}
+
 if (args.Contains("--scroll-layout", StringComparer.Ordinal))
 {
     Environment.ExitCode = ScrollLayoutScenario.Run();

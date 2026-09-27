@@ -2796,11 +2796,24 @@ namespace ModernFormsNext
         private bool disposedValue = false; // To detect redundant calls
 
         /// <summary>
-        /// Disposes unmanaged resources used by the control.
+        /// Releases the control's owned resources during explicit disposal on its UI thread.
         /// </summary>
+        /// <param name="disposing"><see langword="true"/> for explicit disposal;
+        /// <see langword="false"/> when called by the garbage collector.</param>
+        /// <remarks>
+        /// Explicit disposal releases child controls, bindings, effects, animations, subscriptions
+        /// and rendering buffers. It must run on the owning UI thread and may invoke application
+        /// callbacks. Overrides must call the base implementation and release managed objects only
+        /// when <paramref name="disposing"/> is <see langword="true"/>. Finalization must not walk
+        /// the control tree, access text input, dispatch UI work or invoke managed callbacks.
+        /// Native buffers are owned by finalizable SkiaSharp wrappers, not raw handles in Control.
+        /// </remarks>
         protected override void Dispose (bool disposing)
         {
-            if (Disposing) return;
+            // Every derived Control inherits this finalizer. The objects in its tree may
+            // already be finalized, and all managed cleanup below belongs to the UI thread.
+            if (!disposing) { base.Dispose(false); return; }
+            if (Disposing || disposedValue) return;
             List<Exception>? textInputFailures = null;
             if (!disposedValue) {
                 SetState(States.Disposing, true);
@@ -2822,7 +2835,9 @@ namespace ModernFormsNext
                     FreeBackBuffer ();
 
                     foreach (var c in Controls.GetAllControls (true))
-                        c.Dispose (disposing);
+                        // Use public Dispose so explicit parent cleanup also suppresses each
+                        // child's finalizer, including overrides with their own owned resources.
+                        c.Dispose ();
 
                     disposedValue = true;
                     Parent?.NotifyAccessibilityClients(AccessibleEvents.Reorder);
@@ -2845,7 +2860,7 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Destroys the control.
+        /// Runs the finalization path without releasing managed UI resources.
         /// </summary>
         ~Control ()
         {

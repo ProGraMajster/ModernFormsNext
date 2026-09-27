@@ -13,6 +13,11 @@ Providers implementing only the older `IPlatformApplicationLifecycle` contract r
 with coarse consumers. The facade's explicit delivery methods throw `NotSupportedException` if
 the current provider lacks the richer controller capability.
 
+Dispose owned controls explicitly on their UI thread. A control finalizer must not close UI
+popups, dispose managed children or retire text-input sessions. For the ownership rules,
+custom-control disposal pattern and audited exceptions, see the
+[control finalization and ComboBox disposal audit](development/issue-149-disposal-audit.md).
+
 ## Read the right state
 
 | Value | Meaning |
