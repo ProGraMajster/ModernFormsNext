@@ -101,6 +101,8 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
 
     internal bool IsShown { get; private set; }
 
+    internal int ShowCallCount { get; private set; }
+
     internal bool IsDisposed { get; private set; }
 
     internal bool IsEnabled => enabled;
@@ -177,6 +179,7 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
     public void Show(bool activate, bool isDialog)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        ShowCallCount++;
         IsShown = true;
         if (activate)
             Activated?.Invoke();

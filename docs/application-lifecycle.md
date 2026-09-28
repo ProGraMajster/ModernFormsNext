@@ -18,6 +18,49 @@ popups, dispose managed children or retire text-input sessions. For the ownershi
 custom-control disposal pattern and audited exceptions, see the
 [control finalization and ComboBox disposal audit](development/issue-149-disposal-audit.md).
 
+## Initialize a form before its first display
+
+Subscribe to `Form.Load` or override `OnLoad(EventArgs)` (calling base) for synchronous UI-thread
+initialization after construction and initial managed layout, but before native display.
+Both `Show()` and `ShowDialog(owner)` use the same preparation:
+
+```text
+initial layout -> Load -> layout after Load -> startup positioning -> native Show -> Shown
+```
+
+Changes to controls, Size and StartPosition in Load participate in the final layout and centering.
+The native window may already exist before Load. Neither Load nor Shown means first-paint
+completion; activation may occur synchronously during native Show.
+
+```csharp
+var form = new Form { StartPosition = FormStartPosition.CenterScreen };
+form.Load += (_, _) =>
+{
+    form.Controls.Add(new Label { Text = "Ready", Dock = DockStyle.Fill });
+    form.ClientSize = new System.Drawing.Size(640, 400);
+};
+Application.Run(form);
+```
+
+Load runs at most once per instance. Repeated Show and Hide/Show do not repeat it or reset Shown.
+A Show called reentrantly during preparation is ignored. Hide in Load cancels that display
+attempt; a later explicit Show can display the initialized instance. In a modal attempt, that
+cancellation completes the task with the current DialogResult and leaves the owner available.
+A canceled Closing during Load allows showing to continue; a successful Close or modal
+DialogResult prevents display and completes modal cleanup. Close remains terminal.
+
+A Load exception propagates synchronously, with no native Show, Shown, or OpenForms registration.
+The form keeps its user controls; it does not dispose them as error recovery. Later Show or
+ShowDialog attempts throw InvalidOperationException with the initialization error as the inner
+exception instead of rerunning Load. Use a new instance to retry. A modal owner is not disabled
+or stripped of its text-input session until Load succeeds. A preassigned non-None DialogResult
+still completes ShowDialog without initializing or showing the form.
+
+Load does not await async void handlers. Async initialization is an application concern.
+Designer document opening, metadata discovery and preview do not execute the designed form's
+Load. This managed Form lifecycle is shared by Windows and the headless test backend; it does
+not map to Android Activity/View lifecycle or change the Android surface host.
+
 ## Read the right state
 
 | Value | Meaning |

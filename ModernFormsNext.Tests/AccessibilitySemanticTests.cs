@@ -503,8 +503,10 @@ public sealed class AccessibilitySemanticTests
         Assert.Equal("Preferences", window.Name);
     }
 
-    [Fact]
-    public async Task ModalFormExposesDialogSemanticsWhileShown()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ModalFormExposesDialogSemanticsWhileShown(bool cancelCloseDuringLoad)
     {
         using var parent = new Form(CreateWindowImplementation());
         using var dialog = new Form(CreateWindowImplementation())
@@ -512,6 +514,14 @@ public sealed class AccessibilitySemanticTests
             Text = "Confirm",
             StartPosition = FormStartPosition.Manual
         };
+        bool cancelClose = false;
+        dialog.Closing += (_, args) => args.Cancel = cancelClose;
+        if (cancelCloseDuringLoad)
+            dialog.Load += (_, _) => {
+                cancelClose = true;
+                dialog.Close();
+                cancelClose = false;
+            };
 
         Task<DialogResult> completion = dialog.ShowDialog(parent);
 
@@ -519,7 +529,24 @@ public sealed class AccessibilitySemanticTests
         Assert.Equal(AccessibleControlType.Dialog, dialog.AccessibilityObject.ControlType);
 
         dialog.DialogResult = DialogResult.OK;
-        Assert.Equal(DialogResult.OK, await completion);
+        Assert.Equal(DialogResult.OK, await completion.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task ModalCloseInLoadDoesNotRequireAnInlineBackendClosedCallback()
+    {
+        using var parent = new Form(CreateWindowImplementation());
+        using var dialog = new Form(CreateWindowImplementation()) { StartPosition = FormStartPosition.Manual };
+        int shown = 0;
+        dialog.Load += (_, _) => dialog.DialogResult = DialogResult.OK;
+        dialog.Shown += (_, _) => shown++;
+
+        var completion = dialog.ShowDialog(parent);
+
+        Assert.Equal(DialogResult.OK, await completion.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(dialog.Visible);
+        Assert.Equal(0, shown);
+        Assert.DoesNotContain(dialog, Application.OpenForms);
     }
 
     [Fact]

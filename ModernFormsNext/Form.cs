@@ -22,6 +22,9 @@ namespace ModernFormsNext
         private Form? dialog_owner;
         private DialogResult dialog_result = DialogResult.None;
         private TaskCompletionSource<DialogResult>? dialog_task;
+        private bool dialog_owner_input_suspended;
+        private LoadState load_state;
+        private Exception? load_failure;
         private System.Drawing.Size minimum_size;
         private System.Drawing.Size maximum_size;
         private readonly FormClientArea client_area;
@@ -29,6 +32,8 @@ namespace ModernFormsNext
         private bool show_focus_cues;
         private string text = string.Empty;
         private bool use_system_decorations;
+
+        private enum LoadState { NotStarted, Loading, Completed, Failed }
 
         /// <summary>
         /// Initializes a new instance of the Form class.
@@ -123,11 +128,9 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         public override void Close ()
         {
-            base.Close ();
-
-            // If close was cancelled by OnClosing, don't proceed with dialog cleanup
-            if (Application.OpenForms.Contains(this))
-                return;
+            // Before first display, OpenForms cannot distinguish cancellation from closure.
+            // Keep explicit modal completion even if the backend does not call Closed inline.
+            if (!TryCloseWindow()) return;
 
             CompleteDialogClose ();
         }
@@ -139,12 +142,14 @@ namespace ModernFormsNext
             var parent = dialog_parent;
             var owner = dialog_owner;
             var task = dialog_task;
+            bool restoreOwnerInput = dialog_owner_input_suspended;
             dialog_parent = null;
             dialog_owner = null;
             dialog_task = null;
+            dialog_owner_input_suspended = false;
 
             try {
-                if (parent is not null && owner?.InputBindingsClosed != true && owner?.adapter.IsDisposed != true) {
+                if (restoreOwnerInput && parent is not null && owner?.InputBindingsClosed != true && owner?.adapter.IsDisposed != true) {
                     parent.SetEnabled (true);
                     parent.Activate ();
                 }
@@ -159,6 +164,74 @@ namespace ModernFormsNext
         /// Raised before the form is closed, allowing close to be programatically canceled.
         /// </summary>
         public event EventHandler<CancelEventArgs>? Closing;
+
+        /// <summary>Occurs once when this form is prepared for its first display, before the native window is shown.</summary>
+        /// <remarks>
+        /// Raised synchronously on the UI thread by both <see cref="WindowBase.Show"/> and
+        /// <see cref="ShowDialog(Form)"/>, after initial managed layout. Controls are available;
+        /// changes to controls, size and startup position are laid out before positioning and showing.
+        /// This is not native-window creation, activation, or first paint. Hide/Show does not repeat
+        /// Load or reset Shown. A nested Show during preparation is ignored; Hide cancels the current
+        /// display attempt without resetting Load. A successful Close prevents display permanently.
+        /// An exception propagates without showing or disposing user controls; later display attempts
+        /// throw InvalidOperationException and do not retry initialization. Async void handlers are
+        /// not awaited. Construct a new instance to retry failed initialization.
+        /// </remarks>
+        /// <example><code>
+        /// var form = new Form();
+        /// form.Load += (_, _) => form.Controls.Add(new Label { Text = "Ready" });
+        /// form.Show();
+        /// </code></example>
+        public event EventHandler? Load;
+
+        /// <summary>Raises <see cref="Load"/> during the first managed preparation for display.</summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>
+        /// Called on the UI thread before native Show, after initial layout, through the common
+        /// Show/ShowDialog lifecycle. Overrides must call base to notify subscribers. Changes made
+        /// here participate in layout and centering before display. Hide/Show does not repeat this
+        /// hook; an exception fails initialization permanently. This hook does not await async work
+        /// and does not indicate first paint. Do not call it to simulate showing a form.
+        /// </remarks>
+        protected virtual void OnLoad(EventArgs e) => Load?.Invoke(this, e);
+
+        internal override void PrepareToShow(long version)
+        {
+            if (load_state == LoadState.Failed)
+                throw new InvalidOperationException("This form failed to initialize for display. Create a new form instance.", load_failure);
+            if (load_state == LoadState.Loading) return;
+            if (shown) return;
+
+            // Run managed layout without opening the native window. WindowBase's preparation
+            // guard also covers callbacks from layout and centering, not just the Load event.
+            LayoutBeforeShow(adapter, version);
+            if (dialog_owner?.IsBackendClosed == true) Hide();
+            if (!IsCurrentShowRequest(version)) return;
+            if (load_state == LoadState.NotStarted) {
+                load_state = LoadState.Loading;
+                try {
+                    OnLoad(EventArgs.Empty);
+                    load_state = LoadState.Completed;
+                }
+                catch (Exception exception) {
+                    load_failure = exception;
+                    load_state = LoadState.Failed;
+                    throw;
+                }
+            }
+            if (dialog_owner?.IsBackendClosed == true) Hide();
+            if (IsCurrentShowRequest(version)) LayoutBeforeShow(adapter, version);
+        }
+
+        private void LayoutBeforeShow(Control control, long version)
+        {
+            if (!IsCurrentShowRequest(version) || control.IsDisposed) return;
+            control.PerformLayout();
+            foreach (var child in control.Controls.GetAllControls().ToArray()) {
+                if (!IsCurrentShowRequest(version)) break;
+                if (ReferenceEquals(child.Parent, control)) LayoutBeforeShow(child, version);
+            }
+        }
 
         /// <inheritdoc/>
         protected override System.Drawing.Size DefaultSize => new System.Drawing.Size (1080, 720);
@@ -475,10 +548,16 @@ namespace ModernFormsNext
         /// <remarks>
         /// Call on the UI thread. Closing may be canceled; a canceled close keeps the owner disabled
         /// and the returned task pending. A Shown handler may close the dialog synchronously.
+        /// Load runs before disabling the owner. Hide during Load cancels this display attempt and
+        /// completes the task with the current result; the initialized form may be shown later.
+        /// A Load exception is propagated synchronously and is not retried by later display attempts.
         /// </remarks>
         public Task<DialogResult> ShowDialog (Form parent)
         {
             ArgumentNullException.ThrowIfNull (parent);
+            if (IsPreparingShow)
+                throw new InvalidOperationException ("A modal operation cannot start while this form is preparing for display.");
+            ObjectDisposedException.ThrowIf(parent.IsBackendClosed, parent);
             if (dialog_task is not null)
                 throw new InvalidOperationException ("This form already has an active modal operation.");
             var task = new TaskCompletionSource<DialogResult> ();
@@ -494,10 +573,15 @@ namespace ModernFormsNext
             dialog_parent = parent.Window;
             dialog_owner = parent;
             try {
-                parent.SetTextInputActive(false);
-                Window.SetParent (parent.Window);
-                adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
-                ShowDialog (parent.Window);
+                if (!ShowDialog (parent.Window, () => {
+                    ObjectDisposedException.ThrowIf(parent.IsBackendClosed, parent);
+                    Window.SetParent (parent.Window);
+                    // Mark before retirement: a failing text callback still needs restoration.
+                    dialog_owner_input_suspended = true;
+                    parent.SetTextInputActive(false);
+                    if (ReferenceEquals(dialog_task, task))
+                        adapter.NotifyAccessibilityClients(Accessibility.AccessibleEvents.StateChange);
+                })) CompleteDialogClose ();
             }
             catch (Exception showFailure) {
                 try { CompleteDialogClose (); }
