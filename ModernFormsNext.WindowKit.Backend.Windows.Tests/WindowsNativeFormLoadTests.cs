@@ -36,8 +36,9 @@ public sealed class WindowsNativeFormLoadTests
             await host.WaitForExitAsync(timeout.Token);
             string output = await outputTask, errors = await errorTask;
             Assert.True(host.ExitCode == 0, $"Native Form.Load host exited with {host.ExitCode}: {errors}\n{output}");
-            Assert.Contains("FORM_LOAD:Load>NativeShow>Shown", output);
+            Assert.Contains("FORM_LOAD:Load>Visible:True>NativeShow>Shown", output);
             Assert.Contains("FORM_LOAD:MODAL", output);
+            Assert.Contains("WINDOW_VISIBILITY:NATIVE_CLOSE", output);
             Assert.Contains("FORM_LOAD:PASS", output);
         }
         finally

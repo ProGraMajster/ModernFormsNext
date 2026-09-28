@@ -56,8 +56,9 @@ public abstract partial class WindowBase
     {
         if (backendClosed) return;
         backendClosed = true;
+        visibilityVersion++;
         IsActive = false;
-        Visible = false;
+        bool visibilityChanged = SetVisibleCore(false);
         if (this is Form closedForm && ReferenceEquals(applicationRuntimeIdentity, Application.RuntimeIdentity))
             Application.OpenForms.Remove(closedForm);
         var failures = new List<Exception>();
@@ -70,6 +71,7 @@ public abstract partial class WindowBase
         Cleanup(TextInputHost.Dispose);
         Cleanup(ReleaseInputBindings);
         Cleanup(adapter.CancelOwnedControlAnimationsForSubtree);
+        if (visibilityChanged) Cleanup(NotifyVisibleChanged);
         // All close observers, modal ownership and application lifetime see the committed close,
         // even if an earlier user subscriber fails. Reentrant closure is already terminal.
         if (Closed is { } handlers)

@@ -33,6 +33,7 @@ namespace ModernFormsNext
         internal bool shown;
         private bool hiding;
         private bool preparingShow;
+        private bool notifyingVisibility;
         private long visibilityVersion;
         private long activationVersion;
 
@@ -265,12 +266,15 @@ namespace ModernFormsNext
                 // A completion observer may explicitly show this same window again. That
                 // newer request owns visibility and must survive this older Hide operation.
                 if (version == visibilityVersion) {
-                    Visible = false;
-                    if (!backendClosed) Cleanup(window.Hide);
-                    if (popup is not null)
-                        Cleanup(() => popup.RestoreParentTextInput(popupVersion));
-                    Cleanup(Application.NotifyLifecycleWindowStateChanged);
-                    if (!backendClosed && !Visible) Cleanup(() => OnVisibleChanged(EventArgs.Empty));
+                    if (SetVisibleCore(false)) Cleanup(NotifyVisibleChanged);
+                    // A visibility observer may show or close the window. The older Hide
+                    // must not hide that newer display or retire its popup input lease.
+                    if (version == visibilityVersion && !backendClosed && !Visible) {
+                        Cleanup(window.Hide);
+                        if (popup is not null)
+                            Cleanup(() => popup.RestoreParentTextInput(popupVersion));
+                        Cleanup(Application.NotifyLifecycleWindowStateChanged);
+                    }
                 }
             }
             finally { hiding = false; }
@@ -580,9 +584,73 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnShown (EventArgs e) => Shown?.Invoke (this, e);
 
-        private void OnVisibleChanged (EventArgs e)
+        /// <summary>Raises <see cref="VisibleChanged"/> after the public visibility value changes.</summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>
+        /// Called on the UI thread. Overrides must call base to notify subscribers and retain
+        /// existing adapter notifications. The first true transition follows Form.Load and
+        /// precedes native Show and Shown. A close publishes its final false transition before
+        /// Closed. This is a window lifecycle hook, not Control.Visible, activation or first paint.
+        /// Observer errors are propagated after mandatory hide/close cleanup. Notifications for
+        /// an older transition stop if a callback changes visibility again.
+        /// </remarks>
+        protected virtual void OnVisibleChanged (EventArgs e)
         {
-            adapter.RaiseParentVisibleChanged (e);
+            long version = visibilityVersion;
+            bool visible = Visible;
+            var failures = new System.Collections.Generic.List<Exception>();
+            void Notify(Action action)
+            {
+                try { action(); }
+                catch (Exception exception) { failures.Add(exception); }
+            }
+            // Preserve the existing Show/Hide adapter notification. Backend closure did not
+            // notify the control tree and must not introduce a new Control.Visible contract.
+            if (!backendClosed) Notify(() => adapter.RaiseParentVisibleChanged(e));
+            if (VisibleChanged is { } handlers)
+                foreach (EventHandler handler in handlers.GetInvocationList()) {
+                    if (version != visibilityVersion || visible != Visible) break;
+                    Notify(() => handler(this, e));
+                }
+            if (failures.Count == 1)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (failures.Count > 1)
+                throw new AggregateException("Window visibility callbacks failed.", failures);
+        }
+
+        // The only writer of Visible. Callers choose a safe notification boundary so that
+        // closure commits false before cleanup, but publishes it before Closed.
+        private bool SetVisibleCore(bool value)
+        {
+            if (Visible == value) return false;
+            Visible = value;
+            return true;
+        }
+
+        private void NotifyVisibleChanged()
+        {
+            bool previous = notifyingVisibility;
+            notifyingVisibility = true;
+            try { OnVisibleChanged(EventArgs.Empty); }
+            finally { notifyingVisibility = previous; }
+        }
+
+        private bool TryCommitShowVisibility(long version)
+        {
+            try {
+                if (SetVisibleCore(true)) NotifyVisibleChanged();
+            }
+            catch (Exception failure) {
+                try {
+                    // Roll back only our own unfinished show, never a newer callback's Show.
+                    if (IsCurrentShowRequest(version) && Visible) Hide();
+                }
+                catch (Exception cleanup) {
+                    throw new AggregateException("Window visibility notification and show rollback failed.", failure, cleanup);
+                }
+                throw;
+            }
+            return IsCurrentShowRequest(version) && Visible;
         }
 
         private bool PointInDoubleClickRange (Point point)
@@ -684,9 +752,7 @@ namespace ModernFormsNext
         public void Show ()
         {
             if (!TryPrepareShow(null, out long version)) return;
-            Visible = true;
-            OnVisibleChanged (EventArgs.Empty);
-            if (backendClosed || !Visible || version != visibilityVersion) return;
+            if (!TryCommitShowVisibility(version)) return;
 
             // Native popups use ShowNoActivate, so a reused popup receives no Activated
             // callback. Reacquire its selected editor explicitly for every visible session.
@@ -715,9 +781,7 @@ namespace ModernFormsNext
             if (!TryPrepareShow(parent, out long version)) return false;
             acquireOwnerInput();
             if (!IsCurrentShowRequest(version)) return false;
-            Visible = true;
-            OnVisibleChanged (EventArgs.Empty);
-            if (!IsCurrentShowRequest(version) || !Visible) return false;
+            if (!TryCommitShowVisibility(version)) return false;
 
             parent.SetEnabled (false);
             if (!IsCurrentShowRequest(version) || !Visible) return false;
@@ -742,7 +806,9 @@ namespace ModernFormsNext
         {
             ObjectDisposedException.ThrowIf(backendClosed, this);
             version = visibilityVersion;
-            if (preparingShow) return false;
+            // Show from a true visibility callback is already satisfied. In particular, it
+            // must not turn an in-progress modal show into a nested modeless native Show.
+            if (IsPreparingShow) return false;
             version = ++visibilityVersion;
             preparingShow = true;
             try {
@@ -754,7 +820,7 @@ namespace ModernFormsNext
             finally { preparingShow = false; }
         }
 
-        internal bool IsPreparingShow => preparingShow;
+        internal bool IsPreparingShow => preparingShow || (notifyingVisibility && Visible);
         internal bool IsBackendClosed => backendClosed;
         internal bool IsCurrentShowRequest(long version) => !backendClosed && version == visibilityVersion;
 
@@ -784,8 +850,22 @@ namespace ModernFormsNext
         public virtual ControlStyle Style { get; } = new ControlStyle (DefaultStyle);
 
         /// <summary>
-        /// Gets or sets whether the window is displayed to the user.
+        /// Gets the managed visibility state of the window.
         /// </summary>
         public bool Visible { get; private set; }
+
+        /// <summary>Occurs when <see cref="Visible"/> changes between true and false.</summary>
+        /// <remarks>
+        /// Raised synchronously on the UI thread after the value commits. Repeated Show on a
+        /// visible window and Hide on a hidden window do not raise this event. The first true
+        /// transition follows Form.Load; Hide/Show repeats visibility transitions but neither
+        /// Load nor Shown. Closing a visible window publishes false before Closed. This event
+        /// does not report Control.Visible, native handle creation, activation, minimization,
+        /// first paint or Android Activity/View lifecycle. A handler may Hide, Show or Close;
+        /// newer operations supersede unfinished older operations. Show from a true callback
+        /// is ignored. Observer failures roll back an unfinished show and propagate after
+        /// required hide/close cleanup. See the application lifecycle guide for examples.
+        /// </remarks>
+        public event EventHandler? VisibleChanged;
     }
 }

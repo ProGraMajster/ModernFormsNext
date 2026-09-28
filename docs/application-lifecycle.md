@@ -25,7 +25,8 @@ initialization after construction and initial managed layout, but before native 
 Both `Show()` and `ShowDialog(owner)` use the same preparation:
 
 ```text
-initial layout -> Load -> layout after Load -> startup positioning -> native Show -> Shown
+initial layout -> Load -> layout after Load -> startup positioning
+-> Visible = true -> VisibleChanged -> native Show -> Shown
 ```
 
 Changes to controls, Size and StartPosition in Load participate in the final layout and centering.
@@ -60,6 +61,48 @@ Load does not await async void handlers. Async initialization is an application 
 Designer document opening, metadata discovery and preview do not execute the designed form's
 Load. This managed Form lifecycle is shared by Windows and the headless test backend; it does
 not map to Android Activity/View lifecycle or change the Android surface host.
+
+## Observe window visibility
+
+`WindowBase.VisibleChanged` is inherited by Form and PopupWindow. It reports actual changes
+of the public `WindowBase.Visible` value on the UI thread. The handler already sees the new
+value. Repeated Show on a visible window and Hide on a hidden window do not emit duplicates.
+
+```csharp
+form.VisibleChanged += (_, _) =>
+{
+    statusLabel.Text = form.Visible ? "Window visible" : "Window hidden";
+};
+```
+
+The normal order is:
+
+- Show/ShowDialog: preparation (including first Form.Load), `Visible = true`, VisibleChanged,
+  native Show, then the existing one-shot Shown.
+- Hide: retire text input, `Visible = false`, VisibleChanged, native Hide and popup input-owner
+  restoration. A later Show emits true again without repeating Load or Shown.
+- Programmatic or native close: commit terminal state and `Visible = false`, finish mandatory
+  input cleanup, emit VisibleChanged if the value changed, then Closed and modal completion.
+  Closing an already hidden window does not emit another false event.
+
+A callback may Hide, Show or Close. Show called from a true visibility callback is ignored;
+Hide/Close there cancels the pending native show. Show called from a false Hide callback can
+supersede the older Hide, which must not hide the newer display. An existing recursive Hide
+is ignored while Hide is already unwinding. Remaining observers of a superseded transition
+are skipped, so they are not called with the opposite current value.
+
+Observer exceptions are collected using the existing window lifecycle policy. Failed show
+notification rolls back its unfinished display (including a false notification), without
+disposing user controls or resetting successful Load. Hide and close complete mandatory
+cleanup before propagating observer errors; multiple failures are aggregated. A canceled or
+failed initial modal show restores its owner and completes modal cleanup. Hiding an already
+established modal dialog retains the existing modal operation until it is closed.
+
+Overrides of `OnVisibleChanged(EventArgs)` must call base. This event describes managed window
+visibility, not HWND creation, first paint, activation, minimization or Control.Visible. It
+does not propagate a new event through the control tree or map to Android Activity/View events.
+Designer event discovery/generation uses the existing metadata mechanism and does not execute
+the designed form's lifecycle callbacks.
 
 ## Read the right state
 

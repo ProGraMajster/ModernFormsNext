@@ -16,6 +16,7 @@ internal static class FormLoadScenario
             using var observation = new ShowObservation(main, () => order.Add("NativeShow"));
             int loads = 0;
             Exception? failure = null;
+            main.VisibleChanged += (_, _) => order.Add("Visible:" + main.Visible);
             main.Load += (_, _) => {
                 loads++;
                 Require(!main.Visible && !IsWindowVisible(main.PlatformHandle.Handle), "Load ran after native visibility.");
@@ -30,10 +31,10 @@ internal static class FormLoadScenario
                 try
                 {
                     order.Add("Shown");
-                    Require(order.SequenceEqual(["Load", "NativeShow", "Shown"]), "Unexpected first-show order: " + string.Join(",", order));
+                    Require(order.SequenceEqual(["Load", "Visible:True", "NativeShow", "Shown"]), "Unexpected first-show order: " + string.Join(",", order));
                     Require(IsWindowVisible(main.PlatformHandle.Handle), "Shown has no visible HWND.");
                     Require(main.Size == new Size(400, 260), "Load size was not applied before showing.");
-                    Console.WriteLine("FORM_LOAD:Load>NativeShow>Shown");
+                    Console.WriteLine("FORM_LOAD:Load>Visible:True>NativeShow>Shown");
                 }
                 catch (Exception error) { failure = error; }
                 Dispatcher.UIThread.Post(() => {
@@ -41,9 +42,13 @@ internal static class FormLoadScenario
                     {
                         if (failure is not null) return;
                         main.Hide();
+                        Require(order[^1] == "Visible:False", "Hide did not publish committed false visibility.");
+                        Require(!IsWindowVisible(main.PlatformHandle.Handle), "Hide left the real HWND visible.");
                         main.Show();
                         Require(loads == 1, "Hide/Show repeated Load.");
+                        Require(order[^1] == "Visible:True", "A second display did not publish true visibility.");
                         Dialog(main);
+                        NativeClose(main);
                         CanceledDisplay(main);
                         FailedLoad(main);
                     }
@@ -68,6 +73,7 @@ internal static class FormLoadScenario
         using var dialog = new Form { StartPosition = FormStartPosition.CenterParent };
         List<string> order = [];
         using var observation = new ShowObservation(dialog, () => order.Add("NativeShow"));
+        dialog.VisibleChanged += (_, _) => order.Add("Visible:" + dialog.Visible);
         dialog.Load += (_, _) => {
             Require(!observation.Observed && !IsWindowVisible(dialog.PlatformHandle.Handle), "Modal Load ran after native show.");
             Require(IsWindowEnabled(owner.PlatformHandle.Handle), "The owner was disabled before Load completed.");
@@ -81,9 +87,32 @@ internal static class FormLoadScenario
         };
         var result = dialog.ShowDialog(owner);
         Require(result.IsCompletedSuccessfully, "Shown did not complete the modal task.");
-        Require(order.SequenceEqual(["Load", "NativeShow", "Shown"]), "Modal lifecycle diverged from modeless Load.");
+        Require(order.SequenceEqual(["Load", "Visible:True", "NativeShow", "Shown", "Visible:False"]), "Modal lifecycle diverged from modeless Load/visibility.");
         Require(IsWindowEnabled(owner.PlatformHandle.Handle), "The dialog left its owner disabled.");
         Console.WriteLine("FORM_LOAD:MODAL");
+    }
+
+    private static void NativeClose(Form owner)
+    {
+        using var dialog = new Form();
+        List<string> order = [];
+        dialog.VisibleChanged += (_, _) => order.Add("Visible:" + dialog.Visible);
+        dialog.Closed += (_, _) => {
+            Require(!dialog.Visible, "Closed observed stale visible state.");
+            order.Add("Closed");
+        };
+        var result = dialog.ShowDialog(owner);
+        nint handle = dialog.PlatformHandle.Handle;
+        uint thread = GetWindowThreadProcessId(handle, out uint process);
+        Require(process == Environment.ProcessId && thread == GetCurrentThreadId(), "Native close must target this process's UI-thread window.");
+        // Exercise the actual backend WM_CLOSE/WM_DESTROY path, not Form.Close or its hook.
+        _ = SendMessage(handle, 0x0010, 0, 0);
+        Require(result.IsCompletedSuccessfully, "Native close left the modal task pending.");
+        Require(order.SequenceEqual(["Visible:True", "Visible:False", "Closed"]), "Native close did not publish visibility before Closed.");
+        Require(!IsWindow(handle), "Native close retained its HWND.");
+        Require(IsWindowEnabled(owner.PlatformHandle.Handle), "Native close did not restore the modal owner.");
+        Require(!Application.OpenForms.Contains(dialog), "Native close left a stale OpenForms entry.");
+        Console.WriteLine("WINDOW_VISIBILITY:NATIVE_CLOSE");
     }
 
     private static void CanceledDisplay(Form owner)
@@ -177,4 +206,10 @@ internal static class FormLoadScenario
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(nint hwnd);
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint hwnd, out uint processId);
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 }
