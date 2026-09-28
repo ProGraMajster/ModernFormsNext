@@ -105,8 +105,8 @@ public sealed class VisualStudioDesignerHostForm : Form
 
     protected override void OnShown(EventArgs e)
     {
-        // ModernFormsNext has no separate WinForms Load event. This marker identifies the
-        // equivalent first-show load boundary immediately before the Shown callback is raised.
+        // Preserve the existing host first-show diagnostic marker. The Form.Load lifecycle
+        // now runs earlier, before native display; this marker describes host attachment below.
         DesignerHostDiagnosticLog.Write("FORM_LOAD");
 
         try

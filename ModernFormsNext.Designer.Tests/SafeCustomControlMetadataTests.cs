@@ -243,6 +243,77 @@ public sealed class SafeCustomControlMetadataTests
     private static byte[] Compile(string source, string name) => Compile([source], name);
 
     [Fact]
+    public void FormLoadDiscoveryHandlerGenerationAndDocumentRoundTripCompile()
+    {
+        using var project = new Fixture();
+        using var session = new DesignerSession(project);
+        var document = new DesignDocument {
+            Namespace = "Example", ClassName = "LoadForm", FormName = "LoadForm", RootKind = DesignRootKind.Form
+        };
+        session.LoadDocument(document);
+        var grid = new DesignerPropertyGridState(session);
+        var load = Assert.Single(grid.Events, item => item.Name == "Load");
+        Assert.Equal(typeof(EventHandler), load.HandlerType);
+        Assert.True(load.TryCommit("LoadForm_Load", out var error), error);
+        project.DocumentPath = IOPath.Combine(project.DirectoryPath, "LoadForm.mfdesign");
+        var sourcePath = IOPath.Combine(project.DirectoryPath, "LoadForm.cs");
+        File.WriteAllText(sourcePath,
+            "namespace Example; public partial class LoadForm : ModernFormsNext.Form { public LoadForm() { InitializeComponent(); } }");
+        var handler = new DesignerFileService(project).EnsureEventHandlerMethod(document, "LoadForm_Load", load.HandlerType);
+        Assert.True(handler.Succeeded, handler.Message);
+        var source = File.ReadAllText(sourcePath);
+        var method = CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes()
+            .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>()
+            .Single(item => item.Identifier.ValueText == "LoadForm_Load");
+        Assert.Equal(2, method.ParameterList.Parameters.Count);
+        Assert.Contains("EventArgs", method.ParameterList.Parameters[1].Type!.ToString());
+
+        var reopened = DesignDocumentSerializer.Default.Deserialize(DesignDocumentSerializer.Default.Serialize(document));
+        var generated = new CSharpDesignerGenerator().Generate(reopened);
+        Assert.True(generated.Succeeded, string.Join("\n", generated.Validation.Errors));
+        var parsed = new CSharpDesignerParser().Parse(generated.Code, new CSharpDesignerParseOptions { RootKind = DesignRootKind.Form });
+        Assert.True(parsed.Success, string.Join("\n", parsed.Diagnostics.Select(item => item.Message)));
+        Assert.Equal("LoadForm_Load", parsed.Document!.Events["Load"]);
+        Assert.NotEmpty(Compile([generated.Code, source], "FormLoadGenerated" + Guid.NewGuid().ToString("N")));
+    }
+
+    [Fact]
+    public void OpeningAndRenderingFormDocumentDoesNotLoadOrRunItsUserAssembly()
+    {
+        using var project = new Fixture();
+        project.BuildReference("""
+            using System;
+            public class UserForm : ModernFormsNext.Form
+            {
+                static UserForm() => throw new Exception("static user code must not run");
+                public UserForm() => throw new Exception("user constructor must not run");
+                protected override void OnLoad(EventArgs e) => throw new Exception("user Load must not run");
+            }
+            """);
+        List<string> loaded = [];
+        AssemblyLoadEventHandler observer = (_, args) => {
+            if (args.LoadedAssembly.GetName().Name == project.AssemblyName) loaded.Add(project.AssemblyName);
+        };
+        AppDomain.CurrentDomain.AssemblyLoad += observer;
+        try
+        {
+            using var session = new DesignerSession(project);
+            var document = new DesignDocument { ClassName = "UserForm", FormName = "UserForm", RootKind = DesignRootKind.Form };
+            document.Events["Load"] = "UserForm_Load";
+            session.LoadDocument(document);
+            var grid = new DesignerPropertyGridState(session);
+            Assert.Equal(typeof(EventHandler), Assert.Single(grid.Events, item => item.Name == "Load").HandlerType);
+            using var bitmap = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(640, 480));
+            using var canvas = new SkiaSharp.SKCanvas(bitmap);
+            new ModernFormsNext.Designer.Surface.DesignerSurfaceRenderer().Render(
+                new PaintEventArgs(bitmap.Info, canvas, scaling: 1), session, 640, 480);
+            Assert.Equal("UserForm_Load", session.Document.Events["Load"]);
+            Assert.Empty(loaded);
+        }
+        finally { AppDomain.CurrentDomain.AssemblyLoad -= observer; }
+    }
+
+    [Fact]
     public void PartialMetadataKeepsTheBaseDeclaringSourceFileForDocumentIdentity()
     {
         using var project = new Fixture();

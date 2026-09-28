@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--form-load", StringComparer.Ordinal))
+{
+    Environment.ExitCode = FormLoadScenario.Run();
+    return;
+}
+
 if (args.Contains("--combo-disposal", StringComparer.Ordinal))
 {
     Environment.ExitCode = ComboDisposalScenario.Run();

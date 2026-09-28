@@ -32,6 +32,7 @@ namespace ModernFormsNext
         private Cursor? current_cursor;
         internal bool shown;
         private bool hiding;
+        private bool preparingShow;
         private long visibilityVersion;
         private long activationVersion;
 
@@ -153,9 +154,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Closes and destroys the window.
         /// </summary>
-        public virtual void Close () 
+        public virtual void Close () => TryCloseWindow();
+
+        // Report acceptance separately from the backend's Closed callback. In particular,
+        // cancellation during Load cannot be inferred from membership in OpenForms.
+        internal bool TryCloseWindow()
         {
-            if (backendClosed) return;
+            if (backendClosed) return true;
             // If we just Dispose the window, WM_CLOSE will never get called so OnClosing will not get called
             if (this is Form f) {
                 var args = new CancelEventArgs ();
@@ -163,14 +168,17 @@ namespace ModernFormsNext
                 f.OnClosing (args);
 
                 if (args.Cancel)
-                    return;
+                    return false;
 
                 Application.OpenForms.Remove (f);
             }
             
+            // An accepted close also cancels preparation if Closed is delivered later.
+            visibilityVersion++;
             adapter.CancelOwnedControlAnimationsForSubtree ();
             ReleaseInputBindings();
             window.Dispose ();
+            return true;
         }
 
         /// <summary>
@@ -675,8 +683,7 @@ namespace ModernFormsNext
         /// </summary>
         public void Show ()
         {
-            ObjectDisposedException.ThrowIf(backendClosed, this);
-            long version = ++visibilityVersion;
+            if (!TryPrepareShow(null, out long version)) return;
             Visible = true;
             OnVisibleChanged (EventArgs.Empty);
             if (backendClosed || !Visible || version != visibilityVersion) return;
@@ -686,7 +693,8 @@ namespace ModernFormsNext
             if (this is PopupWindow) SetTextInputActive(true);
             if (backendClosed || !Visible || version != visibilityVersion) return;
 
-            SetWindowStartupLocation ();
+            // Form startup positioning is prepared after Load, before committing visibility.
+            if (this is not Form) SetWindowStartupLocation ();
             if (backendClosed || !Visible || version != visibilityVersion) return;
             window.Show (true, false);
 
@@ -702,17 +710,20 @@ namespace ModernFormsNext
             }
         }
 
-        internal void ShowDialog (IWindowImpl parent)
+        internal bool ShowDialog (IWindowImpl parent, Action acquireOwnerInput)
         {
-            ObjectDisposedException.ThrowIf(backendClosed, this);
+            if (!TryPrepareShow(parent, out long version)) return false;
+            acquireOwnerInput();
+            if (!IsCurrentShowRequest(version)) return false;
             Visible = true;
             OnVisibleChanged (EventArgs.Empty);
+            if (!IsCurrentShowRequest(version) || !Visible) return false;
 
-            SetWindowStartupLocation (parent);
             parent.SetEnabled (false);
+            if (!IsCurrentShowRequest(version) || !Visible) return false;
             window.Show (true, true);
 
-            if (backendClosed) return;
+            if (!IsCurrentShowRequest(version) || !Visible) return true;
 
             if (this is Form f)
                 Application.OpenForms.Add (f);
@@ -722,7 +733,33 @@ namespace ModernFormsNext
                 shown = true;
                 OnShown (EventArgs.Empty);
             }
+            return true;
         }
+
+        // Both modeless and modal showing use this boundary. Suppress nested Show before
+        // advancing the request version: a Load handler's Show must not cancel its outer Show.
+        private bool TryPrepareShow(IWindowBaseImpl? owner, out long version)
+        {
+            ObjectDisposedException.ThrowIf(backendClosed, this);
+            version = visibilityVersion;
+            if (preparingShow) return false;
+            version = ++visibilityVersion;
+            preparingShow = true;
+            try {
+                PrepareToShow(version);
+                if (!IsCurrentShowRequest(version)) return false;
+                if (this is Form) SetWindowStartupLocation(owner);
+                return IsCurrentShowRequest(version);
+            }
+            finally { preparingShow = false; }
+        }
+
+        internal bool IsPreparingShow => preparingShow;
+        internal bool IsBackendClosed => backendClosed;
+        internal bool IsCurrentShowRequest(long version) => !backendClosed && version == visibilityVersion;
+
+        // Kept internal: Form owns Load; popup and other window lifecycles are unchanged.
+        internal virtual void PrepareToShow(long version) { }
 
         /// <summary>
         /// Raised when the window is shown.
