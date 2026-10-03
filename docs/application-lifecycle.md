@@ -248,6 +248,41 @@ typed events and generates handlers without executing user code. AndroidSkiaHost
 density is not bridged to these notifications here; there is no Android WindowBase parity or
 WinForms child-HWND BeforeParent/AfterParent phase.
 
+## Request activation of a visible form
+
+`Form.Activate()` asks the existing window backend to activate a live, visible form on the UI
+thread. It does not set `IsActive` or publish `Activated` itself. Observe `IsActive`, `Activated`
+and `Deactivated` for the platform-confirmed result:
+
+```csharp
+form.Activated += (_, _) => statusLabel.Text = "Window is active";
+form.Show();
+// Later, when the application needs this already visible form:
+form.Activate();
+```
+
+An already active form is a no-op, including a call from its own `Activated` handler. A hidden
+form (also before first Show) throws `InvalidOperationException`; show it explicitly first.
+A closed or disposed form throws `ObjectDisposedException`, matching the existing terminal
+lifetime checks. The method never recreates a window or changes membership in `OpenForms`.
+It does not restore a minimized form, set WindowState, enable a modal-disabled owner, change
+DialogResult or end a modal operation. Backend errors propagate; a request alone does not commit
+activity. Existing activation callback guards retire observers after reentrant Hide or Close.
+
+Windows uses the existing `IWindowBaseImpl.Activate()` implementation, which calls
+[`SetForegroundWindow`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow).
+Windows may refuse foreground activation, even when usual eligibility conditions are met;
+there is no guarantee of synchronous activation or foreground focus. No foreground-lock bypass,
+new Win32 activation path, visibility change or forced restore is added. Popups keep their
+existing lifecycle; this public method belongs to Form. Android desktop hosting is unchanged.
+
+Headless regressions separate the request from its confirmation, including rejection, exceptions,
+reentrancy and modal constraints. Headless does not arbitrate global focus between windows.
+The native process test requests activation on real HWNDs and compares confirmed events with
+native activity. Foreground-dependent assertions run only when the environment accepts the
+request and report their observed/unavailable status separately; hidden/closed and modal safety
+checks remain deterministic. This method needs no Designer Events entry or serialization.
+
 ## Read the right state
 
 | Value | Meaning |

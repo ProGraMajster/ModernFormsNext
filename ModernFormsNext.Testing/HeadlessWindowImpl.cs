@@ -199,7 +199,9 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
     public void Activate()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        Activated?.Invoke();
+        // A request cannot activate a hidden window or a modal-disabled owner. Other windows'
+        // activation/deactivation still comes from the host's explicit backend confirmations.
+        if (IsShown && enabled) Activated?.Invoke();
     }
 
     public void SetTopmost(bool value)
