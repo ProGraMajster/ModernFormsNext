@@ -94,6 +94,34 @@ namespace ModernFormsNext
             set => TitleBar.AllowMinimize = value;
         }
 
+        /// <summary>Requests platform activation of this live, visible form.</summary>
+        /// <remarks>
+        /// Call on the UI thread. The platform may refuse foreground activation or confirm it
+        /// asynchronously. Observe <see cref="WindowBase.IsActive"/>, <see cref="WindowBase.Activated"/>
+        /// and <see cref="WindowBase.Deactivated"/> for the actual result; this method does not
+        /// set activity or raise those events itself. An already active form needs no request.
+        /// This does not show hidden forms, recreate closed windows, restore a minimized form,
+        /// or change modal ownership/input restrictions. Native platform activation policy applies.
+        /// Backend exceptions propagate without changing managed activity on behalf of the request.
+        /// </remarks>
+        /// <exception cref="ObjectDisposedException">The form has been closed or disposed.</exception>
+        /// <exception cref="InvalidOperationException">The form is hidden, including before its first Show.</exception>
+        /// <example><code>
+        /// form.Show();
+        /// form.Activated += (_, _) => Console.WriteLine("Platform confirmed activation.");
+        /// form.Activate();
+        /// </code></example>
+        public void Activate ()
+        {
+            ObjectDisposedException.ThrowIf(IsBackendClosed || InputBindingsClosed, this);
+            if (!Visible)
+                throw new InvalidOperationException("A hidden form cannot be activated. Show it explicitly first.");
+            // The existing backend callback commits IsActive before notifying observers, so
+            // Activate from an Activated handler is a no-op rather than a recursive request.
+            if (IsActive) return;
+            window.Activate ();
+        }
+
         /// <summary>
         /// Begins dragging the window to move it.
         /// </summary>

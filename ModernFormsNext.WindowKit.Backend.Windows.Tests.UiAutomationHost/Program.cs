@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--form-activate", StringComparer.Ordinal))
+{
+    Environment.ExitCode = FormActivateScenario.Run();
+    return;
+}
+
 if (args.Contains("--dpi-changed", StringComparer.Ordinal))
 {
     Environment.ExitCode = DpiChangedScenario.Run();
