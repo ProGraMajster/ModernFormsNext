@@ -203,6 +203,51 @@ the event and generates its typed handler through normal metadata reflection. An
 orientation and SkiaControlSurface lifecycle are outside this Form contract; no Android Form-state
 support, public DPI event, activation API or fullscreen state is added here.
 
+## Observe DPI and rendering scale
+
+`Control.DpiChanged` and `WindowBase.DpiChanged` (inherited by Form) expose the existing
+backend `ScalingChanged` lifecycle. Both use immutable `DpiChangedEventArgs`: `OldScale` and
+`NewScale` retain the backend's double precision; `OldDpi` and `NewDpi` multiply those values
+by 96 and truncate exactly like `Control.DeviceDpi`. For example, 1.25 means 120 DPI and 2.25
+means 216 DPI. A fractional scale change can notify even when its integer DPI stays the same.
+
+```csharp
+form.DpiChanged += (_, e) =>
+    statusLabel.Text = $"Scale: {e.OldScale:P0} -> {e.NewScale:P0}";
+customControl.DpiChanged += (_, e) =>
+    RebuildDeviceCache(e.NewScale); // customControl.DeviceDpi already equals e.NewDpi
+```
+
+The backend remains the source of truth. Identical confirmations, first Show without a scale
+change, and moves at unchanged DPI raise no DPI event. This is not monitor, activation, visibility
+or window-state notification. Windows commits its scale, applies the suggested physical rectangle
+(which can trigger geometry callbacks), then reports ScalingChanged. No second scaling operation
+or cross-platform ordering of geometry versus DPI is introduced. Logical bounds and font sizes
+remain logical; Location remains in physical screen pixels.
+
+Control propagation keeps the existing parent-first traversal, in collection order (explicit
+children followed by implicit chrome). For each current control it releases the back buffer and
+preferred-size cache, calls the existing protected `OnDpiChanged(EventArgs)` hook, then visits its
+children. Overrides keep their signature and must discard their own DPI caches before calling
+base. The base hook invalidates rendering, requests layout and raises the typed public event.
+Children have not necessarily completed their own hooks when the parent event runs. Explicitly
+suspended layout remains deferred, just as before. The window event follows the subtree update
+and window layout request; the internal ControlAdapter emits no extra public DPI event.
+
+Child snapshots and parent-generation checks skip detached, disposed or obsolete routes, including
+detach-and-reattach during a parent callback. Moving an already notified child into a later subtree
+does not notify it twice. A newer DPI transition supersedes older traversal/observers; resize from
+a handler retains the new geometry. Hide/Close retires subsequent window observers. Errors do not
+roll back DPI: still-current descendants complete their cache hooks and layout before failures
+propagate using the existing exception policy. Derived hooks remain responsible for their own caches.
+
+Headless tests use the existing render-scale capability. Windows tests inject WM_DPICHANGED into
+real HWNDs with custom and system decorations; this verifies the native message path, not physical
+multi-monitor behavior. Manual multi-monitor verification is separate. Designer discovers both
+typed events and generates handlers without executing user code. AndroidSkiaHostView/SkiaControlSurface
+density is not bridged to these notifications here; there is no Android WindowBase parity or
+WinForms child-HWND BeforeParent/AfterParent phase.
+
 ## Read the right state
 
 | Value | Meaning |

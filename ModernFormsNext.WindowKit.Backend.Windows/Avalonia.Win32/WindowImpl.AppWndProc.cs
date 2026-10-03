@@ -186,7 +186,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     {
                         var dpi = ToInt32(wParam) & 0xffff;
                         var newDisplayRect = Marshal.PtrToStructure<RECT>(lParam);
-                        _scaling = dpi / 96.0;
+                        double scale = dpi / 96.0;
+                        _scaling = scale;
 
                         using (SetResizeReason(WindowResizeReason.DpiChange))
                         {
@@ -202,9 +203,20 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
                         // Notify after the suggested physical rectangle is applied, so logical
                         // layout observes the new client size and DPI together, even without WM_SIZE.
-                        ScalingChanged?.Invoke(_scaling);
-
-                        RefreshTextInputGeometry();
+                        // Geometry observers can close the HWND or start a newer DPI change.
+                        if (_hwnd != hWnd || _scaling != scale) return IntPtr.Zero;
+                        Exception? dpiFailure = null;
+                        try { ScalingChanged?.Invoke(scale); }
+                        catch (Exception error) { dpiFailure = error; }
+                        try {
+                            // A public DPI observer can also close/reenter. Never touch a retired
+                            // native text host, but finish current input geometry after an error.
+                            if (_hwnd == hWnd && _scaling == scale) RefreshTextInputGeometry();
+                        }
+                        catch (Exception error) {
+                            dpiFailure = dpiFailure is null ? error : new AggregateException("DPI notification and text input geometry failed.", dpiFailure, error);
+                        }
+                        if (dpiFailure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(dpiFailure).Throw();
 
                         return IntPtr.Zero;
                     }
