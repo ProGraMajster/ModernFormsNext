@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--dpi-changed", StringComparer.Ordinal))
+{
+    Environment.ExitCode = DpiChangedScenario.Run();
+    return;
+}
+
 if (args.Contains("--window-state", StringComparer.Ordinal))
 {
     Environment.ExitCode = WindowStateScenario.Run();

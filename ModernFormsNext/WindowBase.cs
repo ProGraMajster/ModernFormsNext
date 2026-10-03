@@ -46,6 +46,7 @@ namespace ModernFormsNext
             adapter = new ControlAdapter (this);
             geometrySize = Size;
             geometryLocation = Location;
+            dpiScaling = Scaling;
             InitializeTextInput();
             window.SetInputRoot(adapter);
 
@@ -53,12 +54,7 @@ namespace ModernFormsNext
             window.Paint = DoPaint;
             window.Resized = (_, _) => UpdateWindowGeometry();
             window.PositionChanged = _ => UpdateWindowGeometry();
-            window.ScalingChanged = _ => {
-                if (backendClosed) return;
-                using var batch = Application.BeginVisualInvalidationBatch();
-                UpdateWindowGeometry(adapter.NotifyDpiChangedForSubtree);
-                if (!backendClosed) Invalidate();
-            };
+            window.ScalingChanged = OnBackendScalingChanged;
             window.Closed = OnBackendClosed;
             window.Activated = () => {
                 if (backendClosed) return;

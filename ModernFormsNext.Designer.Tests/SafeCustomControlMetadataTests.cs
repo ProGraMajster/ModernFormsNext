@@ -250,6 +250,7 @@ public sealed class SafeCustomControlMetadataTests
     [InlineData("LocationChanged")]
     [InlineData("ClientSizeChanged")]
     [InlineData("WindowStateChanged")]
+    [InlineData("DpiChanged")]
     public void FormLifecycleEventDiscoveryHandlerGenerationAndDocumentRoundTripCompile(string eventName)
     {
         using var project = new Fixture();
@@ -260,7 +261,11 @@ public sealed class SafeCustomControlMetadataTests
         session.LoadDocument(document);
         var grid = new DesignerPropertyGridState(session);
         var load = Assert.Single(grid.Events, item => item.Name == eventName);
-        Assert.Equal(eventName == "WindowStateChanged" ? typeof(EventHandler<WindowStateChangedEventArgs>) : typeof(EventHandler), load.HandlerType);
+        Assert.Equal(eventName switch {
+            "DpiChanged" => typeof(EventHandler<DpiChangedEventArgs>),
+            "WindowStateChanged" => typeof(EventHandler<WindowStateChangedEventArgs>),
+            _ => typeof(EventHandler)
+        }, load.HandlerType);
         var handlerName = "LoadForm_" + eventName;
         Assert.True(load.TryCommit(handlerName, out var error), error);
         project.DocumentPath = IOPath.Combine(project.DirectoryPath, "LoadForm.mfdesign");
@@ -277,6 +282,8 @@ public sealed class SafeCustomControlMetadataTests
         Assert.Contains("EventArgs", method.ParameterList.Parameters[1].Type!.ToString());
         if (eventName == "WindowStateChanged")
             Assert.EndsWith("WindowStateChangedEventArgs", method.ParameterList.Parameters[1].Type!.ToString());
+        if (eventName == "DpiChanged")
+            Assert.EndsWith("DpiChangedEventArgs", method.ParameterList.Parameters[1].Type!.ToString());
 
         var reopened = DesignDocumentSerializer.Default.Deserialize(DesignDocumentSerializer.Default.Serialize(document));
         var generated = new CSharpDesignerGenerator().Generate(reopened);
@@ -295,6 +302,7 @@ public sealed class SafeCustomControlMetadataTests
     [InlineData("LocationChanged")]
     [InlineData("ClientSizeChanged")]
     [InlineData("WindowStateChanged")]
+    [InlineData("DpiChanged")]
     public void OpeningAndRenderingFormDocumentDoesNotLoadOrRunItsUserAssembly(string eventName)
     {
         using var project = new Fixture();
@@ -311,6 +319,7 @@ public sealed class SafeCustomControlMetadataTests
                 protected override void OnLocationChanged(EventArgs e) => throw new Exception("user LocationChanged must not run");
                 protected override void OnClientSizeChanged(EventArgs e) => throw new Exception("user ClientSizeChanged must not run");
                 protected override void OnWindowStateChanged(ModernFormsNext.WindowStateChangedEventArgs e) => throw new Exception("user WindowStateChanged must not run");
+                protected override void OnDpiChanged(ModernFormsNext.DpiChangedEventArgs e) => throw new Exception("user DpiChanged must not run");
             }
             """);
         List<string> loaded = [];
@@ -325,13 +334,74 @@ public sealed class SafeCustomControlMetadataTests
             document.Events[eventName] = "UserForm_" + eventName;
             session.LoadDocument(document);
             var grid = new DesignerPropertyGridState(session);
-            Assert.Equal(eventName == "WindowStateChanged" ? typeof(EventHandler<WindowStateChangedEventArgs>) : typeof(EventHandler),
-                Assert.Single(grid.Events, item => item.Name == eventName).HandlerType);
+            Assert.Equal(eventName switch {
+                "DpiChanged" => typeof(EventHandler<DpiChangedEventArgs>),
+                "WindowStateChanged" => typeof(EventHandler<WindowStateChangedEventArgs>),
+                _ => typeof(EventHandler)
+            }, Assert.Single(grid.Events, item => item.Name == eventName).HandlerType);
             using var bitmap = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(640, 480));
             using var canvas = new SkiaSharp.SKCanvas(bitmap);
             new ModernFormsNext.Designer.Surface.DesignerSurfaceRenderer().Render(
                 new PaintEventArgs(bitmap.Info, canvas, scaling: 1), session, 640, 480);
             Assert.Equal("UserForm_" + eventName, session.Document.Events[eventName]);
+            Assert.Empty(loaded);
+        }
+        finally { AppDomain.CurrentDomain.AssemblyLoad -= observer; }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ControlDpiEventDiscoveryAndTypedHandlerRoundTripNeverExecuteUserCode(bool binary)
+    {
+        using var project = new Fixture();
+        const string controlSource = """
+            namespace Widgets;
+            public class DpiControl : ModernFormsNext.Control
+            {
+                static DpiControl() => throw new System.Exception("user static initializer");
+                public DpiControl() => throw new System.Exception("user constructor");
+                protected override void OnDpiChanged(System.EventArgs e) => throw new System.Exception("user DPI hook");
+            }
+            """;
+        if (binary) project.BuildReference(controlSource);
+        else File.WriteAllText(IOPath.Combine(project.DirectoryPath, "DpiControl.cs"), controlSource);
+        List<string> loaded = [];
+        AssemblyLoadEventHandler observer = (_, args) => {
+            if (args.LoadedAssembly.GetName().Name == project.AssemblyName) loaded.Add(project.AssemblyName);
+        };
+        AppDomain.CurrentDomain.AssemblyLoad += observer;
+        try {
+            using var session = new DesignerSession(project);
+            var document = new DesignDocument { Namespace = "Example", ClassName = "DpiContainer", FormName = "DpiContainer", RootKind = DesignRootKind.UserControl };
+            session.LoadDocument(document);
+            var node = session.AddControl("Widgets.DpiControl");
+            node.Name = "dpiControl";
+            session.SelectNode(node);
+            var entry = Assert.Single(new DesignerPropertyGridState(session).Events, e => e.Name == "DpiChanged");
+            // Inherited framework events use their trusted runtime delegate type. User-defined
+            // events instead carry a metadata-only SafeParameters signature.
+            Assert.Equal(typeof(EventHandler<DpiChangedEventArgs>), entry.HandlerType);
+            Assert.True(entry.TryCommit("OnControlDpiChanged", out var error), error);
+            project.DocumentPath = IOPath.Combine(project.DirectoryPath, "DpiContainer.mfdesign");
+            var path = IOPath.Combine(project.DirectoryPath, "DpiContainer.cs");
+            File.WriteAllText(path, "namespace Example; public partial class DpiContainer : ModernFormsNext.UserControl { public DpiContainer() { InitializeComponent(); } }");
+            var handler = new DesignerFileService(project).EnsureEventHandlerMethod(document, "OnControlDpiChanged", entry.HandlerType);
+            Assert.True(handler.Succeeded, handler.Message);
+            var source = File.ReadAllText(path);
+            var method = CSharpSyntaxTree.ParseText(source).GetRoot().DescendantNodes()
+                .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax>().Single(m => m.Identifier.ValueText == "OnControlDpiChanged");
+            Assert.EndsWith("DpiChangedEventArgs", method.ParameterList.Parameters[1].Type!.ToString());
+            var reopened = DesignDocumentSerializer.Default.Deserialize(DesignDocumentSerializer.Default.Serialize(document));
+            var generated = new CSharpDesignerGenerator().Generate(reopened);
+            Assert.True(generated.Succeeded, string.Join("\n", generated.Validation.Errors));
+            var parsed = new CSharpDesignerParser().Parse(generated.Code, new CSharpDesignerParseOptions { RootKind = DesignRootKind.UserControl });
+            Assert.True(parsed.Success);
+            Assert.Equal("OnControlDpiChanged", Assert.Single(parsed.Document!.Controls).Events["DpiChanged"]);
+            Assert.NotEmpty(Compile([controlSource, generated.Code, source], "DpiGenerated" + Guid.NewGuid().ToString("N")));
+            using var bitmap = new SkiaSharp.SKBitmap(640, 480);
+            using var canvas = new SkiaSharp.SKCanvas(bitmap);
+            new ModernFormsNext.Designer.Surface.DesignerSurfaceRenderer().Render(new PaintEventArgs(bitmap.Info, canvas, scaling: 1), session, 640, 480);
             Assert.Empty(loaded);
         }
         finally { AppDomain.CurrentDomain.AssemblyLoad -= observer; }
