@@ -249,6 +249,7 @@ public sealed class SafeCustomControlMetadataTests
     [InlineData("SizeChanged")]
     [InlineData("LocationChanged")]
     [InlineData("ClientSizeChanged")]
+    [InlineData("WindowStateChanged")]
     public void FormLifecycleEventDiscoveryHandlerGenerationAndDocumentRoundTripCompile(string eventName)
     {
         using var project = new Fixture();
@@ -259,7 +260,7 @@ public sealed class SafeCustomControlMetadataTests
         session.LoadDocument(document);
         var grid = new DesignerPropertyGridState(session);
         var load = Assert.Single(grid.Events, item => item.Name == eventName);
-        Assert.Equal(typeof(EventHandler), load.HandlerType);
+        Assert.Equal(eventName == "WindowStateChanged" ? typeof(EventHandler<WindowStateChangedEventArgs>) : typeof(EventHandler), load.HandlerType);
         var handlerName = "LoadForm_" + eventName;
         Assert.True(load.TryCommit(handlerName, out var error), error);
         project.DocumentPath = IOPath.Combine(project.DirectoryPath, "LoadForm.mfdesign");
@@ -274,6 +275,8 @@ public sealed class SafeCustomControlMetadataTests
             .Single(item => item.Identifier.ValueText == handlerName);
         Assert.Equal(2, method.ParameterList.Parameters.Count);
         Assert.Contains("EventArgs", method.ParameterList.Parameters[1].Type!.ToString());
+        if (eventName == "WindowStateChanged")
+            Assert.EndsWith("WindowStateChangedEventArgs", method.ParameterList.Parameters[1].Type!.ToString());
 
         var reopened = DesignDocumentSerializer.Default.Deserialize(DesignDocumentSerializer.Default.Serialize(document));
         var generated = new CSharpDesignerGenerator().Generate(reopened);
@@ -291,6 +294,7 @@ public sealed class SafeCustomControlMetadataTests
     [InlineData("SizeChanged")]
     [InlineData("LocationChanged")]
     [InlineData("ClientSizeChanged")]
+    [InlineData("WindowStateChanged")]
     public void OpeningAndRenderingFormDocumentDoesNotLoadOrRunItsUserAssembly(string eventName)
     {
         using var project = new Fixture();
@@ -306,6 +310,7 @@ public sealed class SafeCustomControlMetadataTests
                 protected override void OnSizeChanged(EventArgs e) => throw new Exception("user SizeChanged must not run");
                 protected override void OnLocationChanged(EventArgs e) => throw new Exception("user LocationChanged must not run");
                 protected override void OnClientSizeChanged(EventArgs e) => throw new Exception("user ClientSizeChanged must not run");
+                protected override void OnWindowStateChanged(ModernFormsNext.WindowStateChangedEventArgs e) => throw new Exception("user WindowStateChanged must not run");
             }
             """);
         List<string> loaded = [];
@@ -320,7 +325,8 @@ public sealed class SafeCustomControlMetadataTests
             document.Events[eventName] = "UserForm_" + eventName;
             session.LoadDocument(document);
             var grid = new DesignerPropertyGridState(session);
-            Assert.Equal(typeof(EventHandler), Assert.Single(grid.Events, item => item.Name == eventName).HandlerType);
+            Assert.Equal(eventName == "WindowStateChanged" ? typeof(EventHandler<WindowStateChangedEventArgs>) : typeof(EventHandler),
+                Assert.Single(grid.Events, item => item.Name == eventName).HandlerType);
             using var bitmap = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(640, 480));
             using var canvas = new SkiaSharp.SKCanvas(bitmap);
             new ModernFormsNext.Designer.Surface.DesignerSurfaceRenderer().Render(

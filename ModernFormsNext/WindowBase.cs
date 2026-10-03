@@ -752,7 +752,7 @@ namespace ModernFormsNext
             // Form startup positioning is prepared after Load, before committing visibility.
             if (this is not Form) SetWindowStartupLocation ();
             if (backendClosed || !Visible || version != visibilityVersion) return;
-            window.Show (true, false);
+            ShowBackendWindow(false, version);
 
             if (backendClosed || !Visible || version != visibilityVersion) return;
 
@@ -775,9 +775,11 @@ namespace ModernFormsNext
 
             parent.SetEnabled (false);
             if (!IsCurrentShowRequest(version) || !Visible) return false;
-            window.Show (true, true);
+            ShowBackendWindow(true, version);
 
-            if (!IsCurrentShowRequest(version) || !Visible) return true;
+            // A confirmed state observer can cancel the native show with Hide/Close.
+            // Tell Form to retire this modal attempt and restore its owner's input.
+            if (!IsCurrentShowRequest(version) || !Visible) return false;
 
             if (this is Form f)
                 Application.OpenForms.Add (f);
@@ -812,7 +814,22 @@ namespace ModernFormsNext
 
         internal bool IsPreparingShow => preparingShow || (notifyingVisibility && Visible);
         internal bool IsBackendClosed => backendClosed;
+        internal long VisibilityOperationVersion => visibilityVersion;
         internal bool IsCurrentShowRequest(long version) => !backendClosed && version == visibilityVersion;
+
+        private void ShowBackendWindow(bool dialog, long version)
+        {
+            try { window.Show(true, dialog); }
+            catch (Exception failure) {
+                // State observers can fail synchronously during native show confirmation.
+                // Retire only this unfinished display; never hide a newer reentrant Show.
+                try { if (IsCurrentShowRequest(version) && Visible) Hide(); }
+                catch (Exception cleanup) {
+                    throw new AggregateException("Native show and visibility cleanup failed.", failure, cleanup);
+                }
+                throw;
+            }
+        }
 
         // Kept internal: Form owns Load; popup and other window lifecycles are unchanged.
         internal virtual void PrepareToShow(long version) { }

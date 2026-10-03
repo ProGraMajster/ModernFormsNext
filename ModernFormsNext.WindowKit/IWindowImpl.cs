@@ -19,6 +19,11 @@ namespace ModernFormsNext.WindowKit.Platform
         /// <summary>
         /// Gets or sets a method called when the minimized/maximized state of the window changes.
         /// </summary>
+        /// <remarks>
+        /// Report the confirmed state after applying it. Hidden/pre-show configuration alone
+        /// does not notify. Show may confirm an unchanged state when no native state message
+        /// occurs; consumers must deduplicate identical confirmations and reject stale payloads.
+        /// </remarks>
         Action<WindowState>? WindowStateChanged { get; set; }
 
         /// <summary>

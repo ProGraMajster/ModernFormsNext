@@ -155,6 +155,54 @@ Windows (including real HWND move/resize) and headless TestHost are covered. The
 do not describe Android Activity, orientation or SkiaControlSurface lifecycle. Designer metadata,
 handler generation and document round-trip discover them without running user lifecycle code.
 
+## Observe normal, minimized and maximized state
+
+`Form.WindowStateChanged` uses `EventHandler<WindowStateChangedEventArgs>` and a protected
+`OnWindowStateChanged` hook. Overrides must call base to notify subscribers. The immutable
+event data contains `OldState` and `NewState`, both `FormWindowState` values:
+
+```csharp
+form.WindowStateChanged += (_, e) =>
+{
+    // The backend has confirmed the transition; form.WindowState equals e.NewState.
+    statusLabel.Text = $"Window state: {e.OldState} -> {e.NewState}";
+};
+```
+
+The backend remains the state source. Both programmatic requests and native/system actions
+use its existing state callback. No-op assignments and repeated confirmations raise no duplicate.
+OldState is the previous confirmed state reported by this form (initially the newly created
+backend's state), not an intermediate configuration that was never applied to a displayed window.
+
+While hidden, including before the first Show, the existing WindowState getter exposes the
+requested state for the next display. Setting it raises no state event yet. The backend confirms
+the actual state during Show; a confirmation may also be needed when re-showing does not generate
+a native state message. For example, configuring Maximized before the first Show produces one
+Normal-to-Maximized notification when applied. Changing the configuration back to Normal before
+Show produces none. Native maximize/minimize state is retained across Hide/Show until another
+state is requested. Show confirmations of an already reported state are deduplicated.
+
+Notifications run synchronously on the UI thread after state commit. Windows WM_SIZE normally
+delivers applicable resize/layout events before WindowStateChanged, but minimization can confirm
+state without a regular resize callback. There is no cross-backend atomic state/geometry/DPI
+transaction or universal event order. WindowStateChanged does not mean activation or visibility
+changed. Size/ClientSize remain logical pixels and Location remains physical screen pixels.
+
+Load, VisibleChanged and one-shot Shown retain their contracts: a preconfigured state can be
+confirmed during native Show, after Load and the true visibility notification, before Shown.
+Reentrant state changes, Hide or Close stop remaining obsolete observers. Hide/Close during the
+initial native Show cancels that display and retires its modal attempt. Hiding an already established
+modal session retains its existing ownership contract until it is closed; this event does not
+redesign Hide versus Close. Observer failures preserve the committed state. Other still-current
+observers run before errors propagate, with multiple errors aggregated. A synchronous failed show
+retires its display and modal ownership; the existing native callback exception policy is unchanged.
+
+The headless host confirms states without inventing geometry changes. Windows tests use real HWND
+system commands for minimize/maximize/restore with custom and system decorations. Designer discovers
+the event and generates its typed handler through normal metadata reflection. Android Activity,
+orientation and SkiaControlSurface lifecycle are outside this Form contract; no Android Form-state
+support, public DPI event, activation API or fullscreen state is added here.
+
 ## Read the right state
 
 | Value | Meaning |

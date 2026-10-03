@@ -702,14 +702,6 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     {
                         var size = (SizeCommand)wParam;
 
-                        if (Resized != null &&
-                            (size == SizeCommand.Restored ||
-                             size == SizeCommand.Maximized))
-                        {
-                            var clientSize = new Size(ToInt32(lParam) & 0xffff, ToInt32(lParam) >> 16);
-                            Resized(clientSize / RenderScaling, _resizeReason);
-                        }
-
                         var windowState = size switch
                         {
                             SizeCommand.Maximized => WindowState.Maximized,
@@ -718,19 +710,40 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                             _ => WindowState.Normal,
                         };
 
-                        if (windowState != _lastWindowState)
+                        bool confirmed = IsWindowVisible(hWnd);
+                        bool changed = confirmed && windowState != _lastWindowState;
+                        if (confirmed)
                         {
+                            // Commit the native result before geometry/user callbacks. In
+                            // particular, native changes must survive Hide followed by Show.
+                            if (changed) _windowStateOperationVersion++;
                             _lastWindowState = windowState;
-
-                            WindowStateChanged?.Invoke(windowState);
-
-                            if (_isClientAreaExtended)
-                            {
-                                UpdateExtendMargins();
-
-                                ExtendClientAreaToDecorationsChanged?.Invoke(true);
-                            }
+                            _showWindowState = windowState;
                         }
+                        long version = _windowStateOperationVersion;
+                        bool Current() => _hwnd != IntPtr.Zero && version == _windowStateOperationVersion &&
+                            IsWindowVisible(_hwnd) && WindowState == windowState;
+                        List<Exception>? failures = null;
+                        void Notify(Action action)
+                        {
+                            try { action(); }
+                            catch (Exception error) { (failures ??= []).Add(error); }
+                        }
+                        if (Resized != null && (size == SizeCommand.Restored || size == SizeCommand.Maximized)) {
+                            var clientSize = new Size(ToInt32(lParam) & 0xffff, ToInt32(lParam) >> 16);
+                            Notify(() => Resized(clientSize / RenderScaling, _resizeReason));
+                        }
+                        if (changed && Current()) {
+                            // Finish backend chrome work before state observers can hide or
+                            // destroy the HWND. Geometry failures cannot skip state completion.
+                            if (_isClientAreaExtended) Notify(() => {
+                                UpdateExtendMargins();
+                                ExtendClientAreaToDecorationsChanged?.Invoke(true);
+                            });
+                            if (Current()) Notify(() => WindowStateChanged?.Invoke(windowState));
+                        }
+                        if (failures?.Count == 1) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+                        if (failures?.Count > 1) throw new AggregateException("Native window geometry/state callbacks failed.", failures);
 
                         return IntPtr.Zero;
                     }

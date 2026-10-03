@@ -13,7 +13,7 @@ namespace ModernFormsNext
     /// <summary>
     /// Represents a top-level window to display to the user.
     /// </summary>
-    public class Form : WindowBase, ICloseable
+    public partial class Form : WindowBase, ICloseable
     {
         // If the border is only 1 pixel it's too hard to resize, so we may steal some pixels from the client area
         private const int MINIMUM_RESIZE_PIXELS = 4;
@@ -63,6 +63,8 @@ namespace ModernFormsNext
             };
 
             ClientSize = DefaultSize;
+            notifiedWindowState = WindowState;
+            Window.WindowStateChanged = OnBackendWindowStateChanged;
         }
 
         internal bool IsAccessibilityDialog => dialog_parent is not null;
@@ -688,6 +690,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the state of the form (normal/minimized/maximized).
         /// </summary>
+        /// <remarks>
+        /// Call on the UI thread. While hidden this property retains the state requested for
+        /// the next Show; configuration alone does not raise WindowStateChanged. When visible,
+        /// the getter reflects the actual backend state, and changes may also update geometry.
+        /// </remarks>
         public FormWindowState WindowState {
             get => (FormWindowState)Window.WindowState;
             set => Window.WindowState = (WindowState)value;
