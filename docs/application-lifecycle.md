@@ -104,6 +104,57 @@ does not propagate a new event through the control tree or map to Android Activi
 Designer event discovery/generation uses the existing metadata mechanism and does not execute
 the designed form's lifecycle callbacks.
 
+## Observe window geometry
+
+`WindowBase.Resize`, `SizeChanged` and `LocationChanged` are inherited by Form;
+`Form.ClientSizeChanged` observes the usable area after managed chrome. Each event uses
+`EventHandler` and has a protected `On... (EventArgs)` hook whose overrides must call base.
+
+```csharp
+form.SizeChanged += (_, _) =>
+{
+    // Size and the normal Dock/Anchor layout already reflect the actual backend result.
+    statusLabel.Text = $"Window: {form.Size}; client: {form.ClientSize}";
+};
+form.LocationChanged += (_, _) => SaveWindowPosition(form.Location);
+form.ClientSizeChanged += (_, _) => RefreshClientArea(form.ClientSize);
+```
+
+Size and ClientSize are integer logical pixels. Location retains physical screen pixels,
+including negative monitor coordinates; Bounds combines that location with a logical size.
+The backend remains the geometry source: requests are not reported until actual geometry
+is available. The common path reads its current properties rather than trusting an older
+Resized/PositionChanged payload (Windows WM_MOVE coordinates also differ from public Location).
+
+For a size change the order is **backend state -> adapter/client layout -> Resize ->
+SizeChanged -> ClientSizeChanged**, with the last event only if ClientSize changed. A combined
+size/move update then publishes LocationChanged. Root layout must finish and resume before
+these callbacks; explicitly suspended root layout coalesces changes until resumed. Layout
+explicitly suspended by application code in a child remains subject to that child's normal
+SuspendLayout/ResumeLayout contract.
+
+No-op setters and duplicate backend callbacks do not emit events. Resize describes an actual
+Size change after layout, not every layout pass. ClientSizeChanged also occurs after title-bar,
+decoration or border layout without an outer Size change; an unchanged ClientSize emits nothing.
+Style objects are passive: directly edited borders are observed when the next root layout
+applies them, including first-show preparation or a backend geometry callback. A drawable area
+smaller than managed chrome lays out an empty client area, never negative-sized user content.
+
+Geometry callbacks run synchronously on the UI thread, including real changes during Load and
+startup centering before VisibleChanged/native Show. Load and Shown remain one-shot. Reentrant
+geometry, Hide or Close supersedes remaining callbacks for the older transition; no-op geometry
+does not recurse. State and layout commit before observers. Observer errors are collected and
+propagated after the other still-current notifications; multiple failures are aggregated. This
+preserves the existing calling path and native backend exception policy rather than introducing
+a new exception dispatcher.
+
+ScalingChanged and native resize/move may arrive in multiple steps. Each geometry event exposes
+the geometry/layout committed for that step; there is no new DPI event or global DPI/geometry
+transaction. A scale-only change with unchanged logical Size does not emit Resize/SizeChanged.
+Windows (including real HWND move/resize) and headless TestHost are covered. These Form events
+do not describe Android Activity, orientation or SkiaControlSurface lifecycle. Designer metadata,
+handler generation and document round-trip discover them without running user lifecycle code.
+
 ## Read the right state
 
 | Value | Meaning |

@@ -15,6 +15,8 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
     private readonly HeadlessPlatformHandle handle = new();
     private readonly HeadlessScreenImpl screen;
     private Size clientSize;
+    private Size minimumSize;
+    private Size maximumSize;
     private PixelPoint position;
     private double renderScaling;
     private WindowState windowState;
@@ -244,6 +246,10 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
             throw new ArgumentOutOfRangeException(nameof(newClientSize));
         if (!double.IsFinite(newClientSize.Height) || newClientSize.Height < 0)
             throw new ArgumentOutOfRangeException(nameof(newClientSize));
+        // Model the actual constrained result before invoking the production geometry path.
+        newClientSize = new Size(
+            Constrain(newClientSize.Width, minimumSize.Width, maximumSize.Width),
+            Constrain(newClientSize.Height, minimumSize.Height, maximumSize.Height));
         if (clientSize == newClientSize)
             return;
 
@@ -262,7 +268,12 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
 
     public void SetMinMaxSize(Size minSize, Size maxSize)
     {
+        minimumSize = minSize;
+        maximumSize = maxSize;
     }
+
+    private static double Constrain(double value, double minimum, double maximum)
+        => Math.Max(minimum, maximum > 0 ? Math.Min(value, maximum) : value);
 
     public void SetExtendClientAreaToDecorationsHint(bool extendIntoClientAreaHint)
     {

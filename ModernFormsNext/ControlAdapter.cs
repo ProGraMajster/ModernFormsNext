@@ -24,6 +24,21 @@ namespace ModernFormsNext
 
         public WindowBase ParentForm { get; }
 
+        /// <inheritdoc/>
+        protected override void OnLayout(LayoutEventArgs e)
+        {
+            // Resolve borders on every root layout, including chrome-only changes
+            // which do not produce a backend Resized callback.
+            if (ParentForm.IsBackendClosed) return;
+            var bounds = ParentForm.DisplayRectangle;
+            bounds.Width = Math.Max(0, bounds.Width);
+            bounds.Height = Math.Max(0, bounds.Height);
+            Bounds = bounds;
+            base.OnLayout(e);
+        }
+
+        internal override void OnLayoutCompleted() => ParentForm.OnWindowLayoutCompleted();
+
         ControlTextInputHost? IControlTextInputRoot.TextInputHost => ParentForm.TextInputHost;
 
         internal override bool IsCommandRoutingRoot => true;
