@@ -80,6 +80,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private double _scaling = 1;
         private WindowState _showWindowState;
         private WindowState _lastWindowState;
+        private long _windowStateOperationVersion;
         //private OleDropTarget? _dropTarget;
         private Size _minSize;
         private Size _maxSize;
@@ -293,20 +294,25 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 return placement.ShowCmd switch
                 {
                     ShowWindowCommand.Maximize => WindowState.Maximized,
-                    ShowWindowCommand.Minimize => WindowState.Minimized,
+                    // WINDOWPLACEMENT reports SW_SHOWMINIMIZED (2), even when the
+                    // request was SW_MINIMIZE (6). The public getter must match WM_SIZE.
+                    ShowWindowCommand.ShowMinimized or ShowWindowCommand.Minimize => WindowState.Minimized,
                     _ => WindowState.Normal
                 };
                 }
 
             set
             {
-                if (IsWindowVisible(_hwnd) && _lastWindowState != value)
+                // Hidden configuration is not a native transition. Keep the confirmed cache
+                // for WM_SIZE, and store the request before callbacks can replace it.
+                if (WindowState == value) return;
+                _windowStateOperationVersion++;
+                _showWindowState = value;
+                if (IsWindowVisible(_hwnd) && WindowState != value)
                 {
                     ShowWindow(value, value != WindowState.Minimized); // If the window is minimized, it shouldn't be activated
                 }
 
-                _lastWindowState = value;
-                _showWindowState = value;
         }
         }
 
@@ -645,11 +651,13 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public void Hide()
         {
+            _windowStateOperationVersion++;
             UnmanagedMethods.ShowWindow(_hwnd, ShowWindowCommand.Hide);
         }
 
         public virtual void Show(bool activate, bool isDialog)
         {
+            _windowStateOperationVersion++;
             // A native host can deliberately convert this HWND to WS_CHILD through the public
             // platform-handle contract before its first show. In that case the native child
             // relationship is authoritative; reapplying the framework's nullable Form owner here
@@ -657,6 +665,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             if (!GetStyle().HasFlag(WindowStyles.WS_CHILD))
                 SetParent(_parent);
             ShowWindow(_showWindowState, activate);
+            // Re-showing an already maximized/minimized HWND need not produce WM_SIZE.
+            // Confirm the actual visible state; Form deduplicates this against native callbacks.
+            if (_hwnd != IntPtr.Zero && IsWindowVisible(_hwnd))
+                WindowStateChanged?.Invoke(WindowState);
         }
 
         public Action? GotInputWhenDisabled { get; set; }
@@ -1078,11 +1090,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private void ShowWindow(WindowState state, bool activate)
         {
-
+            long version = _windowStateOperationVersion;
             if (_isClientAreaExtended)
             {
                 ExtendClientArea();
             }
+            if (_hwnd == IntPtr.Zero || version != _windowStateOperationVersion) return;
 
             ShowWindowCommand? command;
 
@@ -1115,6 +1128,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             }
 
             UpdateWindowProperties(newWindowProperties);
+            if (_hwnd == IntPtr.Zero || version != _windowStateOperationVersion) return;
 
             if (command.HasValue)
             {

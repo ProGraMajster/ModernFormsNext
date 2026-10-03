@@ -77,7 +77,9 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
             if (windowState == value)
                 return;
             windowState = value;
-            WindowStateChanged?.Invoke(value);
+            // Match native hidden-window configuration: the getter changes now, but the
+            // request is only confirmed when shown. Visible transitions need no resize.
+            if (IsShown) WindowStateChanged?.Invoke(value);
         }
     }
 
@@ -183,7 +185,8 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         ShowCallCount++;
         IsShown = true;
-        if (activate)
+        WindowStateChanged?.Invoke(windowState);
+        if (!IsDisposed && IsShown && activate)
             Activated?.Invoke();
     }
 
