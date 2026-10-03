@@ -44,18 +44,20 @@ namespace ModernFormsNext
         {
             this.window = window;
             adapter = new ControlAdapter (this);
+            geometrySize = Size;
+            geometryLocation = Location;
             InitializeTextInput();
             window.SetInputRoot(adapter);
 
             window.Input = OnInput;
             window.Paint = DoPaint;
-            window.Resized = OnResize;
+            window.Resized = (_, _) => UpdateWindowGeometry();
+            window.PositionChanged = _ => UpdateWindowGeometry();
             window.ScalingChanged = _ => {
                 if (backendClosed) return;
                 using var batch = Application.BeginVisualInvalidationBatch();
-                adapter.NotifyDpiChangedForSubtree();
-                OnResize(window.ClientSize, WindowResizeReason.DpiChange);
-                Invalidate();
+                UpdateWindowGeometry(adapter.NotifyDpiChangedForSubtree);
+                if (!backendClosed) Invalidate();
             };
             window.Closed = OnBackendClosed;
             window.Activated = () => {
@@ -118,7 +120,7 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets the bounds of the Window.
+        /// Gets the window bounds: a physical screen-pixel location and a logical-pixel size.
         /// </summary>
         public System.Drawing.Rectangle Bounds {
             get => new System.Drawing.Rectangle (Location, Size);
@@ -341,7 +343,7 @@ namespace ModernFormsNext
             => InvalidateLogicalRegion (new Rect (rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height));
 
         /// <summary>
-        /// Gets the unscaled location of the control.
+        /// Gets the window position in physical screen pixels, including negative monitor coordinates.
         /// </summary>
         public System.Drawing.Point Location {
             get => window.Position.ToDrawingPoint ();
@@ -565,18 +567,6 @@ namespace ModernFormsNext
         protected virtual void OnPaintBackground (PaintEventArgs e)
         {
             e.Canvas.DrawBackground (new System.Drawing.Rectangle (System.Drawing.Point.Empty, ScaledSize), CurrentStyle);
-        }
-
-        private void OnResize (Size size, WindowResizeReason reason)
-        {
-            var displayRectangle = DisplayRectangle;
-            adapter.SetBounds (displayRectangle.Left, displayRectangle.Top, displayRectangle.Width, displayRectangle.Height);
-
-            // The adapter is the root layout container for Form.Controls and has no
-            // parent that can relayout it after a native resize notification. Trigger
-            // its own layout explicitly so Dock.Fill and Anchor children react to the
-            // new client rectangle instead of keeping stale bounds.
-            adapter.PerformLayout ();
         }
 
         /// <summary>
@@ -833,7 +823,7 @@ namespace ModernFormsNext
         public event EventHandler? Shown;
 
         /// <summary>
-        /// Gets or sets the unscaled size of the window.
+        /// Gets the drawable window size in logical pixels, including managed decorations.
         /// </summary>
         public System.Drawing.Size Size {
             get => new System.Drawing.Size ((int)window.ClientSize.Width, (int)window.ClientSize.Height);

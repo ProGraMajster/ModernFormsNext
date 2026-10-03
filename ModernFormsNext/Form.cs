@@ -115,7 +115,7 @@ namespace ModernFormsNext
             = WindowChromeInteractionMode.TopLevel;
 
         /// <summary>
-        /// Gets or sets the bounds of the Window.
+        /// Gets or sets bounds with a physical screen-pixel location and a logical-pixel size.
         /// </summary>
         public new System.Drawing.Rectangle Bounds {
             get => new System.Drawing.Rectangle (Location, Size);
@@ -273,6 +273,7 @@ namespace ModernFormsNext
                     Math.Max (0, displayRectangle.Height - ManagedTitleBarHeight));
             }
             set {
+                if (ClientSize == value) return;
                 var clientWidth = Math.Max (0, value.Width);
                 var clientHeight = Math.Max (0, value.Height);
                 var border = CurrentStyle.Border;
@@ -284,7 +285,30 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        ///  Gets or sets the dialog result for the form.
+        /// Occurs when the usable logical-pixel <see cref="ClientSize"/> changes.
+        /// </summary>
+        /// <remarks>
+        /// Raised on the UI thread after root/client layout, following Resize and SizeChanged
+        /// when Size also changed. Managed title-bar or border layout can change ClientSize
+        /// without changing Size. This is not an alias for SizeChanged. Handlers observe the
+        /// committed value; repeated values are ignored. Passive style changes are observed
+        /// when the next window layout applies them. Reentrancy and exception handling follow
+        /// WindowBase geometry events. This does not describe Android Activity/View resizing.
+        /// </remarks>
+        public event EventHandler? ClientSizeChanged;
+
+        /// <summary>Raises <see cref="ClientSizeChanged"/> after the client area has been laid out.</summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>Called on the UI thread. Overrides must call base to notify subscribers.</remarks>
+        protected virtual void OnClientSizeChanged(EventArgs e) => NotifyGeometryObservers(ClientSizeChanged, e);
+
+        // Root layout also runs while the base constructor is installing implicit controls.
+        internal override System.Drawing.Size? GeometryClientSize =>
+            client_area is null || TitleBar is null ? null : ClientSize;
+        internal override void NotifyClientSizeChanged() => OnClientSizeChanged(EventArgs.Empty);
+
+        /// <summary>
+        /// Gets or sets the dialog result for the form.
         /// </summary>
         public DialogResult DialogResult {
             get => dialog_result;
@@ -315,7 +339,7 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the unscaled location of the control.
+        /// Gets or sets the window position in physical screen pixels, including negative coordinates.
         /// </summary>
         public new System.Drawing.Point Location {
             get => window.Position.ToDrawingPoint ();
@@ -609,7 +633,7 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the unscaled size of the window.
+        /// Gets or sets the drawable window size in logical pixels.
         /// </summary>
         /// <remarks>
         /// This property represents the native drawable window size including
@@ -618,7 +642,9 @@ namespace ModernFormsNext
         /// </remarks>
         public new System.Drawing.Size Size {
             get => new System.Drawing.Size ((int)window.ClientSize.Width, (int)window.ClientSize.Height);
-            set => Window.Resize (new ModernFormsNext.WindowKit.Size (value.Width, value.Height));
+            set {
+                if (Size != value) Window.Resize (new ModernFormsNext.WindowKit.Size (value.Width, value.Height));
+            }
         }
 
         /// <inheritdoc/>
@@ -671,6 +697,12 @@ namespace ModernFormsNext
 
         private void ApplySystemDecorations (bool value)
         {
+            UpdateWindowGeometry(() => ApplySystemDecorationsCore(value));
+            if (shown) Invalidate();
+        }
+
+        private void ApplySystemDecorationsCore (bool value)
+        {
             // Keep the platform window synchronized even when the requested value
             // matches the field default. Generated designer code can explicitly set
             // UseSystemDecorations = false, and that assignment must still force the
@@ -687,11 +719,6 @@ namespace ModernFormsNext
             Window.SetExtendClientAreaChromeHints (value ? ExtendClientAreaChromeHints.Default : ExtendClientAreaChromeHints.NoChrome);
             Window.SetExtendClientAreaTitleBarHeightHint (value ? -1 : 0);
             Window.SetExtendClientAreaToDecorationsHint (!value);
-
-            adapter.PerformLayout ();
-
-            if (shown)
-                Invalidate ();
         }
 
         private int ManagedTitleBarHeight => TitleBar.Visible ? TitleBar.Height : 0;
@@ -702,6 +729,15 @@ namespace ModernFormsNext
             {
                 Dock = DockStyle.Fill;
                 SetControlBehavior (ControlBehaviors.Selectable, false);
+            }
+
+            /// <inheritdoc/>
+            protected override void SetBoundsCore(int x, int y, int width, int height, BoundsSpecified specified)
+            {
+                // The native drawable area can be smaller than managed chrome (notably
+                // while minimized). Match ClientSize's empty-area contract before laying
+                // out application children rather than passing negative fill dimensions.
+                base.SetBoundsCore(x, y, Math.Max(0, width), Math.Max(0, height), specified);
             }
 
             protected override void OnPaintBackground (PaintEventArgs e)

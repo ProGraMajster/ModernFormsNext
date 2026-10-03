@@ -457,7 +457,13 @@ public partial class Control
                 LayoutTransaction.DoLayout (Parent, this, PropertyNames.PreferredSize);
         }
         measurement.Complete ();
+        OnLayoutCompleted ();
     }
+
+    // Window geometry observers must run after the root is no longer layout-suspended:
+    // a handler may synchronously resize the window and require another complete layout.
+    internal virtual void OnLayoutCompleted () { }
+    internal bool IsLayoutSuspended => layout_suspend_count > 0;
 
     /// <summary>
     /// Gets the size the control would prefer to be.

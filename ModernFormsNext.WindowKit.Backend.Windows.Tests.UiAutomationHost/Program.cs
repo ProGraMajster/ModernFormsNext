@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--window-geometry", StringComparer.Ordinal))
+{
+    Environment.ExitCode = WindowGeometryScenario.Run();
+    return;
+}
+
 if (args.Contains("--form-load", StringComparer.Ordinal))
 {
     Environment.ExitCode = FormLoadScenario.Run();

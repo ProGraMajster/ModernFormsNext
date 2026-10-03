@@ -245,6 +245,10 @@ public sealed class SafeCustomControlMetadataTests
     [Theory]
     [InlineData("Load")]
     [InlineData("VisibleChanged")]
+    [InlineData("Resize")]
+    [InlineData("SizeChanged")]
+    [InlineData("LocationChanged")]
+    [InlineData("ClientSizeChanged")]
     public void FormLifecycleEventDiscoveryHandlerGenerationAndDocumentRoundTripCompile(string eventName)
     {
         using var project = new Fixture();
@@ -283,6 +287,10 @@ public sealed class SafeCustomControlMetadataTests
     [Theory]
     [InlineData("Load")]
     [InlineData("VisibleChanged")]
+    [InlineData("Resize")]
+    [InlineData("SizeChanged")]
+    [InlineData("LocationChanged")]
+    [InlineData("ClientSizeChanged")]
     public void OpeningAndRenderingFormDocumentDoesNotLoadOrRunItsUserAssembly(string eventName)
     {
         using var project = new Fixture();
@@ -294,6 +302,10 @@ public sealed class SafeCustomControlMetadataTests
                 public UserForm() => throw new Exception("user constructor must not run");
                 protected override void OnLoad(EventArgs e) => throw new Exception("user Load must not run");
                 protected override void OnVisibleChanged(EventArgs e) => throw new Exception("user VisibleChanged must not run");
+                protected override void OnResize(EventArgs e) => throw new Exception("user Resize must not run");
+                protected override void OnSizeChanged(EventArgs e) => throw new Exception("user SizeChanged must not run");
+                protected override void OnLocationChanged(EventArgs e) => throw new Exception("user LocationChanged must not run");
+                protected override void OnClientSizeChanged(EventArgs e) => throw new Exception("user ClientSizeChanged must not run");
             }
             """);
         List<string> loaded = [];
