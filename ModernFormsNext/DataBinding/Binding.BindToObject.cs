@@ -163,7 +163,7 @@ namespace ModernFormsNext.DataBinding
                 }
             }
 
-            internal void SetValue(object? value)
+            internal void SetValue(object? value, Func<bool>? validationCurrent = null)
             {
                 object? obj = null;
 
@@ -173,6 +173,9 @@ namespace ModernFormsNext.DataBinding
                     if (obj is IEditableObject editableObject)
                     {
                         editableObject.BeginEdit();
+                        // BeginEdit is application code and can replace the item, move focus
+                        // or detach the binding. Do not resume a stale validation setter.
+                        if (validationCurrent is not null && !validationCurrent()) return;
                     }
 
                     if (!FieldInfo.IsReadOnly)

@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--validation", StringComparer.Ordinal))
+{
+    Environment.ExitCode = ValidationScenario.Run();
+    return;
+}
+
 if (args.Contains("--focus", StringComparer.Ordinal))
 {
     Environment.ExitCode = FocusScenario.Run();
