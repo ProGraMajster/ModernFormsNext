@@ -264,7 +264,8 @@ namespace ModernFormsNext
                 // A completion observer may explicitly show this same window again. That
                 // newer request owns visibility and must survive this older Hide operation.
                 if (version == visibilityVersion) {
-                    if (SetVisibleCore(false)) Cleanup(NotifyVisibleChanged);
+                    Cleanup(() => adapter.GetFocusScope().SetSuspended(true));
+                    if (version == visibilityVersion && SetVisibleCore(false)) Cleanup(NotifyVisibleChanged);
                     // A visibility observer may show or close the window. The older Hide
                     // must not hide that newer display or retire its popup input lease.
                     if (version == visibilityVersion && !backendClosed && !Visible) {
@@ -800,6 +801,7 @@ namespace ModernFormsNext
             version = ++visibilityVersion;
             preparingShow = true;
             try {
+                adapter.GetFocusScope().SetSuspended(false);
                 PrepareToShow(version);
                 if (!IsCurrentShowRequest(version)) return false;
                 if (this is Form) SetWindowStartupLocation(owner);

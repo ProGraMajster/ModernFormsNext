@@ -95,13 +95,21 @@ namespace ModernFormsNext
             Control? previousParent = parent;
             int assignmentVersion = unchecked(++parentAssignmentVersion);
             IDisposable? textInputChange = null;
+            bool retiringFocus = !ReferenceEquals(previousParent, value);
             Exception? textInputFailure = null;
             try {
+                if (retiringFocus) {
+                    try { BeginFocusRetirement(); }
+                    catch (Exception failure) { textInputFailure = failure; }
+                }
                 try {
                     textInputChange = previousParent is not null && !ReferenceEquals(previousParent, value)
                         ? BeginTextInputTreeChange() : null;
                 }
-                catch (Exception failure) { textInputFailure = failure; }
+                catch (Exception failure) {
+                    textInputFailure = textInputFailure is null ? failure :
+                        new AggregateException("Focus and text input retirement failed.", textInputFailure, failure);
+                }
 
                 // Removal already changed the old parent's collection. A failed Finish must
                 // still finish that removal; a newer reparenting callback, however, owns the tree.
@@ -161,6 +169,7 @@ namespace ModernFormsNext
                     new AggregateException("Text input retirement and parent assignment failed.", textInputFailure, failure);
             }
             finally {
+                if (retiringFocus) EndFocusRetirement();
                 try { textInputChange?.Dispose(); }
                 catch (Exception failure) {
                     textInputFailure = textInputFailure is null ? failure :
@@ -739,43 +748,9 @@ namespace ModernFormsNext
         /// </summary>
         internal void Deselect (bool preservePointerInteraction = false)
         {
-            Control? inputParent = Parent;
-            WindowBase? inputWindow = FindWindow();
-            Selected = false;
-            Exception? focusFailure = null;
-            try { NotifyTextInputFocusChanged(); }
-            catch (Exception failure) { focusFailure = failure; }
-            int preservationDepth = Properties.GetInteger(s_focusLossPointerPreservationProperty);
-            if (preservePointerInteraction)
-                Properties.SetInteger(s_focusLossPointerPreservationProperty, preservationDepth + 1);
-            try {
-                OnDeselected (EventArgs.Empty);
-            }
-            catch (Exception failure) {
-                focusFailure = focusFailure is null ? failure :
-                    new AggregateException("Text input retirement and focus cleanup failed.", focusFailure, failure);
-            }
-            finally {
-                if (preservePointerInteraction) {
-                    if (preservationDepth == 0)
-                        Properties.RemoveInteger(s_focusLossPointerPreservationProperty);
-                    else
-                        Properties.SetInteger(s_focusLossPointerPreservationProperty, preservationDepth);
-                }
-            }
-
-            // LostFocus can close/dispose or move this tree. The prior route must not invalidate
-            // a disposed backend after the callback has completed.
-            try {
-                if (IsInputRouteCurrent(inputParent, inputWindow, requireAvailable: false))
-                    Invalidate ();
-            }
-            catch (Exception failure) {
-                focusFailure = focusFailure is null ? failure :
-                    new AggregateException("Focus cleanup and invalidation failed.", focusFailure, failure);
-            }
-            if (focusFailure is not null)
-                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(focusFailure).Throw();
+            var scope = FindExistingFocusScope();
+            if (ReferenceEquals(scope?.Owner, this))
+                scope.Request(null, forced: true, preservePointerInteraction: preservePointerInteraction);
         }
 
         /// <summary>
@@ -840,7 +815,7 @@ namespace ModernFormsNext
                 // See if the computed Enabled actually changed
                 if (old_value != Enabled) {
                     if (!Enabled)
-                        SelectNextIfFocused ();
+                        RetireUnavailableFocus ();
 
                     OnEnabledChanged (EventArgs.Empty);
                 }
@@ -855,7 +830,7 @@ namespace ModernFormsNext
             SetState(States.CommandDisabled, !value);
             if (previous != Enabled) {
                 if (!Enabled)
-                    SelectNextIfFocused();
+                    RetireUnavailableFocus();
                 OnEnabledChanged(EventArgs.Empty);
             }
         }
@@ -1488,18 +1463,22 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Raises the GotFocus event.
+        /// Raises the GotFocus event after the canonical owner and text-input handoff commit.
         /// </summary>
+        /// <remarks>Overrides should call base. A reentrant selection can supersede this notification.</remarks>
         protected virtual void OnGotFocus (EventArgs e)
         {
-            Control? inputParent = Parent;
-            WindowBase? inputWindow = FindWindow();
-            SetVisualFocus (true);
+            long version = focusStateVersion;
+            bool selected = Selected;
+            SetVisualFocus(true);
+            UpdateVisualState();
+            if (!IsFocusStateCurrent(version, selected)) return;
             (Events[s_gotFocusEvent] as EventHandler)?.Invoke(this, e);
-            if (!IsInputRouteCurrent(inputParent, inputWindow))
-                return;
+            if (!IsFocusStateCurrent(version, selected) || IsDisposed || Disposing ||
+                FindWindow()?.InputBindingsClosed == true) return;
             NotifyAccessibilityClients(AccessibleEvents.Focus);
-            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+            if (IsFocusStateCurrent(version, selected))
+                NotifyAccessibilityClients(AccessibleEvents.StateChange);
         }
 
         /// <summary>
@@ -1508,29 +1487,42 @@ namespace ModernFormsNext
         protected virtual void OnInvalidated (EventArgs<Rectangle> e) => (Events[s_invalidatedEvent] as EventHandler<EventArgs<Rectangle>>)?.Invoke (this, e);
 
         /// <summary>
-        /// Raises the LostFocus event.
+        /// Raises LostFocus after this control has lost canonical keyboard ownership.
         /// </summary>
+        /// <remarks>Overrides should call base for interaction cleanup and public notification.</remarks>
         protected virtual void OnLostFocus(EventArgs e)
         {
-            Control? inputParent = Parent;
-            WindowBase? inputWindow = FindWindow();
+            long version = focusStateVersion;
+            List<Exception>? failures = null;
+            void Cleanup(Action action)
+            {
+                try { action(); }
+                catch (Exception failure) { (failures ??= []).Add(failure); }
+            }
             keyboardPressed = false;
-            // Focus can move before the matching pointer or activation-key release reaches this
-            // control. Cancel the complete gesture through the virtual hook so text-selection and
-            // other control-owned input state is cleared together with capture and optional visuals.
+            // Cleanup and observers are independent obligations. A throwing interaction effect
+            // must not prevent LostFocus, nor leave capture attached to the previous owner.
             if (Properties.GetInteger(s_focusLossPointerPreservationProperty) == 0) {
-                if (Capture)
-                    CancelPointerInteraction();
+                if (Capture) Cleanup(() => CancelPointerInteraction());
                 else {
-                    ClearPointerVisualPressed();
-                    NotifyInteractionPointerCanceled();
+                    Cleanup(() => ClearPointerVisualPressed());
+                    Cleanup(() => NotifyInteractionPointerCanceled());
                 }
             }
-            SetVisualFocus (false);
-            (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e);
-            if (!IsInputRouteCurrent(inputParent, inputWindow, requireAvailable: false))
-                return;
-            NotifyAccessibilityClients(AccessibleEvents.StateChange);
+            if (!IsDisposed && !Disposing && FindWindow()?.InputBindingsClosed != true) {
+                if (IsFocusStateCurrent(version, selected: false)) Cleanup(() => SetVisualFocus(false));
+                Cleanup(UpdateVisualState);
+                Cleanup(() => Invalidate());
+            }
+            if (IsFocusStateCurrent(version, selected: false))
+                Cleanup(() => (Events[s_lostFocusEvent] as EventHandler)?.Invoke(this, e));
+            if (IsFocusStateCurrent(version, selected: false) && !IsDisposed && !Disposing &&
+                FindWindow()?.InputBindingsClosed != true)
+                Cleanup(() => NotifyAccessibilityClients(AccessibleEvents.StateChange));
+            if (failures?.Count == 1)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (failures?.Count > 1)
+                throw new AggregateException("Focus loss cleanup and observers failed.", failures);
         }
 
         /// <summary>
@@ -1912,8 +1904,11 @@ namespace ModernFormsNext
 
 
                 if (value == null) {
+                    int version = parentAssignmentVersion;
                     parent?.Controls.Remove (this);
-                    parent = null;
+                    // Focus/IME retirement can reparent from a callback. Do not detach that
+                    // newer root by overwriting Parent after the canonical assignment returned.
+                    if (version == parentAssignmentVersion) AssignParent(null);
                     return;
                 }
 
@@ -2073,7 +2068,7 @@ namespace ModernFormsNext
                     Control? inputParent = Parent;
                     WindowBase? inputWindow = FindWindow();
                     Select ();
-                    if (!IsInputRouteCurrent(inputParent, inputWindow))
+                    if (!IsInputRouteCurrent(inputParent, inputWindow) || (CanSelect && !Selected))
                         return;
                     Capture = true;
                     OnMouseDown (e);
@@ -2381,82 +2376,22 @@ namespace ModernFormsNext
         public double Scaling => FindWindow ()?.Scaling ?? 1;
 
         /// <summary>
-        /// Gives the control focus.
+        /// Requests keyboard focus through this control tree's single focus owner.
         /// </summary>
         /// <remarks>
-        /// Call on the UI thread. The normal GotFocus notification precedes assigning the
-        /// adapter's focus owner. If a focus callback closes, disposes, detaches, disables, or
-        /// hides this target, the obsolete selection stops without invalidating its former window.
-        /// If a focus or text-composition completion callback throws, the unfinished selection
-        /// is cleared and the original failure is propagated after required focus cleanup.
+        /// Call on the owning UI thread. Before LostFocus and GotFocus, the old selection is
+        /// cleared, the new owner is committed and text input is handed off. A newer reentrant
+        /// request supersedes older notifications. Callback failures propagate after required
+        /// cleanup without rolling back an already committed owner or a newer request.
+        /// Hidden, disabled, disposed or retiring destinations are ignored. Direct selection
+        /// does not require TabStop. Detaching a tree clears its selection; attaching it does
+        /// not implicitly select it in another root.
         /// </remarks>
         public void Select ()
         {
-            if (IsDisposed || Disposing || Selected || !CanSelect)
-                return;
-
-            Control? inputParent = Parent;
-            WindowBase? inputWindow = FindWindow();
-            ControlAdapter? inputAdapter = FindAdapter();
-            Selected = true;
-
-            try {
-                OnGotFocus (EventArgs.Empty);
-            }
-            catch (Exception focusFailure) {
-                try {
-                    AbandonFocusSelection(inputAdapter);
-                }
-                catch (Exception cleanupFailure) {
-                    throw new AggregateException("The focus callback and selection cleanup both failed.", focusFailure, cleanupFailure);
-                }
-                throw;
-            }
-            if (!IsInputRouteCurrent(inputParent, inputWindow)) {
-                AbandonFocusSelection(inputAdapter);
-                return;
-            }
-
-            var adapter = FindAdapter ();
-
-            try {
-                if (adapter != null)
-                    adapter.SelectedControl = this;
-            }
-            catch (Exception focusFailure) {
-                // Deselecting the old owner can fail after the new control's GotFocus. Drop
-                // this unfinished selection using the same cleanup as a failed GotFocus.
-                try { AbandonFocusSelection(inputAdapter); }
-                catch (Exception cleanupFailure) {
-                    throw new AggregateException("The previous focus owner and selection cleanup failed.", focusFailure, cleanupFailure);
-                }
-                throw;
-            }
-
-            // Assigning the adapter deselects its previous focus owner, whose LostFocus handler
-            // can also close this window. Keep the established event order, then recheck lifetime.
-            if (!IsInputRouteCurrent(inputParent, inputWindow)) {
-                AbandonFocusSelection(inputAdapter);
-                return;
-            }
-            NotifyTextInputFocusChanged();
-            Invalidate ();
-        }
-
-        private void AbandonFocusSelection(ControlAdapter? inputAdapter)
-        {
-            Selected = false;
-            // The old focus owner's LostFocus callback can invalidate this selection while
-            // the adapter setter is still assigning it. Clear only our obsolete assignment;
-            // another selection made by a callback must keep its canonical ownership.
-            if (inputAdapter is { IsDisposed: false } && ReferenceEquals(inputAdapter.SelectedControl, this))
-                inputAdapter.SelectedControl = null;
-            if (!IsDisposed && !Disposing && FindWindow()?.InputBindingsClosed != true)
-                SetVisualFocus(false);
-            else
-                // A disposed backend cannot receive a visual invalidation. Its window cleanup
-                // already canceled animations; only drop the unfinished logical focus flag here.
-                hasVisualFocus = false;
+            // An unhosted/ineligible control historically ignores Select; do not create a
+            // focus scope (or impose a UI host lifetime) for that no-op.
+            if (!IsDisposed && !Disposing && CanSelect) GetFocusScope().Request(this);
         }
 
         /// <summary>
@@ -2497,25 +2432,14 @@ namespace ModernFormsNext
                     break;
                 }
 
-                if (c.CanSelect && ((c.Parent == this) || nested) && (c.TabStop || !tabStopOnly)) {
+                if (((c.Parent == this) || nested) && (c.TabStop || !tabStopOnly) && c.GetFocusScope().IsEligible(c)) {
                     c.Select ();
-                    return true;
+                    return c.Selected;
                 }
 
             } while (c != start);
 
             return false;
-        }
-
-        /// <summary>
-        ///  This is called recursively when visibility is changed for a control, this
-        ///  forces focus to be moved to a visible control.
-        /// </summary>
-        private void SelectNextIfFocused ()
-        {
-            if (Focused && Parent is not null)
-                if (Parent.GetContainerControl () is Control c)
-                    c.SelectNextControl (this, true, true, true, true);
         }
 
         /// <summary>
@@ -2539,6 +2463,8 @@ namespace ModernFormsNext
                 behaviors |= behavior;
             else
                 behaviors &= ~behavior;
+            if (!value && (behavior & ControlBehaviors.Selectable) != 0 && Selected)
+                RetireUnavailableFocus();
         }
 
         /// <summary>
@@ -2546,14 +2472,25 @@ namespace ModernFormsNext
         /// </summary>
         internal void SetParentInternal (Control? control)
         {
+            if (ReferenceEquals(parent, control)) return;
             var was_visible = Visible;
-
-            parent = control;
-
-            if (Visible != was_visible)
-                OnVisibleChanged (EventArgs.Empty);
-
-            OnParentChanged (EventArgs.Empty);
+            int version = unchecked(++parentAssignmentVersion);
+            Exception? failure = null;
+            try {
+                try { BeginFocusRetirement(); }
+                catch (Exception error) { failure = error; }
+                if (version == parentAssignmentVersion) {
+                    parent = control;
+                    if (Visible != was_visible) OnVisibleChanged (EventArgs.Empty);
+                    OnParentChanged (EventArgs.Empty);
+                }
+            }
+            catch (Exception error) {
+                failure = failure is null ? error : new AggregateException("Focus retirement and parent assignment failed.", failure, error);
+            }
+            finally { EndFocusRetirement(); }
+            if (failure is not null)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         /// <summary>
@@ -2581,10 +2518,9 @@ namespace ModernFormsNext
         protected virtual void SetVisibleCore (bool value)
         {
             if (value != GetState (States.Visible)) {
-                if (!value)
-                    SelectNextIfFocused ();
-
                 SetState (States.Visible, value);
+                if (!value)
+                    RetireUnavailableFocus ();
 
                 // Hidden controls have no presentation surface to animate. Snap an active layout
                 // transition to its logical target so the shared scheduler does not retain idle
@@ -2819,6 +2755,8 @@ namespace ModernFormsNext
                 SetState(States.Disposing, true);
                 IDisposable? textInputChange = null;
                 try {
+                    try { RetireUnavailableFocus(); }
+                    catch (Exception failure) { (textInputFailures ??= []).Add(failure); }
                     // Text-service finish can invoke application code. Its failure must not
                     // prevent the existing control/child/native-resource disposal path.
                     if (disposing) {

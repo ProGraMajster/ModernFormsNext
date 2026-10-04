@@ -6,6 +6,35 @@ namespace ModernFormsNext.Automation.Tests;
 [Trait("Category", "Actions")]
 public sealed class ActionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FocusActionUsesCanonicalOwnerAndHonorsObserverRedirect(bool useSurface)
+    {
+        using var host = Testing.ModernFormsTestHost.Create();
+        using var form = new Form();
+        using var panel = new Panel();
+        using var surface = useSurface ? new SkiaControlSurface(panel) : null;
+        if (!useSurface) { form.Controls.Add(panel); host.Show(form); }
+        var a = panel.Controls.Add(new TextBox());
+        var b = panel.Controls.Add(new TextBox());
+        var c = panel.Controls.Add(new TextBox());
+        using var session = new AutomationSession();
+        using var registration = useSurface ? session.RegisterRoot(surface!) : session.RegisterRoot(form);
+        a.Select();
+        a.LostFocus += (_, _) => c.Select();
+        var handle = new AutomationNodeHandle(session.SessionId,
+            b.AccessibilityObject.RuntimeId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        var result = session.PerformActionAsync(registration.RootId, handle, AccessibleActions.Focus).Completed();
+
+        Assert.Equal(AutomationActionStatus.Rejected, result.Status);
+        Assert.Same(c, useSurface ? surface!.SelectedControl : host.FocusedControl);
+        Assert.False(a.Selected);
+        Assert.False(b.Selected);
+        Assert.True(c.Selected);
+    }
+
     [Fact]
     public void InvokePreservesClickBeforeDelegateCommand()
     {

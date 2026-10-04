@@ -413,9 +413,8 @@ public partial class Control
                 LayoutTransaction.DoLayout (Owner, value, PropertyNames.Parent);
                 Owner.OnControlRemoved (new EventArgs<Control> (value));
 
-                // ContainerControl needs to see it needs to find a new ActiveControl. TODO
-                //if (Owner.GetContainerControl () is ContainerControl cc)
-                //    cc.AfterControlRemoved (value, Owner);
+                // AssignParent already retires keyboard ownership through the shared root
+                // transaction; removal does not rely on a public ContainerControl hierarchy.
             }
 
             return true;

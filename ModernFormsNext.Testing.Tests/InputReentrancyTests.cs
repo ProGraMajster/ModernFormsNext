@@ -74,7 +74,7 @@ public sealed class InputReentrancyTests
     }
 
     [Fact]
-    public void ThrowingGotFocusLeavesSelectionRetryableAndPreservesTheFailure()
+    public void ThrowingGotFocusPreservesCommittedSelectionAndTheFailure()
     {
         using var host = ModernFormsTestHost.Create();
         var button = new Button();
@@ -84,7 +84,9 @@ public sealed class InputReentrancyTests
         button.GotFocus += fail;
 
         Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => window.Input.Focus(button)));
-        Assert.False(button.Selected);
+        // Observers run after commit; an exception must not roll that owner back.
+        Assert.True(button.Selected);
+        Assert.Same(button, window.FocusedControl);
         button.GotFocus -= fail;
 
         Assert.True(window.Input.Focus(button));
@@ -227,7 +229,7 @@ public sealed class InputReentrancyTests
     }
 
     [Fact]
-    public void OrdinaryFocusChangePreservesExistingGotFocusThenLostFocusEventOrder()
+    public void OrdinaryFocusChangePublishesLostFocusThenGotFocusAfterCommit()
     {
         using var host = ModernFormsTestHost.Create();
         var root = new Panel();
@@ -241,7 +243,7 @@ public sealed class InputReentrancyTests
 
         Assert.True(window.Input.Focus(second));
 
-        Assert.Equal(new[] { "second.GotFocus", "first.LostFocus" }, events);
+        Assert.Equal(new[] { "first.LostFocus", "second.GotFocus" }, events);
         Assert.Same(second, window.FocusedControl);
     }
 

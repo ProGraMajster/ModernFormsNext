@@ -124,7 +124,9 @@ public sealed partial class CommandRoutingTests
     {
         using var ui = new WindowFixture();
         using var other = new WindowFixture();
-        ui.Form.adapter.SelectedControl = wrongWindow ? other.Focus : null;
+        ui.Form.adapter.SelectedControl = null;
+        if (wrongWindow) ui.Form.adapter.SelectedControl = other.Focus;
+        Assert.Null(ui.Form.adapter.SelectedControl); // A foreign owner is now rejected at commit.
         var command = new RoutedCommand();
         int calls = 0;
         ui.Form.CommandBindings.Add(Bind(command, (_, e) => { Assert.Same(ui.Form.adapter, e.Target); calls++; }));

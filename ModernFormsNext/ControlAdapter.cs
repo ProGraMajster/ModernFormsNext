@@ -14,7 +14,6 @@ namespace ModernFormsNext
 {
     internal class ControlAdapter : ScrollableControl, IInputRoot, IPlatformAccessibilityHost, IControlTextInputRoot
     {
-        private Control? selected_control;
 
         public ControlAdapter (WindowBase parent)
         {
@@ -67,21 +66,11 @@ namespace ModernFormsNext
         }
 
         internal Control? SelectedControl {
-            get => selected_control;
-            set {
-                if (selected_control == value)
-                    return;
-
-                selected_control?.Deselect ();
-
-                if (value is ControlAdapter)
-                    return;
-
-                // Note they could be setting this to null
-                selected_control = value;
-                selected_control?.Select ();
-            }
+            get => FindExistingFocusScope()?.Owner;
+            set => GetFocusScope().Request(value);
         }
+
+        internal override bool IsFocusRootAvailable => base.IsFocusRootAvailable && !ParentForm.InputBindingsClosed && !ParentForm.IsBackendClosed;
 
         internal void RaiseParentVisibleChanged (EventArgs e)
         {

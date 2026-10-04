@@ -5,6 +5,70 @@ transitions and command gestures; raw committed text retains the existing `KeyPr
 route. Native composition uses `WindowKit.Input.ITextInputClient` over the editor's
 existing document. No hidden native text control or additional focus manager is used.
 
+## Keyboard focus ownership and transitions
+
+Each window adapter and each `SkiaControlSurface` has zero or one keyboard focus
+owner. `Selected` and `Focused` describe this same logical selection; native window
+activation and Android screen-reader accessibility focus are separate concepts.
+The two root types use one internal `ControlFocusScope`, rather than inferring an
+owner from focus events or scanning the tree. There is no process-wide focus owner.
+
+`Control.Select()`, Tab traversal, pointer selection and semantic/automation focus
+actions all use the same UI-thread transaction. Direct selection ignores `TabStop`;
+Tab traversal retains its existing ordering and filtering. A destination must be
+selectable, effectively visible/enabled, live, outside a retiring subtree and part
+of the target root. Selecting the current owner is a no-op.
+
+An ordinary A-to-B transition has this order:
+
+1. Resolve the destination and run the internal preflight, then recheck lifetime,
+   ancestry and request identity. The seam does not yet implement validation.
+2. Commit the owner to B, clear A's `Selected`/`Focused`, and set B's flags without
+   invoking observers between those writes.
+3. Refresh the existing text-input host: revoke A's borrowed session, finish its
+   composition and acquire B's session when text input is active and B is editable.
+4. Complete A's interaction cleanup and publish `A.LostFocus`.
+5. Publish `B.GotFocus` only if B and this request are still current.
+
+Both focus observers therefore see a coherent committed owner. This fixes the old
+window behavior that published B's `GotFocus` while A was still selected and still
+owned the adapter. Reentrant requests run synchronously: the latest valid request
+wins. For example, `A.LostFocus` selecting C leaves C selected and suppresses the
+obsolete `B.GotFocus`. Per-request and per-control versions prevent older callbacks
+from restoring owners or publishing obsolete notifications. Pathological callback
+cycles throw after 32 nested voluntary transitions; mandatory retirement still runs.
+
+Hiding, disabling, detaching or disposing an owner **or its ancestor clears focus**.
+These operations bypass preflight and do not automatically select a successor.
+Moving between roots also clears selection; explicitly request focus after attaching
+the control to its destination. Even detach/reattach within the same root requires
+a new request. The retiring subtree cannot select itself from a teardown callback.
+
+Window `Hide`, close/disposal, and surface disposal also clear ownership. `Show`
+does not restore it automatically. Selecting an editor during initial window setup
+is supported, but does not lend a native text session before activation. Native
+deactivation, modal text handoff and `SetTextInputActive(false)` retire the text
+session while preserving logical selection, so normal reactivation can reacquire it.
+
+```csharp
+source.Controls.Remove(editor); // Retires the old root's focus and text session.
+destination.Controls.Add(editor);
+editor.Select();                // Explicit request in the new, available root.
+```
+
+Exceptions do not roll back a committed owner or a newer reentrant request. Mandatory
+retirement, interaction/router cleanup and applicable focus notifications are attempted
+before rethrowing the original exception, or an aggregate when multiple operations
+fail. A text-method failure revokes its old session; reacquisition continues through
+the existing text-host recovery contract, never by retaining an obsolete client.
+Overrides of focus notification methods should call their base implementations.
+
+`GetContainerControl()` can discover existing `IContainerControl` implementations;
+native ownership and recovery do not depend on that compatibility interface. This
+change adds neither public `ContainerControl` nor validation, `Enter`/`Leave`, a
+`Focus()` alias, or native-view hosting. The private preflight is reserved for a later
+validation transaction; forced retirement cannot be vetoed by it.
+
 ## Keyboard hints
 
 ```csharp
