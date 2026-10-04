@@ -52,8 +52,9 @@ letters, digits, function/navigation keys and modifiers to the shared command re
 implementation has deterministic and scoped API 34 emulator validation; its evidence is separate from
 software-keyboard composition and physical-keyboard observations.
 
-Android does not yet provide the general `Application.Run(Form)` path, a complete WindowKit
-windowing implementation, multiple framework windows, complete accessibility, native dialogs,
+The current source tree adds the experimental [Android Application/Form host](docs/android-windowing.md):
+`Application.Run(Form)`, one main Form and owned modal/popup surfaces. It retains explicit
+mobile window limitations. Android does not provide complete desktop windowing parity, native dialogs,
 clipboard, file pickers, drag and drop, or the full platform-service set. See
 [Android platform status](docs/platforms/android.md) for the verified support matrix, requirements,
 known limitations, and sample commands.
@@ -141,8 +142,8 @@ public sealed class MainForm : Form
 }
 ```
 
-Android currently uses an explicit activity and shared-surface adapter rather than this
-`Application.Run(Form)` entry point. Start from the
+On Android, call `Application.Run(Form)` from `AndroidWindowActivity.OnStartApplication` after
+backend initialization. It returns while the native main Looper continues. Start from the
 [cross-platform sample](samples/ModernFormsNext.CrossPlatform.Sample/README.md) when evaluating the
 Android backend.
 

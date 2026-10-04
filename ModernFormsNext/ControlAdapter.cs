@@ -12,7 +12,7 @@ using SkiaSharp;
 
 namespace ModernFormsNext
 {
-    internal class ControlAdapter : ScrollableControl, IInputRoot, IPlatformAccessibilityHost, IControlTextInputRoot
+    internal partial class ControlAdapter : ScrollableControl, IInputRoot, IPlatformAccessibilityHost, IControlTextInputRoot
     {
 
         public ControlAdapter (WindowBase parent)
@@ -52,10 +52,8 @@ namespace ModernFormsNext
             // borders, and it needs to not draw on top of those borders.
             // That is, this often needs to start drawing at (1, 1) instead of (0, 0)
             // This could probably eliminated in the future with Canvas.Translate.
-            var form_border = ParentForm.CurrentStyle.Border;
-
-            var form_x = form_border.Left.GetWidth ();
-            var form_y = form_border.Top.GetWidth ();
+            var form_x = ParentForm.DisplayRectangle.Left;
+            var form_y = ParentForm.DisplayRectangle.Top;
 
             PaintChildren (e, LogicalToDeviceUnits (form_x), LogicalToDeviceUnits (form_y));
         }

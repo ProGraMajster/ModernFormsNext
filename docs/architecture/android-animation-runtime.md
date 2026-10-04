@@ -16,7 +16,7 @@ Android lifecycle and MotionEvent
   -> AnimationScheduler
   -> presentation state
   -> Control invalidation
-  -> AndroidAppHost / PostInvalidateOnAnimation
+  -> AndroidActivityHost / WindowBase framebuffer / PostInvalidateOnAnimation
   -> Skia render
   -> Choreographer next-frame signal while work remains
 ```

@@ -7,7 +7,8 @@
 Windows remains the primary and most mature ModernFormsNext platform. Android 1.11.0 provides a
 real shared-control vertical slice: a .NET Android host can attach one ModernFormsNext `Control`
 tree to a SkiaSharp surface and exercise framework layout, rendering, input, and text editing.
-It is not yet a general replacement for the Windows `Form` and WindowKit windowing path.
+The current source tree additionally provides an experimental
+[Application/Form window backend](../android-windowing.md); its mobile policy is not desktop parity.
 
 ## Supported target
 
@@ -62,16 +63,15 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 
 ## Important limitations
 
-- Android does not implement the general `Application.Run(Form)` startup path, `IWindowingPlatform`,
-  or `IWindowImpl`. Applications must currently provide an Android activity and attach a control
-  root explicitly.
+- The source-tree `Application.Run(Form)` path requires `AndroidWindowActivity` (or the documented
+  `AndroidActivityHost` callbacks). It supports one main Form and owner-bound modal/popup surfaces.
 - Android does not yet register a system light/dark ThemeManager provider. `ThemeVariant.System`
   therefore uses the explicit Light/Dark apply fallback. Reduced motion is separate: the Android
   animation-settings provider reads and observes the global animator-duration scale. Neither
   implementation implies runtime parity; startup, switching, storage streams, setting changes, and
   visual transitions still need broad emulator/device validation for a release.
-- Only one framework control surface is exercised. Multiple framework windows, popups, owned
-  windows, and desktop-style window management are not available.
+- Independent desktop top-level windows and concurrent Activity hosts are unsupported.
+  See the [window capability matrix](../android-windowing.md#capability-matrix) for precise policies.
 - Clipboard, native dialogs, file/folder pickers, drag and drop, notification delivery, camera and
   microphone capture, media, WebView, sharing, and cursor services are not implemented as complete
   Android WindowKit services. The permission service grants authorization only; it does not provide

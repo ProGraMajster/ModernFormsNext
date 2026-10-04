@@ -51,7 +51,7 @@ namespace ModernFormsNext
             client_area = base.Controls.AddImplicitControl (new FormClientArea ());
             TitleBar = base.Controls.AddImplicitControl (new FormTitleBar ());
 
-            Resizeable = true;
+            Resizeable = !HostManagesWindow;
             ApplySystemDecorations (use_system_decorations);
 
             Window.Closing = (e) => {
@@ -77,6 +77,9 @@ namespace ModernFormsNext
             FrameworkBootstrap.EnsureInitialized();
             return AvaloniaGlobals.GetRequiredService<IWindowingPlatform>().CreateWindow();
         }
+
+        private bool HostManagesWindow => window.TryGetFeature(typeof(IWindowHostPolicy)) is
+            IWindowHostPolicy { IsHostManaged: true };
 
         /// <summary>
         /// Gets or sets whether the form can be maximized.
@@ -127,7 +130,7 @@ namespace ModernFormsNext
         /// </summary>
         public void BeginMoveDrag ()
         {
-            if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild)
+            if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild || HostManagesWindow)
                 return;
 
             Window.BeginMoveDrag (new PointerPressedEventArgs ());
@@ -363,8 +366,8 @@ namespace ModernFormsNext
         public SKBitmap? Image {
             get => TitleBar.Image;
             set {
-                TitleBar.Image = value;
                 Window.SetIcon (value);
+                TitleBar.Image = value;
             }
         }
 
@@ -399,6 +402,7 @@ namespace ModernFormsNext
 
         internal override bool HandleMouseDown (int x, int y)
         {
+            if (HostManagesWindow) return false;
             if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild)
                 return false;
 
@@ -436,6 +440,7 @@ namespace ModernFormsNext
 
         internal override bool HandleMouseMove (int x, int y)
         {
+            if (HostManagesWindow) return false;
             if (ChromeInteractionMode == WindowChromeInteractionMode.EmbeddedChild)
                 return base.HandleMouseMove (x, y);
 
@@ -494,13 +499,14 @@ namespace ModernFormsNext
             get => maximum_size;
             set {
                 if (maximum_size != value) {
-                    maximum_size = value;
-
                     // Don't let MinimumSize be larger than MaximumSize
-                    if (!minimum_size.IsEmpty && !maximum_size.IsEmpty)
-                        minimum_size = new System.Drawing.Size (Math.Min (minimum_size.Width, maximum_size.Width), Math.Min (minimum_size.Height, maximum_size.Height));
-
-                    Window.SetMinMaxSize (minimum_size.ToAvaloniaSize (), maximum_size.ToAvaloniaSize ());
+                    var nextMinimum = !minimum_size.IsEmpty && !value.IsEmpty
+                        ? new System.Drawing.Size (Math.Min (minimum_size.Width, value.Width), Math.Min (minimum_size.Height, value.Height))
+                        : minimum_size;
+                    // Native rejection must not publish a managed value that never took effect.
+                    Window.SetMinMaxSize (nextMinimum.ToAvaloniaSize (), value.ToAvaloniaSize ());
+                    minimum_size = nextMinimum;
+                    maximum_size = value;
 
                     // Keep form size within new limits
                     var size = Size;
@@ -519,12 +525,13 @@ namespace ModernFormsNext
             get => minimum_size;
             set {
                 if (minimum_size != value) {
-                    minimum_size = value;
-                    Window.SetMinMaxSize (minimum_size.ToAvaloniaSize (), maximum_size.ToAvaloniaSize ());
-
                     // Don't let MaximumSize be smaller than MinimumSize
-                    if (!minimum_size.IsEmpty && !maximum_size.IsEmpty)
-                        maximum_size = new System.Drawing.Size (Math.Max (minimum_size.Width, maximum_size.Width), Math.Max (minimum_size.Height, maximum_size.Height));
+                    var nextMaximum = !value.IsEmpty && !maximum_size.IsEmpty
+                        ? new System.Drawing.Size (Math.Max (value.Width, maximum_size.Width), Math.Max (value.Height, maximum_size.Height))
+                        : maximum_size;
+                    Window.SetMinMaxSize (value.ToAvaloniaSize (), nextMaximum.ToAvaloniaSize ());
+                    maximum_size = nextMaximum;
+                    minimum_size = value;
 
                     // Keep form size within new limits
                     var size = Size;
@@ -564,6 +571,7 @@ namespace ModernFormsNext
 
         internal override void SetWindowStartupLocation (IWindowBaseImpl? owner = null)
         {
+            if (HostManagesWindow) return;
             var scaling = Scaling;
 
             // TODO: We really need non-client size here.
@@ -743,8 +751,8 @@ namespace ModernFormsNext
             // UseSystemDecorations = false, and that assignment must still force the
             // backend into managed-decoration mode before the form is shown.
             use_system_decorations = value;
-            TitleBar.Visible = !use_system_decorations;
-            Style.Border.Width = use_system_decorations ? 0 : 1;
+            TitleBar.Visible = !use_system_decorations && !HostManagesWindow;
+            Style.Border.Width = use_system_decorations || HostManagesWindow ? 0 : 1;
             Window.SetSystemDecorations (value ? SystemDecorations.Full : SystemDecorations.None);
 
             // Managed decorations are drawn by FormTitleBar, so the backend must not

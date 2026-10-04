@@ -30,6 +30,9 @@ public sealed class App
     /// <summary>Refreshes dynamic host and surface information displayed by the root.</summary>
     public void RefreshPlatformStatus() => Root.RefreshStatus();
 
+    // Platform diagnostics update numeric sample state on demand; they never drive rendering.
+    internal Action? RefreshSurfaceDiagnostics { get; set; }
+
     internal void NotifyLifecycle(string lifecycle)
     {
         State.LifecycleStatus = lifecycle;

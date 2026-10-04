@@ -98,15 +98,31 @@ internal sealed class AndroidAccessibilitySession : IDisposable
         {
             if (current.GetAccessibilityView() == 4 || (current.State & Invisible) != 0) return false;
             if (ReferenceEquals(current, root)) return true;
-            if (current.Parent is not { } parent) return false;
-            bool found = false;
-            int count = parent.GetChildCount();
-            for (int i = 0; i < count; i++)
-                if (ReferenceEquals(parent.GetChild(i), current)) { found = true; break; }
-            if (!found) return false;
+            if (ProjectedParent(current) is not { } parent) return false;
             current = parent;
         }
         return false;
+    }
+
+    internal IPlatformAccessibleObject? ProjectedParent(IPlatformAccessibleObject node)
+    {
+        // Form intentionally omits its layout-only client-area peer when enumerating children,
+        // while canonical Parent still traverses it (also validated by Automation). Find the
+        // enumerating ancestor on that same bounded chain; do not create another semantic tree
+        // or accept a detached/cyclic custom parent merely because it reports a root.
+        var root = Root;
+        if (root is null || ReferenceEquals(node, root)) return null;
+        IPlatformAccessibleObject? candidate = null;
+        var parent = node.Parent;
+        for (int depth = 0; depth < 512 && parent is not null; depth++, parent = parent.Parent)
+        {
+            if (ReferenceEquals(parent, node) || parent.GetAccessibilityView() == 4 ||
+                (parent.State & Invisible) != 0) return null;
+            for (int i = 0, count = parent.GetChildCount(); i < count; i++)
+                if (ReferenceEquals(parent.GetChild(i), node)) { candidate = parent; break; }
+            if (ReferenceEquals(parent, root)) return candidate;
+        }
+        return null;
     }
 
     internal List<int> Children(IPlatformAccessibleObject node)

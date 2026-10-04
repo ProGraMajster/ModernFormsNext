@@ -21,6 +21,7 @@ public static partial class Application
         private readonly bool previousExitCleanupRunning = exitCleanupRunning;
         private readonly ApplicationLifetimeMode previousLifetimeMode = lifetimeMode;
         private readonly ICloseable? previousRoot = lifetimeRoot;
+        private readonly Action? previousExternalLifetime = releaseExternalLifetime;
         private readonly FormCollection? previousForms = open_forms;
         private readonly EventHandler? previousExit = OnExit;
         private readonly InputBindingCollection? previousInputs = inputBindings;
@@ -43,6 +44,7 @@ public static partial class Application
             exitCleanupRunning = false;
             lifetimeMode = ApplicationLifetimeMode.MainWindowClosed;
             lifetimeRoot = null;
+            releaseExternalLifetime = null;
             open_forms = new FormCollection();
             OnExit = null;
             inputBindings = null;
@@ -69,6 +71,7 @@ public static partial class Application
                 // restoring borrowed state; Run's identity check prevents its later finally from
                 // touching the restored application. Run owns disposal of its local token source.
                 Attempt(() => _mainLoopCancellationTokenSource?.Cancel(), failures);
+                Attempt(ReleaseExternalLifetime, failures);
                 Attempt(applicationLifecycle.Dispose, failures);
                 Attempt(ReleaseInputBindings, failures);
                 Attempt(ReleaseCommandBindings, failures);
@@ -82,6 +85,7 @@ public static partial class Application
                 exitCleanupRunning = previousExitCleanupRunning;
                 lifetimeMode = previousLifetimeMode;
                 lifetimeRoot = previousRoot;
+                releaseExternalLifetime = previousExternalLifetime;
                 open_forms = previousForms;
                 OnExit = previousExit;
                 inputBindings = previousInputs;

@@ -35,9 +35,9 @@ scrollable area, labels, single-line and multiline text boxes, Unicode and emoji
 checkboxes, buttons, and a flow layout. It exercises focus, resizing, scrolling, dispatching,
 lifecycle diagnostics, IME composition, and camera-permission states.
 
-Windows attaches that root to `WindowsAppHost : Form`. Android creates one native
-`AndroidSkiaHostView`; `AndroidAppHost` connects it to `SkiaControlSurface`, which executes the same
-framework layout, rendering, hit testing, selection, keyboard, IME, and pointer pipeline. Android
+Windows uses `WindowsAppHost : MainForm` for desktop settings. Android calls `Application.Run(new MainForm(app))`
+from `AndroidWindowActivity`. The backend owns native Skia presentation and connects the canonical
+Form adapter to the existing rendering, focus, validation, keyboard, IME and pointer pipeline. Android
 does not construct an alternate page, native `EditText`, or demonstration renderer that bypasses
 `Control`.
 
@@ -45,8 +45,8 @@ Android forwards every stable pointer ID. The shared surface captures the deepes
 keeps small movement tap-eligible, raises exactly one click for a valid release, and cancels the
 child press when movement becomes a drag. A drag inside scrollable content updates the real
 `ScrollableControl` scrollbars and clamps at their limits; it is not a second Android-only scroll
-model. Density conversion happens before routing, so hit tests and the drag threshold use logical
-pixels. Touch moves do not synthesize hover.
+model. Logical native input converts to the existing device-scaled control route once, matching
+the window renderer. Touch moves do not synthesize hover.
 
 `SampleApplication` owns the shared `App`. Each `MainActivity` owns only its current view/adapter,
 and the backend retains activities weakly. Configuration changes refresh density and surface size.

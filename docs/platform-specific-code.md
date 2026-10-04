@@ -29,8 +29,10 @@ foundation registers:
 - `IPlatformAnimationFrameSource`;
 - `IPermissionService`.
 
-It does not register `IWindowingPlatform`, `IClipboard`, or empty placeholders. Consumers therefore
-receive a controlled missing-service failure instead of a false success.
+The source-tree Android window host also registers `IWindowingPlatform` and the external-loop
+`IDispatcherImpl` through the existing WindowKit registry. It does not register an empty
+`IClipboard` or other placeholder services. Unsupported services remain explicit failures;
+desktop window operations follow the [Android capability policy](android-windowing.md).
 
 ## Source isolation
 

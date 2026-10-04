@@ -220,7 +220,20 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the unscaled bounds of the form not including borders.
         /// </summary>
-        public System.Drawing.Rectangle DisplayRectangle => new System.Drawing.Rectangle (CurrentStyle.Border.Left.GetWidth (), CurrentStyle.Border.Top.GetWidth (), (int)window.ClientSize.Width - CurrentStyle.Border.Right.GetWidth () - CurrentStyle.Border.Left.GetWidth (), (int)window.ClientSize.Height - CurrentStyle.Border.Top.GetWidth () - CurrentStyle.Border.Bottom.GetWidth ());
+        public System.Drawing.Rectangle DisplayRectangle
+        {
+            get
+            {
+                var safe = window.TryGetFeature(typeof(IWindowHostPolicy)) is IWindowHostPolicy { IsHostManaged: true }
+                    ? Insets.SafeArea : default;
+                int width = (int)window.ClientSize.Width, height = (int)window.ClientSize.Height;
+                int left = Math.Min(width, CurrentStyle.Border.Left.GetWidth() + (int)Math.Ceiling(safe.Left));
+                int top = Math.Min(height, CurrentStyle.Border.Top.GetWidth() + (int)Math.Ceiling(safe.Top));
+                int right = CurrentStyle.Border.Right.GetWidth() + (int)Math.Ceiling(safe.Right);
+                int bottom = CurrentStyle.Border.Bottom.GetWidth() + (int)Math.Ceiling(safe.Bottom);
+                return new(left, top, Math.Max(0, width - left - right), Math.Max(0, height - top - bottom));
+            }
+        }
 
         internal virtual bool HandleMouseDown (int x, int y)
         {
@@ -686,9 +699,22 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets whether the window is resizable.
+        /// Gets or sets whether managed window chrome can initiate resizing.
         /// </summary>
-        public bool Resizeable { get; set; }
+        /// <remarks>
+        /// Host-managed mobile windows cannot enable desktop resize interaction. Their native
+        /// host controls size independently of this setting. Call on the owning UI thread.
+        /// </remarks>
+        /// <exception cref="PlatformNotSupportedException">The host owns resizing and true is requested.</exception>
+        public bool Resizeable {
+            get => resizeable;
+            set {
+                if (value && window.TryGetFeature(typeof(IWindowHostPolicy)) is IWindowHostPolicy { IsHostManaged: true })
+                    throw new PlatformNotSupportedException("The native host owns this window's resize interaction.");
+                resizeable = value;
+            }
+        }
+        private bool resizeable;
 
         private System.Drawing.Size ScaledClientSize => new System.Drawing.Size ((int)(window.ClientSize.Width * window.RenderScaling), (int)(window.ClientSize.Height * window.RenderScaling));
 
@@ -697,12 +723,12 @@ namespace ModernFormsNext
         /// </summary>
         public System.Drawing.Rectangle ScaledDisplayRectangle {
             get {
-                var border = CurrentStyle.Border;
-                int left = adapter.LogicalToDeviceUnits(border.Left.GetWidth());
-                int top = adapter.LogicalToDeviceUnits(border.Top.GetWidth());
+                var display = DisplayRectangle;
+                int left = adapter.LogicalToDeviceUnits(display.Left);
+                int top = adapter.LogicalToDeviceUnits(display.Top);
                 return new System.Drawing.Rectangle(left, top,
-                    Math.Max(0, (int)ScaledClientSize.Width - left - adapter.LogicalToDeviceUnits(border.Right.GetWidth())),
-                    Math.Max(0, (int)ScaledClientSize.Height - top - adapter.LogicalToDeviceUnits(border.Bottom.GetWidth())));
+                    Math.Max(0, (int)ScaledClientSize.Width - left - adapter.LogicalToDeviceUnits((int)window.ClientSize.Width - display.Right)),
+                    Math.Max(0, (int)ScaledClientSize.Height - top - adapter.LogicalToDeviceUnits((int)window.ClientSize.Height - display.Bottom)));
             }
         }
 
@@ -721,7 +747,9 @@ namespace ModernFormsNext
         /// </summary>
         /// <remarks>
         /// The returned handle remains owned by ModernFormsNext and is valid only for the
-        /// lifetime of this window. Hosts must inspect <see cref="IPlatformHandle.HandleDescriptor"/>
+        /// lifetime of its native presentation. A host-managed window may recreate or detach
+        /// that presentation while the Form survives; query this property again after attachment.
+        /// Hosts must inspect <see cref="IPlatformHandle.HandleDescriptor"/>
         /// before using the value with platform APIs; the Windows backend reports <c>HWND</c>.
         /// Access this property from the UI thread after the window has been created.
         /// </remarks>

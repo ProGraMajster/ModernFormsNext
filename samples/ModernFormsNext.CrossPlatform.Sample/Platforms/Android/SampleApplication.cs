@@ -33,6 +33,13 @@ public sealed class SampleApplication : global::Android.App.Application
         });
         platformServices = new AndroidPlatformServices(backend);
         SharedApp = new App(platformServices);
+        SharedApp.RefreshSurfaceDiagnostics = () =>
+        {
+            var window = backend.GetWindowingDiagnostics().Windows.FirstOrDefault(w => w.Main);
+            if (window is not null)
+                SharedApp.UpdateSurfaceDiagnostics((float)window.Density, (float)window.ScaledDensity,
+                    window.Attached, window.ActivePointers, window.PaintCount);
+        };
         backend.Lifecycle.LifecycleChanged += (_, e) =>
             SharedApp.NotifyLifecycle($"{e.Current.Phase}: {e.Current.State} (hosts: {e.Current.HostCount})");
         backend.Lifecycle.ActivationReceived += (_, e) =>

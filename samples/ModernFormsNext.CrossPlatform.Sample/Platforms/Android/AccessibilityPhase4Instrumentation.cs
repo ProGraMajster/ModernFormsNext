@@ -155,11 +155,18 @@ public sealed class AccessibilityPhase4Instrumentation : Instrumentation
         Check(up.PerformAction(NativeAction.Click), "date-updown-native-action");
         Check(OnUi(() => demo.Date.Value != previous), "date-normal-step-path");
         using var windowless = FindLabel("P4 Windowless date");
-        Check(!windowless.PerformAction(NativeAction.Expand), "date-windowless-expand-unavailable");
-        using var calendar = Child(windowless, 0);
-        Check(!calendar.PerformAction(NativeAction.Click), "date-windowless-calendar-unavailable");
+        // The same fixture is now hosted by a real Form. Its calendar capability must be
+        // available through the canonical peer and create a real Android popup presentation.
+        Check(windowless.PerformAction(NativeAction.Expand), "date-hosted-expand");
+        Check(OnUi(() => AndroidWindowKit.Current.GetWindowingDiagnostics().Windows.Any(w => w.Popup && w.Visible)),
+            "date-calendar-native-popup");
         Check(OnUi(() => (demo.WindowlessDate.AccessibilityObject.State
-            & (ModernFormsNext.Accessibility.AccessibleStates.HasPopup | ModernFormsNext.Accessibility.AccessibleStates.Expanded)) == 0), "date-no-popup-capability-or-expanded-state");
+            & (ModernFormsNext.Accessibility.AccessibleStates.HasPopup | ModernFormsNext.Accessibility.AccessibleStates.Expanded)) != 0),
+            "date-hosted-popup-capability");
+        SendKeyDownUpSync(global::Android.Views.Keycode.Back);
+        Idle();
+        Check(OnUi(() => !AndroidWindowKit.Current.GetWindowingDiagnostics().Windows.Any(w => w.Popup && w.Visible)),
+            "date-calendar-Back-dismissal");
     }
 
     private void CheckTextAndPrivacy(AccessibilityPhase4Panel demo)

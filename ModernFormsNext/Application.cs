@@ -36,6 +36,7 @@ namespace ModernFormsNext
         private static bool exitCleanupRunning;
         private static ApplicationLifetimeMode lifetimeMode;
         private static ICloseable? lifetimeRoot;
+        private static Action? releaseExternalLifetime;
         private static FormCollection? open_forms;
         private static string? startup_path;
         private static readonly ResourceDictionary resources = new();
@@ -315,6 +316,7 @@ namespace ModernFormsNext
                 foreach (EventHandler handler in handlers.GetInvocationList())
                     CleanupOwned(() => handler(null, EventArgs.Empty));
             CleanupOwned(() => _mainLoopCancellationTokenSource?.Cancel());
+            CleanupOwned(ReleaseExternalLifetime);
             if (ReferenceEquals(identity, RuntimeIdentity))
             {
                 exitCleanupRunning = false;
@@ -349,7 +351,9 @@ namespace ModernFormsNext
         /// <remarks>
         /// <para>
         /// This method ensures that the backend is initialized, shows the specified form,
-        /// and then starts the UI message loop.
+        /// and then starts the UI message loop when the backend owns it. On Android, the
+        /// native main Looper already runs: this method establishes application lifetime,
+        /// shows the Form and returns. Activity recreation does not call Run again.
         /// </para>
         /// <para>
         /// When the provided form is closed, the application exits automatically.
@@ -369,8 +373,11 @@ namespace ModernFormsNext
         /// <param name="mode">The shutdown policy; the default overload uses main-root closure.</param>
         /// <remarks>
         /// Call once on the UI thread. Closing from Shown is supported. Cleanup and Exited notification
-        /// run even when startup, callbacks or the message loop fail. This method does not dispose
-        /// other application-owned Forms. Android Activity recreation is independent of this policy.
+        /// run even when startup or the owned message loop fails. With an externally owned loop,
+        /// this method returns after startup and retains lifetime subscriptions until Exit.
+        /// Android exit closes native window resources without stopping the process main Looper.
+        /// Application code remains responsible for disposing its managed Forms and controls.
+        /// Android Activity recreation is independent of this policy.
         /// </remarks>
         /// <example><code>Application.Run(new MainForm(), ApplicationLifetimeMode.LastWindowClosed);</code></example>
         public static void Run(Form mainForm, ApplicationLifetimeMode mode)
@@ -404,7 +411,10 @@ namespace ModernFormsNext
         /// <summary>Runs the existing UI loop with a custom root and an explicit lifetime policy.</summary>
         /// <param name="closable">The designated lifetime root; it is not shown or disposed by this overload.</param>
         /// <param name="mode">The shutdown policy. LastWindowClosed observes Form closure independently of this root.</param>
-        /// <remarks>Call once on the UI thread. The root subscription is detached when the loop returns or fails.</remarks>
+        /// <remarks>
+        /// Call once on the UI thread. On externally owned loops this returns after startup;
+        /// the root subscription remains until Exit. Owned loops release it on return or failure.
+        /// </remarks>
         public static void Run(ICloseable closable, ApplicationLifetimeMode mode)
             => RunMainLoop(closable, mode, null);
 
@@ -431,6 +441,11 @@ namespace ModernFormsNext
             mainLoopStarted = true;
             lifetimeMode = mode;
             lifetimeRoot = closable;
+            if (Dispatcher.UIThread.HasExternalEventLoop)
+            {
+                RunExternalLifetime(closable, mode, show);
+                return;
+            }
             var loopCancellation = new CancellationTokenSource();
             var runtimeIdentity = RuntimeIdentity;
             _mainLoopCancellationTokenSource = loopCancellation;
@@ -476,6 +491,48 @@ namespace ModernFormsNext
                 loopCancellation.Dispose();
             }
             ThrowLifecycleFailures(failures);
+        }
+
+        private static void RunExternalLifetime(ICloseable root, ApplicationLifetimeMode mode, Action? show)
+        {
+            var identity = RuntimeIdentity;
+            EventHandler closed = (_, _) =>
+            {
+                if (ReferenceEquals(identity, RuntimeIdentity) && mode == ApplicationLifetimeMode.MainWindowClosed)
+                    Exit();
+            };
+            var failures = new List<Exception>();
+            try
+            {
+                root.Closed += closed;
+                releaseExternalLifetime = () => root.Closed -= closed;
+                // Native hosts have already delivered activation/restoration. Do not manufacture
+                // desktop command-line activation or replay a restored Android launch intent.
+                NotifyLifecycleStarting(Lifecycle.LastActivation ??
+                    new WindowKit.Backend.Lifecycle.PlatformApplicationActivation(
+                        WindowKit.Backend.Lifecycle.PlatformActivationKind.Launch), deliverActivation: false);
+                if (ReferenceEquals(identity, RuntimeIdentity) && !is_exiting) show?.Invoke();
+                if (ReferenceEquals(identity, RuntimeIdentity) && is_exiting) CompleteExit();
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
+                if (ReferenceEquals(identity, RuntimeIdentity))
+                {
+                    AttemptLifecycleCleanup(Exit, failures);
+                    AttemptLifecycleCleanup(CompleteExit, failures);
+                }
+            }
+            ThrowLifecycleFailures(failures);
+        }
+
+        private static void ReleaseExternalLifetime()
+        {
+            var release = releaseExternalLifetime;
+            releaseExternalLifetime = null;
+            if (release is null) return;
+            lifetimeRoot = null;
+            release();
         }
 
         internal static void NotifyWindowClosed(WindowBase window)

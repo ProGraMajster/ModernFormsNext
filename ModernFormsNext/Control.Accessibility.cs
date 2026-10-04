@@ -346,6 +346,9 @@ public partial class Control
         Control root = this;
         while (root.Parent is { } parent)
             root = parent;
+        if (root is ControlAdapter adapter && adapter.TryNotifySurfaceAccessibility(
+            PlatformAccessibleObjectAdapter.From(AccessibilityObject)!, (int)accEvent, objectID, childID))
+            return;
         if (root is IControlSurfaceAccessibilitySink surface)
         {
             surface.NotifyAccessibility(PlatformAccessibleObjectAdapter.From(AccessibilityObject)!,

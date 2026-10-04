@@ -30,10 +30,12 @@ unchanged. See [Phase 4 native checks](../../docs/accessibility/android-phase4-v
 for the exact invocation, coverage and pending evidence. An ordinary launch does not
 open or execute either instrumentation fixture.
 
-Windows attaches `App.Root` to a normal ModernFormsNext `Form`. Android creates one Skia view and
-adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the same framework
-control pipeline. Android support remains experimental and is not yet a complete `Form`/window
-backend.
+Windows attaches `App.Root` to a normal ModernFormsNext `Form`. Android now calls
+`Application.Run(new MainForm(app))` from `AndroidWindowActivity.OnStartApplication`. The backend
+owns native Skia presentation and the existing shared input pipeline. Activity recreation retains
+the same Form and root. Android remains experimental; see the
+[window capability policy](../../docs/android-windowing.md) and
+[issue #72 validation](../../docs/development/issue-72-android-windowing-report.md).
 
 The shared command section uses Ctrl+S, Ctrl+Shift+S and F1 with real command-backed buttons
 and an availability fallback. Android connects the native hardware-key handler to the same

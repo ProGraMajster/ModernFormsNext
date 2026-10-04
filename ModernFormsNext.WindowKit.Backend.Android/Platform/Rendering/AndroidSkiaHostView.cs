@@ -36,6 +36,8 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
     private bool inputStateNotificationPending;
     private bool disposed;
     private IPlatformAccessibilityHost? accessibilityHost;
+    // Window peers already report physical screen bounds; windowless peers use local logical bounds.
+    internal bool AccessibilityUsesScreenPixels { get; set; }
     private AndroidAccessibilityNodeProvider? accessibilityProvider;
     private int lastAccessibilityVirtualId;
 

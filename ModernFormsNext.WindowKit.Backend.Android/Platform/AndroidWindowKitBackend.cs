@@ -12,8 +12,9 @@ namespace ModernFormsNext.WindowKit.Backend.Android;
 /// </summary>
 /// <remarks>
 /// The backend registers lifecycle, dispatcher, permission, animation-frame, and motion-policy
-/// infrastructure. The experimental shared-control host renders one control tree through Skia;
-/// Android still does not implement the complete ModernFormsNext window contract, clipboard,
+/// infrastructure and a host-managed Application/Form window backend using software Skia.
+/// Android supports one main Form plus modal/popup descendants, with explicit desktop limitations.
+/// It does not implement clipboard,
 /// camera, media, WebView, notifications, file pickers, sharing, or drag-and-drop services.
 /// </remarks>
 public sealed class AndroidWindowKitBackend : IWindowKitBackend
@@ -22,6 +23,7 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
     private readonly AndroidWindowKitOptions options;
     private AndroidPlatformAnimationSettings animationSettings = null!;
     private AndroidChoreographerAnimationFrameSource animationFrameSource = null!;
+    internal Windowing.AndroidWindowingPlatform Windowing { get; private set; } = null!;
 
     /// <summary>
     /// Creates an Android backend using explicit host options.
@@ -66,6 +68,19 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
     /// Gets Android SDK information after initialization.
     /// </summary>
     public AndroidPlatformInfo PlatformInfo { get; private set; } = null!;
+
+    /// <summary>Returns current window facts and capability policies without sensitive payloads.</summary>
+    /// <remarks>Requires initialization and the Android main thread. The returned data owns no native resources.</remarks>
+    public Windowing.AndroidWindowingDiagnostics GetWindowingDiagnostics()
+    {
+        if (!IsInitialized) throw new InvalidOperationException("Initialize the Android backend before reading window diagnostics.");
+        Windowing.VerifyAccess();
+        return new(!Windowing.Exited, Windowing.Generation, Windowing.Host is not null, ActivityTracker.Publisher.State,
+            Array.AsReadOnly(Windowing.Windows.Select(w => new Windowing.AndroidWindowDiagnostics(
+                ReferenceEquals(Windowing.MainWindow, w), w.IsPopup, w.IsDialog, w.Visible, w.Attached,
+                w.Active, w.ClientSize, w.RenderScaling, w.ScaledDensity, w.CurrentInsets,
+                w.PaintCount, w.ActivePointers)).ToArray()));
+    }
 
     /// <summary>Returns a snapshot of Android frame, lifecycle, and reduced-motion integration.</summary>
     public AndroidAnimationRuntimeDiagnostics GetAnimationRuntimeDiagnostics()
@@ -112,6 +127,11 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             ApplicationContext = new AndroidApplicationContext(options.ApplicationContext);
             ActivityTracker = new AndroidActivityTracker(options.ActivityProvider, options.DiagnosticSink);
             Dispatcher = new AndroidMainThreadDispatcher();
+            if (!Dispatcher.CheckAccess()) throw new InvalidOperationException("Android initialization requires the main UI thread.");
+            Windowing = new Windowing.AndroidWindowingPlatform(() =>
+            {
+                if (!Dispatcher.CheckAccess()) throw new InvalidOperationException("Android windows require the main UI thread.");
+            });
             animationSettings = new AndroidPlatformAnimationSettings(ApplicationContext.Context);
             animationFrameSource = new AndroidChoreographerAnimationFrameSource(options.DiagnosticSink);
             Permissions = new AndroidPermissionService(
@@ -127,8 +147,12 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             lifecycle.StateChanged += HandleApplicationLifecycleChanged;
             animationSettings.SetHostActive(lifecycle.State == PlatformApplicationLifecycleState.Foreground);
 
-            // Register only services that are genuinely implemented. In particular, there is no
-            // IWindowingPlatform or clipboard registration until Android UI/rendering support exists.
+            AvaloniaGlobals.AddService<IDispatcherImpl>(Dispatcher);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.IWindowingPlatform>(Windowing);
+            ActivityTracker.Publisher.LifecycleChanged += (_, e) =>
+            {
+                if (e.Current.Phase == PlatformApplicationPhase.Exited) Windowing.Shutdown();
+            };
             PlatformServiceRegistry.Register<IPlatformDispatcher>(Dispatcher);
             PlatformServiceRegistry.Register<IPlatformApplicationLifecycle>(lifecycle);
             PlatformServiceRegistry.Register<IPlatformAnimationSettings>(animationSettings);

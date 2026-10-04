@@ -60,7 +60,8 @@ still completes ShowDialog without initializing or showing the form.
 Load does not await async void handlers. Async initialization is an application concern.
 Designer document opening, metadata discovery and preview do not execute the designed form's
 Load. This managed Form lifecycle is shared by Windows and the headless test backend; it does
-not map to Android Activity/View lifecycle or change the Android surface host.
+not repeat on Android Activity/View recreation. The source-tree
+[Android window host](android-windowing.md) retains the same Form across host replacement.
 
 ## Observe window visibility
 

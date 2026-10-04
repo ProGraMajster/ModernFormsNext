@@ -1932,9 +1932,11 @@ namespace ModernFormsNext
 
                 // Control input/painting coordinates are device pixels. WindowKit owns the
                 // logical-client -> physical-screen boundary, including native nonclient chrome.
+                // Use the same display origin as painting/hit testing: mobile safe-area
+                // padding is part of that origin, not another native screen translation.
                 var screen = window.window.PointToScreen (new WindowKit.Point (
-                    (point.X + LogicalToDeviceUnits(window.CurrentStyle.Border.Left.GetWidth())) / window.Scaling,
-                    (point.Y + LogicalToDeviceUnits(window.CurrentStyle.Border.Top.GetWidth())) / window.Scaling));
+                    (point.X + LogicalToDeviceUnits(window.DisplayRectangle.Left)) / window.Scaling,
+                    (point.Y + LogicalToDeviceUnits(window.DisplayRectangle.Top)) / window.Scaling));
                 return new Point (screen.X, screen.Y);
             }
 

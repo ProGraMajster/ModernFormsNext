@@ -13,6 +13,11 @@ The startup and IME work that followed Phase 3 is documented separately in
 [application lifecycle](application-lifecycle.md) and [text input](text-input.md).
 The audit and dated validation sections below retain their original baseline and results.
 
+The current Application/Form host for [issue #72](android-windowing.md) exposes the same canonical
+objects through the Form adapter. It adds physical-screen bounds handling for window roots and
+projects the existing omitted Form layout container by validating its canonical parent chain.
+Its dated native checks are recorded separately in the issue #72 report.
+
 ## Audit before implementation
 
 Baseline: `028b32da615632810d0eb7e62815d1ac0397bb3a` (Phase 2 PR #103),
