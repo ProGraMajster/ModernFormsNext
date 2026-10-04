@@ -21,8 +21,10 @@ of the target root. Selecting the current owner is a no-op.
 
 An ordinary A-to-B transition has this order:
 
-1. Resolve the destination and run the internal preflight, then recheck lifetime,
-   ancestry and request identity. The seam does not yet implement validation.
+1. Resolve the destination and run the internal preflight. When B has
+   `CausesValidation == true`, A runs `Validating`, then pending `OnValidation`
+   binding writes, then `Validated`. Cancellation/failure keeps A and its text
+   session. Recheck lifetime, ancestry and request identity before committing.
 2. Commit the owner to B, clear A's `Selected`/`Focused`, and set B's flags without
    invoking observers between those writes.
 3. Refresh the existing text-input host: revoke A's borrowed session, finish its
@@ -32,8 +34,11 @@ An ordinary A-to-B transition has this order:
 
 Both focus observers therefore see a coherent committed owner. This fixes the old
 window behavior that published B's `GotFocus` while A was still selected and still
-owned the adapter. Reentrant requests run synchronously: the latest valid request
-wins. For example, `A.LostFocus` selecting C leaves C selected and suppresses the
+owned the adapter. Reentrant focus observers run synchronously: the latest valid request
+wins. During departure validation, requests needing validation are instead coalesced
+into one latest destination until the public cancellation decision and binding phase
+finish. Cancel rejects that entire departure, including the pending redirect.
+For example, `A.LostFocus` selecting C leaves C selected and suppresses the
 obsolete `B.GotFocus`. Per-request and per-control versions prevent older callbacks
 from restoring owners or publishing obsolete notifications. Pathological callback
 cycles throw after 32 nested voluntary transitions; mandatory retirement still runs.
@@ -65,9 +70,11 @@ Overrides of focus notification methods should call their base implementations.
 
 `GetContainerControl()` can discover existing `IContainerControl` implementations;
 native ownership and recovery do not depend on that compatibility interface. This
-change adds neither public `ContainerControl` nor validation, `Enter`/`Leave`, a
-`Focus()` alias, or native-view hosting. The private preflight is reserved for a later
-validation transaction; forced retirement cannot be vetoed by it.
+validation API uses that existing private preflight and adds no public `ContainerControl`,
+`Enter`/`Leave`, `Focus()` alias, or native-view hosting. Forced retirement cannot be
+vetoed. See [native validation](validation.md) for explicit validation, binding failure
+and callback semantics. A canceled pointer departure does not finish composition or
+start a click/capture gesture on the rejected destination.
 
 ## Keyboard hints
 

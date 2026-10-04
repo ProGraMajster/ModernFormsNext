@@ -356,6 +356,22 @@ namespace ModernFormsNext
         /// </summary>
         public event EventHandler? MinimumSizeChanged;
 
+        // A rejected down (including validation cancellation) must not become a click on up.
+        private MouseButtons rejectedPointerButtons;
+
+        private bool ConsumeRejectedPointerUp(MouseButtons button)
+        {
+            bool rejected = (rejectedPointerButtons & button) != 0;
+            rejectedPointerButtons &= ~button;
+            return rejected;
+        }
+
+        private void RoutePointerDown(MouseEventArgs e)
+        {
+            rejectedPointerButtons |= e.Button;
+            if (adapter.RaiseMouseDown(e)) rejectedPointerButtons &= ~e.Button;
+        }
+
         private void OnInput (RawInputEventArgs e)
         {
             // Non-activating native popups keep keyboard/IME ownership on the parent HWND.
@@ -386,9 +402,10 @@ namespace ModernFormsNext
                             return;
 
                         var lbd_e = new MouseEventArgs (MouseButtons.Left, 1, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
-                        adapter.RaiseMouseDown (lbd_e);
+                        RoutePointerDown(lbd_e);
                         break;
                     case RawPointerEventType.LeftButtonUp:
+                        if (ConsumeRejectedPointerUp(MouseButtons.Left)) break;
                         var lbu_e = BuildMouseClickArgs (MouseButtons.Left, contentPoint, KeyEventArgs.FromInputModifiers (me.InputModifiers));
 
                         if (lbu_e.Clicks > 1)
@@ -399,9 +416,10 @@ namespace ModernFormsNext
                         break;
                     case RawPointerEventType.MiddleButtonDown:
                         var mbd_e = new MouseEventArgs (MouseButtons.Middle, 1, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
-                        adapter.RaiseMouseDown (mbd_e);
+                        RoutePointerDown(mbd_e);
                         break;
                     case RawPointerEventType.MiddleButtonUp:
+                        if (ConsumeRejectedPointerUp(MouseButtons.Middle)) break;
                         var mbu_e = BuildMouseClickArgs (MouseButtons.Middle, contentPoint, KeyEventArgs.FromInputModifiers (me.InputModifiers));
 
                         if (mbu_e.Clicks > 1)
@@ -412,9 +430,10 @@ namespace ModernFormsNext
                         break;
                     case RawPointerEventType.RightButtonDown:
                         var rbd_e = new MouseEventArgs (MouseButtons.Right, 1, (int)contentPoint.X, (int)contentPoint.Y, System.Drawing.Point.Empty, keyData: KeyEventArgs.FromInputModifiers (me.InputModifiers));
-                        adapter.RaiseMouseDown (rbd_e);
+                        RoutePointerDown(rbd_e);
                         break;
                     case RawPointerEventType.RightButtonUp:
+                        if (ConsumeRejectedPointerUp(MouseButtons.Right)) break;
                         var rbu_e = BuildMouseClickArgs (MouseButtons.Right, contentPoint, KeyEventArgs.FromInputModifiers (me.InputModifiers));
 
                         if (rbu_e.Clicks > 1)

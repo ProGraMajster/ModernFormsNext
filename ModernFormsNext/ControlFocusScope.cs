@@ -7,17 +7,27 @@ namespace ModernFormsNext;
 /// Window adapters, windowless surfaces and detached trees use this same mechanism. Walking
 /// ancestry is bounded by depth; a transition never enumerates the entire control tree.
 /// </remarks>
-internal sealed class ControlFocusScope(Control root, int threadId)
+internal sealed partial class ControlFocusScope
 {
+    private readonly Control root;
+    private readonly int threadId;
     private long generation;
     private int transitionDepth;
     private int preflightDepth;
     private bool suspended;
 
-    internal Control? Owner { get; private set; }
+    internal ControlFocusScope(Control root, int threadId)
+    {
+        this.root = root;
+        this.threadId = threadId;
+        Preflight = ValidateDeparture;
+    }
 
-    // The sole optional pre-commit seam. Validation can later veto a voluntary transition;
-    // mandatory retirement deliberately bypasses it. No public validation API is introduced.
+    internal Control? Owner { get; private set; }
+    internal long Version => generation;
+
+    // The sole optional pre-commit seam. Validation can veto a voluntary transition;
+    // mandatory retirement deliberately bypasses it.
     internal Func<Control?, Control?, bool>? Preflight { get; set; }
 
     internal void VerifyAccess()
@@ -46,6 +56,15 @@ internal sealed class ControlFocusScope(Control root, int threadId)
             // Selecting the existing owner from a preflight cancels the pending departure.
             if (preflightDepth != 0) generation++;
             return destination is not null;
+        }
+        if (!forced && destination is { CausesValidation: true } && validationPass is { } pass &&
+            ReferenceEquals(Owner, pass.Owner))
+        {
+            // A Validating observer has not returned its cancellation decision yet. Retain
+            // only its latest requested destination; never recursively validate or commit
+            // through that unfinished decision. Completion reuses this same Request path.
+            pass.Redirect(destination, ++generation);
+            return false;
         }
         // Immediate nested requests have latest-valid-wins semantics. Bound pathological
         // callback cycles without an unbounded queue or allowing an obsolete outer commit.

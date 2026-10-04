@@ -689,7 +689,9 @@ namespace ModernFormsNext.DataBinding
                     }
                 }
 
-                _validateInfo = tempValidateInfo;
+                // Control validation runs this binding after ALL public Validating observers.
+                // Keep event discovery for other components that own their validation lifecycle.
+                _validateInfo = BindableComponent is Control ? null : tempValidateInfo;
             }
             else
             {
@@ -961,16 +963,49 @@ namespace ModernFormsNext.DataBinding
         ///  should cancel the higher level operation. Raises a BindingComplete event regardless of
         ///  success or failure.
         ///
-        ///  When the user leaves the control, it will raise a Validating event, calling the Binding.Target_Validate
-        ///  method, which in turn calls PullData. PullData is also called by the binding manager when pulling data
-        ///  from all bounds properties in one go.
+        ///  Control's validation engine calls this after public observers accept validation.
+        ///  Other components still use Target_Validate. Binding managers and explicit WriteValue
+        ///  also use this pipeline.
         /// </summary>
         internal bool PullData() => PullData(reformat: true, force: false);
 
         internal bool PullData(bool reformat) => PullData(reformat, force: false);
 
-        internal bool PullData(bool reformat, bool force)
+        // A validation write may invoke arbitrary parsers, formatters and model setters. Check
+        // the request and binding identity between them, before allowing more side effects.
+        private int controlValidationPendingDepth;
+        internal void BeginControlValidation() => controlValidationPendingDepth++;
+        internal void EndControlValidation() => controlValidationPendingDepth--;
+        private bool IsControlValidationPending => controlValidationPendingDepth != 0 &&
+            DataSourceUpdateMode == DataSourceUpdateMode.OnValidation;
+
+        internal bool ValidateTarget(Control target, Func<bool> requestCurrent)
         {
+            if (!IsBinding) return true;
+            if (_state.HasFlag(BindingStates.InPushOrPull)) return false;
+            var manager = BindingManagerBase;
+            var item = manager?.Current;
+            var field = _bindToObject.FieldInfo;
+            var currency = manager as CurrencyManager;
+            int position = currency?.Position ?? -1;
+            var list = currency?.List;
+            bool SameItem(object? actual) => ReferenceEquals(actual, item) ||
+                (item is ValueType && Equals(actual, item));
+            bool Current() => requestCurrent() && ReferenceEquals(BindableComponent, target) &&
+                DataSourceUpdateMode == DataSourceUpdateMode.OnValidation && IsBinding &&
+                ReferenceEquals(BindingManagerBase, manager) && ReferenceEquals(_bindToObject.FieldInfo, field) &&
+                (currency is null || (currency.Position == position && ReferenceEquals(currency.List, list))) &&
+                SameItem(manager?.Current);
+            // A fieldless list binding replaces the current item itself. Expect that exact
+            // replacement, while still rejecting currency/list changes from setter callbacks.
+            void Writing(object? value) { if (field is null && currency is not null) item = value; }
+            return Current() && !PullData(reformat: true, force: false, Current, Writing) && Current();
+        }
+
+        internal bool PullData(bool reformat, bool force, Func<bool>? validationCurrent = null,
+            Action<object?>? validationWriting = null)
+        {
+            if (!force && validationCurrent is null && IsControlValidationPending) return false;
             // Don't update the control if the control update mode is never.
             if (ControlUpdateMode == ControlUpdateMode.Never)
             {
@@ -1013,28 +1048,25 @@ namespace ModernFormsNext.DataBinding
 
             _state.ChangeFlags(BindingStates.InPushOrPull, true);
 
-            // Get the value from the bound control property
-            object? value = GetPropValue();
-
-            // Attempt to parse the property value into a format suitable for the data source
+            bool propertyRead = false;
             try
             {
-                parsedValue = ParseObject(value);
-            }
-            catch (Exception ex)
-            {
-                // Eat parsing exceptions.
-                lastException = ex;
-            }
+                // Include the getter in the cleanup boundary: a throwing getter must not leave
+                // this binding permanently marked as in-flight.
+                object? value = GetPropValue();
+                propertyRead = true;
+                if (validationCurrent is not null && !validationCurrent()) return true;
+                try { parsedValue = ParseObject(value); }
+                catch (Exception ex) { lastException = ex; }
+                if (validationCurrent is not null && !validationCurrent()) return true;
 
-            try
-            {
                 // If parse failed, reset control property value back to original data source value.
                 // An exception always indicates a parsing failure.
                 if (lastException is not null || (!FormattingEnabled && parsedValue is null))
                 {
                     parseFailed = true;
                     parsedValue = _bindToObject.GetValue();
+                    if (validationCurrent is not null && !validationCurrent()) return true;
                 }
 
                 // Format the parsed value to be re-displayed in the control
@@ -1048,9 +1080,11 @@ namespace ModernFormsNext.DataBinding
                     else
                     {
                         object? formattedObject = FormatObject(parsedValue);
+                        if (validationCurrent is not null && !validationCurrent()) return true;
                         if (force || !FormattingEnabled || !Equals(formattedObject, value))
                         {
                             SetPropValue(formattedObject);
+                            if (validationCurrent is not null && !validationCurrent()) return true;
                         }
                     }
                 }
@@ -1058,10 +1092,11 @@ namespace ModernFormsNext.DataBinding
                 // Put the value into the data model
                 if (!parseFailed)
                 {
-                    _bindToObject.SetValue(parsedValue);
+                    validationWriting?.Invoke(parsedValue);
+                    _bindToObject.SetValue(parsedValue, validationCurrent);
                 }
             }
-            catch (Exception ex) when (FormattingEnabled)
+            catch (Exception ex) when (FormattingEnabled && propertyRead)
             {
                 // Throw the exception unless this binding has formatting enabled
                 lastException = ex;
@@ -1071,12 +1106,16 @@ namespace ModernFormsNext.DataBinding
                 _state.ChangeFlags(BindingStates.InPushOrPull, false);
             }
 
+            if (validationCurrent is not null && !validationCurrent()) return true;
+
             if (FormattingEnabled)
             {
                 // Raise the BindingComplete event, giving listeners a chance to process any
                 // errors that occurred and decide whether the operation should be cancelled.
                 BindingCompleteEventArgs args = CreateBindingCompleteEventArgs(BindingCompleteContext.DataSourceUpdate, lastException);
                 OnBindingComplete(args);
+                if (validationCurrent is not null && (!validationCurrent() || parseFailed ||
+                    args.BindingCompleteState != BindingCompleteState.Success)) return true;
 
                 // If the operation completed successfully (and was not cancelled), we can clear the dirty flag
                 // on this binding because we know the value in the control was valid and has been accepted by
@@ -1091,6 +1130,9 @@ namespace ModernFormsNext.DataBinding
             }
             else
             {
+                // Legacy explicit/generic pulls retain their existing behavior. Native
+                // validation must reject a failed parse even without BindingComplete events.
+                if (validationCurrent is not null && (parseFailed || !string.IsNullOrEmpty(_bindToObject.DataErrorText))) return true;
                 // Do not emit BindingComplete events, or allow the operation to be cancelled.
                 // If we get this far, treat the operation as successful and clear the dirty flag.
                 _state.ChangeFlags(BindingStates.Modified, false);
@@ -1107,6 +1149,9 @@ namespace ModernFormsNext.DataBinding
 
         internal bool PushData(bool force)
         {
+            // Source notifications can synchronously refresh every binding on this control
+            // during another participant's setter. Preserve values awaiting validation.
+            if (!force && IsControlValidationPending) return false;
             object? dataSourceValue;
             Exception? lastException = null;
 

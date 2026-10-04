@@ -7,6 +7,33 @@ namespace ModernFormsNext.Automation.Tests;
 public sealed class ActionTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FocusActionHonorsValidationCancellationAndDestinationBypass(bool useSurface, bool bypass)
+    {
+        using var host = Testing.ModernFormsTestHost.Create();
+        using var form = new Form();
+        using var panel = new Panel();
+        using var surface = useSurface ? new SkiaControlSurface(panel) : null;
+        if (!useSurface) { form.Controls.Add(panel); host.Show(form); }
+        var a = panel.Controls.Add(new TextBox());
+        var b = panel.Controls.Add(new TextBox { CausesValidation = !bypass });
+        a.Select();
+        int calls = 0;
+        a.Validating += (_, e) => { calls++; e.Cancel = true; };
+        using var session = new AutomationSession();
+        using var registration = useSurface ? session.RegisterRoot(surface!) : session.RegisterRoot(form);
+        var handle = new AutomationNodeHandle(session.SessionId,
+            b.AccessibilityObject.RuntimeId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var result = session.PerformActionAsync(registration.RootId, handle, AccessibleActions.Focus).Completed();
+        Assert.Equal(bypass ? AutomationActionStatus.Accepted : AutomationActionStatus.Rejected, result.Status);
+        Assert.Same(bypass ? b : a, useSurface ? surface!.SelectedControl : host.FocusedControl);
+        Assert.Equal(bypass ? 0 : 1, calls);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void FocusActionUsesCanonicalOwnerAndHonorsObserverRedirect(bool useSurface)

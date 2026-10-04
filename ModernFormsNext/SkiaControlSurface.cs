@@ -271,7 +271,9 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                 try
                 {
                     var ownerBeforeFinish = FindSelectedControl();
-                    FinishComposingText();
+                    // A click within the active editor still finishes its composition before
+                    // caret placement. Departure must wait for validation and the normal handoff.
+                    if (ReferenceEquals(hit?.Control, ownerBeforeFinish)) FinishComposingText();
                     if (disposed || !ReferenceEquals(ownerBeforeFinish, FindSelectedControl())) return;
                     var target = hit?.Control;
                     var scrollCandidate = FindScrollableAncestor(target);
@@ -282,7 +284,22 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                     {
                         // RaiseMouseDown makes the sole Select request; an earlier extra
                         // selection here could overwrite a redirect from LostFocus/GotFocus.
-                        target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0, pointerId));
+                        bool accepted;
+                        try { accepted = target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0, pointerId)); }
+                        catch (Exception error)
+                        {
+                            pointers.Remove(pointerId);
+                            var failures = new List<Exception> { error };
+                            CaptureCleanupFailure(() => CancelPointer(downState), failures);
+                            ThrowCleanupFailures(failures);
+                            throw;
+                        }
+                        if (!accepted)
+                        {
+                            pointers.Remove(pointerId);
+                            CancelPointer(downState);
+                            return;
+                        }
                         downState.CapturedControl = target;
                     }
                     if (FindSelectedControl() is null)

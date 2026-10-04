@@ -78,8 +78,10 @@ public sealed class MainForm : Form
 ```
 
 Use `DataSourceUpdateMode.OnPropertyChanged` when the data source should be updated as
-the component property changes. Use `DataSourceUpdateMode.OnValidation` for the default
-WinForms-like behavior where the data source is updated during validation. Use
+the component property changes. The default `DataSourceUpdateMode.OnValidation` writes
+through the [native validation lifecycle](validation.md): all public `Validating`
+observers accept first, then bindings write, then `Validated` runs before focus commits.
+The same pipeline serves `Control.Validate()` and `ValidateChildren()`. Use
 `DataSourceUpdateMode.Never` for read-only bindings and call `Binding.WriteValue`
 explicitly when an update is needed.
 

@@ -2047,12 +2047,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Finds the correct control and calls its OnMouseDown method.
         /// </summary>
-        internal void RaiseMouseDown (MouseEventArgs e)
+        internal bool RaiseMouseDown (MouseEventArgs e)
         {
             var child = Controls.GetAllControls ().LastOrDefault (c => c.Visible && c.GetControlBehavior (ControlBehaviors.ReceivesMouseEvents) && c.PresentationContains (e.Location));
 
             if (child != null)
-                child.RaiseMouseDown (TranslateMouseEvents (e, child));
+                return child.RaiseMouseDown (TranslateMouseEvents (e, child));
             else {
                 // If we're clicking on a Control that isn't the active menu, 
                 // we need to close the active menu (if any)
@@ -2069,20 +2069,22 @@ namespace ModernFormsNext
                     WindowBase? inputWindow = FindWindow();
                     Select ();
                     if (!IsInputRouteCurrent(inputParent, inputWindow) || (CanSelect && !Selected))
-                        return;
+                        return false;
                     Capture = true;
                     OnMouseDown (e);
                     // Focus and mouse handlers may close the window or detach/dispose/reparent
                     // this control. Do not resume an obsolete gesture or repaint its old backend.
                     if (!IsInputRouteCurrent(inputParent, inputWindow))
-                        return;
+                        return false;
                     // Focus, capture, caret placement, selection, and control-specific input have
                     // completed. Pressed visuals and attached effects are optional consequences.
                     if (e.Button == MouseButtons.Left)
                         SetPointerVisualPressed(true, e.PointerId);
                     NotifyInteractionPointerDown (e);
+                    return true;
                 }
             }
+            return false;
         }
 
         /// <summary>
