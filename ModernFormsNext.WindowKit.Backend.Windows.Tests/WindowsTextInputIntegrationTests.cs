@@ -36,8 +36,11 @@ public sealed class WindowsTextInputIntegrationTests
             Assert.Equal("ą", popupEditor.Text);
             var restoredOwner = form.TextInputClient!;
             popup.Show(form.PointToScreen(new System.Drawing.Point(30, 50)));
-            // The same HWND uses ShowNoActivate again; no native Activated callback is
-            // available to restore its text session after the first Hide retired it.
+            // Hide retires canonical selection. Reusing the same ShowNoActivate HWND
+            // requires a new explicit request, with no fabricated native Activated event.
+            Assert.False(popupEditor.Selected);
+            Assert.Null(popup.TextInputClient);
+            popupEditor.Select();
             Assert.NotNull(popup.TextInputClient);
             Assert.NotSame(oldPopup, popup.TextInputClient);
             Assert.Null(restoredOwner.GetState());

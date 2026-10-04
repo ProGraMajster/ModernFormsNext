@@ -197,7 +197,12 @@ public sealed class TextInputWindowLifecycleTests
         Assert.Equal(!hide, form.Visible);
         Assert.Equal(!hide, window.Backend.IsShown);
         Assert.Equal(hide ? 0 : 1, deactivated);
-        if (hide) form.Show();
+        if (hide) {
+            form.Show();
+            Assert.False(editor.Selected);
+            Assert.Null(form.TextInputClient);
+            editor.Select();
+        }
         else window.SetActive(true);
         Assert.NotSame(old, form.TextInputClient);
         Assert.False(form.TextInputClient!.GetState()!.HasComposition);
@@ -239,6 +244,9 @@ public sealed class TextInputWindowLifecycleTests
         owner.Input.TextInput("owner");
         Assert.Equal("owner", ownerEditor.Text);
         popup.Show(0, 0);
+        Assert.False(editor.Selected);
+        Assert.Null(popup.TextInputClient);
+        editor.Select();
         var current = popup.TextInputClient!;
         Assert.NotNull(current);
         Assert.NotSame(old, current);

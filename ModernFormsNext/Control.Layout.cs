@@ -262,11 +262,9 @@ public partial class Control
     // and the correct Parent ContainerControl is returned by GetContainerControl().
     internal virtual bool IsContainerControl => false;
 
-    private static bool IsFocusManagingContainerControl (Control ctl)
-    {
-        // TODO probably
-        return false;// ((ctl._controlStyle & ControlStyles.ContainerControl) == ControlStyles.ContainerControl && ctl is IContainerControl);
-    }
+    // Existing IContainerControl implementations remain discoverable for callers of the
+    // legacy interface. Native focus ownership/recovery uses ControlFocusScope instead.
+    private static bool IsFocusManagingContainerControl (Control ctl) => ctl is IContainerControl;
 
     // Public because this is interesting for ControlDesigners.
     /// <summary>

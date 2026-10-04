@@ -54,8 +54,21 @@ public abstract partial class WindowBase
             // control/command callbacks on the finalizer thread, even for a completed constructor.
             if (disposing)
             {
-                try { ReleaseInputBindings(); }
-                finally { DetachInsetsProvider(); }
+                List<Exception>? failures = null;
+                void Cleanup(Action action)
+                {
+                    try { action(); }
+                    catch (Exception failure) { (failures ??= []).Add(failure); }
+                }
+                // Closing bindings makes this root ineligible before any LostFocus callback
+                // can reenter Show/Select and resume its otherwise suspended focus scope.
+                Cleanup(ReleaseInputBindings);
+                Cleanup(() => adapter?.FindExistingFocusScope()?.SetSuspended(true));
+                Cleanup(DetachInsetsProvider);
+                if (failures?.Count == 1)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+                if (failures?.Count > 1)
+                    throw new AggregateException("Window focus and binding cleanup failed.", failures);
             }
         }
         finally

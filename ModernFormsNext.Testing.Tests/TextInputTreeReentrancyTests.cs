@@ -24,6 +24,10 @@ public sealed class TextInputTreeReentrancyTests
         Assert.Null(fixture.OldClient.GetState());
         Assert.False(fixture.OldClient.CommitText("obsolete"));
         Assert.Equal("provisional", fixture.Editor.Text);
+        // Detach retires focus even when a callback reattaches in the same window.
+        Assert.Null(fixture.Host.Input.TextInputClient);
+        Assert.False(fixture.Editor.Selected);
+        fixture.Editor.Select();
         var replacement = fixture.Host.Input.TextInputClient;
         Assert.NotNull(replacement);
         Assert.NotSame(fixture.OldClient, replacement);
@@ -118,8 +122,9 @@ public sealed class TextInputTreeReentrancyTests
         Assert.False(fixture.Editor.Selected);
         Assert.False(fixture.Editor.Capture);
         Assert.NotEqual(VisualState.Focused, fixture.Editor.VisualState);
-        Assert.False(next.Selected);
-        Assert.NotEqual(VisualState.Focused, next.VisualState);
+        Assert.True(next.Selected);
+        Assert.Same(next, fixture.Window.FocusedControl);
+        Assert.Equal(VisualState.Focused, next.VisualState);
         Assert.Null(fixture.OldClient.GetState());
 
         fixture.Editor.TextCompositionChanged -= finish;

@@ -522,7 +522,7 @@ public sealed class EditorPointerInputRegressionTests
     private sealed class PointerTextBox : TextBox
     {
         public void CancelPointerForTest(int pointerId) => CancelPointerInteraction(pointerId);
-        public void LoseFocusForTest() => OnLostFocus(EventArgs.Empty);
+        public void LoseFocusForTest() => Deselect();
         public void MoveForTest(MouseEventArgs e) => OnMouseMove(e);
     }
 

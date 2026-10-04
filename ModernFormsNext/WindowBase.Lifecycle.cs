@@ -68,6 +68,7 @@ public abstract partial class WindowBase
             catch (Exception exception) { failures.Add(exception); }
         }
         Cleanup(DetachInsetsProvider);
+        Cleanup(() => adapter.GetFocusScope().SetSuspended(true));
         Cleanup(TextInputHost.Dispose);
         Cleanup(ReleaseInputBindings);
         Cleanup(adapter.CancelOwnedControlAnimationsForSubtree);

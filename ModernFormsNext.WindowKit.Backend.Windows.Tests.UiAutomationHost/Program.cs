@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--focus", StringComparer.Ordinal))
+{
+    Environment.ExitCode = FocusScenario.Run();
+    return;
+}
+
 if (args.Contains("--form-activate", StringComparer.Ordinal))
 {
     Environment.ExitCode = FormActivateScenario.Run();

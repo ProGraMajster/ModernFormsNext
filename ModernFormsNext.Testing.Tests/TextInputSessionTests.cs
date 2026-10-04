@@ -72,6 +72,9 @@ public sealed class TextInputSessionTests
         Assert.Equal("日本", editor.Text);
         Assert.Null(host.Input.TextInputClient);
         root.Controls.Add(nested);
+        Assert.False(editor.Selected);
+        Assert.Null(host.Input.TextInputClient);
+        editor.Select();
         var current = host.Input.TextInputClient;
         Assert.NotNull(current);
         Assert.NotSame(old, current);
@@ -202,6 +205,9 @@ public sealed class TextInputSessionTests
         Assert.Null(old.GetState());
         Assert.Equal("retained", editor.Text);
         using var replacement = new SkiaControlSurface(root);
+        Assert.False(editor.Selected);
+        Assert.Null(replacement.TextInputClient);
+        editor.Select();
         Assert.NotNull(replacement.TextInputClient);
         Assert.NotSame(old, replacement.TextInputClient);
     }

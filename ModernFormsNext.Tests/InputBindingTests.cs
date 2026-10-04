@@ -81,6 +81,7 @@ public sealed class InputBindingTests : IDisposable
         var outer = ui.Form.Controls.Add(new Panel());
         ui.Form.Controls.Remove(ui.Parent);
         outer.Controls.Add(ui.Parent);
+        ui.Focus.Select(); // Detaching the ancestor retires its old keyboard ownership.
         var calls = new List<string>();
         outer.InputBindings.Add(Bind(() => calls.Add("outer")));
         ui.Parent.InputBindings.Add(Bind(() => calls.Add("inner")));

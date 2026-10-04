@@ -45,6 +45,8 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         Root = root ?? throw new ArgumentNullException(nameof(root));
         textInputHost = new(surfaceRoot, FindSelectedControl);
         surfaceRoot.TextInputHost = textInputHost;
+        surfaceRoot.PreserveFocusPointer = control => pointerDownRouteDepth > 0 && IsPointerOwnedBy(control);
+        surfaceRoot.FocusOwnerLost = control => CancelPointersOwnedBy(control, alreadyCanceled: control);
         this.pointerDiagnosticSink = pointerDiagnosticSink;
         surfaceRoot.AccessibilityNotification = (source, eventId, objectId, childId) =>
             accessibilityNotification?.Invoke(source, eventId, objectId, childId);
@@ -268,29 +270,25 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                 pointerDownRouteDepth++;
                 try
                 {
+                    var ownerBeforeFinish = FindSelectedControl();
                     FinishComposingText();
-                    foreach (var control in observedControls.Where(control => control.Selected).ToArray())
-                        control.Deselect(preservePointerInteraction: IsPointerOwnedBy(control));
+                    if (disposed || !ReferenceEquals(ownerBeforeFinish, FindSelectedControl())) return;
+                    var target = hit?.Control;
+                    var scrollCandidate = FindScrollableAncestor(target);
+                    var downState = new PointerState(pointerId, location, target, scrollCandidate);
+                    pointers.Add(pointerId, downState);
+                    processedState = downState;
+                    if (target is not null)
+                    {
+                        // RaiseMouseDown makes the sole Select request; an earlier extra
+                        // selection here could overwrite a redirect from LostFocus/GotFocus.
+                        target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0, pointerId));
+                        downState.CapturedControl = target;
+                    }
+                    if (FindSelectedControl() is null)
+                        FindSelectableAt(surfaceRoot, location)?.Select();
                 }
-                finally
-                {
-                    pointerDownRouteDepth--;
-                }
-
-                var target = hit?.Control;
-                var scrollCandidate = FindScrollableAncestor(target);
-                var downState = new PointerState(pointerId, location, target, scrollCandidate);
-                pointers.Add(pointerId, downState);
-                processedState = downState;
-
-                if (target is not null)
-                {
-                    target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0, pointerId));
-                    downState.CapturedControl = target;
-                }
-
-                if (FindSelectedControl() is null)
-                    FindSelectableAt(surfaceRoot, location)?.Select();
+                finally { pointerDownRouteDepth--; }
                 break;
 
             case ControlSurfacePointerAction.Move:
@@ -553,6 +551,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         InsetsChanged = null;
         var controls = observedControls.ToArray();
         var failures = new List<Exception>();
+        CaptureCleanupFailure(() => surfaceRoot.FindExistingFocusScope()?.SetSuspended(true), failures);
         CaptureCleanupFailure(textInputHost.Dispose, failures);
         CaptureCleanupFailure(ResetKeyboardStateCore, failures);
         foreach (var control in controls)
@@ -574,7 +573,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     }
 
     private Control? FindSelectedControl()
-        => observedControls.LastOrDefault(control => control.Selected);
+        => surfaceRoot.FindExistingFocusScope()?.Owner;
 
     private static Control? FindSelectableAt(Control parent, Point point)
     {
@@ -602,8 +601,6 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         control.Invalidated += OnControlInvalidated;
         control.ControlAdded += OnControlAdded;
         control.ControlRemoved += OnControlRemoved;
-        control.LostFocus += OnControlLostFocus;
-        control.GotFocus += OnControlGotFocus;
         control.Click += OnControlClick;
         foreach (var child in control.Controls.GetAllControls())
             ObserveTree(child);
@@ -614,8 +611,6 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         control.Invalidated -= OnControlInvalidated;
         control.ControlAdded -= OnControlAdded;
         control.ControlRemoved -= OnControlRemoved;
-        control.LostFocus -= OnControlLostFocus;
-        control.GotFocus -= OnControlGotFocus;
         control.Click -= OnControlClick;
         observedControls.Remove(control);
     }
@@ -645,28 +640,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         UnobserveTree(e.Value);
     }
 
-    private void OnControlGotFocus(object? sender, EventArgs e)
-    {
-        // Programmatic Select (including accessibility ACTION_FOCUS) has no window adapter
-        // to deselect the old editor. Keep the same single input target as pointer routing.
-        // Snapshot because focus-loss handlers may mutate the tree or redirect focus.
-        foreach (var previous in observedControls.Where(control => control.Selected && control != sender).ToArray())
-            previous.Deselect();
-    }
-
-    private void OnControlLostFocus(object? sender, EventArgs e)
-    {
-        // Starting another touch pointer deselects the previously focused control, but does not
-        // terminate that control's independent pointer sequence. External focus loss remains a
-        // terminal condition and clears the corresponding router ownership below.
-        if (pointerDownRouteDepth > 0)
-            return;
-
-        if (sender is Control control)
-            CancelPointersOwnedBy(control);
-    }
-
-    private void CancelPointersOwnedBy(Control control)
+    private void CancelPointersOwnedBy(Control control, Control? alreadyCanceled = null)
     {
         // Focus loss and detach are terminal for a control-owned gesture. Remove the router entry
         // as well as clearing Control.Capture so a later move/up cannot reach a stale text editor.
@@ -676,7 +650,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                      IsSelfOrDescendant(pointer.ScrollCandidate, control)).ToArray())
         {
             pointers.Remove(pointer.PointerId);
-            CancelPointer(pointer);
+            CancelPointer(pointer, alreadyCanceled);
         }
     }
 
@@ -706,11 +680,12 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         ThrowCleanupFailures(failures);
     }
 
-    private static void CancelPointer(PointerState pointer)
+    private static void CancelPointer(PointerState pointer, Control? alreadyCanceled = null)
     {
         var failures = new List<Exception>();
-        CaptureCleanupFailure(() => pointer.CapturedControl?.CancelPointerInteraction(pointer.PointerId), failures);
-        if (!ReferenceEquals(pointer.GestureOwner, pointer.CapturedControl))
+        if (!ReferenceEquals(pointer.CapturedControl, alreadyCanceled))
+            CaptureCleanupFailure(() => pointer.CapturedControl?.CancelPointerInteraction(pointer.PointerId), failures);
+        if (!ReferenceEquals(pointer.GestureOwner, pointer.CapturedControl) && !ReferenceEquals(pointer.GestureOwner, alreadyCanceled))
             CaptureCleanupFailure(() => pointer.GestureOwner?.CancelPointerInteraction(pointer.PointerId), failures);
         ThrowCleanupFailures(failures);
     }
@@ -838,6 +813,11 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     {
         public ControlTextInputHost? TextInputHost { get; set; }
         public bool IsRetired { get; set; }
+        public Func<Control, bool>? PreserveFocusPointer { get; set; }
+        public Action<Control>? FocusOwnerLost { get; set; }
+        internal override bool PreserveFocusPointerInteraction(Control previous) => PreserveFocusPointer?.Invoke(previous) == true;
+        internal override void OnFocusOwnerLost(Control previous) => FocusOwnerLost?.Invoke(previous);
+        internal override bool IsFocusRootAvailable => base.IsFocusRootAvailable && !IsRetired;
 
         protected override ControlCollection CreateControlsInstance() => new SurfaceControlCollection(this);
 
