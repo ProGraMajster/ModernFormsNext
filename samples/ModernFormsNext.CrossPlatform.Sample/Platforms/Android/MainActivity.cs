@@ -31,115 +31,34 @@ namespace ModernFormsNext.CrossPlatform.Sample;
         ConfigChanges.Density)]
 [IntentFilter([Intent.ActionView], Categories = [Intent.CategoryDefault, Intent.CategoryBrowsable],
     DataScheme = "modernformsnext-sample")]
-public sealed class MainActivity : Activity
+public sealed class MainActivity : ModernFormsNext.WindowKit.Backend.Android.Windowing.AndroidWindowActivity
 {
-    private AndroidAppHost? host;
+    /// <inheritdoc/>
+    protected override void OnStartApplication()
+    {
+        var app = ((SampleApplication)Application!).SharedApp;
+        ModernFormsNext.Application.Run(new MainForm(app));
+    }
 
     /// <inheritdoc/>
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
-        var application = (SampleApplication)Application!;
-        var enableInputDiagnostics = Intent?.GetBooleanExtra(
-            AndroidAppHost.EnableInputDiagnosticsIntentExtra,
-            defaultValue: false) == true;
-        host = new AndroidAppHost(this, application.SharedApp, enableInputDiagnostics);
+        var root = ((SampleApplication)Application!).SharedApp.Root;
         if (Intent?.GetBooleanExtra("ACCESSIBILITY_PHASE4", false) == true)
             ShowAccessibilityPhase4();
         else if (Intent?.GetBooleanExtra("ACCESSIBILITY_DEMO", false) == true)
         {
-            var root = application.SharedApp.Root;
-            if (!root.Controls.OfType<AccessibilityDemoPanel>().Any())
-            {
-                foreach (var child in root.Controls) child.Visible = false;
-                root.Controls.Add(new AccessibilityDemoPanel());
-            }
+            foreach (var child in root.Controls) child.Visible = child is AccessibilityDemoPanel;
+            if (!root.Controls.OfType<AccessibilityDemoPanel>().Any()) root.Controls.Add(new AccessibilityDemoPanel());
         }
-        SetContentView(host.View);
-        application.SharedApp.NotifyLifecycle("Activity created");
-    }
-
-    /// <inheritdoc/>
-    protected override void OnStart()
-    {
-        base.OnStart();
-        host?.Start();
-        ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity started");
-    }
-
-    /// <inheritdoc/>
-    protected override void OnResume()
-    {
-        base.OnResume();
-        AndroidWindowKit.ObserveHostActivity(this);
-        host?.Resume();
-        ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity resumed");
-    }
-
-    /// <inheritdoc/>
-    protected override void OnPause()
-    {
-        try
-        {
-            host?.Pause();
-            ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity paused");
-        }
-        finally { base.OnPause(); }
-    }
-
-    /// <inheritdoc/>
-    protected override void OnStop()
-    {
-        try
-        {
-            host?.Stop();
-            ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Activity stopped");
-        }
-        finally { base.OnStop(); }
-    }
-
-    /// <inheritdoc/>
-    public override void OnConfigurationChanged(Configuration newConfig)
-    {
-        base.OnConfigurationChanged(newConfig);
-        host?.ConfigurationChanged();
-        ((SampleApplication)Application!).SharedApp.NotifyLifecycle("Configuration changed");
-    }
-
-    /// <inheritdoc/>
-    protected override void OnDestroy()
-    {
-        var previousHost = host;
-        host = null;
-        try
-        {
-            ((SampleApplication)Application!).SharedApp.NotifyLifecycle(
-                IsChangingConfigurations ? "Activity destroyed for recreation" : "Activity destroyed");
-        }
-        finally
-        {
-            // Detach ownership before user callbacks can reenter destruction; Android's base
-            // lifecycle still completes if shared cancellation or resource cleanup fails.
-            try { previousHost?.Dispose(); }
-            finally { base.OnDestroy(); }
-        }
-    }
-
-    /// <inheritdoc/>
-    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
-    {
-        if (!AndroidWindowKit.HandleRequestPermissionsResult(requestCode, permissions, grantResults))
-            base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     /// <inheritdoc/>
     protected override void OnNewIntent(Intent? intent)
     {
         base.OnNewIntent(intent);
-        Intent = intent;
-        if (intent?.GetBooleanExtra("ACCESSIBILITY_PHASE4", false) == true)
-            ShowAccessibilityPhase4();
-        AndroidWindowKit.HandleNewIntent(this, intent);
+        if (intent?.GetBooleanExtra("ACCESSIBILITY_PHASE4", false) == true) ShowAccessibilityPhase4();
     }
 
     private void ShowAccessibilityPhase4()

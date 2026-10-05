@@ -6,12 +6,19 @@ Phase 4 extends this existing provider with canonical [scroll viewports](accessi
 [text ranges and selection](accessibility-text.md), [grids and calendars](accessibility/grids-and-calendars.md),
 and [accessibility preferences](accessibility/preferences.md). Its viewport actions use the actual
 control scrollbars, and protected-ancestor checks apply before and after payload extraction.
-The Phase 4 native Android/TalkBack smoke is pending; the dated Phase 3 results below do not
-validate these new capabilities. Physical-device validation remains unexecuted.
+The [#72 final review](development/issue-72-final-review.md) records Phase 3 and Phase 4 native
+automation through the Application/Form host on an API 34 emulator and API 36 physical device.
+Broader manual TalkBack and vendor qualification remains open; the dated Phase 3 results below
+do not by themselves validate the later Phase 4 capabilities.
 
 The startup and IME work that followed Phase 3 is documented separately in
 [application lifecycle](application-lifecycle.md) and [text input](text-input.md).
 The audit and dated validation sections below retain their original baseline and results.
+
+The current Application/Form host for [issue #72](android-windowing.md) exposes the same canonical
+objects through the Form adapter. It adds physical-screen bounds handling for window roots and
+projects the existing omitted Form layout container by validating its canonical parent chain.
+Its dated native checks are recorded separately in the [#72 final review](development/issue-72-final-review.md).
 
 ## Audit before implementation
 
@@ -48,15 +55,19 @@ and [node information API](https://developer.android.com/reference/android/view/
 
 ## Host integration and ownership
 
-The sample sets `nativeSurface.AccessibilityHost = controlSurface` on the Android main thread.
-The view borrows this `IPlatformAccessibilityHost`; it never owns or disposes application controls.
-`SkiaControlSurface` implements that existing public interface explicitly. Its surface notification
-route, peer subscriptions, and confirmation of existing ListBox selection removal are internal,
+For normal Application/Form startup, `AndroidActivityHost` assigns each native presentation's
+`AccessibilityHost` from the canonical Form adapter on the Android main thread. The view borrows
+this `IPlatformAccessibilityHost`; it never owns or disposes application controls.
+The optional standalone `SkiaControlSurface` also implements this interface explicitly. Its surface
+notification route, peer subscriptions, and confirmation of existing ListBox selection removal are internal,
 platform-neutral transport extensions. There are no Android types in shared public APIs and no
-changes to the Windows UIA or MSAA contract. Android now references the existing WindowKit
-abstraction project. The repository's existing `System.Formats.Nrbf` Android AOT workaround moves
-from the cross-platform sample to the Android backend, so all hosts receive that dependency.
-No new package or package version is introduced to the repository.
+changes to the Windows UIA or MSAA contract. The original provider integration reused the WindowKit
+abstraction project and moved the existing `System.Formats.Nrbf` Android AOT workaround from the
+cross-platform sample to the Android backend, so all hosts receive that dependency.
+No new package or package version was introduced by that provider integration.
+
+The following low-level embedding example remains available for a standalone surface. Normal
+`Application.Run(Form)` startup uses the backend-owned presentation and does not require this wiring:
 
 ```csharp
 var surface = new SkiaControlSurface(applicationRoot);
@@ -85,8 +96,8 @@ most one generic diagnostic per provider, without exception messages or values.
 
 Attach/detach uses the existing View hooks. Explicit disposal removes the native View from its
 parent before releasing its managed peer. This ordering is necessary because Activity.OnDestroy
-can run before Android's final OnDetachedFromWindow callback. It fixes that narrow lifetime gap;
-it does not introduce the full lifecycle system planned in #63.
+can run before Android's final OnDetachedFromWindow callback. Application lifecycle and Activity
+recreation use the shared [lifecycle contract](application-lifecycle.md) and Android window host.
 
 ## Android projection
 
@@ -175,7 +186,7 @@ Keyboard focus and accessibility focus are independent. The latter lives only in
 Touch exploration routes Android hover events through canonical HitTest; it does not synthesize
 framework keyboard focus. Focus events are delivered synchronously after accessibility-focus
 actions because ViewRootImpl uses them to track the virtual focused descendant.
-Programmatic input focus also deselects the previous windowless input target. Expanded tree-item
+Programmatic input focus also deselects the previous canonical input target. Expanded tree-item
 hit testing visits child rows outside the parent's own row rectangle, while the TreeView control
 continues to enforce its viewport boundary.
 
@@ -193,12 +204,16 @@ Dynamic add/remove/reorder invalidates the subtree without rebuilding the host V
 
 ## Coordinates and visibility
 
-In this windowless host, canonical PointToScreen values are surface-relative logical pixels.
-The provider clips to the semantic ancestor bounds and Android's local visible rectangle, then
-multiplies by Density exactly once and adds GetLocationOnScreen. This includes the actual native
-host offset and window insets. The renderer already applies Density to its canvas; the provider
-does not use font ScaledDensity as a second rendering scale. Edges round outward to integer
-physical pixels with finite/overflow guards. BoundsInParent is relative to the semantic parent.
+For the Application/Form host, canonical bounds are already physical screen coordinates. The
+provider uses them without multiplying by density or adding the native host origin again. The
+omitted Form layout container is projected through its validated canonical parent chain rather
+than becoming a second semantic tree.
+
+For a standalone windowless surface, canonical PointToScreen values are surface-relative logical
+pixels. The provider converts them by Density once and adds GetLocationOnScreen. Both paths clip
+to semantic ancestors and the native visible region. Neither uses font ScaledDensity as a second
+rendering scale. Edges round outward to integer physical pixels with finite/overflow guards;
+BoundsInParent is relative to the projected semantic parent.
 
 Logical tree/menu rows are not viewports: their own rectangles must not clip expanded descendants.
 Real structural ancestors still clip children, using the actual viewport where supplied and framework
@@ -222,7 +237,8 @@ adb -s emulator-5554 shell am start -n com.programajster.modernformsnext.sample/
 The instrumentation fixture checks native properties/actions, logical children, password readback
 and search, event delivery/privacy, dynamic removal, bounds and real Activity recreation. It prints
 only counts and fixed check categories. It is an integration check, not evidence of TalkBack speech
-or physical-device behavior. Ordinary launches keep the existing sample page.
+or manual usability. Device evidence applies only to the emulator or physical target actually used;
+see the dated #72 review above. Ordinary launches keep the existing sample page.
 
 ## TalkBack manual checklist
 

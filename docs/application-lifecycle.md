@@ -30,6 +30,8 @@ initial layout -> Load -> layout after Load -> startup positioning
 ```
 
 Changes to controls, Size and StartPosition in Load participate in the final layout and centering.
+On Android, the Activity host manages main-window geometry; desktop startup positioning and
+centering do not apply. See the [Android capability matrix](android-windowing.md#capability-matrix).
 The native window may already exist before Load. Neither Load nor Shown means first-paint
 completion; activation may occur synchronously during native Show.
 
@@ -60,7 +62,8 @@ still completes ShowDialog without initializing or showing the form.
 Load does not await async void handlers. Async initialization is an application concern.
 Designer document opening, metadata discovery and preview do not execute the designed form's
 Load. This managed Form lifecycle is shared by Windows and the headless test backend; it does
-not map to Android Activity/View lifecycle or change the Android surface host.
+not repeat on Android Activity/View recreation. The source-tree
+[Android window host](android-windowing.md) retains the same Form across host replacement.
 
 ## Observe window visibility
 
@@ -151,9 +154,11 @@ a new exception dispatcher.
 ScalingChanged and native resize/move may arrive in multiple steps. Each geometry event exposes
 the geometry/layout committed for that step; there is no new DPI event or global DPI/geometry
 transaction. A scale-only change with unchanged logical Size does not emit Resize/SizeChanged.
-Windows (including real HWND move/resize) and headless TestHost are covered. These Form events
-do not describe Android Activity, orientation or SkiaControlSurface lifecycle. Designer metadata,
-handler generation and document round-trip discover them without running user lifecycle code.
+Windows (including real HWND move/resize) and headless TestHost are covered. The Android window
+backend also forwards confirmed native geometry into the shared Form events. Activity recreation
+preserves the Form and does not repeat Load/Shown; an Activity callback alone is not a Form geometry
+event. A standalone SkiaControlSurface has its own surface lifecycle. Designer metadata, handler
+generation and document round-trip discover Form events without running user lifecycle code.
 
 ## Observe normal, minimized and maximized state
 
@@ -199,9 +204,10 @@ retires its display and modal ownership; the existing native callback exception 
 
 The headless host confirms states without inventing geometry changes. Windows tests use real HWND
 system commands for minimize/maximize/restore with custom and system decorations. Designer discovers
-the event and generates its typed handler through normal metadata reflection. Android Activity,
-orientation and SkiaControlSurface lifecycle are outside this Form contract; no Android Form-state
-support, public DPI event, activation API or fullscreen state is added here.
+the event and generates its typed handler through normal metadata reflection. Android reports
+`Normal` and rejects minimize/maximize requests under its bounded window policy. Activity
+foreground/background, orientation, and recreation are separate from Form.WindowState; they do
+not imply desktop minimize/maximize or fullscreen support.
 
 ## Observe DPI and rendering scale
 
@@ -244,9 +250,10 @@ propagate using the existing exception policy. Derived hooks remain responsible 
 Headless tests use the existing render-scale capability. Windows tests inject WM_DPICHANGED into
 real HWNDs with custom and system decorations; this verifies the native message path, not physical
 multi-monitor behavior. Manual multi-monitor verification is separate. Designer discovers both
-typed events and generates handlers without executing user code. AndroidSkiaHostView/SkiaControlSurface
-density is not bridged to these notifications here; there is no Android WindowBase parity or
-WinForms child-HWND BeforeParent/AfterParent phase.
+typed events and generates handlers without executing user code. AndroidWindowImpl forwards
+confirmed rendering-scale changes into this existing WindowBase DPI pipeline. A standalone,
+windowless SkiaControlSurface retains its separate density/layout path. This integration does not
+add desktop window parity or WinForms child-HWND BeforeParent/AfterParent phases.
 
 ## Request activation of a visible form
 
@@ -274,7 +281,9 @@ Windows uses the existing `IWindowBaseImpl.Activate()` implementation, which cal
 Windows may refuse foreground activation, even when usual eligibility conditions are met;
 there is no guarantee of synchronous activation or foreground focus. No foreground-lock bypass,
 new Win32 activation path, visibility change or forced restore is added. Popups keep their
-existing lifecycle; this public method belongs to Form. Android desktop hosting is unchanged.
+existing lifecycle; this public method belongs to Form. Android requests focus on the native
+presentation and confirms activity from Activity resume and native window focus; it does not
+implement Windows foreground arbitration.
 
 Headless regressions separate the request from its confirmation, including rejection, exceptions,
 reentrancy and modal constraints. Headless does not arbitrate global focus between windows.
@@ -324,7 +333,11 @@ The existing `Application.Run(form)` behavior remains the default. An additive o
 | --- | --- |
 | `MainWindowClosed` | Closing the designated Run root requests exit. Other application-owned Forms are not automatically disposed. |
 | `LastWindowClosed` | A Form closes and `Application.OpenForms` becomes empty. A shown Form that is subsequently hidden still counts; popups do not count as Forms. |
-| `Explicit` | `Application.Exit()` or platform termination ends the loop. Closing the initial Form alone does not request exit. |
+| `Explicit` | `Application.Exit()` or a backend terminal notification ends the framework lifetime. Closing the initial Form alone does not request exit. |
+
+This independent-window example applies to Windows and the headless TestHost. Android supports
+one main Form with owner-bound `ShowDialog(owner)` Forms and reusable popups, not a second
+independent main window; see [Android windowing](android-windowing.md#ownership-and-routing).
 
 ```csharp
 using ModernFormsNext;
@@ -338,8 +351,10 @@ Application.Run(main, ApplicationLifetimeMode.LastWindowClosed);
 Call `Run` once per application runtime on its UI thread. The `ICloseable` overload supports a
 custom lifetime root without showing or disposing it; `LastWindowClosed` still observes Form
 closure independently of that root. Host Activity recreation does not start another application
-loop. `Exit` requests graceful loop shutdown; it does not terminate the process or dispose every
-application-owned Form.
+loop. Windows owns the blocking framework loop. Android `Run` returns to the existing system
+Looper while the framework lifetime remains active. `Exit` shuts down that framework lifetime
+and releases its subscriptions; it does not stop Android's Looper, terminate the process, or
+dispose every application-owned Form.
 
 ## Activation is explicit data
 
@@ -434,10 +449,11 @@ inside a lifecycle callback; post startup if necessary.
 `Application.Exit()` is idempotent. When called inside a lifecycle notification, it latches the
 exit request immediately and defers the shutdown transaction until the notification unwinds.
 Normal application shutdown publishes `Exiting`, requests state for `Exit`, releases owned
-runtime bindings/animation work, raises `Application.OnExit`, cancels the loop, and publishes
-`Exited`. A backend that already requested exit can have saved state at its earlier native
-shutdown notification. Backend terminal notifications also request shutdown of the existing
-application loop. No subsequent activation resumes an exited provider.
+runtime bindings/animation work, raises `Application.OnExit`, cancels a framework-owned loop or
+releases externally hosted lifetime subscriptions, and publishes `Exited`. Android's system
+Looper continues. A backend that already requested exit can have saved state at its earlier
+native shutdown notification. Backend terminal notifications also request shutdown of the
+framework lifetime. No subsequent activation resumes an exited provider.
 
 Observer failures do not skip remaining observers or mandatory shutdown cleanup. Synchronous
 callers receive the failure; multiple failures can be aggregated. Posted failures follow the
@@ -452,10 +468,10 @@ application activity while leaving coarse availability in `Foreground`. Session-
 requests graceful application exit. File/URI interpretation and custom transports remain the
 application's responsibility.
 
-The Android implementation aggregates Activity callbacks and weak host identities. Stopping or
-destroying one Activity does not necessarily remove the application's other hosts. Destroying
-an Activity is not application exit. A replacement Activity advances host generation while the
-existing process and application-owned model may survive.
+The Android lifecycle provider aggregates Activity callbacks and weak host identities; its
+host tracking is separate from the windowing policy, which rejects concurrent Activity window
+hosts. Destroying an Activity is not application exit. A replacement Activity advances host
+generation and reattaches the surviving Form/control tree without restarting `Application.Run`.
 
 Android's saved-instance-state callback requests `Recreation` data and writes the bounded schema
 to its Bundle. The first Activity creation in a cold process consumes any supplied Bundle before
@@ -466,10 +482,10 @@ In-memory state alone does not survive process death, and restoration depends on
 supplying previously saved state. Android does not guarantee `OnDestroy` or a final save before
 termination.
 
-For subsequent Intents, forward `OnNewIntent` from the Android Activity using
-`AndroidWindowKit.HandleNewIntent(this, intent)` after the normal base callback. Initial Activity
-activation and saved-state callbacks are observed by the backend. The mapper preserves shared
-stream/content/file identifiers as `Files`, HTTP(S) as `Uri`, and other absolute schemes as
+For subsequent Intents, `AndroidWindowActivity` forwards `OnNewIntent` automatically. A custom
+Activity must call `AndroidWindowKit.HandleNewIntent(this, intent)` after its normal base callback.
+Initial Activity activation and saved-state callbacks are observed by the backend. The mapper
+preserves shared stream/content/file identifiers as `Files`, HTTP(S) as `Uri`, and other absolute schemes as
 `Protocol`. Android permission grants and stream access remain native responsibilities.
 
 These hooks extend the existing Android Skia host. They do not add Android desktop Form parity,
@@ -482,10 +498,14 @@ logical pixels. Values must be finite and nonnegative. Persistent system bars/cu
 temporary keyboard occlusion are separate. A backend must exclude insets already removed by
 native client-area fitting, so the application does not apply the same space twice.
 
-`Form.Insets` (inherited from `WindowBase`) is informational and raises `InsetsChanged`; it does
-not change Form padding or client sizing automatically. A missing backend feature reports zero.
-An embedded `SkiaControlSurface` applies its own `Insets.SafeArea` to the bounds of its borrowed
-root and runs layout/render invalidation, preserving application padding:
+`Form.Insets` (inherited from `WindowBase`) raises `InsetsChanged`. For a host-managed Android
+Form, `SafeArea` constrains `DisplayRectangle` automatically, once, without changing application
+padding or native client size. `Ime` remains informational for application-chosen keyboard
+avoidance. A missing backend feature reports zero.
+
+An optional standalone `SkiaControlSurface` applies its own `Insets.SafeArea` to the bounds of
+its borrowed root and runs layout/render invalidation, preserving application padding. This
+low-level embedding example is not required by normal Android `Application.Run(Form)` startup:
 
 ```csharp
 using ModernFormsNext;
@@ -505,8 +525,8 @@ Fractional safe-area sides round outward and clamp to the available surface size
 input, and accessibility retain the same surface coordinate system. Disposing the surface does
 not dispose its borrowed root.
 
-The Android host reports density-converted native insets and the cross-platform sample forwards
-them into `SkiaControlSurface.Insets`. API 30+ supplies typed IME insets; the API 23–29 fallback
+The Android window backend reports density-converted native insets through WindowBase to the
+canonical Form adapter. API 30+ supplies typed IME insets; the API 23–29 fallback
 reports persistent system insets and available cutouts, with zero IME insets. Re-read insets after
 density, native surface, or configuration changes rather than retaining physical-pixel values.
 
@@ -528,10 +548,10 @@ evidence categories. Executed commands and the current acceptance status belong 
 [session acceptance report](development/codex-autonomous-issue-run.md).
 
 The [1.11.0 scope-freeze audit](development/1.11.0-roadmap-completion.md#issue-63--application-lifecycle-and-activation)
-checks this existing foundation against current master. Final current-APK lifecycle,
-inset and stress observations are consolidated in #69. Common hooks are available
-to future native-hosted products; this does not declare those products implemented
-or make their implementation part of the frozen lifecycle checkpoint.
+records the earlier lifecycle foundation; its APK lifecycle, inset, and stress observations
+belong to the historical #69 checkpoint. Current Application/Form host, recreation, and inset
+evidence is in the [#72 final review](development/issue-72-final-review.md). Common hooks remain
+available to future native-hosted products without declaring those products implemented.
 
 ### Initial Android emulator series — 2026-09-10
 

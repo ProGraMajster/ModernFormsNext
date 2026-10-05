@@ -317,6 +317,7 @@ public sealed partial class MainPage : Control
     /// <summary>Updates labels from shared state and the injected platform implementation.</summary>
     public void RefreshStatus()
     {
+        app.RefreshSurfaceDiagnostics?.Invoke();
         var platform = app.PlatformServices;
         platformLabel.Text = $"Platform: {platform.PlatformName}";
         operatingSystemLabel.Text = $"OS: {platform.OperatingSystem}";

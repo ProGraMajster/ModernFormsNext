@@ -68,7 +68,7 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
             }
             else
             {
-                int parentId = node.Parent is { } parent ? session.Register(parent) : AndroidAccessibilitySession.InvalidId;
+                int parentId = session.ProjectedParent(node) is { } parent ? session.Register(parent) : AndroidAccessibilitySession.InvalidId;
                 if (parentId == AndroidAccessibilitySession.InvalidId) { info.Dispose(); return null; }
                 info.SetParent(host, parentId);
             }
@@ -110,10 +110,11 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
             var geometry = Geometry(node);
             using var screen = ToNative(geometry.Screen);
             info.SetBoundsInScreen(screen);
-            Rect parentBounds = root || node.Parent is not { } semanticParent ? default : semanticParent.Bounds;
+            Rect parentBounds = root || session.ProjectedParent(node) is not { } semanticParent ? default : semanticParent.Bounds;
             Rect bounds = node.Bounds;
             using var relative = ToNative(AndroidAccessibilityBounds.ToScreen(
-                new(bounds.X - parentBounds.X, bounds.Y - parentBounds.Y, bounds.Width, bounds.Height), host.Density, 0, 0));
+                new(bounds.X - parentBounds.X, bounds.Y - parentBounds.Y, bounds.Width, bounds.Height),
+                host.AccessibilityUsesScreenPixels ? 1 : host.Density, 0, 0));
             // Android deprecated parent bounds in API 29, but older services still need them.
 #pragma warning disable CA1422
             info.SetBoundsInParent(relative);
@@ -270,7 +271,13 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
             int id;
             if (motion.ActionMasked == MotionEventActions.HoverExit) id = AndroidAccessibilitySession.InvalidId;
             else if (motion.ActionMasked is MotionEventActions.HoverEnter or MotionEventActions.HoverMove)
-                id = session.HitTest((int)(motion.GetX() / host.Density), (int)(motion.GetY() / host.Density), Viewport());
+            {
+                int[] location = new int[2];
+                if (host.AccessibilityUsesScreenPixels) host.GetLocationOnScreen(location);
+                double scale = host.AccessibilityUsesScreenPixels ? 1 : host.Density;
+                id = session.HitTest((int)(motion.GetX() / scale + location[0]),
+                    (int)(motion.GetY() / scale + location[1]), Viewport());
+            }
             else return false;
             bool handled = id != AndroidAccessibilitySession.InvalidId || session.HoveredId != AndroidAccessibilitySession.InvalidId;
             session.Hover(id);
@@ -284,6 +291,11 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
         for (View? ancestor = host; ancestor is not null; ancestor = ancestor.Parent as View)
             if (ancestor.Alpha <= 0) return default;
         double density = host.Density;
+        if (host.AccessibilityUsesScreenPixels)
+        {
+            int[] location = new int[2]; host.GetLocationOnScreen(location);
+            return new(visible.Left + location[0], visible.Top + location[1], visible.Width(), visible.Height());
+        }
         return new(visible.Left / density, visible.Top / density, visible.Width() / density, visible.Height() / density);
     }
 
@@ -293,7 +305,8 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
         Rect clipped = AndroidAccessibilityBounds.Clip(node, root, Viewport());
         int[] location = new int[2];
         host.GetLocationOnScreen(location);
-        Rect screen = AndroidAccessibilityBounds.ToScreen(clipped, host.Density, location[0], location[1]);
+        Rect screen = host.AccessibilityUsesScreenPixels ? clipped :
+            AndroidAccessibilityBounds.ToScreen(clipped, host.Density, location[0], location[1]);
         return (screen, host.IsAttachedToWindow && host.WindowVisibility == ViewStates.Visible
             && host.Alpha > 0 && AndroidAccessibilityBounds.Valid(screen));
     }

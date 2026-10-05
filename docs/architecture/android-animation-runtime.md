@@ -12,11 +12,11 @@ The runtime is designed around this path:
 ```text
 Android lifecycle and MotionEvent
   -> AndroidSkiaHostView logical input
-  -> SkiaControlSurface and shared Control state
+  -> canonical Form adapter / borrowed surface input / shared Control state
   -> AnimationScheduler
   -> presentation state
   -> Control invalidation
-  -> AndroidAppHost / PostInvalidateOnAnimation
+  -> AndroidActivityHost / WindowBase framebuffer / PostInvalidateOnAnimation
   -> Skia render
   -> Choreographer next-frame signal while work remains
 ```
@@ -50,9 +50,8 @@ an idle period wakes the source without retaining the previous callback delegate
 
 All native post/remove operations are marshaled through a `Handler` created for
 `Looper.MainLooper`. The Choreographer instance is acquired lazily inside that main-Looper
-reconciliation, so even backend initialization invoked from another thread cannot bind frame
-callbacks to that thread's Looper. `DoFrame`, shared presentation updates, and resulting
-invalidations consequently execute on the Android UI thread.
+reconciliation. Backend initialization itself requires the Android main thread. `DoFrame`,
+shared presentation updates, and resulting invalidations also execute on that UI thread.
 
 Choreographer supplies pacing only. The scheduler continues to calculate progress from its
 monotonic clock and clamps progress to the animation interval. It therefore follows the display's
@@ -94,12 +93,13 @@ Android pointer ID is passed to shared input. The mapping is:
 | `ACTION_UP` | one `Up` for the action pointer ID |
 | `ACTION_CANCEL` | cancel all active pointer IDs |
 
-Coordinates are converted from device pixels to logical pixels before shared hit testing. Shared
-`SkiaControlSurface` capture then keeps each pointer associated with its original target. Reordering
-native pointer indices does not transfer ownership.
+Coordinates convert from device pixels to logical pixels at the native View boundary. The Form
+adapter maps them once into its existing device-scaled control route; standalone windowless
+surfaces retain logical coordinates. The shared surface input router keeps each captured pointer
+associated with its original target. Reordering native pointer indices does not transfer ownership.
 
 `RippleEffect` stores one ripple per shared pointer ID. Its existing `MaxConcurrentRipples` and
-overflow policy remain authoritative. `StartFromPointer` uses the logical, target-local coordinate
+overflow policy remain authoritative. `StartFromPointer` uses the target-local coordinate
 from the shared routed event. `PressScaleEffect` tracks a set of active pointer IDs, so releasing or
 canceling one finger does not clear another finger's press. Move-out, disable, detach, subtree
 removal, reparent, disposal, and lifecycle cancellation continue through shared interaction-scope
@@ -154,9 +154,10 @@ accumulating transform drift.
   neither the observer nor frame-source registration retains an Activity or Control.
 - Scheduler callback faults terminate only the failing entry, release it, and remain visible in
   shared diagnostics.
-- A single-surface host must cancel process-owned work such as an active ThemeManager transition
-  when that host is shutting down. The cross-platform sample does this before detaching its tree;
-  multi-window hosts should instead cancel at their application-level ownership boundary.
+- `Application.Exit` shuts down default scheduler work, including process-owned ThemeManager
+  transitions, at the application lifetime boundary. Activity recreation replaces native
+  presentations without disposing the surviving Form/control tree or ending that lifetime;
+  background and surface gates pause animation work until reattachment/resume.
 
 The shared scheduler intentionally retains active owners and update delegates until termination;
 explicit cancellation/disposal is therefore the deterministic lifetime boundary. There is no
@@ -194,7 +195,7 @@ the repository; it does not mean emulator or physical-device observation.
 | Background/foreground | Integrated | Shared pause/resume time rebasing plus surface gate | No native frames while inactive | Automated elapsed-time/lifecycle tests; app-switch and screen-off check required |
 | Detach/reparent/dispose | Integrated | Shared ownership cleanup plus Android surface registration disposal | Explicit owner cancellation | Automated subtree/effect/surface tests; activity-recreate check required |
 | Diagnostics | Integrated | Shared and Android snapshot APIs | Observer failures are recorded | Automated build/sample checks; inspect during smoke test |
-| GPU/CPU rendering | Experimental Skia surface | `SKCanvasView`, existing invalidation and Skia renderer | Platform-selected canvas path; no Android-only animation fallback | Build verified; emulator/device profiling and visual validation required |
+| GPU/CPU rendering | Experimental software Skia presentation | `SKCanvasView`, existing invalidation and Skia renderer | GPU work remains separate in [#46](https://github.com/ProGraMajster/ModernFormsNext/issues/46); no Android-only animation fallback | Software host evidence in the [#72 review](../development/issue-72-final-review.md); broader profiling and visual validation remain required |
 
 ## IME boundary
 

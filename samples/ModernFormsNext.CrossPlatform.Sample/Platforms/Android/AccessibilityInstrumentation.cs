@@ -76,7 +76,15 @@ public sealed class AccessibilityInstrumentation : Instrumentation
             Check(toggle.Checkable, "checkable");
             Check(toggle.PerformAction(NativeAction.Click), "toggle action");
             RunOnMainSync(() => Check(demo.Check.Checked, "normal toggle state"));
-            Check(toggle.PerformAction(NativeAction.AccessibilityFocus), "accessibility focus action");
+            // PerformAction waits for the provider, not for the service-side event/cache.
+            // On a fast AOT device FindFocus can otherwise race the Binder-delivered event.
+            // Observe that exact native event before querying; never retry the focus action.
+            bool focusAccepted = false;
+            using var focusCommand = new Java.Lang.Runnable(() =>
+                focusAccepted = toggle.PerformAction(NativeAction.AccessibilityFocus));
+            using var focusFilter = new AccessibilityFocusEventFilter();
+            using var focusEvent = automation.ExecuteAndWaitForEvent(focusCommand, focusFilter, 5000);
+            Check(focusAccepted, "accessibility focus action");
             using var accessibilityFocus = UiAutomation.FindFocus(NodeFocus.Accessibility);
             Check(accessibilityFocus?.ContentDescription == "Check sample", "accessibility focus lookup");
             RunOnMainSync(() => Check(demo.InvokeButton.Focused, "input focus remains independent"));
@@ -102,7 +110,7 @@ public sealed class AccessibilityInstrumentation : Instrumentation
             RunOnMainSync(() =>
             {
                 var content = activity.FindViewById<global::Android.Views.ViewGroup>(global::Android.Resource.Id.Content)!;
-                var view = (ModernFormsNext.WindowKit.Backend.Android.Rendering.AndroidSkiaHostView)content.GetChildAt(0)!;
+                var view = NativeValidationViews.Main(activity);
                 demo.Password.Select();
                 using var passwordInfo = new global::Android.Views.InputMethods.EditorInfo();
                 // The view owns its active input connection; do not dispose its borrowed result.
@@ -162,7 +170,7 @@ public sealed class AccessibilityInstrumentation : Instrumentation
             RunOnMainSync(() =>
             {
                 var content = activity.FindViewById<global::Android.Views.ViewGroup>(global::Android.Resource.Id.Content)!;
-                var view = (ModernFormsNext.WindowKit.Backend.Android.Rendering.AndroidSkiaHostView)content.GetChildAt(0)!;
+                var view = NativeValidationViews.Main(activity);
                 var semantics = view.AccessibilityHost;
                 view.AccessibilityHost = null;
                 view.AccessibilityHost = semantics;
@@ -209,6 +217,13 @@ public sealed class AccessibilityInstrumentation : Instrumentation
             Thread.Sleep(100);
         }
         throw new InvalidOperationException();
+    }
+
+    private sealed class AccessibilityFocusEventFilter : Java.Lang.Object, UiAutomation.IAccessibilityEventFilter
+    {
+        public bool Accept(AccessibilityEvent? accessibilityEvent) =>
+            accessibilityEvent?.PackageName == "com.programajster.modernformsnext.sample" &&
+            accessibilityEvent.EventType == EventTypes.ViewAccessibilityFocused;
     }
 
     private void Check(bool condition, string category)

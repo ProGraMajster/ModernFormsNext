@@ -24,7 +24,8 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
 {
     private readonly HashSet<Control> observedControls = [];
     private readonly Dictionary<int, PointerState> pointers = [];
-    private readonly SurfaceRootControl surfaceRoot = new();
+    private readonly Control surfaceRoot;
+    private readonly WindowBase? windowOwner;
     private readonly Action<string>? pointerDiagnosticSink;
     private int pointerDragThreshold = 8;
     private int pointerDownRouteDepth;
@@ -43,15 +44,30 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     public SkiaControlSurface(Control root, Action<string>? pointerDiagnosticSink = null)
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
+        var ownedRoot = new SurfaceRootControl();
+        surfaceRoot = ownedRoot;
         textInputHost = new(surfaceRoot, FindSelectedControl);
-        surfaceRoot.TextInputHost = textInputHost;
-        surfaceRoot.PreserveFocusPointer = control => pointerDownRouteDepth > 0 && IsPointerOwnedBy(control);
-        surfaceRoot.FocusOwnerLost = control => CancelPointersOwnedBy(control, alreadyCanceled: control);
+        ownedRoot.TextInputHost = textInputHost;
+        ownedRoot.PreserveFocusPointer = control => pointerDownRouteDepth > 0 && IsPointerOwnedBy(control);
+        ownedRoot.FocusOwnerLost = control => CancelPointersOwnedBy(control, alreadyCanceled: control);
         this.pointerDiagnosticSink = pointerDiagnosticSink;
-        surfaceRoot.AccessibilityNotification = (source, eventId, objectId, childId) =>
+        ownedRoot.AccessibilityNotification = (source, eventId, objectId, childId) =>
             accessibilityNotification?.Invoke(source, eventId, objectId, childId);
         surfaceRoot.Controls.Add(Root);
         surfaceRoot.CreateControl();
+        ObserveTree(surfaceRoot);
+    }
+
+    // Window hosts borrow the actual ControlAdapter and its focus/text owners. No synthetic
+    // root, reparenting, duplicate document, layout or renderer is created for this mode.
+    internal SkiaControlSurface(WindowBase window)
+    {
+        windowOwner = window;
+        Root = surfaceRoot = window.adapter;
+        textInputHost = window.TextInputHost;
+        inputBindingResolver = window.SurfaceInputBindingResolver;
+        window.adapter.PreserveSurfacePointer = control => pointerDownRouteDepth > 0 && IsPointerOwnedBy(control);
+        window.adapter.SurfaceFocusOwnerLost = control => CancelPointersOwnedBy(control, alreadyCanceled: control);
         ObserveTree(surfaceRoot);
     }
 
@@ -180,9 +196,10 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         var bottom = (int)Math.Min(LogicalSize.Height - top, Math.Ceiling(safe.Bottom));
         // Reuse the real surface parent so Dock/Anchor, rendering offsets, hit testing and
         // accessibility all see identical geometry. User-owned root Padding is never changed.
-        surfaceRoot.ContentRectangle = new Rectangle(left, top,
+        var ownedRoot = (SurfaceRootControl)surfaceRoot;
+        ownedRoot.ContentRectangle = new Rectangle(left, top,
             LogicalSize.Width - left - right, LogicalSize.Height - top - bottom);
-        Root.Bounds = surfaceRoot.ContentRectangle;
+        Root.Bounds = ownedRoot.ContentRectangle;
         surfaceRoot.PerformLayout();
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
@@ -559,22 +576,32 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
             return;
 
         disposed = true;
-        surfaceRoot.IsRetired = true;
+        if (surfaceRoot is SurfaceRootControl ownedRoot) ownedRoot.IsRetired = true;
         // Revoke surface callbacks before invoking control-owned cancellation/composition hooks.
         // They can throw or recursively dispose the surface, but cannot resurrect this adapter.
         accessibilityNotification = null;
-        surfaceRoot.AccessibilityNotification = null;
+        if (surfaceRoot is SurfaceRootControl notificationRoot) notificationRoot.AccessibilityNotification = null;
         Invalidated = null;
         InsetsChanged = null;
         var controls = observedControls.ToArray();
         var failures = new List<Exception>();
-        CaptureCleanupFailure(() => surfaceRoot.FindExistingFocusScope()?.SetSuspended(true), failures);
-        CaptureCleanupFailure(textInputHost.Dispose, failures);
+        if (windowOwner is null)
+        {
+            CaptureCleanupFailure(() => surfaceRoot.FindExistingFocusScope()?.SetSuspended(true), failures);
+            CaptureCleanupFailure(textInputHost.Dispose, failures);
+        }
         CaptureCleanupFailure(ResetKeyboardStateCore, failures);
         foreach (var control in controls)
             CaptureCleanupFailure(() => Unobserve(control), failures);
         observedControls.Clear();
         CaptureCleanupFailure(() => CancelAllPointersCore(invalidate: false), failures);
+        if (windowOwner is not null)
+        {
+            windowOwner.adapter.PreserveSurfacePointer = null;
+            windowOwner.adapter.SurfaceFocusOwnerLost = null;
+            ThrowCleanupFailures(failures);
+            return;
+        }
         foreach (var textBox in controls.OfType<TextBox>())
             if (!textBox.IsDisposed)
                 CaptureCleanupFailure(() => textBox.document.FinishComposition(), failures);

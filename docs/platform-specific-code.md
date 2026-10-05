@@ -3,10 +3,11 @@
 ModernFormsNext keeps shared framework APIs independent from operating-system namespaces. The
 platform boundary has three layers:
 
-1. `ModernFormsNext.WindowKit` contains neutral contracts such as `IPlatformDispatcher` and
-   `IPermissionService`.
-2. `ModernFormsNext.WindowKit.Backend` owns `IWindowKitBackend`, the single-backend registry, and
-   bootstrap infrastructure that contains no Android or Win32 types.
+1. `ModernFormsNext.WindowKit` contains neutral windowing contracts such as `IWindowingPlatform`
+   and `IWindowImpl`.
+2. `ModernFormsNext.WindowKit.Backend` owns foundation contracts such as `IPlatformDispatcher`
+   and `IPermissionService`, `IWindowKitBackend`, the single-backend registry, and bootstrap
+   infrastructure that contains no Android or Win32 types.
 3. Platform projects implement those contracts. Windows stays in
    `ModernFormsNext.WindowKit.Backend.Windows`; Android stays in
    `ModernFormsNext.WindowKit.Backend.Android`.
@@ -20,8 +21,8 @@ an Application Context or lifecycle.
 
 Full desktop WindowKit services continue to use the established `AvaloniaGlobals` registry. The
 lightweight backend layer now also exposes `PlatformServiceRegistry`, allowing Android foundation
-services to be used without loading desktop rendering/windowing dependencies. The current Android
-foundation registers:
+services to share neutral contracts. The Android Application/Form host additionally uses WindowKit
+and the shared rendering stack, without depending on the Windows backend. The foundation registers:
 
 - `IPlatformDispatcher`;
 - `IPlatformApplicationLifecycle`;
@@ -29,16 +30,19 @@ foundation registers:
 - `IPlatformAnimationFrameSource`;
 - `IPermissionService`.
 
-It does not register `IWindowingPlatform`, `IClipboard`, or empty placeholders. Consumers therefore
-receive a controlled missing-service failure instead of a false success.
+The source-tree Android window host also registers `IWindowingPlatform` and the external-loop
+`IDispatcherImpl` through the existing WindowKit registry. It does not register an empty
+`IClipboard` or other placeholder services. Unsupported services remain explicit failures;
+desktop window operations follow the [Android capability policy](android-windowing.md).
 
 ## Source isolation
 
 Android-native code is compiled only for `net10.0-android` under the Android backend's `Platform/`
 directory. Deterministic permission mapping, manifest-validation, status-classification, and request
-queue logic also compile for `net10.0` so tests can run without an emulator. Neutral contracts live
-in the lightweight `WindowKit.Backend` assembly, which avoids pulling desktop Skia/System.Drawing
-dependencies into an Android app. Shared public APIs contain no `Activity`, `Context`, Android
+queue logic also compile for `net10.0` so tests can run without an emulator. Foundation service
+contracts live in the lightweight `WindowKit.Backend` assembly; windowing contracts live in
+`WindowKit`. Android uses the shared Skia rendering types through those windowing contracts.
+Shared public APIs contain no `Activity`, `Context`, Android
 manifest constants, Win32 handles, or platform enums.
 
 When future services are added, introduce or reuse a neutral contract in WindowKit and implement it

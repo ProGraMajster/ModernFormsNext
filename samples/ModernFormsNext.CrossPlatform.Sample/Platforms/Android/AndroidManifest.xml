@@ -9,6 +9,7 @@
   <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
   <uses-feature android:name="android.hardware.camera.any" android:required="false" />
   <application
+      android:enableOnBackInvokedCallback="true"
       android:allowBackup="true"
       android:label="ModernFormsNext Cross-Platform Sample"
       android:supportsRtl="true"

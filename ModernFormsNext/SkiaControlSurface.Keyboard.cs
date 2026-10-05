@@ -39,12 +39,24 @@ public sealed partial class SkiaControlSurface
         if (isDeadKey) return false;
         if (Root.IsDisposed || !Root.Enabled || !Root.Visible || e.KeyCode == Keys.None) return false;
 
+        if (windowOwner is not null)
+        {
+            // Match WindowBase's raw-key order: Form preview can change focus. Resolve
+            // the resulting canonical owner, never a control captured before that callback.
+            windowOwner.PreviewSurfaceKeyDown(e);
+            if (disposed || windowOwner.InputBindingsClosed || !windowOwner.Visible || Root.IsDisposed || !Root.Enabled)
+            {
+                e.SuppressKeyPress = true;
+                return true;
+            }
+            if (e.Handled || e.SuppressKeyPress) return true;
+        }
         var selected = FindSelectedControl();
         var parent = selected?.Parent;
         var generation = keyboardGeneration;
         var treeVersion = keyboardTreeVersion;
         if (!isTextInput && !isDeadKey && !textInputHost.IsCompositionEditingKey(e.KeyData))
-            inputBindingResolver.ProcessKeyDown(e, selected, Root, null);
+            inputBindingResolver.ProcessKeyDown(e, selected, Root, windowOwner);
 
         if (!IsKeyboardRouteCurrent(selected, parent, generation, treeVersion))
             RetireKeyboardDown(e, generation);
@@ -113,12 +125,16 @@ public sealed partial class SkiaControlSurface
             e.SuppressKeyPress = true;
             selected?.CancelKeyboardInteraction();
         }
-        else if (!isTextInput && inputBindingResolver.ProcessKeyUp(e))
+        else
         {
-            // A consumed Down owns its release even when focus has moved elsewhere.
+            bool consumed = !isTextInput && inputBindingResolver.ProcessKeyUp(e);
+            // As on desktop, Form preview observes consumed releases, while the control
+            // route never receives a release owned by a shortcut.
+            if (IsKeyboardRouteCurrent(selected, parent, generation, treeVersion))
+                windowOwner?.PreviewSurfaceKeyUp(e);
+            if (!consumed && !e.Handled && !e.SuppressKeyPress && IsKeyboardRouteCurrent(selected, parent, generation, treeVersion))
+                selected?.RaiseKeyUp(e);
         }
-        else if (!e.Handled && !e.SuppressKeyPress && IsKeyboardRouteCurrent(selected, parent, generation, treeVersion))
-            selected?.RaiseKeyUp(e);
 
         if (!disposed && !Root.IsDisposed) Invalidated?.Invoke(this, EventArgs.Empty);
         if (!IsKeyboardRouteCurrent(selected, parent, generation, treeVersion)) e.SuppressKeyPress = true;

@@ -10,9 +10,37 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Dispatching;
 /// Calls made from the main thread execute inline for <c>InvokeAsync</c>, avoiding a self-wait
 /// deadlock. Posted work is always asynchronous. Delegates must remain short and UI-focused.
 /// </remarks>
-public sealed class AndroidMainThreadDispatcher : IPlatformDispatcher
+public sealed class AndroidMainThreadDispatcher : IPlatformDispatcher, IExternallyOwnedDispatcherImpl
 {
     private readonly Handler handler;
+    private readonly Action timerTick;
+    private int signalPending;
+
+    /// <inheritdoc/>
+    public bool CurrentThreadIsLoopThread => CheckAccess();
+    /// <inheritdoc/>
+    public long Now => SystemClock.UptimeMillis();
+    /// <inheritdoc/>
+    public event Action? Signaled;
+    /// <inheritdoc/>
+    public event Action? Timer;
+
+    /// <inheritdoc/>
+    public void Signal()
+    {
+        if (Interlocked.Exchange(ref signalPending, 1) != 0) return;
+        try { Post(() => { Interlocked.Exchange(ref signalPending, 0); Signaled?.Invoke(); }); }
+        catch { Interlocked.Exchange(ref signalPending, 0); throw; }
+    }
+
+    /// <inheritdoc/>
+    public void UpdateTimer(long? dueTimeInMs)
+    {
+        if (!CheckAccess()) throw new InvalidOperationException("Dispatcher timers require the Android main thread.");
+        handler.RemoveCallbacks(timerTick);
+        if (dueTimeInMs is { } due && !handler.PostDelayed(timerTick, Math.Max(1, due - Now)))
+            throw new InvalidOperationException("Android rejected the dispatcher timer.");
+    }
 
     /// <summary>
     /// Creates a dispatcher bound to Android's process main looper.
@@ -23,6 +51,7 @@ public sealed class AndroidMainThreadDispatcher : IPlatformDispatcher
         var mainLooper = Looper.MainLooper
             ?? throw new InvalidOperationException("Android did not provide a main Looper.");
         handler = new Handler(mainLooper);
+        timerTick = () => Timer?.Invoke();
     }
 
     /// <inheritdoc/>

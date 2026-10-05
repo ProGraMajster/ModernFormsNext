@@ -74,12 +74,16 @@ public sealed class AndroidToolingContractTests
     [Fact]
     public void AndroidHostUsesTheSharedImePipelineWithoutNativeEditText()
     {
-        var host = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android", "AndroidAppHost.cs"));
+        var activity = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android", "MainActivity.cs"));
+        var host = File.ReadAllText(IOPath.Combine(RepositoryRoot, "ModernFormsNext.WindowKit.Backend.Android",
+            "Platform", "Windowing", "AndroidActivityHost.cs"));
         var page = File.ReadAllText(IOPath.Combine(SampleDirectory, "MainPage.cs"));
 
-        Assert.Contains("controlSurface.AttachTextInputMethod(nativeSurface)", host, StringComparison.Ordinal);
-        Assert.Contains("controlSurface.SetTextInputActive(false)", host, StringComparison.Ordinal);
-        Assert.Contains("controlSurface.SetTextInputActive(true)", host, StringComparison.Ordinal);
+        Assert.Contains("Application.Run(new MainForm(app))", activity, StringComparison.Ordinal);
+        Assert.Contains("window.TextInput.Attach(p.View)", host, StringComparison.Ordinal);
+        Assert.Contains("p.Window.ConfirmFocus(false)", host, StringComparison.Ordinal);
+        Assert.Contains("p.Window.ConfirmFocus(resumed && focused", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("new SkiaControlSurface", activity, StringComparison.Ordinal);
         Assert.DoesNotContain("TextCommitRequested +=", host, StringComparison.Ordinal);
         Assert.DoesNotContain("TextInputStateProvider =", host, StringComparison.Ordinal);
         Assert.DoesNotContain("EditText", host, StringComparison.Ordinal);

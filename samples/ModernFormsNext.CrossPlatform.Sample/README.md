@@ -1,7 +1,7 @@
 # ModernFormsNext cross-platform sample
 
 This directory is one multi-target application project targeting `net10.0-windows` and
-`net10.0-android`. `App`, `MainPage`, state, layout, and interaction logic compile unchanged for
+`net10.0-android`. `App`, `MainForm`, `MainPage`, state, layout, and interaction logic compile unchanged for
 both targets. Platform startup and native adaptation are isolated under `Platforms/Windows` and
 `Platforms/Android`; there is no MAUI, XAML, AndroidX, separate shared project, or duplicated page.
 
@@ -25,15 +25,18 @@ implied by the headless tests.
 The Android-only `ACCESSIBILITY_PHASE4` intent opens a separate, opt-in fixture of
 real link, numeric, date, grid, rich-text, protected-text and scroll controls. Its
 `AccessibilityPhase4Instrumentation` runner uses the native `UiAutomation` service
-connection. It leaves the historical `ACCESSIBILITY_DEMO` fixture and Phase 3 runner
-unchanged. See [Phase 4 native checks](../../docs/accessibility/android-phase4-validation.md)
-for the exact invocation, coverage and pending evidence. An ordinary launch does not
-open or execute either instrumentation fixture.
+connection. Both it and the `ACCESSIBILITY_DEMO` / Phase 3 runner now use the backend-owned
+Form presentation. See [Phase 4 native checks](../../docs/accessibility/android-phase4-validation.md)
+for invocation and coverage, and the [#72 final review](../../docs/development/issue-72-final-review.md)
+for their current host validation. An ordinary launch does not open or execute either
+instrumentation fixture.
 
-Windows attaches `App.Root` to a normal ModernFormsNext `Form`. Android creates one Skia view and
-adapts touch, hardware keys, IME, density, invalidation, and lifecycle into the same framework
-control pipeline. Android support remains experimental and is not yet a complete `Form`/window
-backend.
+Windows attaches `App.Root` through the shared `MainForm`. Android calls
+`Application.Run(new MainForm(app))` from `AndroidWindowActivity.OnStartApplication`. The backend
+owns native Skia presentation and the existing shared input pipeline. Activity recreation retains
+the same Form and root. Android remains experimental; see the
+[window capability policy](../../docs/android-windowing.md) and
+[issue #72 final validation](../../docs/development/issue-72-final-review.md).
 
 The shared command section uses Ctrl+S, Ctrl+Shift+S and F1 with real command-backed buttons
 and an availability fallback. Android connects the native hardware-key handler to the same

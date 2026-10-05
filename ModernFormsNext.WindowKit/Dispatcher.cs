@@ -50,6 +50,9 @@ public partial class Dispatcher : IDispatcher
     /// </summary>
     public bool SupportsRunLoops => _controlledImpl != null;
 
+    /// <summary>Gets whether the platform owns the event loop and application startup must return.</summary>
+    public bool HasExternalEventLoop => _impl is IExternallyOwnedDispatcherImpl;
+
     private static Dispatcher CreateUIThreadDispatcher()
     {
         var impl = AvaloniaLocator.Current.GetService<IDispatcherImpl>();

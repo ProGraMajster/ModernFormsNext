@@ -34,7 +34,7 @@ The native contract checks cover:
 | Area | Checks |
 | --- | --- |
 | Links and numeric input | Real link Invoke callback and nonempty visible bounds; native range metadata and SetProgress; the existing decimal value/step path while the implicit text editor remains read-only. |
-| Date input | Checkbox state/action, rejection of stepping while unchecked, the normal increment path, and no advertised or executable calendar popup in the Android windowless host. |
+| Date input | Checkbox state/action, rejection of stepping while unchecked, the normal increment path, and calendar popup expansion/native visibility/Back dismissal through the Android Form host. |
 | Text | Native selection metadata and actions, character movement across a UTF-16 surrogate pair, nonempty native control bounds, and the existing shared renderer's text-range rectangles. |
 | Privacy | An explicitly labelled password retains its own label and supported SetText action while its value/search result are redacted; sensitive ancestors redact descendant labels, descriptions and IDs without blocking an ordinary button's normal activation. Protected text/range/selection remain unavailable, and sensitive native events contain no text payload. |
 | Grid | Native collection dimensions and cell coordinates, the normal cell edit/commit path, real heading Invoke/sort, retained row identity with updated coordinates, ShowOnScreen, and rejection of a removed cell's stale native node. |
@@ -73,6 +73,10 @@ The current form retains every assertion and wrapper-disposal obligation. This i
 workaround; the underlying runtime/compiler cause has not been established.
 
 ## Recorded native validation
+
+Current Application/Form-host results are recorded in the [#72 final review](../development/issue-72-final-review.md):
+65/65 Phase 4 assertions on both API 34 emulator and API 36 physical hardware, in Debug and Release.
+The following earlier APK results retain their original source identity and assertion counts.
 
 The final-source APK built from **bc160dcbbe8f7ea0acff1cdee18569f8bb8cd50f**
 (SHA256 **F8857B4AEC0917B2FB9A10C81613EE554B458A36CD9B41FEC9D13240947AE914**)

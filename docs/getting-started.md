@@ -22,8 +22,9 @@ dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:Enable
 The main framework project targets both `net10.0` and `net10.0-windows`. Generated application templates target `net10.0-windows`.
 
 The repository also contains an experimental `net10.0-android` backend and cross-platform sample.
-Android is not yet a general `Application.Run(Form)` target; see
-[Android platform status](platforms/android.md) for the current hosting model and limitations.
+The current source tree supports `Application.Run(Form)` through an Activity-owned backend:
+one main Form, owned modal Forms, and reusable popups. See [Android startup](android-windowing.md#startup)
+and [platform status](platforms/android.md) for this bounded policy and remaining limitations.
 
 ## Run the Sample Applications
 

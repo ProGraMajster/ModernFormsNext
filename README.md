@@ -32,7 +32,7 @@ presented as a finished replacement for WinForms, MAUI, or other established UI 
 | Platform | Status | Target | Notes |
 | --- | --- | --- | --- |
 | Windows | Supported | `net10.0-windows` | Primary development, runtime, designer, and validation platform. |
-| Android | **Experimental** | `net10.0-android` | Shared-control Skia surface and samples are available; full windowing and service parity are not. |
+| Android | **Experimental** | `net10.0-android` | Source-tree Application/Form host supports one main Form, owned modals, and reusable popups; desktop windowing and service parity remain limited. |
 
 The repository does not currently provide supported macOS or Linux application backends.
 
@@ -42,7 +42,8 @@ The repository does not currently provide supported macOS or Linux application b
 > Android support in ModernFormsNext 1.11.1 is **Experimental**. APIs, project structure, and
 > runtime behavior may still change. It is not yet recommended for production applications.
 
-The Android backend can host one real ModernFormsNext control tree in an `AndroidSkiaHostView`.
+The Android backend presents shared Forms and their real control trees through backend-owned
+Activity/Skia views under the bounded window policy below.
 The repository verifies shared layout and SkiaSharp rendering, logical-pixel density conversion,
 multi-touch routing, scrolling, basic focus, hardware editing keys, Android IME text input,
 lifecycle tracking, main-thread dispatching, and manifest-aware permissions.
@@ -52,8 +53,9 @@ letters, digits, function/navigation keys and modifiers to the shared command re
 implementation has deterministic and scoped API 34 emulator validation; its evidence is separate from
 software-keyboard composition and physical-keyboard observations.
 
-Android does not yet provide the general `Application.Run(Form)` path, a complete WindowKit
-windowing implementation, multiple framework windows, complete accessibility, native dialogs,
+The current source tree adds the experimental [Android Application/Form host](docs/android-windowing.md):
+`Application.Run(Form)`, one main Form and owned modal/popup surfaces. It retains explicit
+mobile window limitations. Android does not provide complete desktop windowing parity, native dialogs,
 clipboard, file pickers, drag and drop, or the full platform-service set. See
 [Android platform status](docs/platforms/android.md) for the verified support matrix, requirements,
 known limitations, and sample commands.
@@ -141,8 +143,8 @@ public sealed class MainForm : Form
 }
 ```
 
-Android currently uses an explicit activity and shared-surface adapter rather than this
-`Application.Run(Form)` entry point. Start from the
+On Android, call `Application.Run(Form)` from `AndroidWindowActivity.OnStartApplication` after
+backend initialization. It returns while the native main Looper continues. Start from the
 [cross-platform sample](samples/ModernFormsNext.CrossPlatform.Sample/README.md) when evaluating the
 Android backend.
 

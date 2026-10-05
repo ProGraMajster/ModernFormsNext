@@ -21,9 +21,10 @@ public abstract partial class WindowBase
 
     /// <summary>Gets native occlusion overlapping this window's client area, in logical pixels.</summary>
     /// <remarks>
-    /// An absent backend feature reports zero. Existing window client sizing remains unchanged;
-    /// applications can apply these values to embedded content. SkiaControlSurface applies its
-    /// SafeArea to its borrowed content root. IME avoidance remains an application policy.
+    /// An absent backend feature reports zero. Host-managed windows apply SafeArea once to
+    /// their DisplayRectangle and content layout; native ClientSize still describes the whole
+    /// surface. Standalone SkiaControlSurface applies SafeArea to its borrowed content root.
+    /// IME insets are informational; keyboard avoidance remains an application policy.
     /// </remarks>
     public WindowInsets Insets { get; private set; }
 
@@ -42,6 +43,8 @@ public abstract partial class WindowBase
     {
         if (backendClosed || Insets == args.Insets) return;
         Insets = args.Insets;
+        if (window.TryGetFeature(typeof(IWindowHostPolicy)) is IWindowHostPolicy { IsHostManaged: true })
+            UpdateWindowGeometry();
         InsetsChanged?.Invoke(this, args);
     }
 
@@ -68,6 +71,7 @@ public abstract partial class WindowBase
             catch (Exception exception) { failures.Add(exception); }
         }
         Cleanup(DetachInsetsProvider);
+        Cleanup(adapter.DisposeSurfaceInput);
         Cleanup(() => adapter.GetFocusScope().SetSuspended(true));
         Cleanup(TextInputHost.Dispose);
         Cleanup(ReleaseInputBindings);

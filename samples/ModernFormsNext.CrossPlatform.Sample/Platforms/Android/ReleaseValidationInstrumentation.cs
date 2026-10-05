@@ -387,7 +387,7 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     }
 
     private Intent LaunchIntent() => new Intent(TargetContext!, typeof(MainActivity)).AddFlags(ActivityFlags.NewTask);
-    private AndroidSkiaHostView View() => (AndroidSkiaHostView)activity.FindViewById<ViewGroup>(global::Android.Resource.Id.Content)!.GetChildAt(0)!;
+    private AndroidSkiaHostView View() => NativeValidationViews.Main(activity);
     private static AndroidAnimationRuntimeDiagnostics Runtime()
         => AndroidWindowKit.Current.GetAnimationRuntimeDiagnostics();
     private static AnimationOptions Options(int milliseconds) => new() { Duration = TimeSpan.FromMilliseconds(milliseconds), Easing = Easings.Linear };

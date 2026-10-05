@@ -5,15 +5,15 @@
 > production applications. See the [Android platform status](platforms/android.md) for the
 > supported vertical slice and current limitations.
 
-The Android backend is an early platform foundation with an experimental shared-control Skia
-surface and shared animation-runtime integration, not a complete ModernFormsNext window backend.
+The Android backend includes an experimental [Application/Form window host](android-windowing.md),
+software Skia rendering and shared animation-runtime integration, with explicit mobile limitations.
 Windows remains the primary and best-supported runtime. The Android project targets
 `net10.0-android` with API 23 as its current minimum and has no MAUI or AndroidX dependency.
 
 ## Startup
 
-Initialize from Android application startup or the first activity before accessing WindowKit
-dispatcher services:
+Initialize on the Android main thread from the native Application's `OnCreate`, before accessing
+WindowKit dispatcher or windowing services:
 
 ```csharp
 var backend = AndroidWindowKit.Initialize(new AndroidWindowKitOptions(this)
@@ -21,9 +21,12 @@ var backend = AndroidWindowKit.Initialize(new AndroidWindowKitOptions(this)
     PermissionRequestTimeout = TimeSpan.FromMinutes(2),
     DiagnosticSink = message => Android.Util.Log.Info("MFN.WindowKit", message)
 });
-
-AndroidWindowKit.ObserveHostActivity(this);
 ```
+
+Use `AndroidWindowActivity.OnStartApplication` to call `Application.Run(new MainForm(...))` once.
+The backend supplies the Activity/Skia presentation and reconnects surviving Forms after Activity
+recreation. See the complete [startup example](android-windowing.md#startup); normal application
+startup does not manually construct a Skia host view or control surface.
 
 Repeated initialization with the same Application Context is idempotent. A different context or a
 second platform backend is rejected. The normalized `AndroidApplicationContext` retains the
@@ -78,9 +81,9 @@ frame, lifecycle, cleanup, capability, and validation guidance is in
 - exception propagation through returned tasks;
 - inline invocation on the main thread to avoid self-deadlock.
 
-The dispatcher is registered in the lightweight `PlatformServiceRegistry` and is also available as
-`AndroidWindowKit.Current.Dispatcher`. It does not yet claim to be the event-loop implementation for
-ModernFormsNext Android windows, because that UI backend has not been built.
+The dispatcher is registered in `PlatformServiceRegistry` and as WindowKit's externally owned
+dispatcher implementation. `Application.Run` retains application lifetime after returning to the
+native Looper. `AndroidWindowKit.Current.Dispatcher` remains available for platform services.
 
 ## Shared-control Skia surface
 
@@ -89,7 +92,9 @@ conversion, resize, multi-pointer tracking, hardware editing keys, IME connectio
 invalidation, and disposal.
 `SkiaControlSurface` belongs to the core framework and adapts a real `Control` tree to that canvas,
 including framework layout, paint, hit testing, pointer capture, selection, and committed-text
-routing. This is the pipeline used by `ModernFormsNext.CrossPlatform.Sample`.
+routing. This low-level API remains available. The cross-platform sample now uses Application.Run
+and Form: its canonical adapter renders through WindowBase and borrows the same surface input
+router without creating a second control or focus root.
 
 The view renders only after invalidation or resize. It does not run a permanent frame timer; the
 shared animation scheduler requests Choreographer callbacks only while animation work remains.
@@ -114,15 +119,15 @@ Commit/composition/finish, selection, deletion in UTF-16 or code points, Enter, 
 and arrow keys route into the selected framework `TextBox`. Surrogate pairs and complete framework
 text elements are preserved. No native `EditText` is used.
 
-The integration is deliberately narrower than `Application.Run(Form)`: Android does not yet
-implement the complete `IWindowImpl`/`IWindowingPlatform` contract, multiple windows, native
-dialogs, accessibility bridging, clipboard, drag-and-drop, or platform cursor artwork. Do not
-describe this slice as full Android parity.
+The low-level surface remains available alongside the newer Application/Form host. Independent
+desktop windows, native service dialogs, clipboard, drag-and-drop and custom cursor artwork remain
+outside this mobile window policy. See [the capability matrix](android-windowing.md#capability-matrix).
 
 ## Runtime permission callback
 
 The backend uses the supported platform `Activity.RequestPermissions` API without adding AndroidX.
-The activity forwards results to the one central coordinator:
+`AndroidWindowActivity` forwards results to the one central coordinator automatically. Custom
+Activities, including the native foundation smoke host, forward them explicitly:
 
 ```csharp
 public override void OnRequestPermissionsResult(
@@ -155,14 +160,14 @@ validation role.
 
 ## Limitations
 
-- A single real ModernFormsNext control tree can render through the shared-control Skia surface, but
-  general `Application.Run(Form)` and Android window creation are not implemented.
-- No Android `IWindowingPlatform`, clipboard, notification delivery, camera/media capture, WebView,
+- The source-tree Application/Form host supports one main Form and owned modal/popup surfaces;
+  desktop window-management parity is not provided.
+- No complete Android clipboard, notification delivery, camera/media capture, WebView,
   file picker, sharing, or drag-and-drop service exists yet.
 - Android 14 selected-photo access is not represented as a partial grant. Prefer a system photo
   picker for user-selected images until a dedicated media-selection API is designed.
-- Runtime dialogs require host callback forwarding; this avoids an AndroidX dependency in this
-  foundation.
+- Runtime permission dialogs require callback forwarding, supplied by `AndroidWindowActivity`
+  or explicitly by a custom Activity; this avoids an AndroidX dependency in this foundation.
 - Platform mapping, queue, density, lifecycle, invalidation, resize, Unicode input-state, and
   disposal behavior run as `net10.0` tests. Deployment remains an explicit device/emulator step
   through repository scripts.

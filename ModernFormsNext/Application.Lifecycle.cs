@@ -28,7 +28,7 @@ public static partial class Application
     internal static bool IsCurrentLifecycle(ApplicationLifecycle lifecycle)
         => ReferenceEquals(applicationLifecycle, lifecycle);
 
-    internal static void NotifyLifecycleStarting(PlatformApplicationActivation activation)
+    internal static void NotifyLifecycleStarting(PlatformApplicationActivation activation, bool deliverActivation = true)
     {
         object runtimeIdentity = RuntimeIdentity;
         var controller = Lifecycle.Controller;
@@ -40,7 +40,7 @@ public static partial class Application
         if (!ReferenceEquals(runtimeIdentity, RuntimeIdentity) || is_exiting ||
             controller.Snapshot.Phase is PlatformApplicationPhase.Exiting or PlatformApplicationPhase.Exited)
             return;
-        controller.Activate(activation);
+        if (deliverActivation) controller.Activate(activation);
         if (!ReferenceEquals(runtimeIdentity, RuntimeIdentity) || is_exiting ||
             controller.Snapshot.Phase is PlatformApplicationPhase.Exiting or PlatformApplicationPhase.Exited)
             return;
