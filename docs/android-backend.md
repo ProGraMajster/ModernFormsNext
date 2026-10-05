@@ -12,8 +12,8 @@ Windows remains the primary and best-supported runtime. The Android project targ
 
 ## Startup
 
-Initialize from Android application startup or the first activity before accessing WindowKit
-dispatcher services:
+Initialize on the Android main thread from the native Application's `OnCreate`, before accessing
+WindowKit dispatcher or windowing services:
 
 ```csharp
 var backend = AndroidWindowKit.Initialize(new AndroidWindowKitOptions(this)
@@ -21,9 +21,12 @@ var backend = AndroidWindowKit.Initialize(new AndroidWindowKitOptions(this)
     PermissionRequestTimeout = TimeSpan.FromMinutes(2),
     DiagnosticSink = message => Android.Util.Log.Info("MFN.WindowKit", message)
 });
-
-AndroidWindowKit.ObserveHostActivity(this);
 ```
+
+Use `AndroidWindowActivity.OnStartApplication` to call `Application.Run(new MainForm(...))` once.
+The backend supplies the Activity/Skia presentation and reconnects surviving Forms after Activity
+recreation. See the complete [startup example](android-windowing.md#startup); normal application
+startup does not manually construct a Skia host view or control surface.
 
 Repeated initialization with the same Application Context is idempotent. A different context or a
 second platform backend is rejected. The normalized `AndroidApplicationContext` retains the
@@ -123,7 +126,8 @@ outside this mobile window policy. See [the capability matrix](android-windowing
 ## Runtime permission callback
 
 The backend uses the supported platform `Activity.RequestPermissions` API without adding AndroidX.
-The activity forwards results to the one central coordinator:
+`AndroidWindowActivity` forwards results to the one central coordinator automatically. Custom
+Activities, including the native foundation smoke host, forward them explicitly:
 
 ```csharp
 public override void OnRequestPermissionsResult(
@@ -162,8 +166,8 @@ validation role.
   file picker, sharing, or drag-and-drop service exists yet.
 - Android 14 selected-photo access is not represented as a partial grant. Prefer a system photo
   picker for user-selected images until a dedicated media-selection API is designed.
-- Runtime dialogs require host callback forwarding; this avoids an AndroidX dependency in this
-  foundation.
+- Runtime permission dialogs require callback forwarding, supplied by `AndroidWindowActivity`
+  or explicitly by a custom Activity; this avoids an AndroidX dependency in this foundation.
 - Platform mapping, queue, density, lifecycle, invalidation, resize, Unicode input-state, and
   disposal behavior run as `net10.0` tests. Deployment remains an explicit device/emulator step
   through repository scripts.

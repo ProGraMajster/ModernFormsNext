@@ -16,8 +16,8 @@ The current source tree additionally provides an experimental
 | --- | --- |
 | Target framework | `net10.0-android` |
 | Minimum Android version | API 23, through `SupportedOSPlatformVersion=23.0` |
-| UI host | One `AndroidSkiaHostView` / `SKCanvasView` |
-| Framework root | One shared ModernFormsNext `Control` tree through `SkiaControlSurface` |
+| UI host | Backend-owned Activity host with `AndroidSkiaHostView` / `SKCanvasView` presentations for Forms and popups |
+| Framework root | Shared `Form` / `ControlAdapter` path: one main Form per host, owner-bound modal Forms, and reusable in-Activity popups |
 | Packaging exercised by the repository | Standalone APK and local Release AAB construction; no store submission claim |
 | Production support | Not supported; experimental evaluation only |
 
@@ -28,12 +28,16 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 
 - The Android backend and the Android targets of the repository samples compile with the .NET 10
   Android workload.
-- `AndroidWindowKit.Initialize(...)` registers application context, lifecycle tracking, a
-  main-thread dispatcher, permission services, platform information, and diagnostics.
+- `AndroidWindowKit.Initialize(...)` registers application context, lifecycle tracking, an
+  externally hosted main-thread dispatcher, `IWindowingPlatform`, permission services, platform
+  information, and diagnostics.
+- `Application.Run(Form)` starts the framework lifetime from `AndroidWindowActivity` and returns
+  to Android's existing Looper. The backend owns native presentation for the bounded window policy.
 - `AndroidSkiaHostView` renders a real ModernFormsNext control tree through SkiaSharp. Layout,
   invalidation, painting, selection, and hit testing use the same shared controls as Windows.
-- Physical pixels are converted to logical pixels once at the Android boundary. Surface resize
-  and density changes update the shared layout without applying density twice.
+- Native pointer coordinates convert from physical to logical pixels at the Android View boundary;
+  the canonical Form adapter then maps them once into the existing device-scaled control route.
+  Surface resize and density changes update shared geometry and layout without double scaling.
 - Multi-touch pointer IDs, deepest-enabled-control hit testing, independent pointer capture,
   tap/click behavior, drag cancellation, and touch scrolling through `ScrollableControl` are
   implemented.
@@ -87,12 +91,13 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   provenance separately; minimum API support does not establish observed device compatibility.
   Unhandled printable keys need semantic text delivery from the IME/text service: the Skia View
   fallback has no native editable KeyListener and does not translate those keys into text.
-- Rotation and configuration changes are handled by the sample host, but general host-independent
-  lifecycle, state restoration, safe-area/inset, and configuration policies are still evolving.
+- The backend handles configuration changes, Activity recreation, safe-area/inset delivery, and
+  reattachment of the surviving Form tree. Process-death restoration uses a bounded application-owned
+  schema, not serialized controls. Broader vendor and lifecycle qualification remains incomplete.
 - Density conversion is implemented for the shared surface, but Android does not yet have complete
   platform-wide DPI, font-scaling, and system-UI integration.
-- Runtime permission requests require the host activity to forward the platform callback. Android
-  14 selected-photo access is not represented as a partial grant.
+- `AndroidWindowActivity` forwards runtime permission callbacks automatically; a custom Activity
+  must forward them explicitly. Android 14 selected-photo access is not represented as a partial grant.
 - The repository validates standalone APK output and local Release AAB construction. Android
   App Bundle publishing, distribution signing and store submission are not validated release paths.
 - The cross-platform sample exercises Release AOT. General trimming compatibility is not declared,
@@ -148,16 +153,19 @@ The cross-platform sample demonstrates the current arrangement:
 ```text
 ModernFormsNext.CrossPlatform.Sample/
 |-- App.cs                         # shared application state and root
+|-- MainForm.cs                    # shared Form containing the page
 |-- MainPage.cs                    # shared ModernFormsNext controls
 |-- Shared/                        # shared service contracts and state
 `-- Platforms/
     |-- Windows/                   # Form/Application.Run host
-    `-- Android/                   # Activity, AndroidSkiaHostView adapter, manifest
+    `-- Android/                   # AndroidWindowActivity startup and manifest
 ```
 
-Android startup initializes `AndroidWindowKit`, creates an `AndroidSkiaHostView`, and connects it to
-the shared root with `SkiaControlSurface`. This explicit adapter is required until Android has a
-complete WindowKit windowing implementation.
+Android initializes `AndroidWindowKit` in the native Application and calls
+`Application.Run(new MainForm(app))` from `AndroidWindowActivity.OnStartApplication`. The backend
+supplies `AndroidWindowImpl`, the Activity host, and Skia presentation for the canonical shared
+Form/control tree. Normal startup requires no manual `AndroidAppHost`, `AndroidSkiaHostView`, or
+`SkiaControlSurface`; see the [windowing startup example](../android-windowing.md#startup).
 
 ## Build and package
 
@@ -196,9 +204,11 @@ See [Android development](../android-development.md), [Android and adb](../andro
 
 Planned work is capability-based and has no promised completion date:
 
-- implement the WindowKit windowing contracts and align Android startup with the framework app model;
 - expand focus, keyboard, IME, accessibility, lifecycle, density, and configuration coverage;
-- add capability-shaped Android services such as clipboard, pickers, dialogs, sharing, and drag/drop;
+- add capability-shaped Android services such as clipboard, pickers, dialogs, sharing, and drag/drop
+  ([#79](https://github.com/ProGraMajster/ModernFormsNext/issues/79));
+- add native child view hosting ([#60](https://github.com/ProGraMajster/ModernFormsNext/issues/60))
+  and GPU rendering ([#46](https://github.com/ProGraMajster/ModernFormsNext/issues/46));
 - validate trimming, AOT, App Bundle/store packaging, performance, and a broader device matrix;
 - keep platform behavior behind shared contracts without moving Android APIs into framework code.
 

@@ -101,10 +101,10 @@ See [Designer architecture](designer-architecture.md) and
 
 ### ModernFormsNext.CrossPlatform.Sample
 
-A multi-target project organized around shared `App` and `MainPage` files plus thin
+A multi-target project organized around shared `App`, `MainForm`, and `MainPage` files plus thin
 `Platforms/Windows` and `Platforms/Android` hosts. Both targets use the same real ModernFormsNext
-control tree. Android reaches that tree through the transitional `SkiaControlSurface` rather than
-a complete Android `IWindowingPlatform`.
+control tree. Android calls `Application.Run(Form)` through its registered `IWindowingPlatform`
+and backend-owned Activity/Skia presentation, with one main Form, owned modals, and reusable popups.
 
 ```powershell
 .\scripts\windows\Run-CrossPlatformSample.ps1

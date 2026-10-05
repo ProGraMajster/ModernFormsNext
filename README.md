@@ -32,7 +32,7 @@ presented as a finished replacement for WinForms, MAUI, or other established UI 
 | Platform | Status | Target | Notes |
 | --- | --- | --- | --- |
 | Windows | Supported | `net10.0-windows` | Primary development, runtime, designer, and validation platform. |
-| Android | **Experimental** | `net10.0-android` | Shared-control Skia surface and samples are available; full windowing and service parity are not. |
+| Android | **Experimental** | `net10.0-android` | Source-tree Application/Form host supports one main Form, owned modals, and reusable popups; desktop windowing and service parity remain limited. |
 
 The repository does not currently provide supported macOS or Linux application backends.
 
@@ -42,7 +42,8 @@ The repository does not currently provide supported macOS or Linux application b
 > Android support in ModernFormsNext 1.11.1 is **Experimental**. APIs, project structure, and
 > runtime behavior may still change. It is not yet recommended for production applications.
 
-The Android backend can host one real ModernFormsNext control tree in an `AndroidSkiaHostView`.
+The Android backend presents shared Forms and their real control trees through backend-owned
+Activity/Skia views under the bounded window policy below.
 The repository verifies shared layout and SkiaSharp rendering, logical-pixel density conversion,
 multi-touch routing, scrolling, basic focus, hardware editing keys, Android IME text input,
 lifecycle tracking, main-thread dispatching, and manifest-aware permissions.

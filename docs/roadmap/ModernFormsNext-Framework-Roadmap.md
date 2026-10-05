@@ -4,7 +4,7 @@
 - Paint/gradient foundation implemented: 2026-07-19
 - ThemeManager, composable animations, and platform animation polish implemented for 1.9.0
 - SDK baseline: .NET 10 (`10.0.401`)
-- Runtime priority: Windows first; Android is an experimental shared-control Skia vertical slice
+- Runtime priority: Windows first; Android has an experimental bounded Application/Form host
 - Purpose: architecture and delivery sequence, not a promise that every listed API is implemented
 
 ## Executive summary
@@ -14,9 +14,10 @@ main package contains a WinForms-like `Control` tree, mature dock/anchor/flow/ta
 `ControlStyle`, solid and gradient brushes, renderer classes, Skia invalidation/back buffers, input
 routing, a shared UI animation scheduler, `NavigationPane`, `TabControl`, `DateTimePicker`, a
 document model, Markdown parser/editor, and a substantial `DocumentViewer`. Windows has the complete
-windowing backend. Android has lifecycle, dispatcher, permission infrastructure, and one real shared
-control tree rendered by `AndroidSkiaHostView`, but not general `Application.Run(Form)`, multi-window,
-or the complete WindowKit service set.
+windowing backend. The current source tree adds Android `Application.Run(Form)` and the
+[bounded window host](../android-windowing.md): one main Form, owned modal Forms, and reusable
+popups over the shared control tree. Independent desktop windows and the complete WindowKit
+service set remain unsupported.
 
 The architecture should therefore be extended, not replaced. The implementation order is:
 
@@ -52,12 +53,12 @@ already exist.
 | Animation | Shared monotonic `AnimationScheduler`, composable definitions/runs, handles, owner/key replacement, typed interpolators, Brush transitions, native reduced-motion policy, animated bounds, layout-aware state metrics, diagnostics, and compatibility helpers | Reuse for theme/shape/navigation transitions; preserve the single scheduler and existing layout-transition contract. |
 | Input | Framework mouse/keyboard/text/IME pipeline, capture, hit testing, touch scrolling; [shared revocable composition clients](../text-input.md) with bounded state, editor checkpoints, Windows IMM32 and Android InputConnection adapters | Collection, SearchBar, pages, charts, and shapes share the same input path. Native language/vendor/device coverage and Windows TSF/touch-keyboard capabilities remain separate boundaries. |
 | Headless testing | `ModernFormsNext.Testing` hosts real layout/input/focus, modal forms/control popups, controlled animation/timer time, scoped platform services and optional raster snapshots; #63 adds shared activation/state handoff and actual `Application.Run` lifetime tests | Use the [TestHost](../testing/testhost.md) and [lifecycle guide](../application-lifecycle.md) for shared behavior. Future navigation/virtualization coverage follows #12/#55; native integration remains separate. |
-| Accessibility | One `AccessibleObject` hierarchy with Windows UIA/MSAA and Android virtual nodes; Phase 4 adds current composites, managed grid/calendar peers, viewport and text capabilities, opt-in preferences, snapshot diagnostics and Designer metadata | Reuse [the canonical model](../accessibility/semantic-model.md). Current Phase 4 final validation remains pending; future recycled containers (#55), inspector/picker UI (#61), Android windows (#72) and physical reliability (#69) remain distinct. |
+| Accessibility | One `AccessibleObject` hierarchy with Windows UIA/MSAA and Android virtual nodes; Phase 4 adds current composites, managed grid/calendar peers, viewport and text capabilities, opt-in preferences, snapshot diagnostics and Designer metadata | Reuse [the canonical model](../accessibility/semantic-model.md). Bounded Android Form-host evidence is in the [#72 review](../development/issue-72-final-review.md); future recycled containers (#55), inspector/picker UI (#61) and broad physical reliability (#69) remain distinct. |
 | Data binding | `IBindableComponent`, `Binding`, `BindingContext`, `BindingSource`, list managers and converters | Reuse for items sources and selected values; add collection-change/virtualization contracts instead of a parallel binding engine. |
 | Serialization | `System.Text.Json` in designer and binding conversion; stable design document serializer | Reuse conventions and converters, but keep theme/localization runtime schemas separate from designer files. |
 | Documents | `Documents.Document`, block/inline/table/image/list/code model, Markdown parser, layout/text map/selection/cache, `DocumentViewer` | Evolve and extract compatibly. Do not recreate the requested model under duplicate public names. |
 | Windows | Full `IWindowingPlatform`, Win32 input/window/services and Skia framebuffer path | Primary runtime for page hosting, printing, clipboard, system theme, pointer/keyboard validation. |
-| Android | Lifecycle/permissions/main-thread dispatcher, Choreographer/settings integration, `AndroidSkiaHostView`, `SkiaControlSurface`, native IME and multi-touch; [expanded hardware shortcuts](../android-hardware-input.md) through the existing shared resolver have deterministic and scoped API 34 emulator validation | Shared controls can be validated now; window/shell/back/accessibility/service parity and broad device evidence remain separate prerequisites. Hardware-keyboard observations and the Gboard hardware-text fallback limit are tracked independently from software IME tests. |
+| Android | Application/Form window host, lifecycle/permissions/main-thread dispatcher, Choreographer/settings integration, backend-owned Skia presentation, native IME and multi-touch; [hardware shortcuts](../android-hardware-input.md) use the shared resolver | Reuse the bounded main/modal/popup host and native Back route. AppShell/navigation, desktop windowing/service parity and broad device qualification remain separate. Physical-keyboard observations and the Gboard hardware-text fallback limit are tracked independently from software IME tests. |
 | Packaging | Packable core and WindowKit projects, conditional Windows backend, templates, tests and samples | Add optional feature packages without reversing dependency direction. |
 
 ### Architectural gaps
@@ -90,10 +91,10 @@ already exist.
   Bezier editing remain future work.
 - No general document provider registry, MIME sniffing contract, paged render source, password
   request, or platform print adapter. Existing document code is in the main package.
-- Android does not yet host `Form`, multiple windows or general popups/dialogs (#72), printing or
-  clipboard parity. Platform accessibility is implemented over the shared windowless tree; its
-  broader native/physical coverage remains open. Existing lifecycle activation accepts normalized
-  intents/URIs, while navigation-stack routing and general native back integration remain separate.
+- Android hosts Forms, owned modal dialogs, and reusable popups through #72, including native Back
+  dismissal and canonical accessibility. Independent desktop windows, printing, and clipboard
+  parity remain unsupported. Broader manual/device qualification remains open. Lifecycle activation
+  accepts normalized intents/URIs; navigation-stack routing remains separate from window Back handling.
 
 ### Accessibility Phase 4 status
 
@@ -105,12 +106,12 @@ Optional native contrast/text-scale detection feeds an explicitly opted-in autho
 bounded diagnostics analyze existing AutomationSession captures and Designer tests preserve
 simple metadata without serializing runtime providers. See the [capability guides](../accessibility/semantic-model.md#current-implementation-and-remaining-boundaries).
 
-This is implementation under final validation, not completion of issue #59. Historical Phase 2
-Windows and Phase 3 Android/TalkBack results stay attached to their tested sources. Final build,
-package, native, screen-reader and physical results need separate evidence. Current managed
-rows/ranges do not wait for future virtualization (#55); the full Developer Tools inspector UI
-(#61), general Android windows (#72), broad physical reliability (#69), and rich embedded-document
-adapters remain actual follow-up boundaries.
+This does not declare completion of issue #59. Historical Phase 2 Windows and Phase 3 Android/TalkBack
+results stay attached to their tested sources; the [#72 final review](../development/issue-72-final-review.md)
+records later native automation through the Form host. Broader manual screen-reader/device coverage
+remains open. Current managed rows/ranges do not wait for future virtualization (#55); the full
+Developer Tools inspector UI (#61), desktop multi-window parity, broad physical reliability (#69),
+and rich embedded-document adapters remain follow-up boundaries.
 
 ### Potential API conflicts
 
@@ -127,8 +128,8 @@ adapters remain actual follow-up boundaries.
 - `ModernFormsNext.Path` collides conceptually with `System.IO.Path`; qualify either type where both
   are used. Moving the shipped public type to a proposed `ModernFormsNext.Shapes` namespace would
   be a breaking change and is not roadmap cleanup.
-- `Application` is static and `Application.Run(Form)` is Windows-oriented. AppShell must not make
-  `Application` state instance-based as an accidental breaking change.
+- `Application` is static; `Application.Run(Form)` supports Windows and the bounded Android host.
+  AppShell must not make `Application` state instance-based as an accidental breaking change.
 
 ### Dependency map
 
@@ -330,8 +331,8 @@ Proposed API: `Page : Control`, `PageHost`, `PageLifecycleState`, `Appearing`, `
 Dependencies: resources/localization; existing control lifecycle and dispatcher.
 
 Risks/platform: event reentrancy, async cancellation, activity pause versus page disappearance,
-ownership/disposal, binding context propagation. Windows host starts inside a form; Android host uses
-`SkiaControlSurface` without claiming window parity.
+ownership/disposal, binding context propagation. Both platforms can host pages inside the shared
+Form/control tree; Android retains its bounded main/modal/popup policy without desktop window parity.
 
 Done/tests: complete legal/illegal state matrix, exact event order, cancelled/interrupted transition,
 detach/reattach, resource/binding inheritance, disposal, Windows close/minimize distinction and
@@ -662,8 +663,8 @@ dependency-based bands:
 
 ## Known cross-cutting risks
 
-- Android parity must be reported feature by feature; the current backend is not a full windowing
-  backend.
+- Android parity must be reported feature by feature; the implemented window backend has a bounded
+  mobile policy, not full desktop window-management or platform-service parity.
 - The main package already carries Markdig and RichTextKit plus document APIs. Modularization may
   require type forwarding or a major-version migration and cannot be performed silently.
 - Theme/localization/page changes touch application lifetime and static state; tests need isolation

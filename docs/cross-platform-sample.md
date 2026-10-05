@@ -13,6 +13,7 @@ like a .NET MAUI project but without MAUI, XAML, AndroidX, or a second shared li
 ModernFormsNext.CrossPlatform.Sample/
 |-- ModernFormsNext.CrossPlatform.Sample.csproj
 |-- App.cs
+|-- MainForm.cs
 |-- MainPage.cs
 |-- Shared/
 |-- Platforms/
@@ -24,9 +25,10 @@ ModernFormsNext.CrossPlatform.Sample/
 
 The project targets `net10.0-windows` and `net10.0-android`. Conditional item groups exclude only
 the opposite platform directory. `App`, persistent state, the platform-service contract,
-`MainPage`, control construction, layout, event behavior, and the core Skia control adapter all
-remain in this project and are compiled for both targets. Platform code is confined to
-`Platforms/Windows` and `Platforms/Android`.
+`MainForm`, `MainPage`, control construction, layout, and event behavior remain in this project
+and are compiled for both targets. The framework supplies the canonical Form/control adapter;
+the backend owns native presentation. Sample platform code is confined to `Platforms/Windows`
+and `Platforms/Android`.
 
 ## One application and one framework root
 
@@ -48,10 +50,10 @@ child press when movement becomes a drag. A drag inside scrollable content updat
 model. Logical native input converts to the existing device-scaled control route once, matching
 the window renderer. Touch moves do not synthesize hover.
 
-`SampleApplication` owns the shared `App`. Each `MainActivity` owns only its current view/adapter,
-and the backend retains activities weakly. Configuration changes refresh density and surface size.
-If Android recreates the activity for another reason, disposal detaches the old surface while the
-process-owned root, edited text, counters, and state are reused by the new host.
+`SampleApplication` owns the shared `App`. Each `MainActivity` owns its current `AndroidActivityHost`
+and native presentations. Configuration changes refresh density and surface size. Activity
+recreation detaches the old native views while preserving the shared Form, its canonical adapter,
+edited text, counters, and process-owned state for the replacement host.
 
 ## Run Windows
 
@@ -135,13 +137,17 @@ belong to the shared page lifetime: registration is the final construction step 
 and disposal removes the exact entry from its captured collection before child cleanup, including
 after Application exit or a failing child callback. Activity detach/recreation borrows the page,
 preserving state without adding duplicate global bindings. The default input status omits printable
-key identities as well as text payloads. Windows uses its normal Form route. There is no additional
-Android WindowBase or application/window host.
+key identities as well as text payloads. Windows and Android both use the shared Form/WindowBase
+route. Android connects it to backend-owned Activity/Skia presentation and borrows the canonical
+adapter's surface input route; it does not create a second control, focus, or input tree.
 
-API 34 emulator shortcuts have scoped native evidence; API 36 positive key delivery remains
-unavailable through the tested console transport. Physical hardware keyboards and unavailable device/
-layout combinations are **NOT EXECUTED — environment unavailable**. The broader device matrix
-and general Android windowing host remain separate work.
+The historical hardware-input matrix records API 34 emulator shortcuts and unavailable API 36
+positive key delivery through that console transport. The [#72 final review](development/issue-72-final-review.md)
+additionally records synthetic hardware-source events injected through the native View on API 34
+and API 36. These are not physical-keyboard observations. Physical hardware keyboards and
+unavailable device/layout combinations remain **NOT EXECUTED — environment unavailable**.
+The Android windowing host is implemented by #72; broader device/manual qualification, platform
+services, native child hosting, and GPU rendering remain separate work.
 
 ## Manual validation checklist
 
@@ -167,8 +173,20 @@ and general Android windowing host remain separate work.
 
 ## Scope
 
-This sample proves a real shared-control vertical slice, not complete Android parity. Android still
-lacks general `Application.Run(Form)`, multiple framework windows, full accessibility semantics,
-native dialogs, clipboard, file pickers, drag-and-drop, and several backend services. Windows
-remains the primary and best-supported target. See the canonical
-[Android platform status](platforms/android.md) for the complete 1.11.0 support matrix.
+The current source tree supports Android `Application.Run(Form)` through `IWindowingPlatform`
+and `IWindowImpl`, with a real Form/window lifecycle. Its bounded policy is one main Form per
+Activity host, owner-bound modal Forms, and reusable in-Activity popups. The backend handles
+Activity recreation and integrates the existing focus, validation, IME, and accessibility paths.
+Normal application startup does not manually construct `AndroidAppHost`, `AndroidSkiaHostView`,
+or `SkiaControlSurface`. See the [Android windowing guide](android-windowing.md) for startup and
+the capability matrix.
+
+Android remains experimental; Windows is the primary and best-supported target. Independent
+top-level mains and concurrent Activity hosts are rejected, and desktop move, minimize, maximize,
+topmost, and taskbar semantics are unsupported. Missing platform services (including clipboard,
+file/folder pickers, native dialogs, drag/drop, notifications, and sharing) remain in
+[#79](https://github.com/ProGraMajster/ModernFormsNext/issues/79), native child views in
+[#60](https://github.com/ProGraMajster/ModernFormsNext/issues/60), and GPU rendering in
+[#46](https://github.com/ProGraMajster/ModernFormsNext/issues/46). The accessibility provider has
+automated native coverage; broader manual accessibility, device/IME coverage, and production
+qualification remain open. See the [Android platform status](platforms/android.md) for these limits.

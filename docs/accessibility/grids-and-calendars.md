@@ -102,8 +102,9 @@ the actual calendar button.
 
 Expand/Collapse is available only with an existing usable Form popup host. A
 windowless Android surface supports the value, checkbox and step actions without
-advertising a native popup it cannot create. General Android Form/popup hosting is
-still tracked by issue #72; these peers do not introduce another hosting system.
+advertising a native popup it cannot create. The current [Android Application/Form host](../android-windowing.md)
+supplies that popup capability under its one-main/owned-modal/reusable-popup policy. The peers
+reuse this host; they do not introduce another hosting system.
 
 The real popup calendar exposes previous/next, month/year titles, Today, day headers
 and its date/month/year grid. Day names and full date labels follow the current
