@@ -3,6 +3,8 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using ModernFormsNext;
 using ModernFormsNext.Diagnostics;
+using ModernFormsNext.WindowKit.Backend;
+using ModernFormsNext.WindowKit.Backend.Windows;
 using ModernFormsNext.WindowKit.Threading;
 
 // Isolated native evidence: the ordinary Form paint pipeline is dispatched by user32 on the
@@ -13,6 +15,7 @@ internal static class PerformanceScenario
     {
         try
         {
+            VerifyConfigurationBeforeFirstWindow();
             using var form = new Form { Text = "ModernFormsNext performance integration", ClientSize = new Size(320, 180) };
             var label = new Label { Text = "Native performance integration", Dock = DockStyle.Fill };
             form.Controls.Add(label);
@@ -76,6 +79,30 @@ internal static class PerformanceScenario
         }
     }
 
+    private static void VerifyConfigurationBeforeFirstWindow()
+    {
+        Require(Application.RequestedRenderingBackend == RenderingBackend.Auto &&
+            Application.ActiveRenderingBackend is null, "Diagnostic reads initialized rendering.");
+        Application.ConfigureRendering(new RenderingOptions());
+        // Direct public backend initialization installs services without registering Current.
+        // Both that path and the canonical bootstrap must freeze configuration before any Form.
+        new WindowsWindowKitBackend().Initialize();
+        Require(WindowKitBackendRegistry.Current is null, "Direct initialization unexpectedly registered a backend.");
+        RequireLateConfigurationRejected();
+        FrameworkBootstrap.EnsureInitialized();
+        Require(WindowKitBackendRegistry.Current?.IsInitialized == true, "Windows bootstrap did not register its backend.");
+        RequireLateConfigurationRejected();
+        Require(Application.ActiveRenderingBackend is null, "Platform initialization resolved the renderer implicitly.");
+    }
+
+    private static void RequireLateConfigurationRejected()
+    {
+        bool rejected = false;
+        try { Application.ConfigureRendering(new RenderingOptions()); }
+        catch (InvalidOperationException) { rejected = true; }
+        Require(rejected, "Rendering configuration was accepted after platform initialization.");
+    }
+
     private static void VerifyNative(PerformanceFrameMetrics frame)
     {
         Require(frame.Completed && frame.RenderInfo.Backend == "Windows" &&
@@ -89,6 +116,10 @@ internal static class PerformanceScenario
             "The native callback did not report its actual locked BGRA framebuffer.");
         Require(frame.RenderInfo.GpuDuration is null && frame.RenderInfo.PresentationTimestamp is null &&
             frame.Duration >= frame.Work.RenderTime, "Native callback metadata overstates GPU or presentation evidence.");
+        Require(frame.RenderInfo.RequestedBackend == RenderingBackend.Auto &&
+            frame.RenderInfo.ActiveBackend == RenderingBackend.Software &&
+            frame.RenderInfo.Renderer == "Skia Raster" && frame.RenderInfo.FallbackReason is null,
+            "Renderer selection was lost while native presentation metadata was merged.");
         Require(frame.RenderInfo.PresentationCpuTime is { } transfer && transfer >= TimeSpan.Zero && transfer <= frame.Duration,
             "Native frame did not report its bounded GDI submission time.");
     }

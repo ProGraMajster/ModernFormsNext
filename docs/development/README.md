@@ -17,6 +17,7 @@ fresh result for the current checkout. For application guidance, use the documen
 
 ## Runtime investigations
 
+- [Rendering backend foundation: issue 46](issue-46-rendering-foundation-report.md)
 - [High DPI: issue 120](issue-120-high-dpi.md)
 - [Snap/maximize geometry: issue 137](issue-137-snap-maximize.md)
 - [Scroll layout consistency: issue 130](scroll-layout-regression.md)

@@ -1,5 +1,6 @@
 using ModernFormsNext.WindowKit.Platform.Permissions;
 using ModernFormsNext.WindowKit.Threading;
+using ModernFormsNext.Testing;
 
 namespace ModernFormsNext.CrossPlatform.Sample.Tests;
 
@@ -8,6 +9,7 @@ public sealed class SampleApplicationTests
     [Fact]
     public void AppUsesInjectedPlatformFactsInTheSharedControlTree()
     {
+        using var host = ModernFormsTestHost.Create();
         var platform = new FakePlatformServices("Test Android", "Test OS", "Test backend");
         var app = new App(platform);
         using var root = app.Root;
@@ -16,7 +18,7 @@ public sealed class SampleApplicationTests
 
         Assert.Contains("Platform: Test Android", texts);
         Assert.Contains("OS: Test OS", texts);
-        Assert.Contains("Backend: Test backend", texts);
+        Assert.Contains("Backend: Test backend; requested renderer: Auto; active renderer: not initialized; acceleration: unavailable", texts);
     }
 
     [Fact]

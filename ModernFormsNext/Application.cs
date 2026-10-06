@@ -427,6 +427,7 @@ namespace ModernFormsNext
                 throw new InvalidOperationException("Run may only be called once, before application exit.");
             // The supported TestHost already scopes the production backend-facing services.
             // Starting its real application loop must not discover or initialize native services.
+            GetRenderingBackend();
             if (!TestWindowFactoryScope.HasActiveFactory)
                 FrameworkBootstrap.EnsureInitialized();
             Dispatcher.UIThread.VerifyAccess();

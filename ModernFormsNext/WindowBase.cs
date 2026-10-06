@@ -3,12 +3,11 @@ using System.ComponentModel;
 using System.Linq;
 using ModernFormsNext.WindowKit;
 using ModernFormsNext.WindowKit.Controls;
-using ModernFormsNext.WindowKit.Controls.Platform.Surfaces;
 using ModernFormsNext.WindowKit.Input.Raw;
 using ModernFormsNext.WindowKit.Platform;
-using ModernFormsNext.WindowKit.Skia;
 using SkiaSharp;
 using ModernFormsNext.Diagnostics;
+using ModernFormsNext.Rendering;
 
 namespace ModernFormsNext
 {
@@ -22,6 +21,7 @@ namespace ModernFormsNext
 
         internal IWindowBaseImpl window;
         internal ControlAdapter adapter;
+        private readonly IWindowRenderSurface renderSurface;
 
         private TimeSpan last_click_time;
         private bool has_last_click;
@@ -43,6 +43,7 @@ namespace ModernFormsNext
         internal WindowBase (IWindowBaseImpl window)
         {
             this.window = window;
+            renderSurface = Application.GetRenderingBackend().CreateSurface(window);
             adapter = new ControlAdapter (this);
             geometrySize = Size;
             geometryLocation = Location;
@@ -520,31 +521,24 @@ namespace ModernFormsNext
         private void DoPaint (Rect r)
         {
             // Mac tries to give us paints before the Form constructor completes
-            if (!shown)
+            if (!shown || backendClosed || InputBindingsClosed)
                 return;
 
-            var skia_framebuffer = window.Surfaces.OfType<IFramebufferPlatformSurface> ().First ();
-
-            using var framebuffer = skia_framebuffer.Lock ();
-
-            var framebufferImageInfo = new SKImageInfo (framebuffer.Size.Width, framebuffer.Size.Height,
-                framebuffer.Format.ToSkColorType (), framebuffer.Format == PixelFormat.Rgb565 ? SKAlphaType.Opaque : SKAlphaType.Premul);
-
-            var scaled_client_size = ScaledClientSize;
+            using var frame = renderSurface.AcquireFrame(r);
+            var canvas = frame.Canvas;
             var scaled_display_rect = ScaledDisplayRectangle;
 
-            using var surface = SKSurface.Create (framebufferImageInfo, framebuffer.Address, framebuffer.RowBytes);
-            using var performance = BeginPerformanceRender(framebuffer, r);
+            using var performance = BeginPerformanceRender(frame);
             // Restore the content clip before drawing optional window-wide diagnostics. The
             // same canvas/backing is reused; there is no second control tree or paint pass.
-            int saveCount = PerformanceRecorder.IsEnabled ? surface.Canvas.Save() : -1;
+            int saveCount = PerformanceRecorder.IsEnabled ? canvas.Save() : -1;
             try {
                 // Native damage is logical; this raster surface and all existing painters are
                 // device-space. Preserve untouched backing pixels outside the outward-rounded clip.
-                surface.Canvas.ClipRect (new SKRect ((float)Math.Floor (r.Left * Scaling),
-                    (float)Math.Floor (r.Top * Scaling), (float)Math.Ceiling (r.Right * Scaling),
-                    (float)Math.Ceiling (r.Bottom * Scaling)));
-                var e = new PaintEventArgs (framebufferImageInfo, surface.Canvas, Scaling);
+                canvas.ClipRect (new SKRect ((float)Math.Floor (frame.Damage.Left * frame.Scale),
+                    (float)Math.Floor (frame.Damage.Top * frame.Scale), (float)Math.Ceiling (frame.Damage.Right * frame.Scale),
+                    (float)Math.Ceiling (frame.Damage.Bottom * frame.Scale)));
+                var e = new PaintEventArgs (frame.ImageInfo, canvas, frame.Scale);
                 OnPaintBackground (e);
                 e.Canvas.Save ();
                 try {
@@ -559,11 +553,12 @@ namespace ModernFormsNext
                 adapter.RaisePaintBackground (e);
                 adapter.RaisePaint (e);
             }
-            finally { if (saveCount >= 0) surface.Canvas.RestoreToCount(saveCount); }
+            finally { if (saveCount >= 0) canvas.RestoreToCount(saveCount); }
             performance.Complete();
             if (PerformanceRecorder.IsEnabled)
-                PerformanceRecorder.RenderOverlay(surface.Canvas, adapter,
+                PerformanceRecorder.RenderOverlay(canvas, adapter,
                     (int)window.ClientSize.Width, (int)window.ClientSize.Height, Scaling);
+            frame.Complete();
         }
 
         /// <summary>

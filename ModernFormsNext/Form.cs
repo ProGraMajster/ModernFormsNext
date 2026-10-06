@@ -71,6 +71,7 @@ namespace ModernFormsNext
 
         private static IWindowBaseImpl CreateWindowImpl()
         {
+            Application.GetRenderingBackend();
             if (TestWindowFactoryScope.TryCreateWindow() is { } testWindow)
                 return testWindow;
 

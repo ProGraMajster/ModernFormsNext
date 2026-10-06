@@ -321,7 +321,9 @@ public sealed partial class MainPage : Control
         var platform = app.PlatformServices;
         platformLabel.Text = $"Platform: {platform.PlatformName}";
         operatingSystemLabel.Text = $"OS: {platform.OperatingSystem}";
-        backendLabel.Text = $"Backend: {platform.BackendName}";
+        backendLabel.Text = $"Backend: {platform.BackendName}; requested renderer: {Application.RequestedRenderingBackend}; " +
+            $"active renderer: {Application.ActiveRenderingBackend?.ToString() ?? "not initialized"}; " +
+            $"acceleration: {(Application.ActiveRenderingBackend == RenderingBackend.Software ? "Software" : "unavailable")}";
         dispatcherLabel.Text = $"Dispatcher callbacks: {app.State.DispatcherCount}; UI access: {platform.Dispatcher.CheckAccess()}";
         hostLabel.Text = $"Backend host: {platform.HostState}";
         lifecycleLabel.Text = $"Activity/window lifecycle: {app.State.LifecycleStatus}";
