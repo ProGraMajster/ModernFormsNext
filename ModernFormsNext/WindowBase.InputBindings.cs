@@ -65,6 +65,7 @@ public abstract partial class WindowBase
                 Cleanup(ReleaseInputBindings);
                 Cleanup(() => adapter?.FindExistingFocusScope()?.SetSuspended(true));
                 Cleanup(DetachInsetsProvider);
+                Cleanup(() => renderSurface?.Dispose());
                 if (failures?.Count == 1)
                     System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
                 if (failures?.Count > 1)

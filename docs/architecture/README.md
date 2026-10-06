@@ -13,6 +13,7 @@ systems fit together; application-facing examples are linked from the documentat
 - [Animated layout](animated-layout.md)
 - [Layout-aware visual-state metrics](layout-aware-visual-state-metrics.md)
 - [Paint and gradients](paint-and-gradients.md)
+- [Rendering backend and software presentation boundary](rendering-backends.md)
 - [Brush interpolation compatibility](brush-interpolation.md)
 - [Android animation runtime](android-animation-runtime.md)
 - [Designer/runtime layout parity](designer-runtime-layout-parity.md)

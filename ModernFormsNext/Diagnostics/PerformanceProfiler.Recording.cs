@@ -303,7 +303,10 @@ public sealed partial class PerformanceProfiler
     private static PerformanceRenderInfo Merge(in PerformanceRenderInfo prior, in PerformanceRenderInfo fresh, bool preserveNativeBoundary)
         => prior with {
             Backend = fresh.Backend is not null and not "Unknown" ? fresh.Backend : prior.Backend,
-            Renderer = fresh.Renderer ?? prior.Renderer,
+            Renderer = fresh.ActiveBackend.HasValue || !prior.ActiveBackend.HasValue ? fresh.Renderer ?? prior.Renderer : prior.Renderer,
+            RequestedBackend = fresh.RequestedBackend ?? prior.RequestedBackend,
+            ActiveBackend = fresh.ActiveBackend ?? prior.ActiveBackend,
+            FallbackReason = fresh.ActiveBackend.HasValue ? fresh.FallbackReason : prior.FallbackReason,
             Boundary = preserveNativeBoundary && prior.Boundary != PerformanceFrameBoundary.SharedRender ? prior.Boundary : fresh.Boundary,
             Acceleration = fresh.Acceleration != PerformanceAcceleration.Unknown ? fresh.Acceleration : prior.Acceleration,
             Scale = fresh.Scale > 0 ? fresh.Scale : prior.Scale,

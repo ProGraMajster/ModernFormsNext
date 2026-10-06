@@ -53,6 +53,13 @@ public sealed class WindowingValidationInstrumentation : Instrumentation
             activity = (MainActivity)StartActivitySync(launch)!;
             Wait(() => Ui(() => Snapshot().Windows.Any(w => w.Main && w.Active && w.PaintCount > 0)), "native-started");
             main = Ui(() => AppLifetime.OpenForms.Single());
+            Check(AppLifetime.RequestedRenderingBackend == RenderingBackend.Auto &&
+                AppLifetime.ActiveRenderingBackend == RenderingBackend.Software,
+                "render-policy-Auto-resolved-to-Software");
+            Check(Ui(() => {
+                try { AppLifetime.ConfigureRendering(new RenderingOptions()); return false; }
+                catch (InvalidOperationException) { return true; }
+            }), "render-policy-frozen-after-native-startup");
             Check(Ui(() => Dispatcher.UIThread.HasExternalEventLoop && !Dispatcher.UIThread.SupportsRunLoops),
                 "Run-returned-with-main-Looper");
             Check(Ui(() => main.Visible && !main.TitleBar.Visible), "host-managed-chrome");

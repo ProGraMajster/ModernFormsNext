@@ -10,6 +10,13 @@ public readonly record struct PerformanceRenderInfo
     public string Backend { get; init; } = "Unknown";
     /// <summary>Gets the actual renderer label, rather than an inferred compositor capability.</summary>
     public string Renderer { get; init; } = "Skia";
+    /// <summary>Gets the requested rendering policy, or null for an unreported/borrowed canvas.</summary>
+    public RenderingBackend? RequestedBackend { get; init; }
+    /// <summary>Gets the resolved renderer, never Auto, or null when the host does not report it.</summary>
+    public RenderingBackend? ActiveBackend { get; init; }
+    /// <summary>Gets a reported fallback reason, or null when no fallback occurred or was reported.</summary>
+    /// <remarks>Auto currently selects Software directly; no GPU backend is attempted.</remarks>
+    public string? FallbackReason { get; init; }
     /// <summary>Gets the framework acceleration capability.</summary>
     public PerformanceAcceleration Acceleration { get; init; }
     /// <summary>Gets the measured callback boundary.</summary>

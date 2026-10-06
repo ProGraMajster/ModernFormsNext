@@ -30,6 +30,8 @@ public static partial class Application
         private readonly PopupWindow? previousPopup = ActivePopupWindow;
         private readonly ApplicationLifecycle previousLifecycle = applicationLifecycle;
         private readonly object previousIdentity = lifecycleRuntimeIdentity;
+        private readonly RenderingBackend previousRequestedRendering = requestedRenderingBackend;
+        private readonly Rendering.IRenderingBackend? previousRendering = renderingBackend;
         private readonly SynchronizationContext? previousSynchronizationContext = SynchronizationContext.Current;
         private readonly object identity = new();
         private readonly int ownerThreadId = Environment.CurrentManagedThreadId;
@@ -53,6 +55,8 @@ public static partial class Application
             ActivePopupWindow = null;
             applicationLifecycle = new ApplicationLifecycle();
             lifecycleRuntimeIdentity = identity;
+            requestedRenderingBackend = RenderingBackend.Auto;
+            renderingBackend = null;
         }
 
         public void Dispose()
@@ -94,6 +98,8 @@ public static partial class Application
                 ActivePopupWindow = previousPopup;
                 applicationLifecycle = previousLifecycle;
                 lifecycleRuntimeIdentity = previousIdentity;
+                requestedRenderingBackend = previousRequestedRendering;
+                renderingBackend = previousRendering;
                 SynchronizationContext.SetSynchronizationContext(previousSynchronizationContext);
             }
             if (failures.Count > 0)
