@@ -76,10 +76,14 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
   visual transitions still need broad emulator/device validation for a release.
 - Independent desktop top-level windows and concurrent Activity hosts are unsupported.
   See the [window capability matrix](../android-windowing.md#capability-matrix) for precise policies.
-- Clipboard, native dialogs, file/folder pickers, drag and drop, notification delivery, camera and
-  microphone capture, media, WebView, sharing, and cursor services are not implemented as complete
-  Android WindowKit services. The permission service grants authorization only; it does not provide
-  the corresponding device feature.
+- SAF file/folder pickers, content storage/bookmarks, URI/content-file launch, sharing and basic
+  local notifications have backend implementations. See the authoritative
+  [service capability matrix](../android-platform-services.md) for lifecycle, grants and limits.
+  MessageBoxForm uses the framework-rendered modal Form host. SystemMessageBox.ShowAsync uses
+  a native AlertDialog with standard buttons, adapted icons and deterministic HostLost retirement;
+  see the [system message contract](../android-platform-services.md#system-messages-and-framework-messages).
+  Clipboard/DragDrop (#57), WebView (#20), native hosting (#60), camera/microphone capture and media
+  remain separate. Permission authorization alone does not implement those features.
 - The [Android accessibility backend](../android-accessibility.md) exposes canonical virtual nodes,
   supported actions, focus and native events. Emulator instrumentation and the 20-point TalkBack
   gesture checklist passed historically on Pixel_8/API 34. The current
@@ -205,7 +209,7 @@ See [Android development](../android-development.md), [Android and adb](../andro
 Planned work is capability-based and has no promised completion date:
 
 - expand focus, keyboard, IME, accessibility, lifecycle, density, and configuration coverage;
-- add capability-shaped Android services such as clipboard, pickers, dialogs, sharing, and drag/drop
+- extend separately tracked Android services such as clipboard and drag/drop after the [direct #79 service slice](../android-platform-services.md)
   ([#79](https://github.com/ProGraMajster/ModernFormsNext/issues/79));
 - add native child view hosting ([#60](https://github.com/ProGraMajster/ModernFormsNext/issues/60))
   and GPU rendering ([#46](https://github.com/ProGraMajster/ModernFormsNext/issues/46));

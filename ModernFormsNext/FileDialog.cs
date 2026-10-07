@@ -10,6 +10,10 @@ namespace ModernFormsNext
     /// </summary>
     public abstract class FileDialog : FileSystemDialog
     {
+        /// <summary>Gets selected storage files, including content URIs that have no local path.</summary>
+        /// <remarks>Use OpenReadAsync/OpenWriteAsync. The caller owns returned items and streams.</remarks>
+        public IReadOnlyList<IStorageFile> SelectedFiles { get; internal set; } = Array.Empty<IStorageFile>();
+
         internal List<FilePickerFileType> filters = new List<FilePickerFileType> ();
 
         /// <summary>
@@ -27,21 +31,25 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the selected files. If there are multiple files selected, the first one is returned.
+        /// Gets or sets the first selection as a local path or absolute storage URI.
         /// </summary>
         public string? FileName {
-            get => FileNames.Count > 0 ? System.IO.Path.GetFullPath (FileNames[0]) : null;
+            get => FileNames.Count > 0 ? NormalizeSelection (FileNames[0]) : null;
             set {
                 FileNames.Clear ();
 
                 if (value != null)
-                    FileNames.Add (System.IO.Path.GetFullPath (value));
+                    FileNames.Add (NormalizeSelection (value));
             }
         }
 
         /// <summary>
-        /// Gets or sets the selected files.
+        /// Gets the selected local paths or absolute storage URIs. Use SelectedFiles for streams.
         /// </summary>
         public List<string> FileNames { get; } = new List<string> ();
+
+        private static string NormalizeSelection(string value)
+            => Uri.TryCreate(value, UriKind.Absolute, out var uri) && !uri.IsFile
+                ? uri.AbsoluteUri : System.IO.Path.GetFullPath(value);
     }
 }

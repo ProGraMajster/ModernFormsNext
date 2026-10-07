@@ -120,7 +120,9 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
     public object? TryGetFeature(Type featureType)
     {
         ArgumentNullException.ThrowIfNull(featureType);
-        return featureType == typeof(IWindowInsetsProvider) ? this : null;
+        return featureType == typeof(WindowKit.Platform.Storage.IStorageProvider)
+            ? AvaloniaGlobals.GetService<WindowKit.Platform.Storage.IStorageProvider>()
+            : featureType == typeof(IWindowInsetsProvider) ? this : null;
     }
 
     public WindowInsets CurrentInsets { get; private set; }

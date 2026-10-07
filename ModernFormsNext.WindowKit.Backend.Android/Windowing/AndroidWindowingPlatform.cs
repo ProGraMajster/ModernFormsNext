@@ -13,6 +13,8 @@ internal sealed class AndroidWindowingPlatform(Action verifyAccess) : IWindowing
     internal IAndroidWindowHost? Host => host.Target;
     internal AndroidWindowImpl? MainWindow { get; private set; }
     internal bool Exited { get; private set; }
+    internal ModernFormsNext.WindowKit.Platform.Storage.IStorageProvider? StorageProvider { get; set; }
+    internal event Action? ShuttingDown;
     internal bool StartupInvoked { get; set; }
     internal IReadOnlyList<AndroidWindowImpl> Windows => windows;
     internal void VerifyAccess() => verifyAccess();
@@ -163,6 +165,7 @@ internal sealed class AndroidWindowingPlatform(Action verifyAccess) : IWindowing
         VerifyAccess();
         if (Exited) return;
         Exited = true;
+        ShuttingDown?.Invoke();
         var previous = Host;
         if (previous is not null) host.ClearIfCurrent(previous);
         Generation++;

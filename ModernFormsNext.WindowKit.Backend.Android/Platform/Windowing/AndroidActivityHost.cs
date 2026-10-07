@@ -63,6 +63,12 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         platform.StartupInvoked = true;
         return true;
     }
+    // Resolve only this Form's active presentation, never an unrelated current Activity.
+    internal Activity? MessageDialogActivity(AndroidWindowImpl window)
+        => Current && resumed && !activity.IsFinishing && !activity.IsDestroyed &&
+            window.Visible && !window.IsClosed && presentations.TryGetValue(window, out var p) &&
+            !p.Disposed && p.Epoch == window.PresentationEpoch ? activity : null;
+
     private bool Current => !disposed && platform.IsCurrent(this, generation);
     bool IAndroidWindowHost.CanReplace => disposed || activity.IsChangingConfigurations || activity.IsDestroyed;
 

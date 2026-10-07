@@ -32,6 +32,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public override async Task<IReadOnlyList<IStorageFolder>> OpenFolderPickerAsync(FolderPickerOpenOptions options)
         {
+            options.CancellationToken.ThrowIfCancellationRequested();
             var files = await ShowFilePicker(
                 true, true,
                 options.AllowMultiple, false,
@@ -41,6 +42,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public override async Task<IReadOnlyList<IStorageFile>> OpenFilePickerAsync(FilePickerOpenOptions options)
         {
+            options.CancellationToken.ThrowIfCancellationRequested();
             var files = await ShowFilePicker(
                 true, false,
                 options.AllowMultiple, false,
@@ -51,6 +53,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public override async Task<IStorageFile?> SaveFilePickerAsync(FilePickerSaveOptions options)
         {
+            options.CancellationToken.ThrowIfCancellationRequested();
             var files = await ShowFilePicker(
                 false, false,
                 false, options.ShowOverwritePrompt,

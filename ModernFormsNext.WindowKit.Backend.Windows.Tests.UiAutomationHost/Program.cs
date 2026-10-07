@@ -1,6 +1,12 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--message-dialog", StringComparer.Ordinal))
+{
+    Environment.ExitCode = MessageDialogScenario.Run(args.Contains("--exit-before-show", StringComparer.Ordinal));
+    return;
+}
+
 if (args.Contains("--validation", StringComparer.Ordinal))
 {
     Environment.ExitCode = ValidationScenario.Run();

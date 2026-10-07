@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.CAMERA" />
+  <!-- Used only by the explicit Platform services notification-permission button. -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <!-- Legacy AAR metadata can make the manifest merger infer obsolete compatibility permissions.
        This sample performs no phone-state or broad external-storage access. -->
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />

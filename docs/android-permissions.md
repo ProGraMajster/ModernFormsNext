@@ -118,7 +118,9 @@ requesting broad read access merely because the mapper supports it.
 ## Requests, rationale, and settings
 
 `RequestAsync(IEnumerable<PlatformPermission>)` deduplicates logical permissions and Android
-permission strings, then opens at most one dialog. Concurrent callers are serialized. Cancellation
+permission strings, then uses the same bounded native UI coordinator as SAF and the share chooser.
+Concurrent native UI requests are rejected with a content-free Busy diagnostic (Unknown in the
+existing permission result); there is no unbounded queue. Cancellation
 does not abandon an already-visible native dialog or permit a second dialog to overlap it.
 
 After a denial, `ShouldShowRationale` delegates to the current Activity. The backend records that a
@@ -132,4 +134,10 @@ the host's explicit call.
 
 When no resumed Activity exists, checks still work, but a runtime request returns `Unknown` with an
 actionable diagnostic. Settings navigation returns `false`. Activity destruction completes the
-native operation with an error so queued requests do not remain suspended forever.
+native operation with an error so pending Tasks do not remain suspended forever.
+
+Notifications already use PlatformPermission.Notifications: API33+ requires an application
+POST_NOTIFICATIONS declaration and an explicit RequestAsync call; earlier APIs show no runtime
+permission dialog. The [notification service](android-platform-services.md#local-notifications)
+never requests permission from Show. The CrossPlatform sample opts in for its explicit permission
+button; the backend library still declares no feature permissions.

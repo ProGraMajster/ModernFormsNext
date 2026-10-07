@@ -72,7 +72,7 @@ public sealed class AndroidProjectConfigurationTests
     }
 
     [Fact]
-    public void ManifestDeclaresOnlyTheOptionalCameraPermission()
+    public void ManifestDeclaresOnlyExplicitCameraAndNotificationFeatures()
     {
         var manifest = XDocument.Load(IOPath.Combine(SampleDirectory, "Platforms", "Android", "AndroidManifest.xml"));
         XNamespace android = "http://schemas.android.com/apk/res/android";
@@ -83,7 +83,7 @@ public sealed class AndroidProjectConfigurationTests
             .Select(element => (string?)element.Attribute(android + "name") ?? string.Empty)
             .ToArray();
 
-        Assert.Equal(["android.permission.CAMERA"], effectivePermissions);
+        Assert.Equal(["android.permission.CAMERA", "android.permission.POST_NOTIFICATIONS"], effectivePermissions);
         Assert.DoesNotContain("android.permission.READ_PHONE_STATE", effectivePermissions);
         Assert.DoesNotContain("android.permission.READ_EXTERNAL_STORAGE", effectivePermissions);
         Assert.DoesNotContain("android.permission.WRITE_EXTERNAL_STORAGE", effectivePermissions);
