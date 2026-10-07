@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <WindowsSdkPackageVersion>10.0.28000.87</WindowsSdkPackageVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Description>Optional Windows App SDK system notification transport for ModernFormsNext.</Description>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Foundation is the notification component pinned by stable Windows App SDK 2.5.1.
+         Do not pull WinUI, AI, search or widgets into a code-first Skia framework. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" Version="2.5.1" />
+    <ProjectReference Include="../ModernFormsNext.WindowKit.Backend.Windows/ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+    <None Include="../README.md" Pack="true" PackagePath="/" Link="README.md" />
+    <None Include="../icon.png" Pack="true" PackagePath="/" Link="icon.png" />
+    <None Update="buildTransitive/ModernFormsNext.SystemNotifications.AppSdk.props" Pack="true" PackagePath="buildTransitive/ModernFormsNext.SystemNotifications.AppSdk.props" />
+    <None Update="buildTransitive/ModernFormsNext.SystemNotifications.AppSdk.targets" Pack="true" PackagePath="buildTransitive/ModernFormsNext.SystemNotifications.AppSdk.targets" />
+  </ItemGroup>
+</Project>

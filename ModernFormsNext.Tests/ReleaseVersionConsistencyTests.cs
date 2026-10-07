@@ -16,6 +16,8 @@ public sealed class ReleaseVersionConsistencyTests
         "ModernFormsNext.Designer/ModernFormsNext.Designer.csproj",
         "ModernFormsNext.Designing/ModernFormsNext.Designing.csproj",
         "ModernFormsNext.Testing/ModernFormsNext.Testing.csproj",
+        "ModernFormsNext.SystemNotifications.AppSdk/ModernFormsNext.SystemNotifications.AppSdk.csproj",
+        "ModernFormsNext.SystemNotifications.WinRT/ModernFormsNext.SystemNotifications.WinRT.csproj",
         "ModernFormsNext.Templates/ModernFormsNext.Templates.csproj",
         "ModernFormsNext.WindowKit/ModernFormsNext.WindowKit.csproj",
         "ModernFormsNext.WindowKit.Backend/ModernFormsNext.WindowKit.Backend.csproj",

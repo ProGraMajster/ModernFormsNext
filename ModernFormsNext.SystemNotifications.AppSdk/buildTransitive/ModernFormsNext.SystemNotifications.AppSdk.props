@@ -1,0 +1,10 @@
+<Project>
+  <!-- The optional provider initializes only after the OS/runtime probe. The SDK's default
+       executable module initializer would otherwise fail before fallback selection can run. -->
+  <PropertyGroup>
+    <WindowsAppSdkBootstrapInitialize Condition="'$(WindowsAppSdkBootstrapInitialize)' == ''">false</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSdkDeploymentManagerInitialize Condition="'$(WindowsAppSdkDeploymentManagerInitialize)' == ''">false</WindowsAppSdkDeploymentManagerInitialize>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize Condition="'$(WindowsAppSdkUndockedRegFreeWinRTInitialize)' == ''">false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+    <WindowsAppSDKSelfContained Condition="'$(WindowsAppSDKSelfContained)' == ''">false</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+</Project>

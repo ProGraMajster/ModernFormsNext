@@ -1,0 +1,8 @@
+<Project>
+  <Target Name="ValidateModernFormsNextAppSdkNotificationProjection" BeforeTargets="ResolveReferences" Condition="'$(TargetPlatformIdentifier)' == 'Windows'">
+    <Error Condition="'$(WindowsSdkPackageVersion)' == ''"
+           Text="ModernFormsNext notifications require WindowsSdkPackageVersion 10.0.28000.87 or later. Set it explicitly in the application project before restore." />
+    <Error Condition="$([MSBuild]::VersionLessThan('$(WindowsSdkPackageVersion)', '10.0.28000.87'))"
+           Text="ModernFormsNext notifications require WindowsSdkPackageVersion 10.0.28000.87 or later. The application TFM may remain net10.0-windows10.0.26100.0; no runtime OS minimum is raised by this compile-time projection requirement." />
+  </Target>
+</Project>

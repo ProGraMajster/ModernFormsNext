@@ -78,6 +78,18 @@ public sealed class PlatformApplicationActivation
     /// <summary>Gets the copied absolute URI, or <see langword="null"/>.</summary>
     public Uri? Uri { get; }
 
+    /// <summary>Gets copied native notification data, including action and user input, when available.</summary>
+    /// <remarks>Payload strings are untrusted application data. This property never executes actions.</remarks>
+    public global::ModernFormsNext.Notifications.SystemNotificationActivation? Notification { get; private init; }
+
+    /// <summary>Creates a notification activation for the existing application lifecycle.</summary>
+    /// <param name="activation">Bounded native data; input collections are copied.</param>
+    public static PlatformApplicationActivation FromNotification(global::ModernFormsNext.Notifications.SystemNotificationActivation activation)
+        => new(PlatformActivationKind.Notification)
+        {
+            Notification = Notifications.SystemNotificationValidation.CopyActivation(activation)
+        };
+
     private static ReadOnlyCollection<string> Copy(
         IEnumerable<string>? source, string parameter, bool requireContent, ref int totalLength)
     {

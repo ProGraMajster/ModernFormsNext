@@ -10,6 +10,8 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 - [Your first application](getting-started.md)
 - [Samples and current Windows screenshots](samples.md)
 - [Application lifecycle and activation](application-lifecycle.md)
+- [Windows system notifications](system-notifications.md)
+- [System notification cross-platform contract review](design/system-notifications-cross-platform.md) — Windows implementation; future Android, macOS, iOS and Linux mappings.
 - [Platform support](platform-specific-features.md)
 - [Known limitations](known-limitations.md)
 
