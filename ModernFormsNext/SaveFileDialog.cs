@@ -24,6 +24,7 @@ namespace ModernFormsNext
         {
             if (owner.window.TryGetFeature (typeof (IStorageProvider)) is IStorageProvider parent) {
                 var options = new FilePickerSaveOptions {
+                    CancellationToken = CancellationToken,
                     DefaultExtension= DefaultExtension,
                     SuggestedStartLocation = GetInitialDirectory (),
                     SuggestedFileName = FileName,
@@ -33,6 +34,7 @@ namespace ModernFormsNext
 
                 var result = await parent.SaveFilePickerAsync (options);
 
+                SelectedFiles = result is null ? Array.Empty<IStorageFile>() : new[] { result };
                 FileNames.Clear ();
 
                 var file = result?.GetFullPath ();

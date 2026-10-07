@@ -10,6 +10,9 @@ software Skia rendering and shared animation-runtime integration, with explicit 
 Windows remains the primary and best-supported runtime. The Android project targets
 `net10.0-android` with API 23 as its current minimum and has no MAUI or AndroidX dependency.
 
+See [Android platform services](android-platform-services.md) for the authoritative SAF, launcher,
+sharing, notification and message-dialog policy, including cancellation and custom Activity hooks.
+
 ## Startup
 
 Initialize on the Android main thread from the native Application's `OnCreate`, before accessing
@@ -140,9 +143,13 @@ public override void OnRequestPermissionsResult(
 }
 ```
 
-Only one native dialog can be active. Later requests wait in a queue. If a caller cancels after a
-dialog is visible, that caller's task is canceled promptly but the native operation keeps the queue
-gate until Android responds, the owning activity is destroyed, or the configured timeout expires.
+One coordinator admits a single native interaction: picker, permission UI, share chooser or
+SystemMessageBox AlertDialog. Competing requests report Busy; there is no waiting queue. For
+permission/picker/chooser UI, cancellation or timeout finishes managed waiting but holds the slot
+until the matching callback or host destruction. A native message can be dismissed directly,
+so cancellation cleans it and releases its slot. MessageBoxForm remains framework-rendered.
+See the [native message contract](android-platform-services.md#system-messages-and-framework-messages)
+for owner, Back, icon adaptation and recreation semantics.
 `NotDeclared`, `NotSupported`, `Granted`, and `PermanentlyDenied` are terminal results and never
 continue to `RequestPermissions`; in particular, a missing manifest declaration is reported to the
 shared caller without attempting to display a platform dialog.

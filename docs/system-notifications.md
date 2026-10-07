@@ -7,7 +7,12 @@ entry. ModernFormsNext does not emulate unsupported OS features with framework w
 The implementation uses the existing `PlatformServiceRegistry`, dispatcher and application
 lifecycle. `SystemNotifications` resolves `ISystemNotificationService`; explicit Windows
 registration selects App SDK, classic WinRT, or Shell balloon. Android, Linux, macOS and iOS
-have no implementation yet. Reading capabilities never installs or registers anything.
+have no implementation of this rich contract yet. Reading capabilities never installs or registers anything.
+
+The existing basic Android `IPlatformNotificationService` from #79/#195 remains available for
+plain title/body notifications. It does not implement this richer `ISystemNotificationService`
+contract. Future Android integration should reuse its native channel/permission/notification
+infrastructure; no Android bridge or new backend is added by #158.
 
 ## Quick start and deployment
 

@@ -15,9 +15,13 @@ namespace ModernFormsNext
     public class FolderBrowserDialog : FileSystemDialog
     {
         /// <summary>
-        /// Gets or sets the selected folder path.
+        /// Gets or sets the selected local folder path or absolute storage URI.
         /// </summary>
         public string? SelectedPath { get; set; }
+
+        /// <summary>Gets the selected storage folder, including a SAF tree with no local path.</summary>
+        /// <remarks>The caller owns the item. Use its storage operations rather than Directory APIs.</remarks>
+        public IStorageFolder? SelectedFolder { get; private set; }
 
         /// <summary>
         /// Shows the dialog to the user.
@@ -27,6 +31,7 @@ namespace ModernFormsNext
         {
             if (owner.window.TryGetFeature (typeof (IStorageProvider)) is IStorageProvider parent) {
                 var options = new FolderPickerOpenOptions {
+                    CancellationToken = CancellationToken,
                     AllowMultiple = false,
                     SuggestedStartLocation = GetInitialDirectory (),
                     Title = Title
@@ -34,6 +39,7 @@ namespace ModernFormsNext
 
                 var result = await parent.OpenFolderPickerAsync (options);
 
+                SelectedFolder = result.FirstOrDefault();
                 var paths = result.Select (f => f.GetFullPath ()).WhereNotNull ();
 
                 SelectedPath = paths?.FirstOrDefault ();

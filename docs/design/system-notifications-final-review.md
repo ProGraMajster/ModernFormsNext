@@ -6,13 +6,19 @@ Reviewed 2026-10-07 against current source and the full feature diff, with
 The feature branch was fast-forwarded from 1de8a6b to master cc00609 before final qualification;
 all 46 pre-existing feature files retained identical SHA-256 checksums during that update.
 This document records the pre-commit review; GitHub history supplies the resulting commit/PR identity.
+After the feature commit, master advanced to 9214c8f (#195/#79). The branch integrates that base
+without conflicts and requalifies the combined source; see the integration addendum in the testing report.
 
 ## Review conclusions
 
 1. **Public API audit:** one application-facing contract namespace, ModernFormsNext.Notifications;
    one canonical service registry, lifecycle and dispatcher. All content members were reviewed
    against the member table in the [cross-platform design](system-notifications-cross-platform.md).
-   The older empty internal platform placeholders are not public aliases or active providers.
+   Windows' older internal placeholder is not an active provider. During finalization master
+   merged #195/#79: IPlatformNotificationService is now a public basic Android title/body/ID
+   service. It is not a second SystemNotification type or an implementation of this rich contract.
+   Its API is preserved; a future rich Android provider should reuse that native service/permission
+   infrastructure rather than create a competing transport.
 2. **Remaining Windows leaks:** no native placement, XML/scenario, sequence or tag limit remains
    in application-facing common types. A shared backend removal parameter still called a logical
    ID “tag”; its name is corrected to id. Generous common allocation bounds remain deliberate.
@@ -70,8 +76,10 @@ This document records the pre-commit review; GitHub history supplies the resulti
 16. **Changed files and cleanliness:** the [complete file list](../testing/system-notifications.md#files-changed)
     covers the combined feature. Ignored artifacts, packages, caches and private probes remain
     outside the commit. The existing sample COM script is intentional reproducible tooling.
-17. **Validation:** see the final-review result table in the [testing report](../testing/system-notifications.md).
-    Results are recorded after rebuilding the current master base; earlier stages remain historical.
+17. **Validation:** the integrated master base passes Debug/Release with 0 warnings/errors,
+    4337/4337 full Debug cases, 90/90 notification cases, fresh packages/consumer and native smokes.
+    See the final integration and earlier review tables in the [testing report](../testing/system-notifications.md).
+    Earlier stages remain historical; no failures/skips or retries were required.
 18. **Manual limits:** the stage-2 real cold Send confirmation remains applicable to the unchanged
     App SDK registration/startup/serialization/lifecycle/input path. Only the classic live-template
     callback changed; that path advertises no cold activation. Its callback regression probe is
@@ -92,7 +100,7 @@ including its DocC metadata. Linux transport differences were rechecked against 
 
 ## Qualification state
 
-Final qualification passed on Windows 11 Home 26H2, build 26300.9550 x64, SDK 10.0.401:
+The initial final qualification passed on Windows 11 Home 26H2, build 26300.9550 x64, SDK 10.0.401:
 restore; complete Debug/Release builds with 0 warnings/errors; 4219/4219 full Debug tests;
 90/90 notification tests; common net8/net9/net10 compilation; five packages and a fresh-cache
 consumer; expected negative projection diagnostic; App SDK, Classic and Shell native smokes;
@@ -100,6 +108,12 @@ rapid/restarted native progress, logical history/identity/removal, and the synth
 callback regression. No test failures/skips or retries were required. The full evidence scope,
 reproduction commands, 47-file inventory and unexecuted manual matrix are in the testing report.
 `git diff --check` and documentation link checks passed before commit.
+
+After integrating master 9214c8f, repeated restore, Debug/Release builds (0 warnings/errors),
+4337/4337 full Debug tests (0 failed/skipped), 90/90 notification cases, five repacked libraries,
+a new empty-cache consumer and all three native sample smokes plus separate-process restart pass.
+The additional 118 cases are upstream tests. No notification implementation code changed during
+integration; the earlier portable/projection and private callback/numeric probes retain their scope.
 
 This review found no unresolved fundamental common-API redesign requirement. The finalization
 request authorizes a commit, push and PR to master after this report; merging, releases, version

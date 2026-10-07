@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- V1 semantic defaults. Apps can override these stable keys in Android locale resources.
+       Public android.R.string.yes/no mean OK/Cancel; Retry has no public system string.
+       See docs/android-platform-services.md for the language/fallback policy. -->
+  <string name="mfn_message_yes">Yes</string>
+  <string name="mfn_message_no">No</string>
+  <string name="mfn_message_retry">Retry</string>
+</resources>

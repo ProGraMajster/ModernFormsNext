@@ -20,7 +20,9 @@ namespace ModernFormsNext
             if (file is BclStorageFile path)
                 return path.FileInfo.FullName;
 
-            return null;
+            return file.Path.IsAbsoluteUri
+                ? file.Path.IsFile ? file.Path.LocalPath : file.Path.AbsoluteUri
+                : null;
         }
 
         public static string? GetFullPath (this IStorageFolder file)
@@ -28,7 +30,9 @@ namespace ModernFormsNext
             if (file is BclStorageFolder path)
                 return path.DirectoryInfo.FullName;
 
-            return null;
+            return file.Path.IsAbsoluteUri
+                ? file.Path.IsFile ? file.Path.LocalPath : file.Path.AbsoluteUri
+                : null;
         }
     }
 }

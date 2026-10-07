@@ -3,4 +3,18 @@
           package="modernformsnext.windowkit.backend.android">
   <!-- This library intentionally declares no feature permissions. Camera, microphone, media,
        location, notifications, and nearby-device access are opt-in application capabilities. -->
+  <!-- Narrow handler visibility for service preflight on Android 11+. Custom URI schemes
+       need corresponding application queries; QUERY_ALL_PACKAGES is intentionally absent. -->
+  <queries>
+    <intent><action android:name="android.intent.action.OPEN_DOCUMENT" /><category android:name="android.intent.category.OPENABLE" /><data android:mimeType="*/*" /></intent>
+    <intent><action android:name="android.intent.action.CREATE_DOCUMENT" /><category android:name="android.intent.category.OPENABLE" /><data android:mimeType="*/*" /></intent>
+    <intent><action android:name="android.intent.action.OPEN_DOCUMENT_TREE" /></intent>
+    <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
+    <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="http" /></intent>
+    <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="mailto" /></intent>
+    <intent><action android:name="android.intent.action.DIAL" /><data android:scheme="tel" /></intent>
+    <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="content" android:mimeType="*/*" /></intent>
+    <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="*/*" /></intent>
+    <intent><action android:name="android.intent.action.SEND_MULTIPLE" /><data android:mimeType="*/*" /></intent>
+  </queries>
 </manifest>

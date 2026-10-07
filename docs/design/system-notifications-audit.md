@@ -2,6 +2,10 @@
 
 Audit date: 2026-10-03. Base: `1de8a6b`. This subsystem is independent of #116.
 
+The placeholder inventory below is historical to that base. During finalization #195/#79
+introduced the public basic Android IPlatformNotificationService. The final review preserves it
+and scopes the Windows-only implementation claim to the rich SystemNotifications contract.
+
 ## Decisions before implementation
 
 * The existing `WindowsNotificationService` and `IPlatformNotificationService` are empty, internal placeholders. They provide no notification functionality or compatibility contract.

@@ -5,6 +5,10 @@
 /// </summary>
 public class PickerOptions
 {
+    /// <summary>Gets or sets caller cancellation. Android cancels waiting; Windows checks before opening.</summary>
+    /// <remarks>Native UI may remain visible after cancellation. User dismissal returns empty/null.</remarks>
+    public System.Threading.CancellationToken CancellationToken { get; set; }
+
     /// <summary>
     /// Gets or sets the text that appears in the title bar of a folder dialog.
     /// </summary>

@@ -27,6 +27,7 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
     internal long PaintCount { get; set; }
     internal int ActivePointers { get; set; }
     internal long PresentationEpoch { get; private set; }
+    internal event Action? PresentationRetired;
     internal void BeginPresentation() => PresentationEpoch++;
     private bool closing;
     private readonly AndroidScreenImpl screen = new();
@@ -74,7 +75,8 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
         $"Android Activity windows do not support {operation}. See the Android window capability matrix.");
     public void SetInputRoot(IInputRoot inputRoot) { Verify(); InputRoot = inputRoot; }
     public object? TryGetFeature(Type featureType)
-        => featureType == typeof(ITextInputMethod) ? TextInput :
+        => featureType == typeof(ModernFormsNext.WindowKit.Platform.Storage.IStorageProvider) ? (IsClosed ? null : Platform.StorageProvider) :
+            featureType == typeof(ITextInputMethod) ? TextInput :
             featureType == typeof(IWindowInsetsProvider) || featureType == typeof(IWindowHostPolicy) ? this : null;
     public virtual void Show(bool activate, bool isDialog)
     {
@@ -165,6 +167,8 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
     {
         if (expectedEpoch != PresentationEpoch) return;
         long operation = ++PresentationEpoch;
+        // Revoke the epoch before dismissing any request owned by this presentation.
+        PresentationRetired?.Invoke();
         Attached = false;
         ActivePointers = 0;
         Handle = new PlatformHandle(IntPtr.Zero, "AndroidView");

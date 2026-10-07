@@ -4,6 +4,33 @@ Related: [API guide](../system-notifications.md), [compatibility/inventory](../s
 [cross-platform architecture](../design/system-notifications-cross-platform.md).
 Never equate native submission, synthetic COM invocation, headless tests and manual OS interaction.
 
+## Final master integration (2026-10-07)
+
+After the initial feature commit, master advanced to `9214c8f` with #195/#79. Its basic Android
+IPlatformNotificationService is preserved and explicitly distinguished from the rich contract here.
+The merge was conflict-free, including both TestPlatformServices registrations/lifetimes. The
+feature diff relative to the new master remains the same 47 files. No notification implementation,
+serialization, package configuration or sample source changed during this integration; only the
+base integration and documentation clarification changed.
+
+Requalification on the same Windows 11 Home 26H2 26300.9550 x64 host:
+
+| Check | Result |
+|---|---|
+| Fresh restore, full Debug and Release builds | PASS; both builds 0 warnings / 0 errors |
+| Complete Debug suite | PASS: **4337/4337**, nine assemblies, **0 failed / 0 skipped**, no retry |
+| Notification-specific suite | PASS: **90/90** (37 common, 53 Windows) |
+| Repacked five libraries, new consumer and another empty cache | PASS: one restore, Release build with 0 warnings/errors, provider/common load |
+| Rebuilt App SDK / Classic template / Shell native smokes | PASS; includes retained rapid progress, replacement, history, exact and cross-group identity/removal |
+| Rebuilt sample separate-process restart seed/finish | PASS: long logical ID/group, numeric/indeterminate progress and removal |
+| Portable-source compilation, negative projection diagnostic, SDK-only numeric restart and Classic callback/removal probe | Initial final-review results below remain applicable; all involved feature sources and package configuration are unchanged |
+| Diff whitespace, local documentation links and commit inputs | PASS; 47 feature files, no generated output/private artifacts |
+
+The extra 118 cases relative to 4219 come from upstream #195/#79. Local evidence has the
+integration-* prefix in artifacts/notifications-final, with separate TRX and consumer cache.
+Manual limitations and existing real cold Send evidence remain exactly as scoped below. No
+new Android native execution is claimed by this Windows integration check.
+
 ## Final review (2026-10-07)
 
 Reviewed source on master base `cc00609880cdb2f7d0351ee7e69d2d3badd91698` plus the complete
@@ -36,7 +63,7 @@ corrections, native boundaries and future-platform conclusions.
 The previous 3898/3898 baseline grows by 313 upstream tests after fast-forwarding master and eight
 new notification cases in this review. The 82/82 notification baseline grows to 90/90. No skips,
 retries, test thresholds or CI requirements were changed. The final full suite used frozen source
-and complete Debug outputs. Subsequent changes only completed documentation.
+and complete Debug outputs. Before the initial feature commit, subsequent changes only completed documentation.
 
 The current native runs prove API operations and retained OS state in the tool-host execution
 context. They do not turn Accepted/history into a fresh visible-banner certification. Historical

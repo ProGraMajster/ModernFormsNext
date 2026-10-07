@@ -1,8 +1,14 @@
 # System notifications: cross-platform contract review
 
-Stage 2 of #158, reviewed 2026-10-07 against #44. Windows is implemented; Android, macOS,
-iOS and Linux are architecture targets, not implemented or certified backends. No solution
+Stage 2 of #158, reviewed 2026-10-07 against #44. Windows implements this rich contract; Android, macOS,
+iOS and Linux providers for it are architecture targets, not implemented or certified backends. No solution
 TFM, package version or released framework contract changes as part of this review.
+
+The later #195/#79 merge adds a separate basic Android IPlatformNotificationService
+(title/body/ID, Show/Dismiss and explicit permission checks). That existing public contract is
+preserved. A future Android provider for SystemNotifications should reuse its native notification,
+channel and permission infrastructure, adding the rich contract incrementally; this change does not
+implement that bridge. “Android not implemented” below refers to this rich notification service.
 
 ## Audit decisions before implementation
 

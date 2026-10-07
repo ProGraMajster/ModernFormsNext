@@ -140,3 +140,7 @@ when available in a compatible stable SDK. These are not implemented support cla
 Stage 2 separates semantic capabilities/access from Windows-specific capabilities and options.
 Windows retains the native matrix above. Android, macOS, iOS and Linux are **architecture targets,
 not implemented support**; see the [cross-platform review](design/system-notifications-cross-platform.md).
+
+The separate basic Android IPlatformNotificationService added by #79/#195 is already implemented
+for plain title/body notifications. It is not an implementation of the rich contract assessed here;
+its future integration should reuse the existing native infrastructure.

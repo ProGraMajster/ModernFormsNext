@@ -121,6 +121,14 @@ public static class Help
 
     private static void OpenUri(Uri uri)
     {
+        if (WindowKit.AvaloniaGlobals.GetService<WindowKit.Platform.Services.IPlatformLauncherService>() is { } launcher)
+        {
+            var status = launcher.OpenUri(uri);
+            if (status != WindowKit.Platform.Services.PlatformServiceStatus.Success)
+                throw new WindowKit.Platform.Services.PlatformServiceException(status);
+            return;
+        }
+
         string target = uri.IsFile ? uri.LocalPath : uri.AbsoluteUri;
 
         try

@@ -98,6 +98,24 @@ public static class AndroidWindowKit
     public static void HandleNewIntent(Activity activity, Intent? intent)
         => Current.ActivityTracker.HandleNewIntent(activity, intent);
 
+    /// <summary>Forwards SAF and chooser results from a custom Activity on the main thread.</summary>
+    /// <param name="activity">The exact Activity receiving the callback.</param>
+    /// <param name="requestCode">The reserved native request code.</param>
+    /// <param name="resultCode">The Android result.</param>
+    /// <param name="data">Transient returned data; native objects are not retained.</param>
+    /// <returns>Whether the result belongs to the current service request.</returns>
+    public static bool HandleActivityResult(Activity activity, int requestCode, Result resultCode, Intent? data)
+        => Current.ServiceRequests.Handle(activity, requestCode, resultCode, data);
+
+    /// <summary>Forwards a permission callback with explicit Activity identity.</summary>
+    /// <param name="activity">The exact Activity receiving the callback.</param>
+    /// <param name="requestCode">The native request code.</param>
+    /// <param name="permissions">Native permission names.</param>
+    /// <param name="grantResults">Returned grants.</param>
+    /// <returns>Whether this callback completed the current request.</returns>
+    public static bool HandleRequestPermissionsResult(Activity activity, int requestCode, string[] permissions, Permission[] grantResults)
+        => Current.Permissions.HandleRequestPermissionsResult(activity, requestCode, permissions, grantResults);
+
     /// <summary>
     /// Forwards an activity permission callback to the central request coordinator.
     /// </summary>

@@ -14,8 +14,8 @@ namespace ModernFormsNext.WindowKit.Backend.Android;
 /// The backend registers lifecycle, dispatcher, permission, animation-frame, and motion-policy
 /// infrastructure and a host-managed Application/Form window backend using software Skia.
 /// Android supports one main Form plus modal/popup descendants, with explicit desktop limitations.
-/// It does not implement clipboard,
-/// camera, media, WebView, notifications, file pickers, sharing, or drag-and-drop services.
+/// SAF storage, URI launching, sharing and local notifications use the existing service registry.
+/// Clipboard, camera/media feature services, WebView and drag-and-drop remain separate work.
 /// </remarks>
 public sealed class AndroidWindowKitBackend : IWindowKitBackend
 {
@@ -23,6 +23,8 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
     private readonly AndroidWindowKitOptions options;
     private AndroidPlatformAnimationSettings animationSettings = null!;
     private AndroidChoreographerAnimationFrameSource animationFrameSource = null!;
+    internal Services.AndroidActivityResultCoordinator ServiceRequests { get; private set; } = null!;
+    private Services.AndroidNotificationService notifications = null!;
     internal Windowing.AndroidWindowingPlatform Windowing { get; private set; } = null!;
 
     /// <summary>
@@ -82,6 +84,39 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
                 w.PaintCount, w.ActivePointers)).ToArray()));
     }
 
+    /// <summary>Returns detached service facts without native objects or user content.</summary>
+    /// <remarks>Call on the main thread after initialization. No UI or permission request is started.</remarks>
+    public Services.AndroidServiceDiagnostics GetServiceDiagnostics()
+    {
+        if (!IsInitialized) throw new InvalidOperationException("Initialize the backend before reading service diagnostics.");
+        ServiceRequests.VerifyAccess();
+        var status = ServiceRequests.Availability;
+        var rows = new List<Services.AndroidServiceCapability>();
+        foreach (var name in new[] { "Open file", "Save file", "Pick folder" })
+        {
+            bool available = status != WindowKit.Platform.Services.PlatformServiceStatus.Success || name switch
+            {
+                "Open file" => Windowing.StorageProvider!.CanOpen,
+                "Save file" => Windowing.StorageProvider!.CanSave,
+                _ => Windowing.StorageProvider!.CanPickFolder
+            };
+            rows.Add(new(name, true, true, false, available ? status : WindowKit.Platform.Services.PlatformServiceStatus.NoHandler,
+                "SAF user-selected grants; one native UI request; HostLost on destruction."));
+        }
+        foreach (var name in new[] { "URI launch", "File launch", "Share text", "Share URI/file" })
+            rows.Add(new(name, true, true, name is "File launch" or "Share URI/file", status,
+                "Input-specific handler and read-grant checks occur at operation start."));
+        rows.Add(new("Storage URI", true, false, true, WindowKit.Platform.Services.PlatformServiceStatus.Success, "Existing items remain usable independently of window shutdown."));
+        rows.Add(new("Bookmark", true, false, true, WindowKit.Platform.Services.PlatformServiceStatus.Success, "Only persistable grants returned by the provider."));
+        rows.Add(new("Local notifications", true, false, true, notifications.Status, "Explicit API33 permission; app-owned stable IDs."));
+        rows.Add(new("Framework MessageBoxForm", true, true, false, status, "Framework-rendered modal Form."));
+        rows.Add(new("Native message dialog", true, true, false, status, "AlertDialog; standard buttons/adapted icons; HostLost retirement, no replay."));
+        foreach (var name in new[] { "Clipboard (#57)", "DragDrop (#57)", "WebView (#20)", "NativeViewHost (#60)", "Camera/microphone features", "Media", "Font dialog", "Print dialog", "Tray" })
+            rows.Add(new(name, false, false, false, WindowKit.Platform.Services.PlatformServiceStatus.NotSupported,
+                "Tracked separately or unsupported."));
+        return new(ServiceRequests.Busy, ServiceRequests.IsShutdown, rows.AsReadOnly());
+    }
+
     /// <summary>Returns a snapshot of Android frame, lifecycle, and reduced-motion integration.</summary>
     public AndroidAnimationRuntimeDiagnostics GetAnimationRuntimeDiagnostics()
     {
@@ -134,10 +169,22 @@ public sealed class AndroidWindowKitBackend : IWindowKitBackend
             });
             animationSettings = new AndroidPlatformAnimationSettings(ApplicationContext.Context);
             animationFrameSource = new AndroidChoreographerAnimationFrameSource(options.DiagnosticSink);
+            ServiceRequests = new Services.AndroidActivityResultCoordinator(ActivityTracker, Dispatcher);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.Services.IPlatformMessageDialogService>(
+                new Services.AndroidMessageDialogService(ActivityTracker, Dispatcher, ServiceRequests));
+            Windowing.StorageProvider = new Services.AndroidStorageProvider(ApplicationContext.Context, ServiceRequests);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.Storage.IStorageProvider>(Windowing.StorageProvider);
+            notifications = new Services.AndroidNotificationService(ApplicationContext.Context);
+            var external = new Services.AndroidExternalServices(ApplicationContext.Context, ActivityTracker, ServiceRequests);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.Services.IPlatformLauncherService>(external);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.Services.IPlatformShareService>(external);
+            AvaloniaGlobals.AddService<ModernFormsNext.WindowKit.Platform.Services.IPlatformNotificationService>(notifications);
+            Windowing.ShuttingDown += () => { ServiceRequests.Shutdown(); notifications.Shutdown(); };
             Permissions = new AndroidPermissionService(
                 ApplicationContext.Context,
                 ActivityTracker,
                 Dispatcher,
+                ServiceRequests,
                 options.PermissionRequestTimeout,
                 options.DiagnosticSink);
             PlatformInfo = new AndroidPlatformInfo();

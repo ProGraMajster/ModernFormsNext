@@ -12,6 +12,14 @@ shared animation runtime. The animation smoke section covers ripple, press scale
 layout/presentation transitions, simultaneous animations, theme transitions, reduced motion, and
 idle-to-wake diagnostics.
 
+The **Platform services** section exercises file open/save, folder selection, URI launching,
+sharing, explicit notification permission, show/update/dismiss, framework MessageBoxForm and a
+separate Native message button using SystemMessageBox.ShowAsync. Native results are shown in
+the status label. Use the native API for OS styling/accessibility and MessageBoxForm for framework
+themes. It uses the production neutral contracts. See the [capability and lifecycle guide](../../docs/android-platform-services.md).
+Its explicit PlatformServicesValidationInstrumentation runner uses only synthetic documents;
+native logs/screenshots and package files belong under artifacts/issue-79, not in source control.
+
 The **Use system accessibility preferences** checkbox is an explicit opt-in to the
 sample's authored normal/high-contrast themes and one-time scaling of theme typography.
 It begins unchecked, reports unknown detection separately, and uses an owned UI-dispatched
