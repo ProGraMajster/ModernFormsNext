@@ -27,7 +27,9 @@ public sealed class FilePickerFileType
     /// List of extensions in GLOB format. I.e. "*.png" or "*.*".
     /// </summary>
     /// <remarks>
-    /// Used on Windows, Linux and Browser platforms.
+    /// Used on Windows, Linux and Browser platforms. On Android, simple extension globs
+    /// are mapped to MIME types when <see cref="MimeTypes"/> is absent. Unrepresentable
+    /// globs widen the native filter to */* rather than excluding intended documents.
     /// </remarks>
     public IReadOnlyList<string>? Patterns { get; set; }
 

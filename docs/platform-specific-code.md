@@ -31,7 +31,9 @@ and the shared rendering stack, without depending on the Windows backend. The fo
 - `IPermissionService`.
 
 The source-tree Android window host also registers `IWindowingPlatform` and the external-loop
-`IDispatcherImpl` through the existing WindowKit registry. It does not register an empty
+`IDispatcherImpl` through the existing WindowKit registry. SAF storage, launcher, sharing and
+local notification and native message-dialog contracts use that same registry; see [Android services](android-platform-services.md).
+It does not register an empty
 `IClipboard` or other placeholder services. Unsupported services remain explicit failures;
 desktop window operations follow the [Android capability policy](android-windowing.md).
 
@@ -39,7 +41,7 @@ desktop window operations follow the [Android capability policy](android-windowi
 
 Android-native code is compiled only for `net10.0-android` under the Android backend's `Platform/`
 directory. Deterministic permission mapping, manifest-validation, status-classification, and request
-queue logic also compile for `net10.0` so tests can run without an emulator. Foundation service
+coordinator logic also compile for `net10.0` so tests can run without an emulator. Foundation service
 contracts live in the lightweight `WindowKit.Backend` assembly; windowing contracts live in
 `WindowKit`. Android uses the shared Skia rendering types through those windowing contracts.
 Shared public APIs contain no `Activity`, `Context`, Android
@@ -50,10 +52,16 @@ inside each platform backend. Do not scatter `#if ANDROID` through controls, ren
 Features that do not exist on a platform should return a documented `NotSupported` result or leave
 the service unregistered; they must not silently pretend to work.
 
+`SystemMessageBox` is a shared async facade returning the existing `DialogResult`.
+`IPlatformMessageDialogService` transports a neutral request, optional backend window and semantic
+button index. AlertDialog and MessageBoxW stay inside their platform backends. MessageBoxForm
+continues to use framework rendering. Android messages use the existing bounded request
+coordinator and presentation epochs; they are not native child views or a second semantic tree.
+
 ## Future Android service boundaries
 
-Clipboard, OpenUri, sharing, file pickers, notifications, WebView, media, camera, microphone, and
-drag-and-drop should each remain Android backend services. Only capability-shaped DTOs and contracts
+OpenUri, sharing, SAF pickers and basic notifications are implemented in the Android backend.
+Clipboard, WebView, media, camera/microphone features and drag-and-drop remain separate work. Only capability-shaped DTOs and contracts
 belong in shared code. Android `Intent`, `Activity`, `Context`, `Uri`, and permission strings remain
 implementation details of the Android assembly.
 

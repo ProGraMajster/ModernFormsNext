@@ -10,7 +10,7 @@ using ModernFormsNext.WindowKit.Platform.Permissions;
 namespace ModernFormsNext.WindowKit.Backend.Android.Permissions;
 
 /// <summary>
-/// Implements manifest-aware Android permission checks and serialized runtime requests.
+/// Implements manifest-aware Android permission checks and bounded native UI requests.
 /// </summary>
 /// <remarks>
 /// The service never adds permissions to the manifest and never opens settings automatically.
@@ -23,6 +23,7 @@ public sealed class AndroidPermissionService : IPermissionService
     private readonly Context context;
     private readonly AndroidActivityTracker activityTracker;
     private readonly AndroidMainThreadDispatcher dispatcher;
+    private readonly Services.AndroidActivityResultCoordinator requests;
     private readonly AndroidManifestInspector manifestInspector;
     private readonly AndroidPermissionRequestCoordinator coordinator;
     private readonly Action<string>? diagnostics;
@@ -32,16 +33,18 @@ public sealed class AndroidPermissionService : IPermissionService
         Context context,
         AndroidActivityTracker activityTracker,
         AndroidMainThreadDispatcher dispatcher,
+        Services.AndroidActivityResultCoordinator requests,
         TimeSpan requestTimeout,
         Action<string>? diagnostics)
     {
         this.context = context;
         this.activityTracker = activityTracker;
         this.dispatcher = dispatcher;
+        this.requests = requests;
         this.diagnostics = diagnostics;
         sdkVersion = (int)global::Android.OS.Build.VERSION.SdkInt;
         manifestInspector = new AndroidManifestInspector(context);
-        coordinator = new AndroidPermissionRequestCoordinator(activityTracker, dispatcher, requestTimeout);
+        coordinator = new AndroidPermissionRequestCoordinator(requests, dispatcher, requestTimeout);
     }
 
     /// <inheritdoc/>
@@ -131,11 +134,9 @@ public sealed class AndroidPermissionService : IPermissionService
                 .ToArray();
         }
 
-        MarkRequested(runtimePermissions);
-
         try
         {
-            await coordinator.RequestAsync(runtimePermissions.ToArray(), cancellationToken)
+            await coordinator.RequestAsync(runtimePermissions.ToArray(), cancellationToken, () => MarkRequested(runtimePermissions))
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException exception)
@@ -169,8 +170,7 @@ public sealed class AndroidPermissionService : IPermissionService
     public async Task<bool> OpenApplicationSettingsAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var activity = activityTracker.CurrentActivity;
-        if (activity is null)
+        if (activityTracker.CurrentActivity is null)
         {
             diagnostics?.Invoke(
                 "Android application settings cannot be opened because there is no active Activity.");
@@ -183,6 +183,8 @@ public sealed class AndroidPermissionService : IPermissionService
                 cancellationToken.ThrowIfCancellationRequested();
                 var packageUri = global::Android.Net.Uri.Parse($"package:{context.PackageName}");
                 using var intent = new Intent(Settings.ActionApplicationDetailsSettings, packageUri);
+                var activity = activityTracker.CurrentActivity;
+                if (activity is null || requests.Availability != ModernFormsNext.WindowKit.Platform.Services.PlatformServiceStatus.Success) return false;
                 activity.StartActivity(intent);
                 return true;
             },
@@ -194,6 +196,9 @@ public sealed class AndroidPermissionService : IPermissionService
         string[] permissions,
         Permission[] grantResults)
         => coordinator.HandleRequestPermissionsResult(requestCode, permissions, grantResults);
+
+    internal bool HandleRequestPermissionsResult(Activity activity, int requestCode, string[] permissions, Permission[] grantResults)
+        => coordinator.HandleRequestPermissionsResult(activity, requestCode, permissions, grantResults);
 
     private PlatformPermissionResult Check(PlatformPermission permission)
     {

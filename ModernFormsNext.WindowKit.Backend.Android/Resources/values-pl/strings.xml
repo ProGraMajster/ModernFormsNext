@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="mfn_message_yes">Tak</string>
+  <string name="mfn_message_no">Nie</string>
+  <string name="mfn_message_retry">Ponów próbę</string>
+</resources>

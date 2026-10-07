@@ -115,6 +115,7 @@ public sealed partial class MainPage : Control
         InitializeTextInputDemo();
         InitializeCommandDemo();
         InitializePreferenceDemo();
+        InitializePlatformServices();
         greetingLabel = CreateLabel(string.Empty);
         enabledCheckBox = new CheckBox { Text = "Enable shared action", Checked = true };
         diagnosticsCheckBox = new CheckBox { Text = "Show host diagnostics", Checked = true };
@@ -287,6 +288,7 @@ public sealed partial class MainPage : Control
 
         scrollArea.Controls.AddRange([
             headerLabel,
+            platformServicesTitle, platformServicesButtons, platformServicesStatus,
             .. commandDemoRows.Select(row => row.Control),
             preferenceOptIn, preferenceStatus,
             .. diagnosticLabels,
@@ -471,6 +473,13 @@ public sealed partial class MainPage : Control
         var y = margin - scrollArea.VerticalScrollProperties.Value;
 
         SetRow(headerLabel, margin, ref y, contentWidth, 40, gap + 4);
+        SetRow(platformServicesTitle, margin, ref y, contentWidth, 30, gap);
+        var servicesColumns = Math.Max(1, contentWidth / 190);
+        foreach (var button in platformServicesButtons.Controls.OfType<Button>())
+            button.SetBounds(0, 0, (contentWidth / servicesColumns) - 8, 40);
+        SetRow(platformServicesButtons, margin, ref y, contentWidth,
+            ((platformServicesButtons.Controls.Count + servicesColumns - 1) / servicesColumns) * 48, gap);
+        SetRow(platformServicesStatus, margin, ref y, contentWidth, 64, gap);
         foreach (var row in commandDemoRows)
             SetRow(row.Control, margin, ref y, contentWidth, row.Height, gap);
         SetRow(preferenceOptIn, margin, ref y, contentWidth, 34, gap);

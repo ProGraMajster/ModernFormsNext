@@ -49,8 +49,14 @@ public abstract class AndroidWindowActivity : Activity
     /// <inheritdoc/>
     public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
     {
-        if (!AndroidWindowKit.HandleRequestPermissionsResult(requestCode, permissions, grantResults))
+        if (!AndroidWindowKit.HandleRequestPermissionsResult(this, requestCode, permissions, grantResults))
             base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+    /// <inheritdoc/>
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        if (!AndroidWindowKit.HandleActivityResult(this, requestCode, resultCode, data))
+            base.OnActivityResult(requestCode, resultCode, data);
     }
     /// <inheritdoc/>
     public override void OnBackPressed() { if (host?.HandleBack() != true) Finish(); }

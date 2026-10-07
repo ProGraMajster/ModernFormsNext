@@ -43,9 +43,17 @@ public sealed class TestPlatformServices
         ThemeSettings = new TestThemeSettings(dispatcher);
         AnimationSettings = new TestAnimationSettings(dispatcher);
         Settings = new TestPlatformSettings(dispatcher);
+        ApplicationServices = new TestApplicationServices(dispatcher);
+        Storage = new TestStorageProvider(dispatcher);
+        MessageDialogs = new TestMessageDialogService(dispatcher);
         platformDispatcher = new TestPlatformDispatcher(dispatcher);
         try
         {
+            scopes.Add(AvaloniaGlobals.PushServiceForTesting<WindowKit.Platform.Services.IPlatformLauncherService>(ApplicationServices));
+            scopes.Add(AvaloniaGlobals.PushServiceForTesting<WindowKit.Platform.Services.IPlatformShareService>(ApplicationServices));
+            scopes.Add(AvaloniaGlobals.PushServiceForTesting<WindowKit.Platform.Services.IPlatformNotificationService>(ApplicationServices));
+            scopes.Add(AvaloniaGlobals.PushServiceForTesting<WindowKit.Platform.Storage.IStorageProvider>(Storage));
+            scopes.Add(AvaloniaGlobals.PushServiceForTesting<WindowKit.Platform.Services.IPlatformMessageDialogService>(MessageDialogs));
             scopes.Add(AvaloniaGlobals.PushServiceForTesting<IClipboard>(Clipboard));
             scopes.Add(AvaloniaGlobals.PushServiceForTesting<IPlatformSettings>(Settings));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformApplicationLifecycle>(Lifecycle));
@@ -75,6 +83,15 @@ public sealed class TestPlatformServices
     /// <summary>Gets settings with optional detected contrast and text-scale preferences.</summary>
     public TestPlatformSettings Settings { get; }
 
+    /// <summary>Gets deterministic launcher, sharing and notification outcomes.</summary>
+    public TestApplicationServices ApplicationServices { get; }
+
+    /// <summary>Gets deterministic native message outcomes and recorded requests.</summary>
+    public TestMessageDialogService MessageDialogs { get; }
+
+    /// <summary>Gets storage selections used by production file/folder dialogs.</summary>
+    public TestStorageProvider Storage { get; }
+
     internal void Dispose()
     {
         if (disposed)
@@ -86,6 +103,9 @@ public sealed class TestPlatformServices
         for (var index = scopes.Count - 1; index >= 0; index--)
             scopes[index].Dispose();
         scopes.Clear();
+        ApplicationServices.Dispose();
+        MessageDialogs.Dispose();
+        Storage.Dispose();
         platformDispatcher.Dispose();
         Lifecycle.Dispose();
         Clipboard.Dispose();

@@ -64,6 +64,11 @@ public static class WindowsPlatformBootstrap
             AvaloniaGlobals.AddService<IPlatformFontDialogService>(new WindowsFontDialogService());
             AvaloniaGlobals.AddService<IPlatformPrintDialogService>(new WindowsPrintDialogService());
             AvaloniaGlobals.AddService<IPlatformTrayManager>(new WindowsTrayManager());
+            AvaloniaGlobals.AddService<IPlatformLauncherService>(new WindowsLauncherService());
+            AvaloniaGlobals.AddService<IPlatformMessageDialogService>(new WindowsMessageDialogService(lifecycle.Publisher));
+            var unavailable = new UnsupportedPlatformServices();
+            AvaloniaGlobals.AddService<IPlatformShareService>(unavailable);
+            AvaloniaGlobals.AddService<IPlatformNotificationService>(unavailable);
             var animationSettings = new WindowsPlatformAnimationSettings();
             Win32Platform.Instance.AnimationSettings = animationSettings;
             PlatformServiceRegistry.Register<IPlatformAnimationSettings>(animationSettings);
