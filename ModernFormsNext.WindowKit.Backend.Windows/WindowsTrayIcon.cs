@@ -59,6 +59,28 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
         /// <inheritdoc/>
         public event EventHandler<PlatformTrayIconMouseEventArgs>? DoubleClick;
 
+        // Internal OS-notification adapter. These callbacks use the existing tray HWND and
+        // must only copy/queue data, never invoke application observers inside WndProc.
+        internal event Action<int>? BalloonMessage;
+
+        internal void AdoptNotificationIcon(IntPtr ownedIcon)
+        {
+            ThrowIfDisposed();
+            DestroyIconHandle();
+            hicon = ownedIcon;
+        }
+
+        internal void ShowSystemBalloon(string title, string message, NIIF flags, IntPtr customIcon, bool realtime)
+        {
+            ThrowIfDisposed();
+            var data = CreateNotifyIconData(NIF.INFO | (realtime ? (NIF)0x40 : 0));
+            data.szInfoTitle = title;
+            data.szInfo = message;
+            data.dwInfoFlags = flags;
+            data.hBalloonIcon = customIcon;
+            InvokeShellNotifyIcon(NIM.MODIFY, data, "submit a system balloon notification");
+        }
+
         /// <inheritdoc/>
         public SKBitmap? Icon {
             get => icon;
@@ -382,6 +404,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
 
         private void ProcessNotifyMessage (int message)
         {
+            if (message is >= 0x402 and <= 0x405) {
+                if (!disposed) BalloonMessage?.Invoke(message);
+                return;
+            }
             switch ((WindowsMessage)message) {
                 case WindowsMessage.WM_MOUSEMOVE:
                     MouseMove?.Invoke (this, CreateMouseEventArgs (MouseButton.None, 0));

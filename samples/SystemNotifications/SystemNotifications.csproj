@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <WindowsSdkPackageVersion>10.0.28000.87</WindowsSdkPackageVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Optional provider owns nonfatal runtime probing; no module initializer may fail-fast
+         before the Windows backend selector can choose classic or Shell. -->
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <WindowsAppSdkDeploymentManagerInitialize>false</WindowsAppSdkDeploymentManagerInitialize>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../ModernFormsNext/ModernFormsNext.csproj" />
+    <ProjectReference Include="../../ModernFormsNext.SystemNotifications.AppSdk/ModernFormsNext.SystemNotifications.AppSdk.csproj" />
+    <ProjectReference Include="../../ModernFormsNext.SystemNotifications.WinRT/ModernFormsNext.SystemNotifications.WinRT.csproj" />
+    <None Include="../../icon.png" Link="notification-image.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

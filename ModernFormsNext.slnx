@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/docs/" />
   <Folder Name="/samples/">
+    <Project Path="samples/SystemNotifications/SystemNotifications.csproj" />
     <Project Path="samples/ModernFormsNext.CrossPlatform.Sample/ModernFormsNext.CrossPlatform.Sample.csproj" />
     <Project Path="samples/ModernFormsNext.Android.SmokeTest/ModernFormsNext.Android.SmokeTest.csproj" />
     <Project Path="samples/ModernFormsNext.DemoApp/ModernFormsNext.DemoApp.csproj" Id="443f0023-59f5-4347-9a5d-8a214ddd092a" />
@@ -34,6 +35,8 @@
     <Project Path="ModernFormsNext.Designer/ModernFormsNext.Designer.csproj" />
     <Project Path="ModernFormsNext.Designing/ModernFormsNext.Designing.csproj" />
     <Project Path="ModernFormsNext.Testing/ModernFormsNext.Testing.csproj" />
+    <Project Path="ModernFormsNext.SystemNotifications.AppSdk/ModernFormsNext.SystemNotifications.AppSdk.csproj" />
+    <Project Path="ModernFormsNext.SystemNotifications.WinRT/ModernFormsNext.SystemNotifications.WinRT.csproj" />
     <Project Path="ModernFormsNext.VisualStudioDesignerHost/ModernFormsNext.VisualStudioDesignerHost.csproj" />
     <Project Path="ModernFormsNext.VisualStudioExtension.Shared/ModernFormsNext.VisualStudioExtension.Shared.csproj" />
     <Project Path="ModernFormsNext.VisualStudioExtension/ModernFormsNext.VisualStudioExtension.csproj" />

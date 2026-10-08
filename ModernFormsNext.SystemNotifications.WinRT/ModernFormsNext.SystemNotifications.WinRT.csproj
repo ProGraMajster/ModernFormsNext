@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.10240.0</SupportedOSPlatformVersion>
+    <WindowsSdkPackageVersion>10.0.28000.87</WindowsSdkPackageVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Description>Optional classic WinRT system notification transport for ModernFormsNext.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ModernFormsNext.WindowKit.Backend.Windows/ModernFormsNext.WindowKit.Backend.Windows.csproj" />
+    <None Include="../README.md" Pack="true" PackagePath="/" Link="README.md" />
+    <None Include="../icon.png" Pack="true" PackagePath="/" Link="icon.png" />
+    <None Update="buildTransitive/ModernFormsNext.SystemNotifications.WinRT.targets" Pack="true" PackagePath="buildTransitive/ModernFormsNext.SystemNotifications.WinRT.targets" />
+  </ItemGroup>
+</Project>

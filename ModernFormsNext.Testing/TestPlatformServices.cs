@@ -40,6 +40,7 @@ public sealed class TestPlatformServices
         this.dispatcher = dispatcher;
         Clipboard = new TestClipboard(dispatcher);
         Lifecycle = new TestApplicationLifecycle(dispatcher);
+        SystemNotifications = new TestSystemNotifications(dispatcher, Lifecycle);
         ThemeSettings = new TestThemeSettings(dispatcher);
         AnimationSettings = new TestAnimationSettings(dispatcher);
         Settings = new TestPlatformSettings(dispatcher);
@@ -57,6 +58,7 @@ public sealed class TestPlatformServices
             scopes.Add(AvaloniaGlobals.PushServiceForTesting<IClipboard>(Clipboard));
             scopes.Add(AvaloniaGlobals.PushServiceForTesting<IPlatformSettings>(Settings));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformApplicationLifecycle>(Lifecycle));
+            scopes.Add(PlatformServiceRegistry.PushServiceForTesting<ModernFormsNext.Notifications.ISystemNotificationService>(SystemNotifications));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformThemeSettings>(ThemeSettings));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformAnimationSettings>(AnimationSettings));
             scopes.Add(PlatformServiceRegistry.PushServiceForTesting<IPlatformDispatcher>(platformDispatcher));
@@ -73,6 +75,9 @@ public sealed class TestPlatformServices
 
     /// <summary>Gets the controllable production foreground/background lifecycle service.</summary>
     public TestApplicationLifecycle Lifecycle { get; }
+
+    /// <summary>Gets the deterministic OS notification service used by the production facade.</summary>
+    public TestSystemNotifications SystemNotifications { get; }
 
     /// <summary>Gets platform theme preferences read by the production ThemeManager.</summary>
     public TestThemeSettings ThemeSettings { get; }
@@ -107,6 +112,7 @@ public sealed class TestPlatformServices
         MessageDialogs.Dispose();
         Storage.Dispose();
         platformDispatcher.Dispose();
+        SystemNotifications.DisposeAsync().GetAwaiter().GetResult();
         Lifecycle.Dispose();
         Clipboard.Dispose();
         ThemeSettings.Dispose();

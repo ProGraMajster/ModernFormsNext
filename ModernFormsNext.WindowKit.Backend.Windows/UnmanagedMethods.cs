@@ -2631,5 +2631,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
         public string? szInfoTitle;
         public NIIF dwInfoFlags;
+        // Vista+ tail fields are required for a complete NOTIFYICONDATA layout and custom
+        // balloon icons. Keep them in native order; cbSize is computed from this structure.
+        public Guid guidItem;
+        public IntPtr hBalloonIcon;
     }
 }
