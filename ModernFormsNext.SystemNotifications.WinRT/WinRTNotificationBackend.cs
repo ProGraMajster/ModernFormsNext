@@ -224,6 +224,10 @@ public sealed class WinRTNotificationBackend : IWindowsNotificationBackend
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (reference is not WindowsSystemNotificationReference item || item.Owner != historyOwner) return Task.FromResult(new SystemNotificationResult(SystemNotificationStatus.Invalid));
+        // Classic history exposes no numeric ID. An untagged foreign entry cannot be removed
+        // individually with History.Remove; never broaden that request to group/all removal.
+        if (string.IsNullOrEmpty(item.Tag)) return Task.FromResult(new SystemNotificationResult(SystemNotificationStatus.Unsupported,
+            Warnings: [new("HistoryIdentity", "Classic history removal requires an entry with a native tag.")]));
         RemoveHistory(item.Tag, item.Group);
         return Task.FromResult(new SystemNotificationResult(SystemNotificationStatus.Accepted));
     }

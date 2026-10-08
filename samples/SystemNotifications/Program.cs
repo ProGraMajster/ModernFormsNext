@@ -159,6 +159,14 @@ internal sealed class NotificationForm : Form
             var first = await service.ShowAsync(Content());
             Require(first.IsAccepted, "show", first);
             key = first.Key!;
+            if (service.Capabilities.Backend == "Windows App SDK") await VerifyUntaggedHistory();
+            else if (service.Capabilities.Backend.StartsWith("Classic", StringComparison.Ordinal) && service.Capabilities.Supports(SystemNotificationFeatures.History))
+            {
+                var reference = (WindowsSystemNotificationReference)(await service.GetHistoryAsync()).Single(entry => entry.Key == key).Reference;
+                var untagged = await service.DismissHistoryAsync(reference with { Tag = "", Group = "" });
+                Require(untagged.Status == SystemNotificationStatus.Unsupported, "classic untagged history limitation", untagged);
+                Require((await service.GetHistoryAsync()).Any(entry => entry.Key == key), "unsupported history removal preserves content");
+            }
             if (service.Capabilities.Supports(SystemNotificationFeatures.LiveUpdates))
             {
                 Require((await service.GetHistoryAsync()).Any(entry => entry.Key == key), "native history after show");
@@ -206,6 +214,35 @@ internal sealed class NotificationForm : Form
         catch (Exception e) { Console.WriteLine("NATIVE_SMOKE_FAIL " + e); Environment.ExitCode = 1; }
         finally { await service.DisposeAsync(); closing = true; Close(); }
     }
+    // Direct SDK submission deliberately models notifications from another library. Only the
+    // two IDs created here are cleaned up; unrelated entries under this sample's identity survive.
+    private async Task VerifyUntaggedHistory()
+    {
+        var manager = Microsoft.Windows.AppNotifications.AppNotificationManager.Default;
+        var before = (await service.GetHistoryAsync()).Select(entry => entry.Reference).ToHashSet();
+        const string xml = "<toast><visual><binding template='ToastGeneric'><text>History reference smoke</text></binding></visual></toast>";
+        var first = new Microsoft.Windows.AppNotifications.AppNotification(xml) { SuppressDisplay = true };
+        var second = new Microsoft.Windows.AppNotifications.AppNotification(xml) { SuppressDisplay = true };
+        try
+        {
+            manager.Show(first);
+            manager.Show(second);
+            Require(first.Id != 0 && second.Id != 0 && first.Id != second.Id, "independent native history IDs");
+            var added = (await service.GetHistoryAsync()).Where(entry => !before.Contains(entry.Reference)).ToArray();
+            Require(added.Length == 2 && added.All(entry => entry.Key is null), "untagged foreign history");
+            Require((await service.DismissHistoryAsync(added[0].Reference)).IsAccepted, "untagged exact removal");
+            var remaining = await manager.GetAllAsync();
+            Require(remaining.Count(entry => entry.Id == first.Id || entry.Id == second.Id) == 1, "untagged removal preserves sibling");
+            Require((await service.DismissHistoryAsync(added[1].Reference)).IsAccepted, "untagged sibling removal");
+            Require(!(await manager.GetAllAsync()).Any(entry => entry.Id == first.Id || entry.Id == second.Id), "untagged cleanup");
+        }
+        finally
+        {
+            if (first.Id != 0) await manager.RemoveByIdAsync(first.Id);
+            if (second.Id != 0) await manager.RemoveByIdAsync(second.Id);
+        }
+    }
+
     // The dedicated Windows sample inspects the actual OS data, not just Update's success code.
     private static async Task VerifyNativeProgress(SystemNotificationKey key, string expectedValue)
     {

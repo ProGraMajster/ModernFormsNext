@@ -4,6 +4,62 @@ Related: [API guide](../system-notifications.md), [compatibility/inventory](../s
 [cross-platform architecture](../design/system-notifications-cross-platform.md).
 Never equate native submission, synthetic COM invocation, headless tests and manual OS interaction.
 
+## Independent PR #196 requalification (2026-10-08)
+
+The independent review started from `2a52e84`, already containing current master `9214c8f`.
+It fixed exact App SDK removal of untagged foreign history entries and the corresponding Classic
+limitation; see the [finding and assessment](../design/system-notifications-final-review.md#independent-pr-196-review-2026-10-08).
+All checks below were freshly executed after the code correction on Windows 11 Home 26H2,
+build 26300.9550 x64, .NET SDK 10.0.401. The commit history identifies the resulting corrective head.
+
+| Check | Fresh result |
+|---|---|
+| Forced fresh solution restore | PASS |
+| Complete Debug / Release builds | PASS: both 0 warnings / 0 errors, sequential builds |
+| Complete Debug suite | PASS: **4337/4337**, nine assemblies, **0 failed / 0 skipped**, no retry |
+| Notification-specific suite | PASS: **90/90**, 37 common and 53 Windows, no retry |
+| Actual common sources under net8.0 / net9.0 / net10.0 | PASS: no platform SDK/package references, 0 warnings/errors; source-level evidence only |
+| Five Release packages / nuspec and graph inspection | PASS: common Backend has no dependencies; optional SDK graph includes stable Base/Foundation/InteractiveExperiences/Runtime, no WinUI/AI/widgets/search |
+| Fresh consumer / separate empty package cache | PASS: one restore, Release build with 0 warnings/errors, both providers and portable contracts load without automatic runtime initialization |
+| Missing projection / another empty package cache | PASS: expected build rejection with the actionable WindowsSdkPackageVersion diagnostic |
+| Untagged foreign history regression | Reproduced before fix: ArgumentException/80070057. PASS after fix: two platform-assigned IDs; exact removal leaves one sibling, then removes the second. The dedicated sample now carries this native regression |
+| App SDK native sample smoke | PASS: new history regression, 20 rapid progress updates, retained value 1 then .76, indeterminate, replacement/history/removal and empty/literal reserved-group separation |
+| Separate sample processes, restart seed/finish | PASS: long logical ID/group recovered from history, continued numeric/indeterminate progress, exact removal |
+| SDK-only numeric path, separate processes | PASS: native retained .1 → .2 → .3 → .4, then .8 → .9 after restart; temporary native identity unregistered after finish |
+| Provider counter source probe | PASS: four processes reserve 64 unique consecutive values, native floor is respected, corruption/overflow/lock cancellation/pending-file I/O failure are rejected without silently resetting or overwriting durable state; only this probe's technical files are cleaned up |
+| Classic native smoke | PASS under the existing sample identity; untagged-reference Unsupported guard preserves tagged content, followed by regular native history/removal |
+| Classic callback and group/ID removal probe | PASS: logical identity/payload preserved, stale callback suppressed, group removal preserves another group, then ID removal succeeds. Callback is synthetic, not a user click |
+| Shell native smoke | PASS: native submission/removal; no new visual-banner certification |
+| Diff whitespace / local documentation targets | PASS: 47 feature files, 142 local links/TOC targets, no generated outputs/private probes/caches/machine paths in commit inputs |
+| Real cold App SDK Send | Earlier stage-2 user confirmation retained: reply=Etap 2, choice=no. This correction does not change registration/startup/serialization/actions/inputs/lifecycle/COM activation |
+| Other Windows OS/editions, fresh Classic installer/MSIX, reboot, audio/DPI/focus matrix, native rich Android/macOS/iOS/Linux | **NOT EXECUTED — environment/manual verification unavailable** |
+
+Primary commands (run sequentially with frozen source):
+
+```powershell
+dotnet restore ModernFormsNext.slnx --force -m:1
+dotnet build ModernFormsNext.slnx -c Debug --no-restore -m:1 /p:UseSharedCompilation=false /p:EnableWindowsTargeting=true
+dotnet build ModernFormsNext.slnx -c Release --no-restore -m:1 /p:UseSharedCompilation=false
+dotnet test ModernFormsNext.slnx -c Debug --no-build --no-restore -m:1 --logger trx
+dotnet test ModernFormsNext.Testing.Tests -c Debug --no-build --no-restore --filter FullyQualifiedName~SystemNotification
+dotnet test ModernFormsNext.WindowKit.Backend.Windows.Tests -c Debug --no-build --no-restore --filter FullyQualifiedName~SystemNotification
+git diff --check
+```
+
+The source probe compiles the repository's actual Notifications/*.cs under three TFMs. Each of
+WindowKit.Backend, WindowKit, WindowKit.Backend.Windows, SystemNotifications.AppSdk and
+SystemNotifications.WinRT is packed with `dotnet pack -c Release --no-build --no-restore`.
+Consumer restores use distinct `--packages` directories and `--no-http-cache`. Native sample
+invocations are `--smoke`, `--restart-seed`, `--restart-finish`, `--classic --smoke` and
+`--shell --smoke`. Ignored evidence/scripts/probes are under artifacts/pr196-review; existing
+SDK numeric and Classic callback probes were rebuilt against the corrected source. Native
+state polling waits for OS persistence within a fixed deadline; no failed test was rerun to
+obtain a pass. No test threshold, CI check, package version or solution TFM changed.
+
+Templates and DemoApp remain unchanged, so template/manual ControlGallery verification is not
+required for this isolated native notification correction. No system component was installed
+and no security/global notification setting was changed in this review.
+
 ## Final master integration (2026-10-07)
 
 After the initial feature commit, master advanced to `9214c8f` with #195/#79. Its basic Android

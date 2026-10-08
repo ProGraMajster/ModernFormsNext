@@ -201,6 +201,12 @@ retain the original logical key for native history recovery; raw XML remains unt
 may return HistoryEntry.Key=null with an opaque removal Reference. Persist logical keys,
 not backend references. Native interop can use `WindowsToastContent.ToNativeTag/ToNativeGroup`.
 
+App SDK history references retain the native numeric ID, so exact removal also works for entries
+created by another library without Tag/Group. Classic history exposes only Tag/Group; an untagged
+foreign entry returns `Unsupported` with a `HistoryIdentity` warning on `DismissHistoryAsync`.
+It never substitutes group removal or clears the store. References belong to the provider session
+that returned them; refresh history after creating a new service.
+
 Calls are serialized. WinRT uses documented sequence-zero always-apply updates; the SDK-only
 numeric fallback reserves its positive sequence internally in a content-free per-executable
 counter under LocalApplicationData/ModernFormsNext/NotificationSequences. Neither API's history

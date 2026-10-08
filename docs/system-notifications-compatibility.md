@@ -78,11 +78,12 @@ identical to 24H2/25H2: the property/probe gaps below remain explicit.
 * **Builder data:** native progress, title/status/value override, indeterminate through native
   NotificationData and provider-owned ordering; logical Id/Group replacement.
 * **AppNotification metadata:** tag/group, expiration, expire on reboot, priority and banner
-  suppression. Native numeric Id is used to verify Show acceptance; callers use logical Id/Group keys
+  suppression. Native numeric Id verifies Show acceptance and identifies exact history removal,
+  including untagged foreign entries; callers use logical Id/Group keys
   rather than native tags or process-specific native objects.
 * **AppNotificationManager:** support/settings probes, explicit registration and branding,
   event-before-register ordering, live/cold activation entry point, update, remove by tag/group,
-  clear, get native history and unregister the live process. Dependency failures enable fallback.
+  remove by numeric ID, clear, get native history and unregister the live process. Dependency failures enable fallback.
 * **WinRT ToastNotification/Notifier/History:** adaptive and legacy templates, Data/Update,
   Activated/Dismissed/Failed, Hide, native history, mirroring policy and RemoteId. Optional COM
   activator uses Microsoft's documented INotificationActivationCallback ABI.
@@ -104,6 +105,8 @@ notifications and elevation are distinguished from feature-level availability.
 
 Older Windows has no progress/header/timestamp before 15063 or hero before 14393. Shell cannot
 provide images, buttons, reply inputs, progress, native notification history or cold activation.
+Classic cannot remove an individual untagged foreign history entry: its history API has no numeric
+ID, and `DismissHistoryAsync` returns `Unsupported` instead of broadening the removal request.
 No backend claims to override Focus Assist, accessibility duration or user sound settings.
 
 ## Intentionally not implemented

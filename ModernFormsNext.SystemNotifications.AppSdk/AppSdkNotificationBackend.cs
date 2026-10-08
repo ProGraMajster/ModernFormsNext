@@ -33,6 +33,10 @@ public sealed class AppSdkNotificationBackend : IWindowsNotificationBackend
 
     private readonly Guid historyOwner = Guid.NewGuid();
 
+    // Native IDs identify individual entries even when another library omitted Tag/Group.
+    // Keep this transport detail inside the opaque, provider-session-scoped reference.
+    private sealed record HistoryReference(Guid Owner, uint Id) : SystemNotificationReference;
+
     /// <inheritdoc/>
     public SystemNotificationCapabilities Capabilities { get; private set; } = SystemNotificationCapabilities.Unavailable;
 
@@ -207,15 +211,16 @@ public sealed class AppSdkNotificationBackend : IWindowsNotificationBackend
     {
         cancellationToken.ThrowIfCancellationRequested();
         var native = await manager!.GetAllAsync();
-        return native.Select(n => WindowsToastContent.ReadHistory(n.Payload, n.Tag, n.Group, historyOwner)).ToArray();
+        return native.Select(n => WindowsToastContent.ReadHistory(n.Payload, n.Tag, n.Group, historyOwner) with
+        { Reference = new HistoryReference(historyOwner, n.Id) }).ToArray();
     }
 
     /// <inheritdoc/>
     public async Task<SystemNotificationResult> DismissHistoryAsync(SystemNotificationReference reference, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (reference is not WindowsSystemNotificationReference item || item.Owner != historyOwner) return new(SystemNotificationStatus.Invalid);
-        await manager!.RemoveByTagAndGroupAsync(item.Tag, item.Group);
+        if (reference is not HistoryReference item || item.Owner != historyOwner) return new(SystemNotificationStatus.Invalid);
+        await manager!.RemoveByIdAsync(item.Id);
         return new(SystemNotificationStatus.Accepted);
     }
 

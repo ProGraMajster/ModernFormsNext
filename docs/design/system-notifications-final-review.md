@@ -1,5 +1,62 @@
 # System notifications final review (#158)
 
+## Independent PR #196 review (2026-10-08)
+
+Reviewed the complete 47-file feature diff at PR head `2a52e84` against current master
+`9214c8f5cec66e3731e5bf118cc8bfd5a9fba623`, including implementation, tests, package assets,
+documentation and related #158/#44 requirements. The branch already contains this base, has no
+conflicts, and had a successful required build check. There were no PR comments, inline review
+comments or submitted reviews to resolve. The corrective commit and its exact CI run are recorded
+in PR #196; the earlier green check is not qualification of the correction.
+
+**Medium, fixed — exact removal of untagged native history.** App SDK history previously stored
+only Tag/Group in its opaque reference. A native entry created by another library without a tag
+could be enumerated but DismissHistoryAsync called RemoveByTagAndGroupAsync and failed with
+ArgumentException (80070057). A direct native probe reproduced this with two independent entries.
+App SDK now retains the platform-assigned numeric ID in a private, provider-session reference and
+uses [RemoveByIdAsync](https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.windows.appnotifications.appnotificationmanager.removebyidasync).
+The sample regression creates two such entries, removes one through the service, inspects native
+history to prove the sibling survives, then removes the other. The same probe passes after the fix.
+Classic's [history removal API](https://learn.microsoft.com/uwp/api/windows.ui.notifications.toastnotificationhistory.remove)
+does not expose numeric IDs; an untagged reference explicitly returns Unsupported/HistoryIdentity
+without broadening removal. Its smoke guard verifies the tagged content remains. XML documentation,
+the guide, compatibility inventory and sample instructions now describe that limitation.
+
+**No unresolved blocker, high, medium or low findings.** The remaining review confirms the
+earlier architectural assessment from direct source inspection, with these boundaries:
+
+* Common API remains semantic, immutable/snapshotted and independent of native SDKs. No public
+  member was removed; this correction adds no public option or contract. Access and explicit
+  permission requests remain separate from capabilities, with per-operation hooks inside the
+  canonical serialized validation pipeline.
+* Android channels/permissions/host services, Apple authorization/category/delegate behavior,
+  and Linux D-Bus/portal identity/capability differences still fit additive platform options and
+  providers. No reviewed scenario requires a fundamental common redesign. This is architectural
+  assessment, not native support. The existing basic Android service and its registration,
+  permission handling and lifecycle are unchanged by the feature diff.
+* Logical ordinal IDs, Unicode, empty/literal sentinel separation and restart mapping remain
+  intact. The 96-bit hash has a finite collision risk. Progress does not resend on each update;
+  WinRT zero-sequence and SDK durable positive reservations retain their documented ordering
+  and multi-writer business-order caveat. The store contains only a counter and path-derived hash.
+* Activation, native ownership/disposal and bootstrap/installer boundaries are unchanged by this
+  correction. The previous real cold Send confirmation remains applicable; no new synthetic
+  callback or native history query is presented as a user click or visible-banner certification.
+* Activation is bounded data, XML is escaped, RawXml rejects DTD/external entities and excessive
+  structure, and remote images are left to Windows. The application resolves allowlisted
+  downloader actions against its own persisted records. No automatic command execution, secret-
+  bearing HTTP client, additional installation or security-setting change was introduced.
+* Optional providers retain stable component dependencies and transitive projection diagnostics.
+  Core still has no App SDK dependency. Common net8/net9/net10 compilation is source-level #44
+  evidence; the solution remains .NET 10 and does not claim Windows 7/8/8.1 runtime support.
+
+The new complete qualification and its precise manual limits are recorded first in the
+[testing report](../testing/system-notifications.md). Separate future work remains native rich
+Android/macOS/iOS/Linux adapters, #44 package/runtime/CI qualification, installer/OS/manual matrix
+coverage, and independent scheduling/push/media/foreground-service/Live Activities contracts.
+The task leaves the PR open for a manual merge; it does not close #158 or publish a release.
+
+## Earlier finalization review (2026-10-07)
+
 Reviewed 2026-10-07 against current source and the full feature diff, with
 [issue #158](https://github.com/ProGraMajster/ModernFormsNext/issues/158) and
 [roadmap #44](https://github.com/ProGraMajster/ModernFormsNext/issues/44).

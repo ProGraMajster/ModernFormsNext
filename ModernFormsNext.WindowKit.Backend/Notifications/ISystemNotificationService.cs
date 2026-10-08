@@ -39,7 +39,7 @@ public abstract record SystemNotificationReference;
 
 /// <summary>An entry returned by native history, not a local substitute for an OS entry.</summary>
 /// <param name="Key">Logical key if recoverable; null for foreign or advanced raw native content.</param>
-/// <param name="Reference">Backend reference permitting exact removal even without a known logical key.</param>
+/// <param name="Reference">Backend reference for exact removal where the native entry exposes a usable identifier.</param>
 public sealed record SystemNotificationHistoryEntry(SystemNotificationKey? Key, SystemNotificationReference Reference);
 
 /// <summary>A validation/degradation diagnostic without sensitive notification content.</summary>
@@ -103,6 +103,7 @@ public interface ISystemNotificationService : IAsyncDisposable
     /// <exception cref="ArgumentNullException">The key is null; null never means clear history.</exception>
     Task<SystemNotificationResult> DismissAsync(SystemNotificationKey key, CancellationToken cancellationToken = default);
     /// <summary>Removes the exact native history reference, including a raw entry without a known logical key.</summary>
+    /// <remarks>Returns Unsupported when the native entry lacks an identifier usable for exact removal; never broadens the request to a group or the entire store.</remarks>
     Task<SystemNotificationResult> DismissHistoryAsync(SystemNotificationReference reference, CancellationToken cancellationToken = default);
     /// <summary>Removes the specified logical Id across groups where supported.</summary>
     /// <exception cref="ArgumentNullException">The identifier is null.</exception>

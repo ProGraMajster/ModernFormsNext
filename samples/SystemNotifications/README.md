@@ -27,7 +27,10 @@ the real service. Open/Open folder buttons display the received action; this sam
 download or execute files. A downloader must resolve its own persisted queue record first.
 
 `--smoke` checks native acceptance/history/data updates/replacement/removal and exits. It includes
-20 rapid progress updates and a subsequent lower value, verifying the retained native data. It also
+20 rapid progress updates and a subsequent lower value, verifying the retained native data.
+On App SDK it creates two untagged entries directly through Microsoft's API, removes each through
+the service's opaque history reference and verifies that the sibling survives the first removal.
+On Classic it checks that an untagged reference returns Unsupported without removing a tagged entry. It also
 verifies that ungrouped dismissal preserves another group with the same logical ID and that a logical group named mfn.default cannot alias the empty group. It does not certify banner rendering,
 audio or focus. `--leave-notification` retains a reply/selection
 notification then disposes/closes, allowing a real Notification Center cold-launch test.
