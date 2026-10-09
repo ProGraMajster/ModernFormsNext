@@ -1,6 +1,8 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--native-view", StringComparer.Ordinal)) { Environment.ExitCode = NativeViewScenario.Run(); return; }
+
 if (args.Contains("--message-dialog", StringComparer.Ordinal))
 {
     Environment.ExitCode = MessageDialogScenario.Run(args.Contains("--exit-before-show", StringComparer.Ordinal));

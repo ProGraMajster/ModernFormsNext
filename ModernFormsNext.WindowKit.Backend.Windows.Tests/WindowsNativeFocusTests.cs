@@ -6,8 +6,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
 public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
 {
-    [Fact]
-    public async Task CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose()
+    [Theory]
+    [InlineData("--focus", "FOCUS:PASS")]
+    [InlineData("--native-view", "NATIVE_VIEW:PASS:")]
+    public async Task CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(string argument, string marker)
     {
         if (!OperatingSystem.IsWindows()) return;
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
@@ -27,7 +29,7 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
             RedirectStandardOutput = true, RedirectStandardError = true
         };
         start.ArgumentList.Add(hostPath);
-        start.ArgumentList.Add("--focus");
+        start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start native focus host.");
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         Task<string> stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
@@ -38,9 +40,12 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
             string report = await stdout, errors = await stderr;
             output.WriteLine(report);
             Assert.True(process.ExitCode == 0, $"Native focus host failed: {errors}\n{report}");
-            Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:False:PASS", report);
-            Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:True:PASS", report);
-            Assert.Contains("FOCUS:PASS", report);
+            Assert.Contains(marker, report);
+            if (argument == "--focus")
+            {
+                Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:False:PASS", report);
+                Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:True:PASS", report);
+            }
         }
         finally
         {

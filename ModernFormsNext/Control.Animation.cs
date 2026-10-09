@@ -19,6 +19,7 @@ namespace ModernFormsNext
         /// </summary>
         private void InvalidateAnimation ()
         {
+            NotifyNativePresentationChanged();
             Invalidate ();
         }
 

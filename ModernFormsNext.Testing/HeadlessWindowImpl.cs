@@ -117,10 +117,14 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
 
     internal bool HasNativeWindow => false;
 
+    private TestNativeViewHostProvider? nativeViews;
+    internal TestNativeViewHostProvider NativeViews => nativeViews ??= new(() => enabled);
+
     public object? TryGetFeature(Type featureType)
     {
         ArgumentNullException.ThrowIfNull(featureType);
-        return featureType == typeof(WindowKit.Platform.Storage.IStorageProvider)
+        return featureType == typeof(INativeViewHostProvider) ? NativeViews :
+            featureType == typeof(WindowKit.Platform.Storage.IStorageProvider)
             ? AvaloniaGlobals.GetService<WindowKit.Platform.Storage.IStorageProvider>()
             : featureType == typeof(IWindowInsetsProvider) ? this : null;
     }
@@ -219,7 +223,7 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
         ArgumentNullException.ThrowIfNull(parent);
     }
 
-    public void SetEnabled(bool enable) => enabled = enable;
+    public void SetEnabled(bool enable) { enabled = enable; nativeViews?.NotifyState(); }
 
     public void SetSystemDecorations(SystemDecorations enabled)
         => NeedsManagedDecorations = enabled == SystemDecorations.None;
@@ -304,6 +308,7 @@ internal sealed partial class HeadlessWindowImpl : IWindowImpl, IWindowInsetsPro
             return;
 
         IsDisposed = true;
+        nativeViews?.Retire();
         IsShown = false;
         pendingInvalidationCount = 0;
         try

@@ -79,6 +79,21 @@ namespace ModernFormsNext
 
         internal Point TouchScrollPosition => scroll_position;
 
+        // Existing client/scrollbar geometry, in device pixels; content bounds already carry
+        // scroll movement. Never use the scrolled DisplayRectangle origin as a second offset.
+        internal Rectangle NativeHostingViewport
+        {
+            get
+            {
+                var rectangle = ClientRectangle;
+                if (hscrollbar.DesiredVisibility) rectangle.Height -= LogicalToDeviceUnits(hscrollbar.Height);
+                if (vscrollbar.DesiredVisibility) rectangle.Width -= LogicalToDeviceUnits(vscrollbar.Width);
+                rectangle.Width = Math.Max(0, rectangle.Width);
+                rectangle.Height = Math.Max(0, rectangle.Height);
+                return rectangle;
+            }
+        }
+
         // A touch host supplies logical-pixel finger movement. Moving the finger left/up advances
         // the corresponding scrollbar, while moving right/down rewinds it. Updating the real
         // scrollbar values keeps their thumbs and the existing ScrollWindow path synchronized.

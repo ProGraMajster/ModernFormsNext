@@ -9,6 +9,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Windowing;
 internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImpl, IWindowInsetsProvider, IWindowHostPolicy
 {
     internal readonly AndroidWindowingPlatform Platform = platform;
+    internal readonly AndroidNativeViewHostProvider NativeViewHosts = new();
     internal readonly AndroidWindowTextInput TextInput = new(platform.VerifyAccess);
     internal IInputRoot? InputRoot { get; private set; }
     internal AndroidWindowImpl? Owner { get; private set; }
@@ -75,7 +76,8 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
         $"Android Activity windows do not support {operation}. See the Android window capability matrix.");
     public void SetInputRoot(IInputRoot inputRoot) { Verify(); InputRoot = inputRoot; }
     public object? TryGetFeature(Type featureType)
-        => featureType == typeof(ModernFormsNext.WindowKit.Platform.Storage.IStorageProvider) ? (IsClosed ? null : Platform.StorageProvider) :
+        => featureType == typeof(INativeViewHostProvider) ? NativeViewHosts :
+            featureType == typeof(ModernFormsNext.WindowKit.Platform.Storage.IStorageProvider) ? (IsClosed ? null : Platform.StorageProvider) :
             featureType == typeof(ITextInputMethod) ? TextInput :
             featureType == typeof(IWindowInsetsProvider) || featureType == typeof(IWindowHostPolicy) ? this : null;
     public virtual void Show(bool activate, bool isDialog)
@@ -98,7 +100,7 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
             if (ReferenceEquals(ancestor, this)) throw new ArgumentException("Window ownership cannot contain a cycle.", nameof(parent));
         Owner = owner;
     }
-    public void SetEnabled(bool enable) { Verify(); Enabled = enable; Platform.Host?.Update(this); }
+    public void SetEnabled(bool enable) { Verify(); Enabled = enable; Platform.Host?.Update(this); NativeViewHosts.NotifyState(); }
     public void Resize(Size size, WindowResizeReason reason = WindowResizeReason.Application)
     {
         Verify();
@@ -136,13 +138,15 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
     internal void ConfirmGeometry(Size size, double density, PixelPoint origin, Screen display, IPlatformHandle handle)
     {
         Verify();
+        bool wasAttached = Attached;
         bool resized = ClientSize != size, scaled = RenderScaling != density, moved = Position != origin;
         ClientSize = size; RenderScaling = density; Position = origin; Handle = handle; Attached = true;
         screen.Set(display);
         AndroidWindowingPlatform.Complete([
             () => { if (scaled) ScalingChanged?.Invoke(density); },
             () => { if (resized) Resized?.Invoke(size, WindowResizeReason.Unspecified); },
-            () => { if (moved) PositionChanged?.Invoke(origin); }
+            () => { if (moved) PositionChanged?.Invoke(origin); },
+            () => { if (!wasAttached) NativeViewHosts.ConfirmGeometry(); }
         ]);
     }
     internal void ConfirmInsets(WindowInsets value)

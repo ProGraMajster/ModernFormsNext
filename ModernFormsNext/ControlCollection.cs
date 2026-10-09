@@ -466,6 +466,7 @@ public partial class Control
                 newIndex = Count - 1;
 
             MoveElement (child, currentIndex, newIndex);
+            Owner.NotifyNativePresentationChanged();
 
             LayoutTransaction.DoLayout (Owner, child, PropertyNames.ChildIndex);
             Owner.NotifyAccessibilityClients(Accessibility.AccessibleEvents.Reorder);

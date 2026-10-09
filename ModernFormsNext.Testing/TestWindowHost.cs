@@ -42,6 +42,9 @@ public sealed partial class TestWindowHost : IDisposable
     /// <summary>Gets input helpers that route through this window's production backend input callback.</summary>
     public TestInput Input { get; }
 
+    /// <summary>Gets the simulated native-host contract recorder; never creates an OS peer.</summary>
+    public TestNativeViewHostProvider NativeViews => backend.NativeViews;
+
     /// <summary>Gets the original production dialog-result task, or null for a nonmodal window.</summary>
     /// <remarks>
     /// The task completes when Form modal cleanup runs. A canceled Form.Close keeps it pending;

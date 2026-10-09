@@ -514,6 +514,7 @@ public partial class Control
 
     private void InvalidatePresentationChange(RectangleF previous, RectangleF current)
     {
+        NotifyNativePresentationChanged();
         Control compositionOwner = Parent ?? this;
         compositionOwner.SetState(States.IsDirty, true);
 

@@ -33,7 +33,7 @@ public partial class Control
         if (!PerformanceRecorder.ShouldRecordRegions)
             return;
         PerformanceRecorder.RecordRegion(this,
-            PerformanceRootBounds(new RectangleF(0, 0, ScaledWidth, ScaledHeight)), kind);
+            PresentationRootBounds(new RectangleF(0, 0, ScaledWidth, ScaledHeight)), kind);
     }
 
     internal void RecordPerformancePaintRegions(Control parent, SKRect parentClip)
@@ -41,10 +41,10 @@ public partial class Control
         if (!PerformanceRecorder.ShouldRecordRegions)
             return;
 
-        RectangleF bounds = PerformanceRootBounds(new RectangleF(0, 0, ScaledWidth, ScaledHeight));
+        RectangleF bounds = PresentationRootBounds(new RectangleF(0, 0, ScaledWidth, ScaledHeight));
         PerformanceRecorder.RecordRegion(this, bounds, PerformanceRegionKind.ControlBounds);
 
-        RectangleF clip = parent.PerformanceRootBounds(new RectangleF(
+        RectangleF clip = parent.PresentationRootBounds(new RectangleF(
             parentClip.Left, parentClip.Top, parentClip.Width, parentClip.Height));
         clip.Intersect(bounds);
         // Cached child buffers have rectangular extents. Their parent buffers and the
@@ -52,13 +52,13 @@ public partial class Control
         // not an assertion about rounded paths or native partial presentation.
         for (Control? ancestor = parent; ancestor is not null; ancestor = ancestor.Parent)
         {
-            clip.Intersect(ancestor.PerformanceRootBounds(
+            clip.Intersect(ancestor.PresentationRootBounds(
                 new RectangleF(0, 0, ancestor.ScaledWidth, ancestor.ScaledHeight)));
         }
         PerformanceRecorder.RecordRegion(this, clip, PerformanceRegionKind.ClipBounds);
     }
 
-    private RectangleF PerformanceRootBounds(RectangleF localDeviceBounds)
+    internal RectangleF PresentationRootBounds(RectangleF localDeviceBounds, bool devicePixels = false)
     {
         PointF first = new(localDeviceBounds.Left, localDeviceBounds.Top);
         PointF second = new(localDeviceBounds.Right, localDeviceBounds.Top);
@@ -71,19 +71,20 @@ public partial class Control
             second = current.ClientPointToParentPresentation(second);
             third = current.ClientPointToParentPresentation(third);
             fourth = current.ClientPointToParentPresentation(fourth);
-            if (parent is ControlAdapter adapter)
-            {
-                // ControlAdapter.OnPaint adds the managed form-border offset separately
-                // from each child's presentation transform. Mirror the scaled border offset.
-                var border = adapter.ParentForm.CurrentStyle.Border;
-                float x = adapter.LogicalToDeviceUnits(border.Left.GetWidth());
-                float y = adapter.LogicalToDeviceUnits(border.Top.GetWidth());
-                first = new(first.X + x, first.Y + y);
-                second = new(second.X + x, second.Y + y);
-                third = new(third.X + x, third.Y + y);
-                fourth = new(fourth.X + x, fourth.Y + y);
-            }
             current = parent;
+        }
+
+        if (current is ControlAdapter adapter)
+        {
+            // ControlAdapter.OnPaint adds the form-client origin separately from each
+            // child's transform. The same origin includes chrome and platform safe areas.
+            var origin = adapter.ParentForm.DisplayRectangle;
+            float x = adapter.LogicalToDeviceUnits(origin.Left);
+            float y = adapter.LogicalToDeviceUnits(origin.Top);
+            first = new(first.X + x, first.Y + y);
+            second = new(second.X + x, second.Y + y);
+            third = new(third.X + x, third.Y + y);
+            fourth = new(fourth.X + x, fourth.Y + y);
         }
 
         float scale = current.ScaleFactor.Width;
@@ -91,6 +92,7 @@ public partial class Control
         float top = MathF.Min(MathF.Min(first.Y, second.Y), MathF.Min(third.Y, fourth.Y));
         float right = MathF.Max(MathF.Max(first.X, second.X), MathF.Max(third.X, fourth.X));
         float bottom = MathF.Max(MathF.Max(first.Y, second.Y), MathF.Max(third.Y, fourth.Y));
+        if (devicePixels) return RectangleF.FromLTRB(left, top, right, bottom);
         return RectangleF.FromLTRB(left / scale, top / scale, right / scale, bottom / scale);
     }
 }

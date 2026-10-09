@@ -60,6 +60,11 @@ clipboard, file pickers, drag and drop, or the full platform-service set. See
 [Android platform status](docs/platforms/android.md) for the verified support matrix, requirements,
 known limitations, and sample commands.
 
+The source tree also provides [native view hosting](docs/native-view-hosting.md):
+NativeViewHost coordinates real Windows child HWNDs and Android Views through a shared
+presentation/session contract, with explicit rectangular clipping and airspace limitations.
+It is infrastructure for future WebView/Media adapters, independent of the rendering backend.
+
 ## Highlights
 
 - Code-first controls and forms with no XAML.

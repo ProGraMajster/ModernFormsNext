@@ -455,6 +455,7 @@ public partial class Control
                 LayoutTransaction.DoLayout (Parent, this, PropertyNames.PreferredSize);
         }
         measurement.Complete ();
+        NotifyNativePresentationChanged();
         OnLayoutCompleted ();
     }
 
@@ -651,6 +652,8 @@ public partial class Control
             Parent?.Invalidate ();
             Invalidate ();
         }
+
+        if (oldBounds != Bounds) NotifyNativePresentationChanged();
 
         if (newLocation)
             OnLocationChanged (EventArgs.Empty);
