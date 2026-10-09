@@ -116,7 +116,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         _uiaAccessibilityObject = null;
                         try
                         {
-                            try { DisposeTextInputMethod(); }
+                            try { try { nativeViewHosts?.Dispose(); } finally { DisposeTextInputMethod(); } }
                             finally
                             {
                                 try { uiaAccessibilityObject?.Dispose(); }
@@ -815,7 +815,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 case WindowsMessage.WM_KILLFOCUS:
                     _ignoreWmChar = false;
                     try { _textInputMethod?.LoseFocus(); }
-                    finally { LostFocus?.Invoke(); }
+                    finally { if (nativeViewHosts?.Contains(wParam) != true) LostFocus?.Invoke(); }
                     break;
                 case WindowsMessage.WM_SETFOCUS:
                     _textInputMethod?.Refresh();

@@ -333,10 +333,15 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private bool IsMouseInPointerEnabled => _wmPointerEnabled && IsMouseInPointerEnabled();
 
+        private ModernFormsNext.WindowKit.Backend.Windows.WindowsNativeViewHostProvider? nativeViewHosts;
+
         public virtual object? TryGetFeature(Type featureType)
         {
             if (featureType == typeof(ITextInputMethod))
                 return _hwnd == IntPtr.Zero ? null : _textInputMethod ??= new Imm32TextInputMethod(_hwnd, () => RenderScaling);
+
+            if (featureType == typeof(INativeViewHostProvider))
+                return _hwnd == IntPtr.Zero ? null : nativeViewHosts ??= new(_hwnd);
 
             //if (featureType == typeof(INativeControlHostImpl))
             //{
@@ -688,7 +693,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
             SetWindowLongPtr(_hwnd, (int)WindowLongParam.GWL_HWNDPARENT, parentHwnd);
         }
 
-        public void SetEnabled(bool enable) => EnableWindow(_hwnd, enable);
+        public void SetEnabled(bool enable)
+        {
+            EnableWindow(_hwnd, enable);
+            nativeViewHosts?.NotifyState();
+        }
 
         public void BeginMoveDrag(PointerPressedEventArgs e)
         {

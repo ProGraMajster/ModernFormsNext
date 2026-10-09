@@ -222,5 +222,6 @@ public partial class Control
         foreach (float value in scales.Values)
             result *= value;
         interactionScale = result;
+        NotifyNativePresentationChanged();
     }
 }

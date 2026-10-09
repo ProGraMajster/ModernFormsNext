@@ -410,6 +410,7 @@ public partial class Control
         VisualStateLayoutMetrics previous,
         VisualStateLayoutMetrics current)
     {
+        NotifyNativePresentationChanged();
         if (previous == current || GetState(States.Disposing | States.Disposed))
             return;
 

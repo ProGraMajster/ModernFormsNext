@@ -76,13 +76,13 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
     public void Start()
     {
         Verify(); started = true;
-        foreach (var p in presentations.Values.ToArray()) if (!p.Disposed) p.View.StartHost();
+        foreach (var p in presentations.Values.ToArray()) if (!p.Disposed) { p.View.StartHost(); p.Window.NativeViewHosts.NotifyState(); }
     }
     /// <summary>Forwards Activity.OnResume and reacquires native input confirmation.</summary>
     public void Resume()
     {
         Verify(); resumed = true;
-        foreach (var p in presentations.Values.ToArray()) if (!p.Disposed) p.View.ResumeHost();
+        foreach (var p in presentations.Values.ToArray()) if (!p.Disposed) { p.View.ResumeHost(); p.Window.NativeViewHosts.NotifyState(); }
         ActivateTop();
         ConfirmFocus();
     }
@@ -93,6 +93,7 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         AndroidWindowingPlatform.Complete(presentations.Values.ToArray().Select(p => (Action)(() =>
         {
             if (p.Disposed) return;
+            p.Window.NativeViewHosts.NotifyState();
             try { p.Window.ConfirmFocus(false); }
             // Deactivation can synchronously hide this or another popup in the snapshot.
             finally { if (!p.Disposed) p.View.PauseHost(); }
@@ -104,7 +105,7 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         Verify(); started = resumed = false;
         AndroidWindowingPlatform.Complete(presentations.Values.ToArray().Select(p => (Action)(() =>
         {
-            if (!p.Disposed) p.View.StopHost();
+            if (!p.Disposed) { p.View.StopHost(); p.Window.NativeViewHosts.NotifyState(); }
         })));
     }
     /// <summary>Refreshes density, geometry and insets after an in-place configuration change.</summary>
@@ -136,7 +137,9 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         presentations.Add(window, p);
         try
         {
-            container.AddView(p.View, new FrameLayout.LayoutParams(1, 1));
+            container.AddView(p.Root, new FrameLayout.LayoutParams(1, 1));
+            p.ObserveNativeFocus();
+            window.NativeViewHosts.Attach(p.NativeViews);
             window.NativeSurfaces = [p.Framebuffer];
             window.TextInput.Attach(p.View);
             // Native text/geometry callbacks can synchronously hide or close this window.
@@ -166,7 +169,7 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
     void IAndroidWindowHost.Update(AndroidWindowImpl window)
     {
         if (!presentations.TryGetValue(window, out var p)) return;
-        p.View.Enabled = window.Enabled;
+        p.Root.Enabled = p.View.Enabled = window.Enabled;
         if (!window.IsPopup && window.Title is not null) activity.Title = window.Title;
         Layout(p);
     }
@@ -198,7 +201,7 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         // an already-true Activity focus callback. Query the actual attached View hierarchy;
         // resumed alone is not evidence of native input focus.
         focused = container.HasWindowFocus;
-        var focusedWindow = presentations.Values.LastOrDefault(p => p.View.HasFocus)?.Window;
+        var focusedWindow = presentations.Values.LastOrDefault(p => p.Root.HasFocus)?.Window;
         while (focusedWindow?.IsPopup == true) focusedWindow = focusedWindow.Owner;
         foreach (var p in presentations.Values.ToArray())
             p.Window.ConfirmFocus(resumed && focused && ReferenceEquals(p.Window, focusedWindow));
@@ -226,9 +229,9 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
             }
             else { x = (width - w) / 2; y = (height - h) / 2; }
         }
-        if (p.View.LayoutParameters is not FrameLayout.LayoutParams current ||
+        if (p.Root.LayoutParameters is not FrameLayout.LayoutParams current ||
             current.Width != w || current.Height != h || current.LeftMargin != x || current.TopMargin != y)
-            p.View.LayoutParameters = new FrameLayout.LayoutParams(w, h) { LeftMargin = x, TopMargin = y };
+            p.Root.LayoutParameters = new FrameLayout.LayoutParams(w, h) { LeftMargin = x, TopMargin = y };
     }
     private void Clear()
     {
@@ -273,6 +276,9 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         private readonly AndroidActivityHost host;
         internal readonly AndroidWindowImpl Window;
         internal readonly AndroidSkiaHostView View;
+        internal readonly FrameLayout Root;
+        internal readonly AndroidPresentationNativeViews NativeViews;
+        private ViewTreeObserver? focusObserver;
         internal readonly Framebuffer Framebuffer = new();
         private readonly long epoch;
         internal long Epoch => epoch;
@@ -292,7 +298,20 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
             View.KeyboardStateReset += Reset;
             View.InsetsChanged += Insets;
             View.FocusChange += Focus;
+            Root = new FrameLayout(host.activity);
+            Root.SetClipChildren(true);
+            Root.AddView(View, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
+            NativeViews = new(Root, View, () => Current, () => host.started && host.resumed, () => Window.Enabled);
             View.LayoutChange += Geometry;
+        }
+        internal void ObserveNativeFocus()
+        {
+            if (Disposed || focusObserver is not null || !Root.IsAttachedToWindow) return;
+            // Before attachment Android exposes a floating observer that is merged into the
+            // window observer. Subscribe to the attached instance and retain that exact wrapper
+            // for unsubscription; using two wrappers would retain the retired presentation.
+            focusObserver = Root.ViewTreeObserver;
+            if (focusObserver is not null) focusObserver.GlobalFocusChange += NativeFocus;
         }
         private bool Current => !Disposed && host.Current && !Window.IsClosed && Window.Visible && Window.PresentationEpoch == epoch;
         private IWindowSurfaceInput? Input => Window.InputRoot as IWindowSurfaceInput;
@@ -300,6 +319,7 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         internal void UpdateGeometry()
         {
             if (!Current || View.Width <= 0 || View.Height <= 0) return;
+            ObserveNativeFocus();
             int[] origin = new int[2]; View.GetLocationOnScreen(origin);
             var metrics = View.Resources!.DisplayMetrics!;
             Window.ScaledDensity = View.ScaledDensity;
@@ -338,6 +358,9 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
             (Input?.Key(e.PlatformKey, e.Modifiers, e.IsDown, !e.IsHardwareKey, e.IsDeadKey, e.IsCanceled) ?? false);
         private void Reset(object? sender, EventArgs e) { if (!Disposed) Input?.CancelInput(); }
         private void Insets(object? sender, WindowInsetsChangedEventArgs e) { if (Current) Window.ConfirmInsets(e.Insets); }
+        private void NativeFocus(object? sender, ViewTreeObserver.GlobalFocusChangeEventArgs e)
+        { if (Current) Root.Post(() => { if (Current) host.ConfirmFocus(); }); }
+
         private void Focus(object? sender, NativeView.FocusChangeEventArgs e)
         {
             // Android delivers old-view loss before new-view gain. Observe the completed native
@@ -348,15 +371,21 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
         {
             if (Disposed) return;
             Disposed = true;
+            if (focusObserver?.IsAlive == true) focusObserver.GlobalFocusChange -= NativeFocus;
+            focusObserver = null;
             View.Render -= Render; View.Pointer -= Pointer; View.KeyboardStateReset -= Reset;
             View.InsetsChanged -= Insets; View.FocusChange -= Focus; View.LayoutChange -= Geometry;
             AndroidWindowingPlatform.Complete([
+                NativeViews.Dispose,
+                () => Window.NativeViewHosts.Detach(NativeViews),
                 () => Window.RetirePresentation(epoch),
                 () => Window.TextInput.Detach(View),
                 () => View.KeyInputHandler = null,
                 () => View.AccessibilityHost = null,
-                () => host.container.RemoveView(View),
+                () => host.container.RemoveView(Root),
+                () => Root.RemoveView(View),
                 View.Dispose,
+                Root.Dispose,
                 Framebuffer.Dispose
             ]);
         }

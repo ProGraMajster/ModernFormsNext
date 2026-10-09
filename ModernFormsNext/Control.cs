@@ -131,6 +131,7 @@ namespace ModernFormsNext
 
                 // Update the parent
                 parent = value;
+                NotifyNativePresentationChanged();
                 if (previousParent is not null && value is null)
                     CancelOwnedControlAnimationsForSubtree();
                 RefreshResourceBindingsForSubtree ();
@@ -1130,20 +1131,22 @@ namespace ModernFormsNext
             var sh = bounds.Height;
 
             // Scale the control location (unless this is the top level adapter)
+            // Bit tests preserve flag semantics without Enum.HasFlag boxing in Debug/native
+            // presentation probes; geometry may be read repeatedly while ancestors change.
             if (FindAdapter () != this) {
-                if (specified.HasFlag (BoundsSpecified.X))
+                if ((specified & BoundsSpecified.X) != 0)
                     sx = left;
-                if (specified.HasFlag (BoundsSpecified.Y))
+                if ((specified & BoundsSpecified.Y) != 0)
                     sy = top;
             }
 
             // Don't just scale the Width/Height as it might round incorrectly
-            if (specified.HasFlag (BoundsSpecified.Width)) {
+            if ((specified & BoundsSpecified.Width) != 0) {
                 var right = (int)Math.Round ((bounds.Right) * dx, MidpointRounding.ToZero);
                 sw = right - left;
             }
 
-            if (specified.HasFlag (BoundsSpecified.Height)) {
+            if ((specified & BoundsSpecified.Height) != 0) {
                 var bottom = (int)Math.Round ((bounds.Bottom) * dy, MidpointRounding.ToZero);
                 sh = bottom - top;
             }
@@ -1218,6 +1221,7 @@ namespace ModernFormsNext
         /// <param name="rectangle">The damaged rectangle in control-local device pixels, as used by painting.</param>
         public void Invalidate (Rectangle rectangle)
         {
+            NotifyNativePresentationInvalidated();
             if (!Created)
                 return;
 
@@ -1431,6 +1435,7 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnEnabledChanged (EventArgs e)
         {
+            NotifyNativePresentationChanged();
             if (!Enabled) {
                 pressedPointerIds?.Clear ();
                 pointerPressed = false;
@@ -1858,6 +1863,7 @@ namespace ModernFormsNext
         /// </summary>
         protected virtual void OnVisibleChanged (EventArgs e)
         {
+            NotifyNativePresentationChanged();
             CreateControl ();
             // A hidden child retains its cache but no longer participates in NeedsPaint.
             // Erase its previous pixels in the parent's composition when visibility changes.
