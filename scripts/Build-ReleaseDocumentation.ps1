@@ -315,18 +315,7 @@ if (Test-Path -LiteralPath $workingRoot) {
 [IO.Directory]::CreateDirectory($workingRoot) | Out-Null
 
 try {
-    $apiAssemblies = @(
-        [pscustomobject]@{ Id = 'ModernFormsNext'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.Automation'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.Automation.Windows'; Tfm = 'net10.0-windows' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.CodeGeneration'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.Designer'; Tfm = 'net10.0-windows' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.Designing'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.Testing'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend'; Tfm = 'net10.0' },
-        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend.Windows'; Tfm = 'net10.0' }
-    )
+    $apiAssemblies = @(Get-ReleaseApiAssemblySpecs)
 
     foreach ($assembly in $apiAssemblies) {
         $assemblyDirectory = Join-Path $repositoryRoot "$($assembly.Id)/bin/$Configuration/$($assembly.Tfm)"
@@ -389,6 +378,13 @@ See the [samples guide](../../docs/samples.md) for its role and repository run i
         '(?m)^\[!\[[^\r\n]+\]\(https?://[^\r\n]+\)\]\([^\r\n]+\)\r?\n',
         '')
     Write-Utf8File -Path $offlineReadmePath -Content $offlineReadme
+    $stagedContentRoot = Join-Path $docfxSource 'content'
+    $sourceLinkFiles = @((Get-GitOutput -ArgumentList @('ls-files')) -split "`n")
+    foreach ($document in Get-ChildItem -LiteralPath $stagedContentRoot -Recurse -Filter '*.md' -File) {
+        $content = ConvertTo-ReleaseSourceLinks -Content ([IO.File]::ReadAllText($document.FullName)) `
+            -DocumentPath $document.FullName -ContentRoot $stagedContentRoot -RepositoryRoot $repositoryRoot -Commit $Commit -RepositoryFiles $sourceLinkFiles
+        Write-Utf8File -Path $document.FullName -Content $content
+    }
     [IO.File]::Copy((Join-Path $repositoryRoot 'docs-site/index.md'), (Join-Path $docfxSource 'index.md'), $true)
     [IO.File]::Copy((Join-Path $repositoryRoot 'docs-site/toc.yml'), (Join-Path $docfxSource 'toc.yml'), $true)
 
@@ -398,10 +394,32 @@ See the [samples guide](../../docs/samples.md) for its role and repository run i
             files = @("$($_.Id).dll")
         }
     })
+    # Native Android signatures require compile-time SDK/NuGet/resource-designer references.
+    # Resolve them through MSBuild instead of guessing machine-specific pack/cache paths.
+    # These are resolution inputs only, never additional documented assemblies or ZIP payloads.
+    $referenceJson = & dotnet msbuild (Join-Path $repositoryRoot 'ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj') `
+        "-p:Configuration=$Configuration" '-p:TargetFramework=net10.0-android' '-p:BuildProjectReferences=false' `
+        '-t:ResolveReferences' '-getItem:ReferencePath' '-verbosity:quiet'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not resolve the Android API documentation references.'
+    }
+    $referenceItems = ($referenceJson -join "`n" | ConvertFrom-Json).Items.ReferencePath
+    $metadataReferences = @($referenceItems | Where-Object {
+        # DocFX supplies its own core framework references. Mixing in SDK reference facades
+        # shadows that core type universe; add only project/platform/NuGet resolution inputs.
+        $apiAssemblies.Id -cnotcontains $_.Filename -and -not (
+            $_.PSObject.Properties.Name -contains 'FrameworkReferenceName' -and
+            $_.FrameworkReferenceName -ceq 'Microsoft.NETCore.App')
+        } |
+        ForEach-Object {
+            # DocFX glob patterns are relative to src; absolute paths in files do not match.
+            [ordered]@{ src = [IO.Path]::GetDirectoryName($_.FullPath); files = @([IO.Path]::GetFileName($_.FullPath)) }
+        })
     $docfxConfig = [ordered]@{
         metadata = @(
             [ordered]@{
                 src = $metadataSources
+                references = $metadataReferences
                 dest = 'api'
                 namespaceLayout = 'flattened'
                 memberLayout = 'samePage'

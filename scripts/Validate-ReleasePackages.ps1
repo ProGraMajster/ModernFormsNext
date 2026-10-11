@@ -28,9 +28,12 @@ $packageSpecs = @(
     [pscustomobject]@{ Id = "ModernFormsNext.Designer"; Frameworks = @("net10.0-windows"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Designing"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Testing"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
+    [pscustomobject]@{ Id = "ModernFormsNext.SystemNotifications.AppSdk"; Frameworks = @("net10.0-windows10.0.26100"); Symbols = $true; Template = $false },
+    [pscustomobject]@{ Id = "ModernFormsNext.SystemNotifications.WinRT"; Frameworks = @("net10.0-windows10.0.26100"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.Templates"; Frameworks = @(); Symbols = $false; Template = $true },
     [pscustomobject]@{ Id = "ModernFormsNext.WindowKit"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.WindowKit.Backend"; Frameworks = @("net10.0"); Symbols = $true; Template = $false },
+    [pscustomobject]@{ Id = "ModernFormsNext.WindowKit.Backend.Android"; Frameworks = @("net10.0", "net10.0-android"); Symbols = $true; Template = $false },
     [pscustomobject]@{ Id = "ModernFormsNext.WindowKit.Backend.Windows"; Frameworks = @("net10.0"); Symbols = $true; Template = $false }
 )
 
@@ -98,7 +101,7 @@ function Assert-SafeArchiveEntries {
     foreach ($entry in $Archive.Entries) {
         $name = $entry.FullName.Replace('\', '/')
         if ($name -match '(^|/)(bin|obj|\.vs)(/|$)' `
-            -or $name -match '\.(user|suo|apk|vsix|tmp|cache)$' `
+            -or $name -match '\.(user|suo|apk|aab|keystore|jks|pfx|vsix|tmp|cache)$' `
             -or $name -match '(^|/)(tmp|temp)(/|$)' `
             -or $name -match '^[A-Za-z]:/' `
             -or $name.StartsWith('/')) {
@@ -127,7 +130,9 @@ function Test-FrameworkEntry {
     )
 
     $escapedFramework = [regex]::Escape($Framework)
-    $frameworkSuffix = if ($Framework.EndsWith('-windows', [StringComparison]::Ordinal)) { '[^/]*' } else { '' }
+    # NuGet normalizes platform TFMs with their platform version (for example android36.0).
+    # Match only a numeric version suffix, never another platform or arbitrary TFM text.
+    $frameworkSuffix = if ($Framework -match '^net\d+\.\d+-[a-z]+$') { '(?:\d+(?:\.\d+)*)?' } else { '' }
     return $EntryName -match "^lib/$escapedFramework$frameworkSuffix/$([regex]::Escape($FileName))$"
 }
 

@@ -83,6 +83,22 @@ try {
 
     $sampleSpecs = @(Get-ReleaseSampleSpecs)
     Assert-Equal 4 $sampleSpecs.Count 'The public sample selection must remain intentional.'
+    $apiSpecs = @(Get-ReleaseApiAssemblySpecs)
+    $androidApi = @($apiSpecs | Where-Object Id -CEQ 'ModernFormsNext.WindowKit.Backend.Android')
+    Assert-Equal 1 $androidApi.Count 'Android API documentation must have exactly one surface.'
+    Assert-Equal 'net10.0-android' $androidApi[0].Tfm 'Android API documentation must include native public types.'
+    Assert-Equal $apiSpecs.Count @($apiSpecs.Id | Sort-Object -Unique).Count 'API documentation inputs must not duplicate assemblies.'
+    $sourceRepo = Join-Path $temporaryRoot 'link-repository'
+    $stagedContent = Join-Path $temporaryRoot 'link-content'
+    Write-Utf8File (Join-Path $sourceRepo 'Thing.cs') 'public class Thing {}'
+    Write-Utf8File (Join-Path $stagedContent 'docs/guide.md') '# Guide'
+    Write-Utf8File (Join-Path $stagedContent 'docs/local.md') '# Local'
+    $linkResult = ConvertTo-ReleaseSourceLinks -Content '[source](../Thing.cs#L1) [local](local.md) [missing](missing.md) [web](https://example.com)' `
+        -DocumentPath (Join-Path $stagedContent 'docs/guide.md') -ContentRoot $stagedContent -RepositoryRoot $sourceRepo -Commit '0123456789abcdef0123456789abcdef01234567' -RepositoryFiles @('Thing.cs')
+    Assert-True ($linkResult.Contains('/blob/0123456789abcdef0123456789abcdef01234567/Thing.cs#L1')) 'Source links must bind to the exact commit.'
+    Assert-True ($linkResult.Contains('[local](local.md)')) 'Offline document links must remain local.'
+    Assert-True ($linkResult.Contains('[missing](missing.md)')) 'Broken links must remain visible to the validator.'
+    Assert-True ($linkResult.Contains('[web](https://example.com)')) 'Existing online links must stay unchanged.'
     Assert-True ($sampleSpecs.Source -ccontains 'samples/ControlGallery') 'ControlGallery must be selected.'
     Assert-True ($sampleSpecs.Destination -ccontains 'reference/ModernFormsNext.DemoApp') 'The template app must remain clearly separated as a reference.'
     Assert-True (-not ($sampleSpecs.Source -ccontains 'samples/ModernFormsNext.DesignerPlayground')) 'DesignerPlayground must not leak into the public samples bundle.'

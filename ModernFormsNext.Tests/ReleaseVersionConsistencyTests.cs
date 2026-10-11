@@ -21,6 +21,7 @@ public sealed class ReleaseVersionConsistencyTests
         "ModernFormsNext.Templates/ModernFormsNext.Templates.csproj",
         "ModernFormsNext.WindowKit/ModernFormsNext.WindowKit.csproj",
         "ModernFormsNext.WindowKit.Backend/ModernFormsNext.WindowKit.Backend.csproj",
+        "ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj",
         "ModernFormsNext.WindowKit.Backend.Windows/ModernFormsNext.WindowKit.Backend.Windows.csproj"
     ];
 
@@ -108,6 +109,38 @@ public sealed class ReleaseVersionConsistencyTests
         Assert.Equal("false", ElementValue(template, "IncludeSymbols"));
         Assert.True(template.Descendants().Any(HasPackedFile("README.md")), "Template package must pack README.md.");
         Assert.True(template.Descendants().Any(HasPackedFile("icon.png")), "Template package must pack icon.png.");
+    }
+
+    [Fact]
+    public void PackageValidatorInventoryMatchesEveryPackableProject()
+    {
+        string script = File.ReadAllText(IOPath.Combine(RepositoryFileEnumerator.FindRepositoryRoot(), "scripts/Validate-ReleasePackages.ps1"));
+        string[] ids = System.Text.RegularExpressions.Regex.Matches(script, "Id = \\\"(?<id>ModernFormsNext[^\\\"]*)\\\"")
+            .Select(match => match.Groups["id"].Value).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(PackableProjects.Select(path => IOPath.GetFileNameWithoutExtension(path)).Order(StringComparer.Ordinal), ids);
+    }
+
+    [Fact]
+    public void AndroidPackagePreservesBothSurfacesAndExperimentalPolicy()
+    {
+        XDocument project = LoadXml("ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj");
+        Assert.Equal("true", ElementValue(project, "IsPackable"));
+        Assert.Equal("false", ElementValue(project, "GeneratePackageOnBuild"));
+        Assert.Equal("ModernFormsNext.WindowKit.Backend.Android", ElementValue(project, "PackageId"));
+        Assert.Equal("net10.0;net10.0-android", ElementValue(project, "TargetFrameworks"));
+        Assert.Equal("23.0", ElementValue(project, "SupportedOSPlatformVersion"));
+        Assert.Contains("Experimental", ElementValue(project, "Description"), StringComparison.Ordinal);
+        Assert.Contains("experimental", ElementValue(project, "PackageTags"), StringComparison.Ordinal);
+        Assert.NotEqual("true", ElementValue(project, "DevelopmentDependency"));
+        XDocument manifest = LoadXml("ModernFormsNext.WindowKit.Backend.Android/Properties/AndroidManifest.xml");
+        XNamespace android = "http://schemas.android.com/apk/res/android";
+        XElement sdk = Assert.Single(manifest.Root!.Elements("uses-sdk"));
+        Assert.Equal("23", sdk.Attribute(android + "minSdkVersion")?.Value);
+        Assert.Equal("36", sdk.Attribute(android + "targetSdkVersion")?.Value);
+        Assert.Empty(manifest.Root.Elements("uses-permission"));
+        Assert.Empty(manifest.Root.Elements("application"));
+        string script = File.ReadAllText(IOPath.Combine(RepositoryFileEnumerator.FindRepositoryRoot(), "scripts/Validate-ReleasePackages.ps1"));
+        Assert.Contains("Id = \"ModernFormsNext.WindowKit.Backend.Android\"; Frameworks = @(\"net10.0\", \"net10.0-android\"); Symbols = $true; Template = $false", script, StringComparison.Ordinal);
     }
 
     [Fact]

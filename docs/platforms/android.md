@@ -10,6 +10,12 @@ tree to a SkiaSharp surface and exercise framework layout, rendering, input, and
 The current source tree additionally provides an experimental
 [Application/Form window backend](../android-windowing.md); its mobile policy is not desktop parity.
 
+`ModernFormsNext.WindowKit.Backend.Android` is prepared as an **Experimental** NuGet package for
+the next release, retaining both `net10.0` deterministic logic and the `net10.0-android` native
+surface. It is not available in the already-published 1.11.1 release. See
+[package consumption and manifest contributions](../android-backend.md#nuget-package-experimental).
+Windows remains the primary stable backend; package availability does not imply production readiness.
+
 ## Supported target
 
 | Item | Current status |

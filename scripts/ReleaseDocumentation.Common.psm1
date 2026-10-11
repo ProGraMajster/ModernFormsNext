@@ -49,6 +49,51 @@ function Get-ReleaseSampleSpecs {
     )
 }
 
+function Get-ReleaseApiAssemblySpecs {
+    [CmdletBinding()]
+    param()
+
+    return @(
+        [pscustomobject]@{ Id = 'ModernFormsNext'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Automation'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Automation.Windows'; Tfm = 'net10.0-windows' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.CodeGeneration'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Designer'; Tfm = 'net10.0-windows' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Designing'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.Testing'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend'; Tfm = 'net10.0' },
+        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend.Windows'; Tfm = 'net10.0' },
+        # Select the platform surface once; combining both TFMs would duplicate DocFX UIDs.
+        [pscustomobject]@{ Id = 'ModernFormsNext.WindowKit.Backend.Android'; Tfm = 'net10.0-android' }
+    )
+}
+
+function ConvertTo-ReleaseSourceLinks {
+    <# .SYNOPSIS
+    Binds valid checkout-source links omitted from the offline site to the exact release commit.
+    Missing files remain unchanged so DocFX still rejects broken documentation links.
+    #>
+    param([string]$Content, [string]$DocumentPath, [string]$ContentRoot, [string]$RepositoryRoot, [string]$Commit, [string[]]$RepositoryFiles)
+    $root = [IO.Path]::GetFullPath($ContentRoot).TrimEnd([char[]]@('/', [char]92)) + [IO.Path]::DirectorySeparatorChar
+    return [regex]::Replace($Content, '(?<prefix>(?<!!)!?\[[^\]\r\n]*\]\()(?<target>[^\s)]+)(?<suffix>\))', {
+        param($match)
+        $target = $match.Groups['target'].Value
+        if ($match.Groups['prefix'].Value.StartsWith('!') -or $target -match '^(?:#|/|~|[A-Za-z][A-Za-z0-9+.-]*:)') { return $match.Value }
+        $parts = $target -split '(?=[?#])', 2
+        $resolved = [IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $DocumentPath) ([Uri]::UnescapeDataString($parts[0]))))
+        if (-not $resolved.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { return $match.Value }
+        $extension = [IO.Path]::GetExtension($resolved)
+        if ($extension -match '^(?i:\.md|\.png|\.jpg|\.jpeg|\.gif|\.svg|\.json)$' -and [IO.File]::Exists($resolved)) { return $match.Value }
+        $relative = [IO.Path]::GetRelativePath($root, $resolved).Replace([char]92, '/')
+        if ($RepositoryFiles -cnotcontains $relative) { return $match.Value }
+        if (-not [IO.File]::Exists((Join-Path $RepositoryRoot $relative))) { return $match.Value }
+        $fragment = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+        $encodedPath = ($relative.Split('/') | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
+        return "$($match.Groups['prefix'].Value)https://github.com/ProGraMajster/ModernFormsNext/blob/$Commit/$encodedPath$fragment$($match.Groups['suffix'].Value)"
+    })
+}
+
 function Resolve-ReleaseNotesFile {
     [CmdletBinding()]
     param(

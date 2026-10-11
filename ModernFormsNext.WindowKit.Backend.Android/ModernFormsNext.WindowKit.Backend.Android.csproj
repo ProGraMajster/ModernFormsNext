@@ -5,8 +5,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>ModernFormsNext.WindowKit.Backend.Android</PackageId>
+    <Title>ModernFormsNext WindowKit Android Backend</Title>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Product>ModernFormsNext.WindowKit.Backend.Android</Product>
+    <Description>Experimental Android backend implementation for ModernFormsNext WindowKit. The Android backend is under active development and APIs, behavior and platform support may change between releases.</Description>
+    <PackageTags>ui;windowing;framework;modernforms;windowkit;backend;android;experimental</PackageTags>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\icon.png" Pack="true" PackagePath="\" Link="icon.png" />
+    <None Include="..\README.md" Pack="true" PackagePath="\" Link="README.md" />
+  </ItemGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>

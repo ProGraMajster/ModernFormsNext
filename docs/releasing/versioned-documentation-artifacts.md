@@ -95,9 +95,13 @@ landing page and navigation live under `docs-site/`. The build script creates an
 DocFX source tree instead of writing generated `api/` or `_site/` content into the repository.
 
 API metadata is generated from the already-built Release DLLs and their XML documentation for the
-eight published library packages. Templates, tests, samples, designer hosts, backend tools, and
-the unpublished experimental Android backend are excluded. DocFX's default public/protected API
-filter remains enabled.
+library inventory returned by `Get-ReleaseApiAssemblySpecs`. Templates, tests, samples, designer
+hosts, and backend tools are excluded. The **Experimental** Android backend uses only
+`net10.0-android`, including its native public surface; its neutral target is not combined into
+DocFX, avoiding duplicate API identifiers. DocFX's default public/protected API filter remains enabled.
+MSBuild supplies the Android compile-time reference paths, including Java.Interop, SkiaSharp and
+the generated resource designer. DocFX uses them only to resolve signatures; they are not API
+documentation inputs or bundled dependency binaries. Missing references remain blocking errors.
 
 The build also writes `reference/public-api.txt` and `reference/public-api.json` from the DocFX
 managed-reference identifiers. These stable, machine-readable snapshots are intended for future
@@ -107,6 +111,9 @@ The validator checks every local HTML/CSS resource target, rejects root-relative
 CSS/JavaScript/image dependencies, and requires `index.html` plus `api/index.html`. Normal outbound
 article links may remain online links. The generated site does not assume a domain root, so the
 same site can later be deployed below a version-specific path.
+Links to existing repository source files omitted from the HTML payload are bound to the exact
+release commit on GitHub during staging. Local document/resource links remain offline; nonexistent
+targets remain unchanged and continue to fail DocFX validation. No source-document links are removed.
 
 DocFX can emit links for empty intermediate namespace segments even though it creates no page for
 those synthetic namespaces. A narrow post-process converts only those missing links in the API
@@ -125,8 +132,9 @@ During staging, repository `ProjectReference` items are replaced with exact-vers
 prevents examples from silently consuming a later framework build.
 
 `ModernFormsNext.DesignerPlayground` is an internal validation host. The Android smoke test is a
-technical backend host. The cross-platform sample depends on the unpublished Android backend and
-repository-level scripts. Those projects remain in the tagged source checkout and versioned docs,
+technical backend host. The cross-platform sample still relies on repository-level validation
+scripts and is not selected by `Get-ReleaseSampleSpecs`, even though the next release prepares an
+Experimental Android package. No unused Android conversion rule is added. Those projects remain in the tagged source checkout and versioned docs,
 but are not copied into a misleading standalone samples bundle.
 
 To add a sample, update `Get-ReleaseSampleSpecs` in

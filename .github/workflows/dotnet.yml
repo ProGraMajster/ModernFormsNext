@@ -48,6 +48,10 @@ jobs:
         shell: pwsh
         run: ./scripts/tests/Test-ReleaseDocumentation.ps1
 
+      - name: Test release package scripts
+        shell: pwsh
+        run: ./scripts/tests/Test-ReleasePackages.ps1
+
       - name: Setup .NET
         if: steps.changes.outputs.full != 'false'
         uses: actions/setup-dotnet@v4
@@ -57,6 +61,23 @@ jobs:
       - name: .NET Info
         if: steps.changes.outputs.full != 'false'
         run: dotnet --info
+
+      - name: Setup Java
+        if: steps.changes.outputs.full != 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        if: steps.changes.outputs.full != 'false'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Install Android workload
+        if: steps.changes.outputs.full != 'false'
+        run: dotnet workload install android --version 10.0.401.1
 
       - name: Restore
         if: steps.changes.outputs.full != 'false'

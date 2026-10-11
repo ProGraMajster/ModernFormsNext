@@ -207,8 +207,11 @@ The 1.11.1 release is composed of these intentionally published NuGet packages:
 | [`ModernFormsNext.CodeGeneration`](https://www.nuget.org/packages/ModernFormsNext.CodeGeneration) | C# designer generation and conservative reverse parsing. |
 | [`ModernFormsNext.Designer`](https://www.nuget.org/packages/ModernFormsNext.Designer) | Reusable Windows designer shell and services. |
 
-The experimental Android backend project is currently source-built in this repository and is not
-declared as a publishable NuGet package.
+The next release adds `ModernFormsNext.WindowKit.Backend.Android` as an **Experimental** NuGet
+package with `net10.0` and `net10.0-android` assets. It is not part of the already-published 1.11.1
+release. Use the same version as the other ModernFormsNext packages after that release is published;
+see [Android package consumption](docs/android-backend.md#nuget-package-experimental).
+APIs, behavior, and platform support may change. Windows remains the primary stable backend.
 
 ## Documentation
 
