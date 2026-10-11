@@ -19,6 +19,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 
 - [UserControls](user-controls.md)
 - [Data binding](data-binding.md)
+- [Shared item virtualization foundation](virtualization.md) — indexed geometry and recycling; control integration remains in progress.
 - [Commands, shortcuts, and input routing](commands.md)
 - [Text input and composition](text-input.md)
 - [RichTextBox](richtextbox.md)

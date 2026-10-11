@@ -30,6 +30,8 @@
     href: content/docs/user-controls.md
   - name: Data binding
     href: content/docs/data-binding.md
+  - name: Item virtualization foundation
+    href: content/docs/virtualization.md
   - name: Commands and shortcuts
     href: content/docs/commands.md
   - name: Text input and composition
