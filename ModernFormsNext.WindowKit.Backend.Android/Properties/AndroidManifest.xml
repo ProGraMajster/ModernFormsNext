@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="modernformsnext.windowkit.backend.android">
+  <!-- AAR manifests are merged without the csproj's platform properties. Without targetSdkVersion
+       the merger treats this as an ancient library and implicitly adds storage/phone permissions.
+       Keep these aligned with the net10.0-android API 36 target and its existing API 23 minimum. -->
+  <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="36" />
   <!-- This library intentionally declares no feature permissions. Camera, microphone, media,
        location, notifications, and nearby-device access are opt-in application capabilities. -->
   <!-- Narrow handler visibility for service preflight on Android 11+. Custom URI schemes

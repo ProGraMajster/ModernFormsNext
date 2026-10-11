@@ -13,6 +13,44 @@ Windows remains the primary and best-supported runtime. The Android project targ
 See [Android platform services](android-platform-services.md) for the authoritative SAF, launcher,
 sharing, notification and message-dialog policy, including cancellation and custom Activity hooks.
 
+## NuGet package (Experimental)
+
+`ModernFormsNext.WindowKit.Backend.Android` is prepared for the next coordinated release.
+The already-published 1.11.1 release does not include it. After the next release, use
+`PackageReference` with exactly the same version as the other ModernFormsNext packages:
+
+```xml
+<PackageReference Include="ModernFormsNext.WindowKit.Backend.Android"
+                  Version="&lt;matching ModernFormsNext version&gt;" />
+```
+
+Status: **Experimental**. APIs, behavior, and platform support may change between releases.
+Windows remains the primary stable backend. Package availability is not a production-readiness claim.
+
+The package contains DLL/XML documentation for `net10.0` (deterministic mapping/lifecycle logic)
+and `net10.0-android` (native platform implementation), plus portable PDBs in `.snupkg`.
+As a published library it now follows the central assembly/file identity policy, replacing the
+source-only project's SDK default assembly version with `ModernFormsNextAssemblyVersion`.
+The Android target retains minimum API 23. NuGet may normalize the asset folder to
+`net10.0-android36.0`; 36 is the compile-time platform version, not the minimum device API.
+Both dependency groups retain matching-version WindowKit and Backend packages. Only the Android
+group adds `SkiaSharp.Views` 3.119.2 and `System.Formats.Nrbf` 10.0.10. Native assets flow through
+those dependencies rather than copied third-party DLLs in this package.
+
+The library manifest contributes narrow `<queries>` intents for SAF documents/directories,
+HTTP(S), mail, dial, content launch, and sharing. It declares no permissions, launcher Activity,
+application override, camera/microphone/storage/notification grants, or accessibility service.
+The AAR explicitly records minimum SDK 23 and target SDK 36. This prevents Android's manifest
+merger from treating an unspecified library target as legacy and injecting storage/phone
+permissions. The application still owns its target SDK and capabilities.
+Applications still declare and request their own opt-in capabilities. This does not replace the
+application manifest or the [permission contract](android-permissions.md).
+
+For a local release dry-run, run `scripts/Test-AndroidPackageConsumer.ps1` against the validated
+local feed. It uses fresh isolated caches, no ProjectReferences, both TFMs, and real Debug APK,
+Release APK/AAB builds with Release AOT/trimming enabled. No device or publication is required.
+Keep the existing sample's Android-compatible HarfBuzz override when using shared text rendering.
+
 ## Startup
 
 Initialize on the Android main thread from the native Application's `OnCreate`, before accessing

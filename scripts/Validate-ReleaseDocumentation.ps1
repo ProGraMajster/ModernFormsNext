@@ -283,6 +283,14 @@ foreach ($spec in $specs) {
                 foreach ($required in @('README.md', 'CHANGELOG.md', 'docs/getting-started.md', 'reference/xml/ModernFormsNext.xml', 'reference/public-api.txt', 'reference/public-api.json')) {
                     Assert-ArchiveEntry -Archive $archive -EntryName "$($spec.Root)/$required"
                 }
+                foreach ($assembly in Get-ReleaseApiAssemblySpecs) {
+                    Assert-ArchiveEntry -Archive $archive -EntryName "$($spec.Root)/reference/xml/$($assembly.Id).xml"
+                }
+                $apiSnapshot = Get-ArchiveEntryText -Archive $archive -EntryName "$($spec.Root)/reference/public-api.json" | ConvertFrom-Json
+                if ($apiSnapshot.assemblies -cnotcontains 'ModernFormsNext.WindowKit.Backend.Android' `
+                    -or $apiSnapshot.symbols -cnotcontains 'T:ModernFormsNext.WindowKit.Backend.Android.AndroidNativeViewSite') {
+                    throw 'Release API snapshot is missing the native Android package surface.'
+                }
             }
             'docs-html' {
                 Assert-HtmlArchiveLayout -Archive $archive -RootDirectoryName $spec.Root

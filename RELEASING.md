@@ -129,6 +129,31 @@ dotnet pack .\ModernFormsNext.slnx --configuration Release --no-build --output .
 
 The template package intentionally has no `.snupkg`; published library packages should have one.
 
+The current inventory is 14 `.nupkg` and 13 `.snupkg`, derived from the validator's package specs.
+This includes the two existing optional notification packages and the new
+`ModernFormsNext.WindowKit.Backend.Android` package, **Experimental**, with `net10.0` and
+`net10.0-android` assets and minimum API 23. Windows remains the primary stable backend.
+Android is prepared for the next release; do not republish the already-used 1.11.1 version.
+The release and full PR jobs explicitly install JDK 21, Android platform/build-tools 36, and
+workload set 10.0.401.1 (Android 36.1.69). No emulator or separate publisher is added.
+
+Validate the package as an isolated consumer after packing:
+
+```powershell
+.\scripts\Test-AndroidPackageConsumer.ps1 -PackageDirectory .\.codex-pack `
+    -OutputDirectory .\artifacts\android-backend-nuget\consumers
+```
+
+The script checks both TFMs, exact internal versions, manifest contributions, and standalone
+Debug APK / Release APK and AAB with AOT/trimming, using only local/public feeds and fresh caches.
+Inspect the packaged portable PDB SourceLink records as well as the nuspec. Existing API checks
+do not configure a general release-to-release ApiCompat baseline; compare both Android TFMs
+against the release base separately when qualifying packaging changes. DocFX selects the native
+Android surface once to avoid duplicate pages.
+
+Before first publication, the maintainer must confirm the existing nuget.org Trusted Publishing
+policy permits creation of this new package ID by the existing tag workflow. No API keys are added.
+
 Versioned documentation and sample artifacts are also mandatory release inputs. Restore the pinned
 DocFX tool, run the script tests, build the four ZIP files from the Release outputs, and validate
 them before creating a tag:

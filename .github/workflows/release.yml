@@ -31,6 +31,21 @@ jobs:
       - name: .NET Info
         run: dotnet --info
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Install Android workload
+        # Pin the workload set as well as the SDK; this set includes Android 36.1.69.
+        run: dotnet workload install android --version 10.0.401.1
+
       - name: Restore
         # A fresh hosted runner and no package-cache action form the final gate.
         run: dotnet restore ModernFormsNext.slnx --force --no-cache
@@ -54,6 +69,10 @@ jobs:
       - name: Test release documentation scripts
         shell: pwsh
         run: .\scripts\tests\Test-ReleaseDocumentation.ps1
+
+      - name: Test release package scripts
+        shell: pwsh
+        run: .\scripts\tests\Test-ReleasePackages.ps1
 
       - name: Build versioned documentation artifacts
         shell: pwsh
