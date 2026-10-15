@@ -334,6 +334,14 @@ public partial class Control
             if (Owner is not { } owner)
                 return null;
 
+            if (owner is ListView { VirtualizationEnabled: true } listView)
+            {
+                int index = listView.GetFocusedItemIndex();
+                return index >= 0 && index < listView.Items.Count
+                    ? GetListViewItemObject(listView, listView.Items[index])
+                    : listView.Focused ? this : null;
+            }
+
             foreach (AccessibleObject child in EnumerateActiveChildren())
             {
                 if ((child.State & AccessibleStates.Focused) != 0)

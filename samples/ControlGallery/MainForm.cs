@@ -43,6 +43,7 @@ namespace ControlGallery
             tree.Items.Add("LinkLabel", ImageLoader.Get("button.png"));
             tree.Items.Add ("ListBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ListView", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Virtualization", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MarkdownEditor", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MarkdownViewer", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Menu", ImageLoader.Get ("button.png"));
@@ -161,6 +162,8 @@ namespace ControlGallery
                     return new ListBoxPanel ();
                 case "ListView":
                     return new ListViewPanel ();
+                case "Virtualization":
+                    return new VirtualizationPanel ();
                 case "MarkdownEditor":
                     return new MarkdownEditorPanel ();
                 case "MarkdownViewer":

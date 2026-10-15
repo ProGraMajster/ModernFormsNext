@@ -10,6 +10,17 @@ public partial class ScrollableControl
     private int scroll_update_depth;
     private bool publishing_scroll;
     private AccessibleScrollInfo? published_scroll;
+    private Point publishedViewportPosition;
+    private Size publishedViewportSize;
+
+    /// <summary>Refreshes derived content after the canonical logical scroll position or viewport size changes.</summary>
+    /// <param name="e">The event data.</param>
+    /// <remarks>
+    /// Runs on the UI thread after a complete scrollbar update, including programmatic values and range clamps.
+    /// Position is already committed and child displacement complete. Overrides may request existing layout;
+    /// reentrant changes are coalesced by the normal bounded scroll publication loop. Call base.
+    /// </remarks>
+    protected virtual void OnScrollViewportChanged(EventArgs e) { }
 
     private void HandleScrollMetadata(object? sender, EventArgs e)
     {
@@ -75,8 +86,22 @@ public partial class ScrollableControl
         try {
             for (int pass = 0; pass < 64; pass++) {
                 if (IsDisposed) return;
+                var viewport = LogicalScrollViewport;
+                if (publishedViewportPosition != scroll_position || publishedViewportSize != viewport.Size)
+                {
+                    publishedViewportPosition = scroll_position;
+                    publishedViewportSize = viewport.Size;
+                    OnScrollViewportChanged(EventArgs.Empty);
+                    if (IsDisposed) return;
+                }
                 var current = GetAccessibleScrollInfo();
-                if (published_scroll == current) return;
+                if (published_scroll == current)
+                {
+                    // Hidden axes may have identical semantic metadata even when a reentrant
+                    // callback clamps the logical offset again. Finish that viewport hook too.
+                    if (publishedViewportPosition == scroll_position && publishedViewportSize == LogicalScrollViewport.Size) return;
+                    continue;
+                }
                 published_scroll = current;
                 NotifyAccessibilityClients(AccessibleEvents.ScrollChanged);
             }

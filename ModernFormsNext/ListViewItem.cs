@@ -39,6 +39,7 @@ namespace ModernFormsNext
                     return;
 
                 selected = value;
+                Parent?.OnItemSelectionChanged(this);
                 Parent?.NotifyAccessibilityClients(
                     value
                         ? Accessibility.AccessibleEvents.Selection

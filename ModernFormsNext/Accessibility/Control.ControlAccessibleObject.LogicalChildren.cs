@@ -501,7 +501,8 @@ public partial class Control
             public override AccessibleControlType ControlType => AccessibleControlType.ListItem;
 
             public override Rectangle Bounds
-                => IsAttached && Owner is { } owner && Item is { } item
+                => IsAttached && Owner is { } owner && Item is { } item &&
+                    (!owner.VirtualizationEnabled || owner.IsItemRealized(item))
                     ? ToScreenBounds(owner, item.Bounds)
                     : Rectangle.Empty;
 
@@ -509,22 +510,29 @@ public partial class Control
             {
                 get
                 {
-                    var state = GetCommonState(IsAttached, Bounds.IsEmpty);
+                    bool offscreen = Bounds.IsEmpty;
+                    if (Owner is { VirtualizationEnabled: true } list && Item is { } currentItem)
+                        offscreen |= !list.NativeHostingViewport.IntersectsWith(currentItem.Bounds);
+                    var state = GetCommonState(IsAttached, offscreen);
                     if (Item?.Selected == true)
                         state |= AccessibleStates.Selected;
+                    if (Owner is { VirtualizationEnabled: true } focusedOwner && focusedOwner.GetFocusedItemIndex() is int focused &&
+                        focused >= 0 && focused < focusedOwner.Items.Count && ReferenceEquals(focusedOwner.Items[focused], Item))
+                        state |= AccessibleStates.Focused;
 
                     return state;
                 }
             }
 
             public override AccessibleActions SupportedActions
-                => IsAttached && IsOwnerAvailable ? AccessibleActions.Select : AccessibleActions.None;
+                => IsAttached && IsOwnerAvailable
+                    ? AccessibleActions.Select | (Owner?.VirtualizationEnabled == true ? AccessibleActions.ScrollIntoView | AccessibleActions.Focus : AccessibleActions.None)
+                    : AccessibleActions.None;
 
             public override bool PerformAction(AccessibleActions action, object? parameter = null)
             {
                 if (!IsSingleAction(action)
                     || (SupportedActions & action) == 0
-                    || action != AccessibleActions.Select
                     || parameter is not null
                     || !IsAttached
                     || Owner is not { } owner
@@ -533,8 +541,22 @@ public partial class Control
                     return false;
                 }
 
-                owner.SelectedItem = item;
-                return true;
+                if (action == AccessibleActions.Select)
+                {
+                    owner.SelectedItem = item;
+                    return IsAttached && !owner.IsDisposed && ReferenceEquals(owner.SelectedItem, item);
+                }
+                int index = owner.Items.IndexOf(item);
+                if (index < 0) return false;
+                var lifetime = new AccessibilityControlLifetime(owner);
+                owner.ScrollToItem(index);
+                if (!lifetime.IsCurrent || !IsAttached || owner.Items.IndexOf(item) != index) return false;
+                if (action == AccessibleActions.Focus)
+                {
+                    owner.GetItemContainer(index)?.Select();
+                    return lifetime.IsCurrent && owner.GetFocusedItemIndex() == index;
+                }
+                return action == AccessibleActions.ScrollIntoView && !Bounds.IsEmpty;
             }
         }
 

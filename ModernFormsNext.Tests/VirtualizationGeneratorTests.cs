@@ -7,6 +7,24 @@ namespace ModernFormsNext.Tests;
 public sealed class VirtualizationGeneratorTests
 {
     [Fact]
+    public void RefreshRebindsOnlyRealizedOccurrenceThroughGuardedFactory()
+    {
+        var factory = new Factory(100_000);
+        using var generator = new ItemContainerGenerator<Container>(factory);
+        generator.Realize(new(10, 20), factory.Source.Count);
+        Assert.True(generator.TryGetContainer(10, out var row));
+        factory.Source[10] = 42;
+        int prepared = factory.Prepared;
+        generator.RefreshItem(99_999);
+        Assert.Equal(prepared, factory.Prepared);
+        generator.RefreshItem(10);
+        Assert.Equal(prepared + 1, factory.Prepared);
+        Assert.Equal(42, row.Value);
+        Assert.Equal(new RealizedRange(10, 20), generator.RealizedRange);
+        Assert.Equal(20, generator.CreatedContainerCount);
+    }
+
+    [Fact]
     public void LongScrollAndJumpKeep100kLogicalSourceBoundedAndReuseContainers()
     {
         var factory = new Factory(100_000);
