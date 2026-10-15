@@ -340,6 +340,24 @@ uses OS/API presence, package identity and builder support queries. Elevated pro
 use toast activation; automatic selection can still choose Shell. `Capabilities.Reason` and
 standard .NET Trace diagnostics explain unavailable dependencies/fallback.
 
+Automatic Windows selection probes Classic `ToastNotifier.Setting` during initialization.
+Native provider-unavailable failures (including `0x80070490` from Classic Setting) disable
+that provider for the process and advance once through remaining policy-allowed candidates.
+No restart-per-notification loop. Explicit backend preference remains strict.
+Capabilities are dynamic after fallback; `Reason` retains sanitized provider/HRESULT and
+OS/elevation/policy diagnostics. Submission is revalidated against the actual replacement
+provider's capabilities. General payload errors/permission denial do not trigger a fallback
+which could bypass user policy. Unknown native faults can still fault status/history queries.
+
+Shell retains at most 32 active logical identities. Terminal native callbacks, replacement,
+explicit removal and shutdown release owned tray HWND/icon resources on the UI dispatcher.
+Late callbacks cannot remove a replacement. Missing native callbacks are reconciled with a
+two-minute lease, swept every 15 seconds and before admission; this deliberately bounds
+click retention (Shell is transient, not OS history). Saturation returns a graceful Failed
+result with `ShellCapacity`, not a new handle. Consumers should coalesce repeated warnings;
+Accepted never proves that Windows displayed a balloon. No real Windows 11 23H2 result is
+implied by deterministic provider/lease regression tests.
+
 Optional unsupported content is removed while preserving text; inspect result Warnings.
 `AllowDegradation=false` rejects such requests. Malformed required data returns Invalid;
 disabled OS settings return Disabled. Native submission/removal errors are translated to Failed

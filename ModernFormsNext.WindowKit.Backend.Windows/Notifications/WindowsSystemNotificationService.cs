@@ -47,35 +47,25 @@ public sealed class WindowsSystemNotificationService : SystemNotificationService
         bool elevated = new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
         var version = Environment.OSVersion.Version;
         var attempts = new List<string>();
-        IWindowsNotificationBackend? selected = null;
-        WindowsSystemNotificationService? service = null;
+        var candidates = new List<(string Name, Func<IWindowsNotificationBackend> Create)>();
         foreach (var kind in new[] { WindowsNotificationBackendKind.AppSdk, WindowsNotificationBackendKind.Classic, WindowsNotificationBackendKind.Shell })
         {
             if (options.Backend != WindowsNotificationBackendKind.Automatic && options.Backend != kind) continue;
             var env = new WindowsNotificationEnvironment(version, kind == WindowsNotificationBackendKind.AppSdk, kind == WindowsNotificationBackendKind.Classic, true, elevated);
             var candidate = WindowsNotificationBackendSelector.Select(env, options with { Backend = kind });
-            if (candidate == WindowsNotificationBackendKind.Unavailable || kind == WindowsNotificationBackendKind.Shell && options.Backend == WindowsNotificationBackendKind.Automatic && !options.AllowShellFallback) continue;
-            try
+            if (candidate == WindowsNotificationBackendKind.Unavailable || kind == WindowsNotificationBackendKind.Shell && options.Backend == WindowsNotificationBackendKind.Automatic && !options.AllowShellFallback)
             {
-                selected = kind == WindowsNotificationBackendKind.Shell ? new ShellBalloonNotificationBackend() : Load(kind);
-                var relay = new StartupRelay();
-                // COM activation can arrive synchronously during Register, before the wrapper is
-                // assigned. Buffer copied payloads until binding; never drop the first cold click.
-                selected.Initialize(options, relay.Activate, relay.Change);
-                service = new(selected, attempts.Count == 0 ? null : string.Join(" ", attempts));
-                relay.Bind(service);
-                return PlatformServiceRegistry.Register<ISystemNotificationService>(service) as WindowsSystemNotificationService ?? throw new InvalidOperationException();
+                attempts.Add($"{kind} gated by OS/elevation/fallback policy (Windows {version}, elevated={elevated}).");
+                continue;
             }
-            catch (Exception exception) when (exception is FileNotFoundException or FileLoadException or DllNotFoundException or EntryPointNotFoundException or BadImageFormatException or TypeLoadException or TargetInvocationException or COMException or Win32Exception or PlatformNotSupportedException)
-            {
-                // Optional provider initialization must unwind its own partially-created native state.
-                System.Diagnostics.Trace.TraceWarning("Notification provider {0}: {1}", kind, exception);
-                attempts.Add($"{kind} unavailable (0x{exception.HResult:X8})." +
-                    (exception is PlatformNotSupportedException ? " " + exception.Message : ""));
-                selected = null;
-            }
+            candidates.Add((kind.ToString(), () => kind == WindowsNotificationBackendKind.Shell ? new ShellBalloonNotificationBackend() : Load(kind)));
         }
-        service = new(null, elevated ? "Elevated processes cannot use toast activation. " + string.Join(" ", attempts) : string.Join(" ", attempts));
+        var chain = new WindowsNotificationProviderChain(candidates, action => Dispatcher.UIThread.Post(action),
+            () => Dispatcher.UIThread.CheckAccess(), attempts);
+        var relay = new StartupRelay();
+        chain.Initialize(options, relay.Activate, relay.Change);
+        var service = new WindowsSystemNotificationService(chain);
+        relay.Bind(service);
         PlatformServiceRegistry.Register<ISystemNotificationService>(service);
         return service;
     }
@@ -115,7 +105,7 @@ public sealed class WindowsSystemNotificationService : SystemNotificationService
     }
 
     /// <inheritdoc/>
-    public override SystemNotificationCapabilities Capabilities => capabilities;
+    public override SystemNotificationCapabilities Capabilities => backend?.Capabilities ?? capabilities;
     /// <inheritdoc/>
     protected override Task<SystemNotificationAccess> GetStatusCoreAsync(CancellationToken cancellationToken)
         => backend?.GetStatusAsync(cancellationToken) ?? Task.FromResult(SystemNotificationAccess.Unavailable);

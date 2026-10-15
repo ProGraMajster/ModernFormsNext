@@ -1,5 +1,14 @@
 # Native system notification validation
 
+## Notification resilience hotfix qualification
+
+`SystemNotificationResilienceTests` injects Classic initialization/runtime `0x80070490`,
+verifies a single fallback and no broken-provider retry across 1000 status calls.
+Shell lease tests cover 1/10/32/100/1000 completed/removal operations, saturation with
+1000 attempted allocations and missing callbacks, exact 120-second monotonic expiry,
+stable logical replacement, late callback safety and idempotent shutdown disposal.
+These tests own no real HWND and send no banners; native/VM checks remain separate.
+
 Related: [API guide](../system-notifications.md), [compatibility/inventory](../system-notifications-compatibility.md),
 [cross-platform architecture](../design/system-notifications-cross-platform.md).
 Never equate native submission, synthetic COM invocation, headless tests and manual OS interaction.
