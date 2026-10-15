@@ -41,12 +41,12 @@ public sealed class VirtualizingItemMetrics
         Validate(itemCount, estimatedExtent);
         int newLeafBase = (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)Math.Max(1, itemCount));
         if (newLeafBase <= 0 || newLeafBase > int.MaxValue / 2) throw new ArgumentOutOfRangeException(nameof(itemCount));
-        if (Count == itemCount && leafBase == newLeafBase) { Array.Clear(measured); Array.Clear(sums); }
+        if (leafBase >= newLeafBase) { Array.Clear(measured); Array.Clear(sums); newLeafBase = leafBase; }
         else
         {
             // Allocate both replacements before publishing state; an allocation failure must
             // leave the previous usable map intact.
-            var newMeasured = new double[itemCount];
+            var newMeasured = new double[newLeafBase];
             var newSums = new double[newLeafBase * 2];
             measured = newMeasured;
             sums = newSums;
@@ -57,6 +57,81 @@ public sealed class VirtualizingItemMetrics
         Count = itemCount;
         EstimatedExtent = estimatedExtent;
         MeasuredCount = 0;
+    }
+
+    /// <summary>Retains measurements for surviving occurrences after an indexed collection mutation.</summary>
+    /// <param name="change">The validated occurrence mapping, whose old count must equal Count.</param>
+    /// <remarks>
+    /// Appends within reserved power-of-two capacity take O(addedCount * log Count) work and allocate nothing.
+    /// Growth amortizes storage allocation. Other indexed changes shift numeric metadata and rebuild prefix sums
+    /// in O(Count); moves retain measurements, replacements/reset discard affected measurements. No controls,
+    /// source objects or callbacks are retained. The host must map its viewport anchor before requesting layout.
+    /// </remarks>
+    public void ApplyChange(ItemIndexChange change)
+    {
+        if (change.OldCount != Count) throw new ArgumentException("The metric count does not match the change.", nameof(change));
+        Validate(change.NewCount, EstimatedExtent);
+        if (change.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+        {
+            Reset(change.NewCount, EstimatedExtent);
+            return;
+        }
+        double retained = TotalExtent;
+        if (change.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Remove or System.Collections.Specialized.NotifyCollectionChangedAction.Replace)
+            for (int i = change.OldIndex; i < change.OldIndex + change.RemovedCount; i++) retained -= GetExtent(i);
+        if (change.Action is System.Collections.Specialized.NotifyCollectionChangedAction.Add or System.Collections.Specialized.NotifyCollectionChangedAction.Replace)
+            retained += change.AddedCount * EstimatedExtent;
+        if (!double.IsFinite(retained)) throw new ArgumentOutOfRangeException(nameof(change), "The new total extent is not finite.");
+
+        bool grew = change.NewCount > leafBase;
+        if (grew)
+        {
+            int capacity = (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)change.NewCount);
+            if (capacity <= 0 || capacity > int.MaxValue / 2) throw new ArgumentOutOfRangeException(nameof(change));
+            var newMeasured = new double[capacity];
+            var newSums = new double[capacity * 2];
+            Array.Copy(measured, newMeasured, Count);
+            measured = newMeasured; sums = newSums; leafBase = capacity;
+        }
+        bool append = change.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && change.NewIndex == Count;
+        int previousCount = Count;
+        switch (change.Action)
+        {
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+                Array.Copy(measured, change.NewIndex, measured, change.NewIndex + change.AddedCount, Count - change.NewIndex);
+                Array.Clear(measured, change.NewIndex, change.AddedCount);
+                break;
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Replace:
+                Array.Copy(measured, change.OldIndex + change.RemovedCount, measured, change.OldIndex + change.AddedCount,
+                    Count - change.OldIndex - change.RemovedCount);
+                Array.Clear(measured, change.OldIndex, change.AddedCount);
+                if (change.NewCount < Count) Array.Clear(measured, change.NewCount, Count - change.NewCount);
+                break;
+            case System.Collections.Specialized.NotifyCollectionChangedAction.Move:
+                // Rotate adjacent blocks in place. Numeric metadata follows occurrences even for duplicate values.
+                int first = Math.Min(change.OldIndex, change.NewIndex);
+                int leftLength = change.OldIndex < change.NewIndex ? change.RemovedCount : change.OldIndex - change.NewIndex;
+                int totalLength = Math.Abs(change.NewIndex - change.OldIndex) + change.RemovedCount;
+                Array.Reverse(measured, first, leftLength);
+                Array.Reverse(measured, first + leftLength, totalLength - leftLength);
+                Array.Reverse(measured, first, totalLength);
+                break;
+        }
+        Count = change.NewCount;
+        if (append && !grew)
+        {
+            for (int i = previousCount; i < Count; i++) SetLeaf(i, EstimatedExtent);
+            return;
+        }
+        Array.Clear(sums);
+        MeasuredCount = 0;
+        for (int i = 0; i < Count; i++)
+        {
+            if (measured[i] != 0) MeasuredCount++;
+            sums[leafBase + i] = measured[i] == 0 ? EstimatedExtent : measured[i];
+        }
+        for (int node = leafBase - 1; node > 0; node--) sums[node] = sums[node * 2] + sums[node * 2 + 1];
     }
 
     /// <summary>Gets the measured extent or the estimate at an index, in logical pixels.</summary>

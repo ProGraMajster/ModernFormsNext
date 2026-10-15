@@ -59,6 +59,15 @@ public partial class Control
                     _ => false
                 };
             if (action != AccessibleActions.ScrollIntoView || parameter is not null) return false;
+            return RevealControlIntoView(owner);
+        }
+
+        // The same canonical nested reveal is used by a virtualized logical item after realization.
+        // Its private hit/focus container may be Hidden to avoid duplicate semantic peers; the
+        // logical peer already checked its own supported actions before invoking this operation.
+        internal static bool RevealControlIntoView(Control owner)
+        {
+            if (owner.IsDisposed || !owner.Visible || !owner.Enabled) return false;
             var lifetime = new AccessibilityControlLifetime(owner);
             bool found = false;
             // The item remains the same throughout nested reveal; moving does not select/focus it.

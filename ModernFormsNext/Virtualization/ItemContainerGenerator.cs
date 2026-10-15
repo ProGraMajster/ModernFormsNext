@@ -21,6 +21,7 @@ public sealed class ItemContainerGenerator<TContainer> : IDisposable where TCont
         internal int Index;
         internal int PreparedIndex;
         internal bool Prepared;
+        internal bool RefreshRequested;
     }
 
     private readonly IItemContainerFactory<TContainer> factory;
@@ -112,6 +113,23 @@ public sealed class ItemContainerGenerator<TContainer> : IDisposable where TCont
         generation++;
         ProcessPending();
         return change;
+    }
+
+    /// <summary>Refreshes an existing occurrence's binding without changing its logical identity or realizing it.</summary>
+    /// <param name="index">An index smaller than the last notified source count.</param>
+    /// <remarks>
+    /// Use for in-place source property notifications. An unrealized occurrence needs no work. A realized binding
+    /// is cleared and prepared through the same guarded factory path; reentrant requests are coalesced.
+    /// Selection, focus and source index mappings remain the host's responsibility.
+    /// </remarks>
+    public void RefreshItem(int index)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        if ((uint)index >= (uint)scheduledCount) throw new ArgumentOutOfRangeException(nameof(index));
+        if (!realized.TryGetValue(index, out var entry)) return;
+        entry.RefreshRequested = true;
+        generation++;
+        ProcessPending();
     }
 
     /// <summary>Retires every binding and discards every owned container; does not dispose the factory/source.</summary>
@@ -208,7 +226,8 @@ public sealed class ItemContainerGenerator<TContainer> : IDisposable where TCont
                 realized.Add(index, entry);
                 if (IsDisposed || generation != version) return;
             }
-            if (entry.Prepared && entry.PreparedIndex == index) continue;
+            if (entry.Prepared && entry.PreparedIndex == index && !entry.RefreshRequested) continue;
+            entry.RefreshRequested = false;
             ClearBinding(entry);
             if (IsDisposed || generation != version) return;
             // Record ownership/binding before application code. Failure/disposal can retire even

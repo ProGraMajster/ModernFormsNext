@@ -1,4 +1,4 @@
-# Shared item virtualization foundation
+# Shared item virtualization
 
 The first slice of [#55](https://github.com/ProGraMajster/ModernFormsNext/issues/55),
 tracked by [#199](https://github.com/ProGraMajster/ModernFormsNext/issues/199), provides
@@ -7,10 +7,182 @@ shared indexed geometry, metrics, occurrence mapping and container recycling und
 parent acceptance are tracked separately by
 [#200](https://github.com/ProGraMajster/ModernFormsNext/issues/200).
 
-This foundation does not yet make ListView, TreeView or DataGrid virtualized, add
-CollectionView, or establish Windows/Android/Designer integration acceptance. The
-parent issue remains open. Existing TreeView.VirtualMode resolves nodes when they
+The runtime integration in [#202](https://github.com/ProGraMajster/ModernFormsNext/issues/202)
+adds a reusable `ItemsControl` and opt-in virtualized `ListView`. Full Designer and
+Windows/Android release certification remains in
+[#203](https://github.com/ProGraMajster/ModernFormsNext/issues/203); the parent stays
+open until those criteria are complete. This does not add CollectionView or change
+TreeView/DataGrid behavior. Existing TreeView.VirtualMode resolves nodes when they
 expand; it is a separate existing behavior and is not container recycling.
+
+## Use the supported ListView consumer
+
+```csharp
+var view = new ListView
+{
+    Dock = DockStyle.Fill,
+    VirtualizationEnabled = true,
+    ItemsLayout = ItemsLayout.Stack,
+    ItemSize = new Size(220, 32),
+    CacheItemCount = 3
+};
+view.SuspendLayout();
+try
+{
+    for (int index = 0; index < 100_000; index++)
+        view.Items.Add($"Entry {index}");
+}
+finally { view.ResumeLayout(); }
+
+view.SelectedIndex = 90_000; // logical selection; no immediate focus/scroll
+view.ScrollToItem(90_000);  // realizes the requested occurrence and reveals nested viewports
+```
+
+`ListView.VirtualizationEnabled` defaults to **false** to retain the old drawn-grid
+behavior. Its new base is `ItemsControl`, which inherits `ScrollableControl` and
+`Control`; existing `Items`, `SelectedItem`, `ItemDoubleClicked`, `Style` and
+`ListViewRenderer.RenderItem` extension contracts remain. In virtualized mode the
+renderer visits only the realized range and layout updates item Bounds before paint.
+Unrealized Bounds are empty. Bounds use device pixels for the existing renderer;
+container bounds, ItemSize, estimates and scroll offsets use logical pixels. The
+host applies padding/scroll and the consumer converts item geometry exactly once.
+
+The default ListView cell is 76 by 76 logical pixels, including six pixels of
+trailing cell spacing, and wraps vertically. Distinct `ListViewItem` instances
+represent distinct rows. Use the shared template host for sources where repeated
+references or equal values represent separate occurrences. Virtualized ListView
+uses one logical selected occurrence; its SelectedItem and item.Selected flags
+follow SelectedIndex. The legacy first-selected-item behavior remains when disabled.
+Enabling virtualization adopts the first legacy selection and clears other legacy
+selected flags; a newer selection committed by a template callback takes precedence.
+ListViewItemCollection publishes indexed `INotifyCollectionChanged` notifications
+and supports `Move(oldIndex, newIndex)` without replacing occurrence identity.
+
+## Derive another consumer using the same host
+
+```csharp
+public sealed class LogList : ItemsControl
+{
+    public void SetEntries(System.Collections.IList entries) => SetItemsSource(entries);
+
+    protected override void PrepareItemContainer(Control row, object? item, int index)
+    {
+        // Uses the existing Control binding system and inherited BindingContext.
+        row.DataBindings.Add(nameof(Control.Text), item!, nameof(LogEntry.Text),
+            formattingEnabled: true, ModernFormsNext.DataBinding.DataSourceUpdateMode.Never);
+    }
+
+    protected override double MeasureItemContainer(Control row, object? item,
+        int index, Size estimate) => ((LogEntry)item!).Expanded ? 64 : 32;
+}
+```
+
+Set `VariableItemSize = true` for measured stacks. The default container is a
+focusable Label with selection/focus feedback; replace `CreateItemContainer` for
+other templates. Return a fresh unparented, undisposed control. Containers become
+host-owned, so applications must not dispose or reparent them. Source values and
+the IList remain borrowed; the host never disposes them. The source indexer must
+be cached/synchronous and must not block the UI thread. The ordinary framework
+BindingContext must be available for DataBindings, including a context supplied
+explicitly for a standalone windowless tree.
+
+`ClearItemContainer` receives the original prepared object and index, after focus,
+capture and attachment retirement. Do not look up that old index in the mutated
+source. Remove template subscriptions and release template-owned resources there;
+the host clears canonical DataBindings before this cleanup hook, so resetting a
+container cannot write a recycled/empty value back to its old source. Every cleanup
+is still attempted when another cleanup throws. Partial preparation is also cleaned. Binding preparation before first
+attachment is reassociated through the existing BindingContext path after creation.
+Borrowed control references from `GetItemContainer` are transient; never store
+them as logical identity. A template failure faults its generator and attempts all
+owned cleanup, then propagates the original error/cleanup errors. Replace the source
+(for example clear it, then set a corrected source) to create a fresh generator.
+
+The host subscribes to INCC, or IBindingList when INCC is absent. In-place binding
+property notifications refresh only realized bindings and retain logical identity.
+Indexed insert/remove/move/replace notifications map selection, focus and metrics
+before callbacks observe them. Duplicate values are distinct occurrences. Removed,
+replaced and reset occurrences clear selection; unknown or out-of-sequence index
+history conservatively resets it. Plain IList count changes are detected by layout;
+publish same-count replacements with the protected `RefreshItemsSource` hook.
+Perform source mutation and every host operation on the owning UI thread.
+
+## Scrolling, measurement and focus
+
+Stack orientation can be vertical or horizontal. Wrap uses fixed cells and complete
+intersecting rows/columns; VariableItemSize is rejected for wrap. ItemSize includes
+spacing and must be positive. CacheItemCount is a nonnegative item buffer on each
+side. Choose a bounded buffer appropriate to the viewport; asking for all source
+items in the cache intentionally defeats bounded realization.
+
+Unknown stack cells use the primary ItemSize estimate. Realized measurements update
+prefix metadata. The leading occurrence and its intra-cell pixel offset are retained
+through corrections, indexed changes, size changes, and font/theme/DPI invalidation.
+During a metric reset the anchor survives temporary estimates until its cell is
+measured; shrinking cells clamp an offset that no longer fits. Call
+`InvalidateItemMeasurements` after an application-specific size policy changes.
+Corrections use the existing LayoutEngine/ScrollableControl path after the canonical
+layout completion hook, with a 64-pass stabilization limit. There is no layout from
+paint, separate layout tree or dispatcher.
+
+`ScrollToItem` realizes estimated bounds, corrects measurements and uses the same
+nested ancestor reveal as accessibility. Setting SelectedIndex alone does not move
+scroll/focus. On the row or host, Home/End/PageUp/PageDown and directional keys
+navigate logical occurrences, including unrealized ones; wrap arrows use rows or
+columns. Interactive controls inside a custom template keep their ordinary key
+handling and command/input routing. Tab uses existing Control navigation.
+
+Retiring a focused row transfers focus through the canonical focus scope to the host.
+Its logical occurrence remains; re-entering the realized range restores its container
+only while the host still owns focus. Reparenting the host retires the old root's focus
+and never steals focus in the new root. ListView's stable existing logical item peers
+provide Select, Focus and ScrollIntoView; private recycled controls are excluded from
+the accessibility tree. Peer identity survives visual recycling. Other ItemsControl
+templates use the existing accessible Control tree and may extend those canonical
+peers for their own domain semantics.
+
+## Runtime diagnostics and practical limits
+
+`GetVirtualizationSnapshot()` reports actual logical/live/pool counts, created/reused/
+discarded operations, range, measured count, content extent, last layout duration and
+pass count. It creates no profiler or source enumeration. Existing PerformanceProfiler
+records the host work as Custom activity inside ordinary Layout; applications can
+read snapshots into their existing registered extension counters/gauges. Do not
+register counters repeatedly while scrolling. Discard counts describe invocations,
+including a callback that throws; they do not certify native cleanup success.
+
+Pure generator/geometry warmed operations have separate zero-allocation tests.
+Actual Control scrolling also raises canonical layout, bounds, attachment and input
+callbacks, so its managed allocation contract is bounded viewport work rather than
+zero bytes. The regression suite compares the same warmed workload at 1,000 and
+100,000 source items and records allocation, elapsed time and process retained-memory
+observations. Retained-memory samples include the process/runtime and are not proof
+of a native leak check. Numeric variable metrics scale with source-window capacity;
+appends reuse geometric capacity without rebuilding all prefix sums. Structural
+inserts/removes/moves shift numeric metadata without creating an entire Control tree.
+
+The host accepts finite indexed windows and finite integer scroll extents; it rejects
+geometry beyond that range explicitly. Large or logically unbounded/paged sources
+must expose a bounded window. No synchronous network fetch, async source runtime or
+independent paging scheduler is introduced. TreeView can flatten visible logical
+nodes and DataGrid can adapt indexed rows to the shared generator/metrics/layout
+contracts while preserving their existing selection/accessibility/editing services;
+this PR does not claim those existing controls now use recycled containers.
+
+## Gallery and evidence boundaries
+
+ControlGallery's **Virtualization** page displays a variable-height derived
+ItemsControl alongside ListView, each with 100,000 entries. Jump, move, scroll,
+keyboard, resize, theme/DPI and observed diagnostics use the actual shared host.
+It adds no experimental content to the default DemoApp/template.
+
+Runtime deterministic tests and a real Windows HWND fixture cover the production
+path, including native key/wheel messages and stable logical accessibility peers.
+Native tests are automated evidence, not human manual inspection. Safe scalar
+properties have default/serialization metadata; source/template callbacks are
+protected runtime hooks. Full bounded Designer round trips and Android emulator/
+physical-device qualification remain required in #203. A build or Windows test must
+never be presented as Android/Designer/manual PASS.
 
 ## Geometry through the existing layout system
 
