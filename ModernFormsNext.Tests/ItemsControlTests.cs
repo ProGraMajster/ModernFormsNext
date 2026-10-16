@@ -458,6 +458,31 @@ public sealed class ItemsControlTests
         Assert.Equal(new Point(0, view.VerticalScrollProperties.Value), view.TouchScrollPosition);
     }
 
+    [Theory]
+    [InlineData(1d)]
+    [InlineData(1.5d)]
+    [InlineData(2.625d)]
+    public void VirtualizedStackTextPaintsInsideItsActualDeviceBoundsAtHostDensity(double scale)
+    {
+        using var window = new DpiTestWindow(scale);
+        var view = window.Controls.Add(new ListView { Size = new(240, 160), ItemSize = new(220, 28), ItemsLayout = ItemsLayout.Stack });
+        view.SuspendLayout();
+        for (int index = 0; index < 1_000; index++) view.Items.Add($"Entry {index}");
+        view.VirtualizationEnabled = true;
+        view.ResumeLayout();
+        view.ScrollToItem(900);
+        using var bitmap = new SkiaSharp.SKBitmap(view.ScaledWidth, view.ScaledHeight);
+        using var canvas = new SkiaSharp.SKCanvas(bitmap);
+        canvas.Clear(SkiaSharp.SKColors.Transparent);
+        new ModernFormsNext.Renderers.ListViewRenderer().Render((object)view, new PaintEventArgs(bitmap.Info, canvas, scale));
+        var bounds = Rectangle.Intersect(view.Items[900].Bounds, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+        int painted = 0;
+        for (int y = bounds.Top; y < bounds.Bottom; y++)
+            for (int x = bounds.Left; x < bounds.Right; x++)
+                if (bitmap.GetPixel(x, y).Alpha > 0) painted++;
+        Assert.True(painted > 0, $"The actual high-density stack cell must contain its text. item={view.Items[900].Bounds}; viewport={view.NativeHostingViewport}; bitmap={bitmap.Width}x{bitmap.Height}; font={view.CurrentStyle.GetFontSize()}; range={view.RealizedRange}; scroll={view.TouchScrollPosition}; cell={view.GetItemContainer(900)?.Bounds}");
+    }
+
     [Fact]
     public void WrapKeyboardUsesRowsAndResizeRetainsTheLeadingOccurrence()
     {

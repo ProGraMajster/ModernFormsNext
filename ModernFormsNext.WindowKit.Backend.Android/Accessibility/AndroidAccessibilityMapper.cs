@@ -244,6 +244,16 @@ internal static partial class AndroidAccessibilityMapper
         return canonical != 0 && node.PerformUiaAction(canonical);
     }
 
+    internal static int? CollectionItemIndex(IPlatformAccessibleObject node)
+    {
+        if (node.GetControlType() != 13 || node.Parent is not { } list || Collection(list) is null) return null;
+        if (list is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedItemIndex(node, out int index))
+            return index >= 0 ? index : null;
+        for (int i = 0, count = list.GetChildCount(); i < count; i++)
+            if (ReferenceEquals(list.GetChild(i), node)) return i;
+        return null;
+    }
+
     internal static AndroidCollection? Collection(IPlatformAccessibleObject node)
     {
         if (node.GetGridInfo() is { } grid)
@@ -251,6 +261,10 @@ internal static partial class AndroidAccessibilityMapper
         // Only a flat sequence of semantic ListItems has known row/column information.
         // Trees, menus and tabs retain their hierarchy without fabricated table coordinates.
         if (node.GetControlType() != 12) return null;
+        if (node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out var projection))
+            return projection.LogicalItemCount is { } logicalCount
+                ? new(logicalCount, 1, (node.State & MultiSelectable) != 0 ? 2 : (node.State & 0x200000) != 0 ? 1 : 0)
+                : null;
         int count = node.GetChildCount();
         for (int i = 0; i < count; i++)
             if (node.GetChild(i)?.GetControlType() != 13) return null;

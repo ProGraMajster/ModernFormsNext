@@ -13,7 +13,7 @@ using Xunit;
 
 namespace ModernFormsNext.Designer.Tests;
 
-public sealed class DesignerRuntimeLayoutParityTests
+public sealed partial class DesignerRuntimeLayoutParityTests
 {
     private static int nextArtifactId;
 

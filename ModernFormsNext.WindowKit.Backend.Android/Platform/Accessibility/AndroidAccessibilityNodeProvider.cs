@@ -157,17 +157,12 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
 #pragma warning restore CA1422
                 info.SetCollectionInfo(nativeCollection);
             }
-            else if (node.GetControlType() == 13 && node.Parent is { } list && Collection(list) is not null)
+            else if (CollectionItemIndex(node) is { } itemIndex)
             {
-                for (int i = 0, count = list.GetChildCount(); i < count; i++)
-                {
-                    if (!ReferenceEquals(list.GetChild(i), node)) continue;
 #pragma warning disable CA1422
-                    using var item = AccessibilityNodeInfo.CollectionItemInfo.Obtain(i, 1, 0, 1, false, properties.Selected);
+                using var item = AccessibilityNodeInfo.CollectionItemInfo.Obtain(itemIndex, 1, 0, 1, false, properties.Selected);
 #pragma warning restore CA1422
-                    info.SetCollectionItemInfo(item);
-                    break;
-                }
+                info.SetCollectionItemInfo(item);
             }
             // Custom semantic getters may detach a node or change privacy during this query.
             // Never transfer a now-stale native wrapper or previously captured plaintext to Android.
@@ -251,8 +246,15 @@ internal sealed partial class AndroidAccessibilityNodeProvider : AccessibilityNo
                     if ((properties.Label?.Contains(text, StringComparison.OrdinalIgnoreCase) == true
                             || properties.Text?.Contains(text, StringComparison.OrdinalIgnoreCase) == true)
                         && CreateNode(session.Register(node)) is { } info) result.Add(info);
-                    for (int i = node.GetChildCount() - 1; i >= 0; i--)
-                        if (node.GetChild(i) is { } child) remaining.Push(child);
+                    if (node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out var projection))
+                    {
+                        for (int i = projection.Children.Count - 1; i >= 0; i--) remaining.Push(projection.Children[i]);
+                    }
+                    else
+                    {
+                        for (int i = node.GetChildCount() - 1; i >= 0; i--)
+                            if (node.GetChild(i) is { } child) remaining.Push(child);
+                    }
                 }
                 return result;
             }

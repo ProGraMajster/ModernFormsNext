@@ -51,7 +51,7 @@ public partial class Control
                 NumericUpDown numeric => GetNumericChildren(numeric),
                 ListBox listBox => GetListBoxItemObjects(listBox),
                 ComboBox comboBox => GetComboBoxItemObjects(comboBox),
-                ListView listView => listView.Items.Select(item => GetListViewItemObject(listView, item)),
+                ListView listView => listView.Items.Select((item, index) => GetListViewItemObject(listView, item, index)),
                 TreeView treeView => treeView.Items.Select(item => GetTreeViewItemObject(treeView, item)),
                 TabControl tabControl => tabControl.TabPages.Select(page => GetTabItemObject(tabControl, page)),
                 MenuBase menu => menu.Items.Select(item => GetMenuItemObject(menu, item)),
@@ -122,8 +122,121 @@ public partial class Control
             return synchronized;
         }
 
-        private ListViewItemAccessibleObject GetListViewItemObject(ListView owner, ListViewItem item)
-            => list_view_item_objects.GetValue(item, value => new ListViewItemAccessibleObject(this, owner, value));
+        private ListViewItemAccessibleObject GetListViewItemObject(ListView owner, ListViewItem item, int knownIndex = -1)
+        {
+            var peer = list_view_item_objects.GetValue(item, value => new ListViewItemAccessibleObject(this, owner, value));
+            if (knownIndex >= 0) peer.SetIndexHint(knownIndex);
+            return peer;
+        }
+
+        internal bool TryGetVirtualizedChildren(out IReadOnlyList<AccessibleObject> children, out int? count)
+        {
+            children = Array.Empty<AccessibleObject>();
+            count = null;
+            if (GetType() != typeof(ControlAccessibleObject) || Owner is not ListView { VirtualizationEnabled: true, IsDisposed: false } list)
+                return false;
+            count = list.Items.Count;
+            if (!list.Visible || View == AccessibilityView.Hidden) return true;
+            var range = list.RealizedRange;
+            var peers = new List<AccessibleObject>(Math.Min(range.Count, list.Items.Count) + 2);
+            for (int index = range.StartIndex; index < range.EndIndex && index < list.Items.Count; index++)
+            {
+                var peer = GetListViewItemObject(list, list.Items[index], index);
+                if (peer.View != AccessibilityView.Hidden) peers.Add(peer);
+            }
+            // Keep at most two out-of-range logical references so native focus/selection queries
+            // and scroll-to-item actions retain their existing identity during visual recycling.
+            ReadOnlySpan<int> retainedIndices = [list.SelectedIndex, list.GetFocusedItemIndex()];
+            foreach (int index in retainedIndices)
+                if (index >= 0 && index < list.Items.Count && !range.Contains(index))
+                {
+                    var peer = GetListViewItemObject(list, list.Items[index], index);
+                    if (peer.View != AccessibilityView.Hidden && !peers.Contains(peer)) peers.Add(peer);
+                }
+            foreach (Control visual in list.Controls)
+            {
+                var peer = visual.AccessibilityObject;
+                if (peer.View == AccessibilityView.Hidden ||
+                    peer.GetType() != typeof(ControlAccessibleObject) && (peer.State & AccessibleStates.Invisible) != 0) continue;
+                peers.Add(peer);
+                count = null;
+            }
+            children = peers;
+            return true;
+        }
+
+        internal bool TryContainsVirtualizedChild(AccessibleObject child, out bool contains)
+        {
+            contains = false;
+            // A derived accessibility peer can replace GetAccessibilityChildren entirely. Preserve
+            // its projection contract; only the exact canonical peer can answer from item identity.
+            if (GetType() != typeof(ControlAccessibleObject) || Owner is not ListView { VirtualizationEnabled: true } list)
+                return false;
+            if (child is ListViewItemAccessibleObject item)
+            {
+                if (item.TryIndex(this, out int index) && index >= 0)
+                    contains = list.RealizedRange.Contains(index) || list.SelectedIndex == index || list.GetFocusedItemIndex() == index;
+                return true;
+            }
+            // Internal scrollbar infrastructure can have the host as Parent without belonging
+            // to Controls. Confirm actual canonical enumeration, using only the bounded visual
+            // collection; a Parent pointer alone must never admit a hidden/detached extra node.
+            foreach (Control candidate in list.Controls)
+                if (ReferenceEquals(candidate.AccessibilityObject, child))
+                {
+                    contains = child.View != AccessibilityView.Hidden &&
+                        (child.GetType() == typeof(ControlAccessibleObject) || (child.State & AccessibleStates.Invisible) == 0);
+                    break;
+                }
+            return true;
+        }
+
+        internal bool TryContainsCanonicalChild(AccessibleObject child, out bool contains)
+        {
+            if (TryContainsVirtualizedChild(child, out contains)) return true;
+            if (GetType() != typeof(ControlAccessibleObject)) return false;
+            if (Owner is not { IsDisposed: false } owner) return true;
+
+            // Default visual membership is the actual control collection, including Form's
+            // existing client-area projection. Do not repeatedly call GetChildCount/GetChild:
+            // Android validates this ancestor chain for every recycled-row notification.
+            var controls = owner is ControlAdapter adapter ? adapter.ParentForm.Controls : owner.Controls;
+            for (int index = 0; index < controls.Count; index++)
+                if (ReferenceEquals(controls[index].AccessibilityObject, child))
+                {
+                    contains = child.View != AccessibilityView.Hidden &&
+                        (IsVisibilityDeterminedByView(child) || (child.State & AccessibleStates.Invisible) == 0);
+                    return true;
+                }
+
+            // These controls also own logical children. Preserve their canonical enumeration
+            // unless the indexed virtualized ListView path above has already answered it.
+            return owner is not (LinkLabel or NumericUpDown or ListBox or ComboBox or ListView or TreeView or TabControl or MenuBase);
+        }
+
+        internal static bool IsVisibilityDeterminedByView(AccessibleObject peer)
+            => peer.GetType() == typeof(ControlAccessibleObject) || peer is ListViewItemAccessibleObject;
+
+        internal bool TryGetVirtualizedItemIndex(AccessibleObject child, out int index)
+        {
+            index = -1;
+            return GetType() == typeof(ControlAccessibleObject) && Owner is ListView { VirtualizationEnabled: true } &&
+                child is ListViewItemAccessibleObject item && item.TryIndex(this, out index);
+        }
+
+        internal bool TryGetVirtualizedChild(int index, out AccessibleObject? child)
+        {
+            child = null;
+            if (GetType() != typeof(ControlAccessibleObject) || Owner is not ListView { VirtualizationEnabled: true, IsDisposed: false } list)
+                return false;
+            // A custom explicitly exposed visual child prevents flat logical indexing. Recycled
+            // private focus containers stay hidden and do not change the logical occurrence order.
+            for (int visual = 0; visual < list.Controls.Count; visual++)
+                if (list.Controls[visual].AccessibilityObject.View != AccessibilityView.Hidden) return false;
+            if (list.Visible && View != AccessibilityView.Hidden && (uint)index < (uint)list.Items.Count)
+                child = GetListViewItemObject(list, list.Items[index], index);
+            return true;
+        }
 
         private TreeViewItemAccessibleObject GetTreeViewItemObject(TreeView owner, TreeViewItem item)
             => tree_view_item_objects.GetValue(item, value => new TreeViewItemAccessibleObject(this, owner, value));
@@ -469,6 +582,16 @@ public partial class Control
         {
             private readonly WeakReference<ListView> owner_reference;
             private readonly WeakReference<ListViewItem> item_reference;
+            private int lastKnownIndex = -1;
+
+            internal void SetIndexHint(int index) => lastKnownIndex = index;
+
+            internal bool TryIndex(ControlAccessibleObject root, out int index)
+            {
+                bool answered = TryMembership(root, out bool contains);
+                index = contains ? lastKnownIndex : -1;
+                return answered;
+            }
 
             public ListViewItemAccessibleObject(ControlAccessibleObject root, ListView owner, ListViewItem item)
                 : base(root, owner)
@@ -484,6 +607,26 @@ public partial class Control
                 => item_reference.TryGetTarget(out ListViewItem? item) ? item : null;
 
             private bool IsAttached => Owner is { } owner && Item is { Parent: { } parent } && ReferenceEquals(owner, parent);
+
+            internal bool TryMembership(ControlAccessibleObject root, out bool contains)
+            {
+                contains = false;
+                if (!ReferenceEquals(Root, root)) return false;
+                if (!IsAttached || Root.View == AccessibilityView.Hidden || Owner is not { Visible: true } owner || Item is not { } item)
+                    return true;
+                // This is a checked hint on the same stable logical peer. Indexed mutations may
+                // move it; validate by reference before using it, then recover once from the source.
+                // Never materialize sibling peers merely to establish this one's membership.
+                if ((uint)lastKnownIndex < (uint)owner.Items.Count && ReferenceEquals(owner.Items[lastKnownIndex], item))
+                    contains = true;
+                else
+                {
+                    lastKnownIndex = -1;
+                    for (int index = 0; index < owner.Items.Count; index++)
+                        if (ReferenceEquals(owner.Items[index], item)) { lastKnownIndex = index; contains = true; break; }
+                }
+                return true;
+            }
 
             public override AccessibilityView View
                 => IsAttached ? base.View : AccessibilityView.Hidden;

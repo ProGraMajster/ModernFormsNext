@@ -18,6 +18,10 @@ internal interface IPlatformUiaAccessibleObject : IPlatformAccessibleObject
 
     bool IsSensitive { get; }
 
+    /// <summary>Gets whether View already includes all Invisible-state membership decisions.</summary>
+    /// <remarks>Custom peers retain the complete state query unless their canonical adapter explicitly opts in.</remarks>
+    bool VisibilityFollowsView => false;
+
     PlatformAccessibleRangeValue? RangeValue { get; }
 
     int SupportedActions { get; }

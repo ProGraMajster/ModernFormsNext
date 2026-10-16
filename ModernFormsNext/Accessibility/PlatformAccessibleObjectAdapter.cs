@@ -14,7 +14,8 @@ namespace ModernFormsNext.Accessibility;
 /// reference back to the main ModernFormsNext assembly.
 /// </remarks>
 internal sealed partial class PlatformAccessibleObjectAdapter : IPlatformUiaAccessibleObject,
-    IPlatformAccessibilityNotifications, IPlatformAccessibilitySelection
+    IPlatformAccessibilityNotifications, IPlatformAccessibilitySelection, IPlatformAccessibilityChildMembership,
+    IPlatformAccessibilityVirtualizedChildren
 {
     private static readonly ConditionalWeakTable<AccessibleObject, PlatformAccessibleObjectAdapter> s_cache = new();
     private readonly AccessibleObject accessible_object;
@@ -98,6 +99,9 @@ internal sealed partial class PlatformAccessibleObjectAdapter : IPlatformUiaAcce
         || accessible_object.IsSensitive;
 
     /// <inheritdoc/>
+    public bool VisibilityFollowsView => Control.ControlAccessibleObject.IsVisibilityDeterminedByView(accessible_object);
+
+    /// <inheritdoc/>
     public PlatformAccessibleRangeValue? RangeValue
         => accessible_object.RangeValue is { } range
             ? new PlatformAccessibleRangeValue(
@@ -135,6 +139,42 @@ internal sealed partial class PlatformAccessibleObjectAdapter : IPlatformUiaAcce
 
     /// <inheritdoc/>
     public int GetChildCount() => accessible_object.GetChildCount();
+
+    /// <inheritdoc/>
+    public bool TryContainsChild(IPlatformAccessibleObject child, out bool contains)
+    {
+        contains = false;
+        return accessible_object is Control.ControlAccessibleObject parent &&
+            child is PlatformAccessibleObjectAdapter adapter &&
+            parent.TryContainsCanonicalChild(adapter.accessible_object, out contains);
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetVirtualizedChildren(out PlatformAccessibleVirtualizedChildren children)
+    {
+        children = default;
+        if (accessible_object is not Control.ControlAccessibleObject parent ||
+            !parent.TryGetVirtualizedChildren(out var peers, out int? count)) return false;
+        children = new(peers.Select(peer => From(peer)!).ToArray(), count);
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetVirtualizedItemIndex(IPlatformAccessibleObject child, out int index)
+    {
+        index = -1;
+        return accessible_object is Control.ControlAccessibleObject parent && child is PlatformAccessibleObjectAdapter adapter &&
+            parent.TryGetVirtualizedItemIndex(adapter.accessible_object, out index);
+    }
+
+    /// <inheritdoc/>
+    public bool TryGetVirtualizedChild(int index, out IPlatformAccessibleObject? child)
+    {
+        child = null;
+        if (accessible_object is not Control.ControlAccessibleObject parent || !parent.TryGetVirtualizedChild(index, out var peer)) return false;
+        child = From(peer);
+        return true;
+    }
 
     /// <inheritdoc/>
     public IPlatformAccessibleObject? GetFocused() => From(accessible_object.GetFocused());

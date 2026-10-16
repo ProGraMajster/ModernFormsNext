@@ -197,6 +197,15 @@ namespace ModernFormsNext
         protected override void PrepareItemContainer (Control container, object? item, int index) { }
 
         /// <inheritdoc/>
+        /// <remarks>
+        /// ListView paints logical items itself; its private focus containers have no intrinsic
+        /// content size. Keep the configured logical cell extent instead of measuring that empty
+        /// container. Derived lists may override this hook to measure their own item presentation.
+        /// </remarks>
+        protected override double MeasureItemContainer (Control container, object? item, int index, Size estimatedSize)
+            => ItemOrientation == Orientation.Vertical ? estimatedSize.Height : estimatedSize.Width;
+
+        /// <inheritdoc/>
         protected override void ClearItemContainer (Control container, object? item, int index)
         {
             if (item is ListViewItem oldItem) oldItem.SetBounds (0, 0, 0, 0);

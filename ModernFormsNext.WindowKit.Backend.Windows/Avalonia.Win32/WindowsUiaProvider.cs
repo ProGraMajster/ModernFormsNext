@@ -207,10 +207,10 @@ internal partial class WindowsUiaProvider :
             IPlatformAccessibleObject? result = direction switch
             {
                 NavigateDirection.Parent => node.Parent,
-                NavigateDirection.FirstChild => node.GetChildCount() > 0 ? node.GetChild(0) : null,
-                NavigateDirection.LastChild => node.GetChildCount() > 0 ? node.GetChild(node.GetChildCount() - 1) : null,
-                NavigateDirection.NextSibling => node.Navigate(PlatformAccessibleNavigation.Next),
-                NavigateDirection.PreviousSibling => node.Navigate(PlatformAccessibleNavigation.Previous),
+                NavigateDirection.FirstChild => FirstOrLastChild(node, last: false),
+                NavigateDirection.LastChild => FirstOrLastChild(node, last: true),
+                NavigateDirection.NextSibling => Sibling(node, 1),
+                NavigateDirection.PreviousSibling => Sibling(node, -1),
                 _ => null
             };
 
@@ -256,6 +256,13 @@ internal partial class WindowsUiaProvider :
         return Read(node =>
         {
             long[] currentIds = CaptureChildRuntimeIds(node);
+            if (node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out _))
+            {
+                // The bounded viewport snapshot cannot classify changes elsewhere in the full
+                // logical source. Invalidate children rather than infer a false single-row edit.
+                lastChildRuntimeIds = currentIds;
+                return new WindowsUiaStructureChange(this, StructureChangeType.ChildrenInvalidated, RuntimeId: null);
+            }
             HashSet<long> previousSet = lastChildRuntimeIds.ToHashSet();
             HashSet<long> currentSet = currentIds.ToHashSet();
             long[] added = currentIds
@@ -411,7 +418,9 @@ internal partial class WindowsUiaProvider :
         return Read(node =>
         {
             var selected = new List<IRawElementProviderSimple>();
-            if (node.GetGridInfo() is not null && !HasState(node.State, StateMultiSelectable))
+            if (!HasState(node.State, StateMultiSelectable) && (node.GetGridInfo() is not null ||
+                node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out var projection) &&
+                projection.LogicalItemCount is not null))
             {
                 if (node.GetSelected() is { } item)
                     selected.Add(Context.GetOrCreate(item));
@@ -560,6 +569,10 @@ internal partial class WindowsUiaProvider :
 
     private static long[] CaptureChildRuntimeIds(IPlatformAccessibleObject node)
     {
+        // Creating a provider is implicit on native notifications too. Never materialize the
+        // whole logical source merely to retain structure-event bookkeeping for a virtual list.
+        if (node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out var projection))
+            return projection.Children.Select(GetEffectiveRuntimeId).ToArray();
         int count = node.GetChildCount();
         var runtimeIds = new List<long>(count);
         for (int index = 0; index < count; index++)
@@ -569,6 +582,21 @@ internal partial class WindowsUiaProvider :
         }
 
         return runtimeIds.ToArray();
+    }
+
+    private static IPlatformAccessibleObject? FirstOrLastChild(IPlatformAccessibleObject node, bool last)
+    {
+        if (node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out var projection) &&
+            projection.LogicalItemCount is { } count && virtualized.TryGetVirtualizedChild(last ? count - 1 : 0, out var child)) return child;
+        int ordinaryCount = node.GetChildCount();
+        return ordinaryCount > 0 ? node.GetChild(last ? ordinaryCount - 1 : 0) : null;
+    }
+
+    private static IPlatformAccessibleObject? Sibling(IPlatformAccessibleObject node, int offset)
+    {
+        if (node.Parent is IPlatformAccessibilityVirtualizedChildren parent && parent.TryGetVirtualizedItemIndex(node, out int index) &&
+            parent.TryGetVirtualizedChild(index + offset, out var sibling)) return sibling;
+        return node.Navigate(offset > 0 ? PlatformAccessibleNavigation.Next : PlatformAccessibleNavigation.Previous);
     }
 
     private T ReadRange<T>(Func<PlatformAccessibleRangeValue, T> selector)

@@ -1,0 +1,174 @@
+using Android.App;
+using Android.Content;
+using Android.Content.PM;
+using Android.OS;
+using Android.Views;
+using ModernFormsNext.Validation;
+using ModernFormsNext.WindowKit.Backend.Android;
+using System.Diagnostics;
+using System.Runtime.ExceptionServices;
+using System.Text;
+
+namespace ModernFormsNext.CrossPlatform.Sample;
+
+/// <summary>Runs explicit shared virtualization certification through the actual Android host.</summary>
+/// <remarks>
+/// Start with adb instrumentation on an emulator and an authorized physical target separately.
+/// Ordinary sample startup does not run this workload. Only synthetic fixture data is used.
+/// Results describe automated native checks; they never claim human visual inspection.
+/// </remarks>
+[Instrumentation(Name = "com.programajster.modernformsnext.sample.VirtualizationValidationInstrumentation",
+    TargetPackage = "com.programajster.modernformsnext.sample", FunctionalTest = true)]
+public sealed class VirtualizationValidationInstrumentation : Instrumentation
+{
+    private readonly StringBuilder report = new();
+    private MainActivity activity = null!;
+
+    /// <summary>Creates the explicit virtualization certification runner.</summary>
+    public VirtualizationValidationInstrumentation() { }
+
+    /// <summary>Reattaches the managed runner to its Java instance.</summary>
+    /// <param name="handle">The Java handle.</param>
+    /// <param name="ownership">JNI ownership.</param>
+    public VirtualizationValidationInstrumentation(IntPtr handle, global::Android.Runtime.JniHandleOwnership ownership)
+        : base(handle, ownership) { }
+
+    /// <inheritdoc/>
+    public override void OnCreate(Bundle? arguments) { base.OnCreate(arguments); Start(); }
+
+    /// <inheritdoc/>
+    public override void OnStart()
+    {
+        base.OnStart();
+        using var result = new Bundle();
+        VirtualizationCertification? fixture = null;
+        bool success = false;
+        ScreenOrientation? originalOrientation = null;
+        bool? originalKeepScreenOn = null;
+        try
+        {
+            using var intent = new Intent(TargetContext!, typeof(MainActivity));
+            intent.AddFlags(ActivityFlags.NewTask);
+            activity = (MainActivity)StartActivitySync(intent)!;
+            Wait(() => Ui(() => ModernFormsNext.Application.OpenForms.Any() &&
+                AndroidWindowKit.Current.GetWindowingDiagnostics().Windows.Any(window => window.Main && window.Active && window.PaintCount > 0)), "native-presentation");
+            report.AppendLine($"DEVICE model={Build.Model} api={(int)Build.VERSION.SdkInt} fingerprint={Build.Fingerprint}");
+            Record("STAGE construct");
+            fixture = Ui(() =>
+            {
+                originalKeepScreenOn = activity.Window!.Attributes!.Flags.HasFlag(WindowManagerFlags.KeepScreenOn);
+                activity.Window.AddFlags(WindowManagerFlags.KeepScreenOn);
+                var main = ModernFormsNext.Application.OpenForms.Single();
+                foreach (var control in main.Controls) control.Visible = false;
+                return new VirtualizationCertification(main, Record);
+            });
+            Record("STAGE exercise");
+            Ui(() =>
+            {
+                fixture.Exercise(key =>
+                {
+                    if (key != Keys.End) throw new InvalidOperationException("Unmapped certification key.");
+                    var view = NativeValidationViews.Main(activity);
+                    using var down = new KeyEvent(KeyEventActions.Down, Keycode.MoveEnd);
+                    using var up = new KeyEvent(KeyEventActions.Up, Keycode.MoveEnd);
+                    view.DispatchKeyEvent(down);
+                    view.DispatchKeyEvent(up);
+                });
+                return true;
+            });
+            Record("STAGE native-touch");
+            var point = Ui(() =>
+            {
+                fixture.View.ScrollToItem(0);
+                Record("TOUCH scroll-ready");
+                var row = fixture.View.GetItemContainer(0)!;
+                return row.PointToScreen(new(row.LogicalToDeviceUnits(10), row.LogicalToDeviceUnits(10)));
+            });
+            long time = SystemClock.UptimeMillis();
+            using (var down = MotionEvent.Obtain(time, time, MotionEventActions.Down, point.X, point.Y, 0)!) SendPointerSync(down);
+            Record("TOUCH down-delivered");
+            using (var up = MotionEvent.Obtain(time, time + 50, MotionEventActions.Up, point.X, point.Y, 0)!) SendPointerSync(up);
+            Record("TOUCH up-delivered");
+            Wait(() => Ui(() => fixture.View.SelectedIndex == 0), "native-touch-selects-realized-row");
+            Ui(() => { fixture.View.SelectedIndex = 70_000; return true; });
+            originalOrientation = Ui(() => activity.RequestedOrientation);
+            Ui(() => { activity.RequestedOrientation = ScreenOrientation.Landscape; return true; });
+            Wait(() => Ui(() => NativeValidationViews.Main(activity).Width > NativeValidationViews.Main(activity).Height), "native-landscape-resize");
+            Ui(() =>
+            {
+                fixture.View.ScrollToItem(70_000);
+                if (fixture.View.GetItemContainer(70_000) is null || fixture.View.SelectedIndex != 70_000)
+                    throw new InvalidOperationException("Orientation lost the selected/realized occurrence.");
+                // Exercise portrait even when the device began in landscape. The original
+                // activity orientation policy is restored by the existing finally block.
+                activity.RequestedOrientation = ScreenOrientation.Portrait;
+                return true;
+            });
+            Wait(() => Ui(() => NativeValidationViews.Main(activity).Height > NativeValidationViews.Main(activity).Width), "native-portrait-resize");
+            Record("STAGE warm");
+            for (int warm = 0; warm < 10; warm++)
+            {
+                Ui(() => { fixture.WarmBatch(); return true; });
+                Record($"WARM batch={warm + 1}/10");
+                Thread.Sleep(50);
+            }
+            Ui(() => { fixture.CompleteWarmup(); return true; });
+            long initialPaints = Ui(PaintCount);
+            for (int batch = 0; batch < VirtualizationCertification.BatchCount; batch++)
+            {
+                int current = batch;
+                Ui(() => { fixture.Batch(current); return true; });
+                Thread.Sleep(1000); // Instrumentation thread only; the UI/render loop stays available.
+            }
+            Ui(() => { fixture.Complete(); return true; });
+            long paints = Ui(PaintCount) - initialPaints;
+            if (paints < 10) throw new InvalidOperationException($"Native render callbacks did not advance: {paints}.");
+            report.AppendLine($"PASS native-render-loop paints={paints}");
+            Ui(() => { fixture.Dispose(); fixture = null; return true; });
+            success = true;
+        }
+        catch (Exception error) { report.AppendLine($"FAIL {error}"); }
+        finally
+        {
+            try
+            {
+                if (fixture is not null) Ui(() => { fixture.Dispose(); return true; });
+                if (originalOrientation is { } orientation) Ui(() => { activity.RequestedOrientation = orientation; return true; });
+                if (originalKeepScreenOn == false) Ui(() => { activity.Window!.ClearFlags(WindowManagerFlags.KeepScreenOn); return true; });
+            }
+            catch (Exception error) { success = false; report.AppendLine($"FAIL cleanup {error}"); }
+            report.AppendLine($"ANDROID_VIRTUALIZATION_{(success ? "PASS" : "FAIL")}");
+            File.WriteAllText(System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, "virtualization-validation.txt"), report.ToString());
+            result.PutString("stream", report.ToString());
+            Finish(success ? Result.Ok : Result.Canceled, result);
+        }
+    }
+
+    private void Record(string line)
+    {
+        report.AppendLine(line);
+        global::Android.Util.Log.Info("MFN.Virtualization", line);
+    }
+
+    private static long PaintCount() => AndroidWindowKit.Current.GetWindowingDiagnostics().Windows.Where(window => window.Main).Sum(window => window.PaintCount);
+
+    private T Ui<T>(Func<T> action)
+    {
+        T value = default!;
+        Exception? failure = null;
+        RunOnMainSync(() => { try { value = action(); } catch (Exception error) { failure = error; } });
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+        return value;
+    }
+
+    private void Wait(Func<bool> condition, string category)
+    {
+        var elapsed = Stopwatch.StartNew();
+        while (elapsed.Elapsed < TimeSpan.FromSeconds(15))
+        {
+            if (condition()) { Record("PASS " + category); return; }
+            Thread.Sleep(25);
+        }
+        throw new InvalidOperationException(category);
+    }
+}

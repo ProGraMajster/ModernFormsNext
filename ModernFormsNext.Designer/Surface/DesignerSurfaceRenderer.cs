@@ -560,6 +560,9 @@ internal sealed class DesignerSurfaceRenderer
                 return;
             }
 
+            // Runtime previews own their temporary framework controls, including recycled rows
+            // and cached paint resources. Retire them even when applying a value or painting fails.
+            using var previewLifetime = control;
             control.Name = node.Name;
             var logicalSize = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
             control.Bounds = new System.Drawing.Rectangle(System.Drawing.Point.Empty, logicalSize);
@@ -685,6 +688,10 @@ internal sealed class DesignerSurfaceRenderer
 
             if (!string.IsNullOrWhiteSpace(previewText))
                 listBox.Items.Add(previewText);
+        }
+        else if (control is ListView listView)
+        {
+            DesignerVirtualizationPreview.Populate(listView);
         }
     }
 

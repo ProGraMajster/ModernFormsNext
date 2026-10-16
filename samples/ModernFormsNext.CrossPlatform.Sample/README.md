@@ -39,6 +39,11 @@ for invocation and coverage, and the [#72 final review](../../docs/development/i
 for their current host validation. An ordinary launch does not open or execute either
 instrumentation fixture.
 
+The explicit `VirtualizationValidationInstrumentation` runner certifies two synthetic
+100,000+ item consumers, bounded recycling, native input and a paced memory workload.
+It runs only when requested through adb. See [shared virtualization certification](../../docs/virtualization-certification.md)
+for invocation and separate emulator/physical/manual evidence requirements.
+
 Windows attaches `App.Root` through the shared `MainForm`. Android calls
 `Application.Run(new MainForm(app))` from `AndroidWindowActivity.OnStartApplication`. The backend
 owns native Skia presentation and the existing shared input pipeline. Activity recreation retains
