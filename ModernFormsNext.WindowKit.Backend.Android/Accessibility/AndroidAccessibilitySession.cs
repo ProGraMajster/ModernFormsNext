@@ -96,7 +96,7 @@ internal sealed class AndroidAccessibilitySession : IDisposable
         var current = node;
         for (int depth = 0; depth < 512; depth++)
         {
-            if (current.GetAccessibilityView() == 4 || (current.State & Invisible) != 0) return false;
+            if (IsInvisible(current)) return false;
             if (ReferenceEquals(current, root)) return true;
             if (ProjectedParent(current) is not { } parent) return false;
             current = parent;
@@ -116,18 +116,44 @@ internal sealed class AndroidAccessibilitySession : IDisposable
         var parent = node.Parent;
         for (int depth = 0; depth < 512 && parent is not null; depth++, parent = parent.Parent)
         {
-            if (ReferenceEquals(parent, node) || parent.GetAccessibilityView() == 4 ||
-                (parent.State & Invisible) != 0) return null;
-            for (int i = 0, count = parent.GetChildCount(); i < count; i++)
-                if (ReferenceEquals(parent.GetChild(i), node)) { candidate = parent; break; }
+            if (ReferenceEquals(parent, node) || IsInvisible(parent)) return null;
+            if (parent is IPlatformAccessibilityChildMembership membership && membership.TryContainsChild(node, out bool contains))
+            {
+                if (contains) candidate = parent;
+            }
+            else
+            {
+                // Custom projections still require actual enumerated membership. Canonical
+                // virtualized peers can answer from the indexed source without creating/scanning
+                // every preceding sibling for each native focus/structure notification.
+                for (int i = 0, count = parent.GetChildCount(); i < count; i++)
+                    if (ReferenceEquals(parent.GetChild(i), node)) { candidate = parent; break; }
+            }
             if (ReferenceEquals(parent, root)) return candidate;
         }
         return null;
     }
 
+    private static bool IsInvisible(IPlatformAccessibleObject node)
+        // The exact canonical Control/ListView-item View already rejects hidden/disposed owners.
+        // Recomputing their complete State for membership also computes screen geometry through
+        // JNI on Android for every row attach/detach. Custom peers keep the independent State check.
+        => node.GetAccessibilityView() == 4 ||
+            node is not IPlatformUiaAccessibleObject { VisibilityFollowsView: true } && (node.State & Invisible) != 0;
+
     internal List<int> Children(IPlatformAccessibleObject node)
     {
         List<int> ids = [];
+        if (node is IPlatformAccessibilityVirtualizedChildren virtualized && virtualized.TryGetVirtualizedChildren(out var projection))
+        {
+            // Android asks for children even while creating the input-focus node. Publish the
+            // actual viewport/cache projection, retaining the same canonical peers and native IDs,
+            // rather than force an indexed O(N^2) walk through every logical source occurrence.
+            foreach (var child in projection.Children)
+                if (Register(child) is var id && id != InvalidId) ids.Add(id);
+            Prune();
+            return ids;
+        }
         int count = node.GetChildCount();
         for (int i = 0; i < count; i++)
             if (node.GetChild(i) is { } child && Register(child) is var id && id != InvalidId)

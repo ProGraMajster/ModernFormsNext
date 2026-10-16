@@ -15,6 +15,10 @@ open until those criteria are complete. This does not add CollectionView or chan
 TreeView/DataGrid behavior. Existing TreeView.VirtualMode resolves nodes when they
 expand; it is a separate existing behavior and is not container recycling.
 
+See the [certification workload and evidence boundaries](virtualization-certification.md)
+for repeatable Designer, HWND and Android validation. The presence of a runner does
+not imply that every platform lane has passed for the current source tree.
+
 ## Use the supported ListView consumer
 
 ```csharp
@@ -85,6 +89,12 @@ the IList remain borrowed; the host never disposes them. The source indexer must
 be cached/synchronous and must not block the UI thread. The ordinary framework
 BindingContext must be available for DataBindings, including a context supplied
 explicitly for a standalone windowless tree.
+
+ListView draws its logical items separately from its private focus containers.
+Its default measurement therefore retains the primary `ItemSize` extent, including
+when `VariableItemSize` is enabled. A derived ListView may override
+`MeasureItemContainer` for a genuinely variable presentation. Measuring the empty
+focus container would collapse the drawn cells and is not the default policy.
 
 `ClearItemContainer` receives the original prepared object and index, after focus,
 capture and attachment retirement. Do not look up that old index in the mutated

@@ -1,6 +1,8 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--virtualization-certification", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationCertificationScenario.Run(); return; }
+
 if (args.Contains("--virtualization", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationScenario.Run(); return; }
 
 if (args.Contains("--native-view", StringComparer.Ordinal)) { Environment.ExitCode = NativeViewScenario.Run(); return; }

@@ -377,8 +377,9 @@ public partial class Control
 
             // Accessibility hit testing follows the same front-to-back contract as pointer
             // dispatch: the last child is the first eligible overlapping object.
-            AccessibleObject[] children = EnumerateActiveChildren().ToArray();
-            for (int i = children.Length - 1; i >= 0; i--)
+            IReadOnlyList<AccessibleObject> children = TryGetVirtualizedChildren(out var realized, out _)
+                ? realized : EnumerateActiveChildren().ToArray();
+            for (int i = children.Count - 1; i >= 0; i--)
             {
                 var hit = children[i].HitTest(x, y);
                 if (hit is not null)

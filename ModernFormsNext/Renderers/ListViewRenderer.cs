@@ -48,7 +48,10 @@ namespace ModernFormsNext.Renderers
                 // inline within the actual cell instead of placing text below an unconditional 32px icon.
                 var textBounds = item.Bounds;
                 int padding = e.LogicalToDeviceUnits (3);
-                textBounds.Inflate (-padding, -padding);
+                // ItemSize already reserves trailing cell spacing. Keep the remaining vertical
+                // room for the font's full line metrics; another inset can make RichTextKit
+                // reject the sole line entirely in a compact row, especially at fractional DPI.
+                textBounds.Inflate (-padding, 0);
                 if (item.Image is not null) {
                     int imageSize = Math.Max (0, Math.Min (e.LogicalToDeviceUnits (32), Math.Min (textBounds.Width, textBounds.Height)));
                     var imageBounds = new Rectangle (textBounds.Left, textBounds.Top + (textBounds.Height - imageSize) / 2, imageSize, imageSize);

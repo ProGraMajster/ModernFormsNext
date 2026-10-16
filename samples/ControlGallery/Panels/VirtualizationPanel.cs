@@ -23,6 +23,9 @@ public sealed class VirtualizationPanel : BasePanel
         rows = body.Controls.Add(new EntryList { Dock = DockStyle.Left, Width = 360, ItemSize = new Size(300, 32), VariableItemSize = true });
         rows.SetEntries(entries);
         tiles = body.Controls.Add(new ListView { Dock = DockStyle.Fill });
+        // Dock consumes the front-most child first. Reserve the left consumer's width
+        // before filling the remaining space so both production consumers stay visible.
+        rows.BringToFront();
         tiles.SuspendLayout();
         try
         {

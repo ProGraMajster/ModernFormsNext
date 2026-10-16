@@ -19,7 +19,8 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 
 - [UserControls](user-controls.md)
 - [Data binding](data-binding.md)
-- [Shared item virtualization foundation](virtualization.md) — indexed geometry and recycling; control integration remains in progress.
+- [Shared item virtualization](virtualization.md) — reusable ItemsControl, opt-in ListView, indexed geometry and recycling.
+- [Virtualization certification](virtualization-certification.md) — bounded Designer preview and repeatable HWND/Android workloads.
 - [Commands, shortcuts, and input routing](commands.md)
 - [Text input and composition](text-input.md)
 - [RichTextBox](richtextbox.md)
