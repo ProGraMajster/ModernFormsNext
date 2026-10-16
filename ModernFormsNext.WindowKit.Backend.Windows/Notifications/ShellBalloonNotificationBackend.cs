@@ -11,10 +11,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Notifications;
 // extract this adapter without referencing either Windows SDK projection or Windows App SDK.
 internal sealed class ShellBalloonNotificationBackend : IWindowsNotificationBackend
 {
-    private readonly Dictionary<SystemNotificationKey, WindowsTrayIcon> icons = [];
+    private readonly ShellNotificationLeases<WindowsTrayIcon> icons = new(icon => icon.Dispose());
+    private ITimer? leaseTimer;
     private Action<SystemNotificationActivation>? activated;
     private Action<SystemNotificationChange>? changed;
-    private bool disposed;
+    private volatile bool disposed;
     public SystemNotificationCapabilities Capabilities { get; } = new("Shell balloon",
         SystemNotificationFeatures.Basic | SystemNotificationFeatures.Removal | SystemNotificationFeatures.Replacement | SystemNotificationFeatures.DismissalEvents,
         "Shell balloons are transient and require a running process; this does not certify Windows 7/.NET 10 support.");
@@ -25,7 +26,14 @@ internal sealed class ShellBalloonNotificationBackend : IWindowsNotificationBack
         => Task.FromResult(new SystemNotificationResult(SystemNotificationStatus.Unsupported));
 
     public void Initialize(WindowsNotificationRegistrationOptions options, Action<SystemNotificationActivation> activated, Action<SystemNotificationChange> changed)
-    { this.activated = activated; this.changed = changed; }
+    {
+        this.activated = activated; this.changed = changed;
+        leaseTimer = TimeProvider.System.CreateTimer(_ =>
+        {
+            if (disposed) return;
+            Dispatcher.UIThread.Post(() => { if (!disposed) icons.Expire(); });
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+    }
 
     public Task<SystemNotificationResult> ShowAsync(SystemNotification notification, CancellationToken cancellationToken)
         => OnUi(() =>
@@ -49,11 +57,11 @@ internal sealed class ShellBalloonNotificationBackend : IWindowsNotificationBack
             if (title.Length > 63 || message.Length > 255)
                 warnings.Add(new("ShellTextTruncated", "Shell title/body were truncated to 63/255 UTF-16 characters."));
             if (warnings.Count > 0 && !notification.AllowDegradation) return new(SystemNotificationStatus.Unsupported, key, warnings.AsReadOnly());
-            if (!icons.ContainsKey(key) && icons.Count >= 32)
+            if (!icons.CanAllocate(key))
                 return new(SystemNotificationStatus.Failed, key, [new("ShellCapacity", "At most 32 concurrent Shell notification identities are retained.")]);
             // Replacement removes the old icon before installing the new one; callback correlation
             // is per HWND, so an old timeout cannot dismiss a newer balloon with the same tag.
-            if (icons.Remove(key, out var previous)) previous.Dispose();
+            icons.Remove(key);
             var tray = new WindowsTrayIcon();
             try
             {
@@ -67,18 +75,17 @@ internal sealed class ShellBalloonNotificationBackend : IWindowsNotificationBack
                     // callback would make native lifetime ordering unnecessarily reentrant.
                     Dispatcher.UIThread.Post(() =>
                     {
-                        if (disposed || !icons.TryGetValue(key, out var current) || !ReferenceEquals(current, tray)) return;
+                        if (disposed || !icons.IsCurrent(key, tray)) return;
                         if (nativeMessage == 0x405) activated?.Invoke(new(notification.Id, notification.ActivationData, null, new Dictionary<string, string>()) { Group = notification.Group });
                         if (nativeMessage is 0x403 or 0x404 or 0x405)
                         {
-                            icons.Remove(key);
-                            tray.Dispose();
+                            icons.Remove(key, tray);
                             changed?.Invoke(new(key, nativeMessage == 0x404 ? "TimedOut" : nativeMessage == 0x405 ? "Activated" : "Hidden"));
                         }
                     });
                 };
                 tray.Visible = true;
-                icons.Add(key, tray);
+                icons.Replace(key, tray);
                 var flags = (NIIF)(int)balloon.Icon;
                 if (options.Silent) flags |= NIIF.NOSOUND;
                 if (balloon.LargeIcon) flags |= NIIF.LARGE_ICON;
@@ -86,7 +93,7 @@ internal sealed class ShellBalloonNotificationBackend : IWindowsNotificationBack
                 tray.ShowSystemBalloon(Truncate(title, 63), Truncate(message, 255), flags, balloon.CustomIcon, balloon.Realtime);
                 return new(SystemNotificationStatus.Accepted, key, warnings.AsReadOnly());
             }
-            catch { icons.Remove(key); tray.Dispose(); throw; }
+            catch { if (!icons.Remove(key, tray)) tray.Dispose(); throw; }
         }, cancellationToken);
 
     public Task<SystemNotificationResult> UpdateAsync(SystemNotificationKey key, SystemNotificationProgress progress, CancellationToken cancellationToken)
@@ -96,21 +103,19 @@ internal sealed class ShellBalloonNotificationBackend : IWindowsNotificationBack
         {
             if (key is null && tag is not null)
             {
-                foreach (var pair in icons.Where(pair => pair.Key.Id == tag).ToArray())
-                { icons.Remove(pair.Key); pair.Value.Dispose(); }
+                foreach (var identity in icons.Keys.Where(identity => identity.Id == tag)) icons.Remove(identity);
                 return new(SystemNotificationStatus.Accepted);
             }
             if (key is null) return new(SystemNotificationStatus.Unsupported);
-            if (!icons.Remove(key, out var icon)) return new(SystemNotificationStatus.NotFound, key);
-            icon.Dispose();
+            if (!icons.Remove(key)) return new(SystemNotificationStatus.NotFound, key);
             return new(SystemNotificationStatus.Accepted, key);
         }, cancellationToken);
     public Task<IReadOnlyList<SystemNotificationHistoryEntry>> GetHistoryAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SystemNotificationHistoryEntry>>([]);
     public async ValueTask DisposeAsync() => await OnUi(() =>
     {
         disposed = true;
-        foreach (var tray in icons.Values) tray.Dispose();
-        icons.Clear(); activated = null; changed = null;
+        leaseTimer?.Dispose(); leaseTimer = null;
+        icons.Dispose(); activated = null; changed = null;
         return new(SystemNotificationStatus.Accepted);
     }, CancellationToken.None).ConfigureAwait(false);
 

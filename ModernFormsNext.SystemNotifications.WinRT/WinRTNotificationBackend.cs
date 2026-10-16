@@ -50,6 +50,10 @@ public sealed class WinRTNotificationBackend : IWindowsNotificationBackend
             // Without one retain the original desktop-template/event behavior, not broken buttons.
             legacy = !OperatingSystem.IsWindowsVersionAtLeast(10) || activator is null;
             notifier = packaged ? ToastNotificationManager.CreateToastNotifier() : ToastNotificationManager.CreateToastNotifier(appId!);
+            // Creating the projection can succeed without a usable installed desktop
+            // identity. Probe before accepting this provider, so Automatic can fall
+            // through once instead of throwing 0x80070490 on every status/send call.
+            _ = notifier.Setting;
             bool updates = !legacy && ApiInformation.IsPropertyPresent("Windows.UI.Notifications.ToastNotification", "Data");
             bool history = ApiInformation.IsPropertyPresent("Windows.UI.Notifications.ToastNotificationManager", "History");
             var version = legacy ? new Version(6, 2) : Environment.OSVersion.Version;
