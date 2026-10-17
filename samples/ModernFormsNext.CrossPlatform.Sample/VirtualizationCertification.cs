@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using ModernFormsNext.Accessibility;
+using ModernFormsNext.Virtualization;
 
 namespace ModernFormsNext.Validation;
 
@@ -23,9 +24,10 @@ internal sealed class VirtualizationCertification : IDisposable
     private readonly Panel outer;
     private readonly Stopwatch elapsed = Stopwatch.StartNew();
     private readonly List<long> retained = [];
-    private long allocated, warmedCreated;
+    private long allocated, warmedCreated, warmedCollectionCreated;
     private int step, assertions;
     internal ListView View { get; }
+    internal CollectionView Collection => variable;
     internal int PaintCount => ((PaintedList)View).Paints;
 
     internal VirtualizationCertification(Form form, Action<string> output)
@@ -54,6 +56,16 @@ internal sealed class VirtualizationCertification : IDisposable
         {
             Bounds = new(8, 190, 260, 130), ItemSize = new(180, 24), VariableItemSize = true
         });
+        variable.CreatingContainer = () =>
+        {
+            if (warmedCollectionCreated == 0) return;
+            // Observe the exact request before acquiring a new row, rather than only the
+            // settled range at the end of a batch. A normal warmed run never enters here.
+            var snapshot = variable.GetVirtualizationSnapshot();
+            var context = ((IVirtualizingLayoutHost)variable).GetVirtualizationContext();
+            var requested = ((VirtualizingLayout)variable.LayoutEngine).GetRealizedRange(in context);
+            output(FormattableString.Invariant($"COLLECTION_CREATE_AFTER_WARM step={step} warmed={warmedCollectionCreated} created_before={snapshot.CreatedContainerCount} discarded={snapshot.DiscardedContainerCount} live={snapshot.RealizedContainerCount} pool={snapshot.RecycledContainerCount} requested={requested} viewport={context.Viewport} scale={variable.ScaleFactor} measured={snapshot.MeasuredItemCount}"));
+        };
         source = new ObservableCollection<object>(Enumerable.Range(0, SourceCount).Select(index => (object)$"Value {index}"));
         variable.SetSource(source);
         form.Controls.Add(outer);
@@ -130,10 +142,28 @@ internal sealed class VirtualizationCertification : IDisposable
         Check(variable.SelectedIndex == 60_000, "adapter-insert-move-occurrence");
         source[60_000] = "Replacement";
         Check(variable.SelectedIndex == -1, "adapter-replace");
+        variable.Select();
+        nativeKey(Keys.End);
+        int last = variable.ItemCount - 1;
+        Check(variable.SelectedIndex == last && variable.GetItemContainer(last)?.Focused == true, "collection-native-End-focus");
+        var collectionPeer = variable.AccessibilityObject.GetSelected()!;
+        long collectionId = collectionPeer.RuntimeId;
+        variable.ScrollToItem(0);
+        Check(collectionPeer.Bounds.IsEmpty && collectionPeer.PerformAction(AccessibleActions.Focus), "collection-logical-reveal-focus");
+        variable.ItemTemplate = new ValueTemplate(variable);
+        Check(ReferenceEquals(collectionPeer, variable.AccessibilityObject.GetSelected()) && collectionPeer.RuntimeId == collectionId &&
+            variable.GetItemContainer(last)?.Focused == true, "collection-template-replacement-retains-peer-focus");
+        int invoked = 0;
+        EventHandler<CollectionViewItemEventArgs> activated = (_, e) => { if (e.Index == last) invoked++; };
+        variable.ItemInvoked += activated;
+        try { nativeKey(Keys.Enter); }
+        finally { variable.ItemInvoked -= activated; }
+        Check(invoked == 1, "collection-native-Enter-invokes-once");
         var copy = source.ToArray();
         source.Clear();
         Check(variable.Controls.Count == 0 && variable.ItemCount == 0, "adapter-reset-clears-realization");
         variable.SetSource(copy);
+        Check(collectionPeer.View == AccessibilityView.Hidden && collectionPeer.Parent is null, "collection-reset-retires-peer");
         variable.ScrollToItem(90_000);
         Check(variable.GetVirtualizationSnapshot().MeasuredItemCount > 0, "variable-extents-corrected");
         VerifyBounded(variable);
@@ -154,6 +184,7 @@ internal sealed class VirtualizationCertification : IDisposable
     internal void CompleteWarmup()
     {
         warmedCreated = View.GetVirtualizationSnapshot().CreatedContainerCount;
+        warmedCollectionCreated = variable.GetVirtualizationSnapshot().CreatedContainerCount;
         Sample("warm");
     }
 
@@ -165,6 +196,10 @@ internal sealed class VirtualizationCertification : IDisposable
         allocated += GC.GetAllocatedBytesForCurrentThread() - before;
         double milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         Check(View.GetVirtualizationSnapshot().CreatedContainerCount == warmedCreated, "warmed-container-plateau", log: false);
+        var collectionSnapshot = variable.GetVirtualizationSnapshot();
+        if (collectionSnapshot.CreatedContainerCount != warmedCollectionCreated)
+            output(FormattableString.Invariant($"COLLECTION_PLATEAU_FAILURE batch={batch} step={step} warmed={warmedCollectionCreated} created={collectionSnapshot.CreatedContainerCount} live={collectionSnapshot.RealizedContainerCount} pool={collectionSnapshot.RecycledContainerCount} range={collectionSnapshot.RealizedRange} viewport={variable.ClientSize} display={variable.DisplayRectangle} scale={variable.ScaleFactor} item_size={variable.ItemSize} measured={collectionSnapshot.MeasuredItemCount}"));
+        Check(collectionSnapshot.CreatedContainerCount == warmedCollectionCreated, "warmed-collection-container-plateau", log: false);
         if (batch % 20 == 19) Sample($"batch-{batch + 1};last_batch_ms={milliseconds.ToString("F3", CultureInfo.InvariantCulture)}");
     }
 
@@ -208,7 +243,7 @@ internal sealed class VirtualizationCertification : IDisposable
         process.Refresh();
         var snapshot = View.GetVirtualizationSnapshot();
         var measured = variable.GetVirtualizationSnapshot();
-        output(FormattableString.Invariant($"MEMORY {stage} elapsed_ms={elapsed.Elapsed.TotalMilliseconds:F0} managed={memory} private={process.PrivateMemorySize64} working={process.WorkingSet64} live={snapshot.RealizedContainerCount} pool={snapshot.RecycledContainerCount} created={snapshot.CreatedContainerCount} reused={snapshot.ReusedContainerCount} extent={snapshot.ContentExtent} measured={measured.MeasuredItemCount} variable_extent={measured.ContentExtent} layout_ms={measured.LastLayoutDuration.TotalMilliseconds:F3}"));
+        output(FormattableString.Invariant($"MEMORY {stage} elapsed_ms={elapsed.Elapsed.TotalMilliseconds:F0} managed={memory} private={process.PrivateMemorySize64} working={process.WorkingSet64} live={snapshot.RealizedContainerCount} pool={snapshot.RecycledContainerCount} created={snapshot.CreatedContainerCount} reused={snapshot.ReusedContainerCount} extent={snapshot.ContentExtent} measured={measured.MeasuredItemCount} variable_extent={measured.ContentExtent} variable_created={measured.CreatedContainerCount} variable_live={measured.RealizedContainerCount} variable_pool={measured.RecycledContainerCount} variable_range={measured.RealizedRange} layout_ms={measured.LastLayoutDuration.TotalMilliseconds:F3}"));
     }
 
     private void Check(bool condition, string category, bool log = true)
@@ -229,13 +264,27 @@ internal sealed class VirtualizationCertification : IDisposable
         Check(disposed == rows.Length, "all-live-containers-disposed");
     }
 
-    private sealed class VariableList : ItemsControl
+    private sealed class VariableList : CollectionView
     {
         internal int ExtraExtent;
-        internal void SetSource(IList values) => SetItemsSource(values);
+        internal Action? CreatingContainer;
+        internal void SetSource(IList values) => ItemsSource = values;
         internal object? ValueAt(int index) => GetItem(index);
+        protected override Control CreateItemContainer()
+        {
+            CreatingContainer?.Invoke();
+            return base.CreateItemContainer();
+        }
         protected override double MeasureItemContainer(Control container, object? item, int index, Size estimatedSize)
             => 24 + (index % 7 == 0 ? 12 : 0) + ExtraExtent;
+    }
+
+    private sealed class ValueTemplate(CollectionView owner) : IItemContainerFactory<Control>
+    {
+        public Control CreateContainer() => new Label { Margin = Padding.Empty, TextAlign = ContentAlignment.MiddleLeft };
+        public void PrepareContainer(Control container, int index) => container.Text = owner.ItemsSource![index]?.ToString() ?? string.Empty;
+        public void ClearContainer(Control container, int previousIndex) => container.Text = string.Empty;
+        public void DiscardContainer(Control container) => container.Dispose();
     }
 
     private sealed class PaintedList : ListView

@@ -8,11 +8,12 @@ parent acceptance are tracked separately by
 [#200](https://github.com/ProGraMajster/ModernFormsNext/issues/200).
 
 The runtime integration in [#202](https://github.com/ProGraMajster/ModernFormsNext/issues/202)
-adds a reusable `ItemsControl` and opt-in virtualized `ListView`. Full Designer and
-Windows/Android release certification remains in
-[#203](https://github.com/ProGraMajster/ModernFormsNext/issues/203); the parent stays
-open until those criteria are complete. This does not add CollectionView or change
-TreeView/DataGrid behavior. Existing TreeView.VirtualMode resolves nodes when they
+adds a reusable `ItemsControl` and opt-in virtualized `ListView`. Designer and
+Windows/Android certification completed in
+[#203](https://github.com/ProGraMajster/ModernFormsNext/issues/203), closing #200/#55.
+[CollectionView](collection-view.md), tracked by #274 under #13, consumes that same
+completed infrastructure. This does not change TreeView/DataGrid behavior.
+Existing TreeView.VirtualMode resolves nodes when they
 expand; it is a separate existing behavior and is not container recycling.
 
 See the [certification workload and evidence boundaries](virtualization-certification.md)
@@ -352,8 +353,8 @@ it is not a claim that native resources were successfully released.
 The foundation's deterministic tests cover range/cell planning, measured prefixes,
 100k indexed sources, repeated scroll/jump realization, pool bounds, allocation
 after warmup, occurrence mutations, reentrant requests/disposal and cleanup failure.
-These establish shared engine behavior. They do not establish rendered controls,
-keyboard/focus/accessibility integration, Designer previews, native HWND behavior,
-Android emulator runtime or physical-device frame pacing. Those remain required
-by #200 and the parent before #55 can close. Do not add virtualization-only native
-startup to Designer; previews must remain small and data-only.
+These establish shared engine behavior. Rendered controls, keyboard/focus/accessibility,
+Designer previews and native hosts require the integration/certification evidence in
+#202/#203 and the current concrete consumer's qualification. Foundation tests alone
+do not establish Android runtime or physical-device frame pacing. Do not add
+virtualization-only native startup to Designer; previews remain small and data-only.

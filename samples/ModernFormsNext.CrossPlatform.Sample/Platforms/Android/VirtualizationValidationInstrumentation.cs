@@ -67,10 +67,11 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
             {
                 fixture.Exercise(key =>
                 {
-                    if (key != Keys.End) throw new InvalidOperationException("Unmapped certification key.");
+                    var code = key switch { Keys.End => Keycode.MoveEnd, Keys.Enter => Keycode.Enter,
+                        _ => throw new InvalidOperationException("Unmapped certification key.") };
                     var view = NativeValidationViews.Main(activity);
-                    using var down = new KeyEvent(KeyEventActions.Down, Keycode.MoveEnd);
-                    using var up = new KeyEvent(KeyEventActions.Up, Keycode.MoveEnd);
+                    using var down = new KeyEvent(KeyEventActions.Down, code);
+                    using var up = new KeyEvent(KeyEventActions.Up, code);
                     view.DispatchKeyEvent(down);
                     view.DispatchKeyEvent(up);
                 });
@@ -91,6 +92,16 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
             Record("TOUCH up-delivered");
             Wait(() => Ui(() => fixture.View.SelectedIndex == 0), "native-touch-selects-realized-row");
             Ui(() => { fixture.View.SelectedIndex = 70_000; return true; });
+            var collectionPoint = Ui(() =>
+            {
+                fixture.Collection.ScrollToItem(0);
+                var row = fixture.Collection.GetItemContainer(0)!;
+                return row.PointToScreen(new(row.LogicalToDeviceUnits(10), row.LogicalToDeviceUnits(10)));
+            });
+            long collectionTime = SystemClock.UptimeMillis();
+            using (var down = MotionEvent.Obtain(collectionTime, collectionTime, MotionEventActions.Down, collectionPoint.X, collectionPoint.Y, 0)!) SendPointerSync(down);
+            using (var up = MotionEvent.Obtain(collectionTime, collectionTime + 50, MotionEventActions.Up, collectionPoint.X, collectionPoint.Y, 0)!) SendPointerSync(up);
+            Wait(() => Ui(() => fixture.Collection.SelectedIndex == 0), "native-touch-selects-collection-row");
             originalOrientation = Ui(() => activity.RequestedOrientation);
             Ui(() => { activity.RequestedOrientation = ScreenOrientation.Landscape; return true; });
             Wait(() => Ui(() => NativeValidationViews.Main(activity).Width > NativeValidationViews.Main(activity).Height), "native-landscape-resize");
@@ -99,12 +110,21 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
                 fixture.View.ScrollToItem(70_000);
                 if (fixture.View.GetItemContainer(70_000) is null || fixture.View.SelectedIndex != 70_000)
                     throw new InvalidOperationException("Orientation lost the selected/realized occurrence.");
+                if (fixture.Collection.GetItemContainer(0) is null || fixture.Collection.SelectedIndex != 0)
+                    throw new InvalidOperationException("Orientation lost the CollectionView occurrence.");
                 // Exercise portrait even when the device began in landscape. The original
                 // activity orientation policy is restored by the existing finally block.
                 activity.RequestedOrientation = ScreenOrientation.Portrait;
                 return true;
             });
             Wait(() => Ui(() => NativeValidationViews.Main(activity).Height > NativeValidationViews.Main(activity).Width), "native-portrait-resize");
+            Ui(() =>
+            {
+                if (fixture.Collection.GetItemContainer(0) is null || fixture.Collection.SelectedIndex != 0)
+                    throw new InvalidOperationException("Portrait lost the CollectionView occurrence.");
+                Record("PASS collection-native-orientation-selection");
+                return true;
+            });
             Record("STAGE warm");
             for (int warm = 0; warm < 10; warm++)
             {

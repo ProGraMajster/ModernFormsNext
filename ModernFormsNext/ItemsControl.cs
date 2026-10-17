@@ -49,6 +49,33 @@ public abstract partial class ItemsControl : ScrollableControl, IVirtualizingLay
 
     private readonly record struct ItemBinding(object? Item, int Index);
 
+    /// <summary>Gets the borrowed indexed source currently committed by <see cref="SetItemsSource"/>.</summary>
+    /// <remarks>UI thread only. Expose this state from a concrete consumer instead of retaining a second source reference.</remarks>
+    protected IList? ItemsSourceCore { get { VerifyItemsAccess(); return itemsSource; } }
+
+    // Derived framework consumers use the same generation as layout/input when a callback
+    // can replace the source or template. This is not another selection/lifecycle epoch.
+    internal long ItemsGeneration => itemsVersion;
+
+    /// <summary>Retires all owned containers after changing a runtime template, preserving logical selection.</summary>
+    /// <remarks>
+    /// UI thread only. Old bindings are cleared and containers discarded through their original hooks;
+    /// variable measurements are reset and layout is requested. Reentrant replacement/disposal wins.
+    /// This does not reset the borrowed source or its logical occurrence identity.
+    /// </remarks>
+    protected void ResetItemContainers()
+    {
+        VerifyItemsAccess();
+        var anchor = CaptureAnchor();
+        CaptureFocusedOccurrence();
+        ResetMetrics(anchor, requestLayout: false);
+        long version = itemsVersion;
+        ReplaceGenerator();
+        if (version != itemsVersion || IsDisposed || disposingItems) return;
+        RestoreAnchor(anchor);
+        if (version == itemsVersion && !IsDisposed && !disposingItems) { RequestItemsLayout(); Invalidate(); }
+    }
+
     /// <summary>Initializes a virtualized host without enumerating or owning a source.</summary>
     protected ItemsControl()
     {

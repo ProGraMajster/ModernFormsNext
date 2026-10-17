@@ -693,6 +693,10 @@ internal sealed class DesignerSurfaceRenderer
         {
             DesignerVirtualizationPreview.Populate(listView);
         }
+        else if (control is CollectionView collectionView)
+        {
+            DesignerVirtualizationPreview.Populate(collectionView);
+        }
     }
 
     private static bool UsesTextPreview(Control control)

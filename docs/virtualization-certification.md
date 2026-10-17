@@ -1,7 +1,10 @@
 # Shared virtualization certification
 
 Issue [#203](https://github.com/ProGraMajster/ModernFormsNext/issues/203) certifies the
-production `ItemsControl` and opt-in `ListView` added in #202. The reusable workload
+production `ItemsControl` and opt-in `ListView` added in #202. The #274 extension
+uses the concrete [CollectionView](collection-view.md) for the variable/template
+consumer and adds native End/Enter, template replacement and peer-retirement checks.
+The reusable workload
 is `samples/ModernFormsNext.CrossPlatform.Sample/VirtualizationCertification.cs`.
 The Windows native test host links that same source. It creates two synthetic,
 finite sources with 100,003 entries, using the production generator, layout,
@@ -30,7 +33,8 @@ live/pool/create/reuse counts, measured item count, corrected content extent and
 last layout time. Batch allocation counts include synchronous production work on
 the UI thread and exclude checkpoint/report formatting and intervening paint work.
 The new native stability gate rejects retained managed growth of 16 MiB or more
-after warmup. Process/native memory is recorded separately; this short, finite
+after warmup. Both the fixed ListView and warmed CollectionView template must retain
+their container creation plateau. Process/native memory is recorded separately; this short, finite
 soak does not establish an unlimited-duration native leak guarantee. Numeric
 measurement metadata still scales with the indexed source capacity. The existing
 pure zero-allocation assertions and original native fixture remain unchanged.

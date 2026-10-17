@@ -32,6 +32,8 @@
     href: content/docs/data-binding.md
   - name: Item virtualization foundation
     href: content/docs/virtualization.md
+  - name: CollectionView
+    href: content/docs/collection-view.md
   - name: Virtualization certification
     href: content/docs/virtualization-certification.md
   - name: Commands and shortcuts
