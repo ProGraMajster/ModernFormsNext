@@ -26,6 +26,8 @@ public partial class Control
 
             return owner switch
             {
+                CollectionView collection when GetType() == typeof(ControlAccessibleObject) && collection.SelectedIndex >= 0
+                    => GetCollectionItemObject(collection, collection.SelectedIndex),
                 ListBox listBox when listBox.SelectedIndex >= 0
                     => GetListBoxItemObjects(listBox).ElementAtOrDefault(listBox.SelectedIndex),
                 ComboBox comboBox when comboBox.SelectedIndex >= 0
@@ -47,6 +49,7 @@ public partial class Control
         {
             return owner switch
             {
+                CollectionView collection when GetType() == typeof(ControlAccessibleObject) => GetCollectionLogicalChildren(collection),
                 LinkLabel label => GetLinkObjects(label),
                 NumericUpDown numeric => GetNumericChildren(numeric),
                 ListBox listBox => GetListBoxItemObjects(listBox),
@@ -131,6 +134,7 @@ public partial class Control
 
         internal bool TryGetVirtualizedChildren(out IReadOnlyList<AccessibleObject> children, out int? count)
         {
+            if (TryGetCollectionProjection(out children, out count)) return true;
             children = Array.Empty<AccessibleObject>();
             count = null;
             if (GetType() != typeof(ControlAccessibleObject) || Owner is not ListView { VirtualizationEnabled: true, IsDisposed: false } list)
@@ -167,6 +171,7 @@ public partial class Control
 
         internal bool TryContainsVirtualizedChild(AccessibleObject child, out bool contains)
         {
+            if (TryContainsCollectionChild(child, out contains)) return true;
             contains = false;
             // A derived accessibility peer can replace GetAccessibilityChildren entirely. Preserve
             // its projection contract; only the exact canonical peer can answer from item identity.
@@ -215,10 +220,11 @@ public partial class Control
         }
 
         internal static bool IsVisibilityDeterminedByView(AccessibleObject peer)
-            => peer.GetType() == typeof(ControlAccessibleObject) || peer is ListViewItemAccessibleObject;
+            => peer.GetType() == typeof(ControlAccessibleObject) || peer is ListViewItemAccessibleObject or CollectionItemAccessibleObject;
 
         internal bool TryGetVirtualizedItemIndex(AccessibleObject child, out int index)
         {
+            if (TryGetCollectionItemIndex(child, out index)) return true;
             index = -1;
             return GetType() == typeof(ControlAccessibleObject) && Owner is ListView { VirtualizationEnabled: true } &&
                 child is ListViewItemAccessibleObject item && item.TryIndex(this, out index);
@@ -226,6 +232,7 @@ public partial class Control
 
         internal bool TryGetVirtualizedChild(int index, out AccessibleObject? child)
         {
+            if (TryGetCollectionIndexedChild(index, out child)) return true;
             child = null;
             if (GetType() != typeof(ControlAccessibleObject) || Owner is not ListView { VirtualizationEnabled: true, IsDisposed: false } list)
                 return false;

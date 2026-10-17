@@ -30,9 +30,18 @@ public abstract partial class ItemsControl
     /// <param name="item">The originally prepared borrowed value, even when the source has already mutated.</param>
     /// <param name="index">The originally prepared index; never use it to look up a mutated source.</param>
     /// <remarks>UI thread only. Unsubscribe template handlers and release template-owned resources; do not dispose source values.
-    /// The host first clears canonical DataBindings so cleanup assignments cannot write empty/recycled values back
+    /// The host first clears canonical DataBindings on the old container and its owned descendants so cleanup assignments cannot write empty/recycled values back
     /// to the old source. Partial preparation and callback failures also invoke this cleanup.</remarks>
     protected virtual void ClearItemContainer(Control container, object? item, int index) => container.Text = string.Empty;
+
+    /// <summary>Permanently releases one cleared item container owned by this host.</summary>
+    /// <param name="container">The retired container, whose input handlers and bindings have been removed.</param>
+    /// <remarks>
+    /// UI thread only; invoked once per discarded container, including failed preparation. The default
+    /// disposes it. Overrides must release template resources and call base even when cleanup fails,
+    /// except when a callback moved the control into a different, newer parent tree.
+    /// </remarks>
+    protected virtual void DiscardItemContainer(Control container) => container.Dispose();
 
     /// <summary>Measures one realized stack cell's primary extent in logical pixels.</summary>
     /// <param name="container">The prepared container.</param>
@@ -112,14 +121,20 @@ public abstract partial class ItemsControl
         public void PrepareContainer(Control container, int index)
         {
             if (!ReferenceEquals(Generator, owner.generator) || owner.disposingItems || owner.IsDisposed) return;
+            long version = owner.itemsVersion;
             var item = owner.GetItem(index);
+            // An indexed provider is application code too: it can publish cached-page changes
+            // or replace the source while returning a value. Do not invoke an old template,
+            // attach its control or activate bindings against the newer source generation.
+            if (version != owner.itemsVersion || !ReferenceEquals(Generator, owner.generator) || owner.disposingItems || owner.IsDisposed) return;
             owner.itemBindings[container] = new(item, index);
             owner.PrepareItemContainer(container, item, index);
-            if (!ReferenceEquals(Generator, owner.generator) || owner.disposingItems || owner.IsDisposed) return;
+            if (version != owner.itemsVersion || !ReferenceEquals(Generator, owner.generator) || owner.disposingItems || owner.IsDisposed) return;
             if (container.IsDisposed || container.Parent is not null && !ReferenceEquals(container.Parent, owner))
                 throw new InvalidOperationException("A template disposed or reparented its owned container.");
             owner.Controls.Add(container);
-            if (ReferenceEquals(container.Parent, owner) && !container.IsDisposed && !owner.disposingItems)
+            if (version == owner.itemsVersion && ReferenceEquals(Generator, owner.generator) &&
+                ReferenceEquals(container.Parent, owner) && !container.IsDisposed && !owner.disposingItems)
                 container.RefreshItemContainerBindings();
         }
 
@@ -138,12 +153,18 @@ public abstract partial class ItemsControl
                 try { owner.Controls.Remove(container); }
                 catch (Exception failure) { (failures ??= []).Add(failure); }
             }
-            try { container.ClearItemContainerBindings(); }
-            catch (Exception failure) { (failures ??= []).Add(failure); }
-            if (hasBinding)
+            // Focus/ParentChanged/binding callbacks may move the retired row to a newer tree.
+            // Do not clear that tree's bindings or run old template assignments against it.
+            // DiscardContainer still reports the ownership violation and preserves its parent.
+            if (container.Parent is null || ReferenceEquals(container.Parent, owner))
             {
-                try { owner.ClearItemContainer(container, binding.Item, index); }
+                try { container.ClearItemContainerBindings(); }
                 catch (Exception failure) { (failures ??= []).Add(failure); }
+                if (hasBinding && (container.Parent is null || ReferenceEquals(container.Parent, owner)))
+                {
+                    try { owner.ClearItemContainer(container, binding.Item, index); }
+                    catch (Exception failure) { (failures ??= []).Add(failure); }
+                }
             }
             if (failures is { Count: 1 }) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
             if (failures is not null) throw new AggregateException("Item container cleanup failed.", failures);
@@ -158,7 +179,7 @@ public abstract partial class ItemsControl
             container.LostFocus -= owner.HandleContainerLostFocus;
             if (container.Parent is not null && !ReferenceEquals(container.Parent, owner))
                 throw new InvalidOperationException("The owned item container was moved to another parent; that newer tree was preserved.");
-            container.Dispose();
+            owner.DiscardItemContainer(container);
         }
     }
 
@@ -168,10 +189,23 @@ public abstract partial class ItemsControl
     private void InvokeContainer(object? sender, bool doubleClick)
     {
         if (sender is not Control row || !itemBindings.TryGetValue(row, out var binding) || disposingItems || IsDisposed) return;
-        int index = binding.Index;
+        InvokeLogicalItem(binding.Index, doubleClick);
+    }
+
+    internal bool InvokeLogicalItem(int index, bool doubleClick = false)
+    {
+        VerifyItemsAccess();
+        if (!Enabled || !Visible || (uint)index >= (uint)sourceCount) return false;
+        var lifetime = new Accessibility.AccessibilityControlLifetime(this);
         long version = itemsVersion;
         SelectedIndex = index;
-        if (version == itemsVersion && !disposingItems && !IsDisposed && selectedIndex == index) OnItemInvoked(index, doubleClick);
+        // Selection handlers can hide, disable or move this host without changing the source.
+        // Reuse the canonical ancestry/lifetime guard before dispatching the old activation.
+        if (!lifetime.IsCurrent || !Enabled || !Visible || version != itemsVersion ||
+            disposingItems || IsDisposed || selectedIndex != index) return false;
+        OnItemInvoked(index, doubleClick);
+        return lifetime.IsCurrent && Enabled && Visible && version == itemsVersion &&
+            !disposingItems && !IsDisposed && selectedIndex == index;
     }
 
     private void HandleContainerGotFocus(object? sender, EventArgs e)
@@ -185,13 +219,19 @@ public abstract partial class ItemsControl
         if (!disposingItems && !IsDisposed) Invalidate();
     }
 
-    private void HandleContainerKeyDown(object? sender, KeyEventArgs e) => NavigateItems(e);
+    private void HandleContainerKeyDown(object? sender, KeyEventArgs e) => OnItemKeyDown(e);
+
+    /// <summary>Processes an unhandled item key from this host or one of its owned row containers.</summary>
+    /// <param name="e">The current canonical keyboard event; set Handled when consuming it.</param>
+    /// <remarks>UI thread only. Call base to retain shared directional/page navigation and focus guards.
+    /// Interactive descendants retain their own keyboard processing; this does not install another input router.</remarks>
+    protected virtual void OnItemKeyDown(KeyEventArgs e) => NavigateItems(e);
 
     /// <inheritdoc/>
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (!e.Handled && !disposingItems && !IsDisposed) NavigateItems(e);
+        if (!e.Handled && !disposingItems && !IsDisposed) OnItemKeyDown(e);
     }
 
     private void NavigateItems(KeyEventArgs e)
@@ -258,6 +298,16 @@ public abstract partial class ItemsControl
         for (Control? current = FindExistingFocusScope()?.Owner; current is not null && !ReferenceEquals(current, this); current = current.Parent)
             if (itemBindings.TryGetValue(current, out var binding)) return binding.Index;
         return -1;
+    }
+
+    internal bool TryGetCurrentItemIndex(Control container, out int index)
+    {
+        index = -1;
+        if (disposingItems || IsDisposed || !ReferenceEquals(container.Parent, this) ||
+            !itemBindings.TryGetValue(container, out var binding) ||
+            generator?.TryGetContainer(binding.Index, out var current) != true || !ReferenceEquals(current, container)) return false;
+        index = binding.Index;
+        return true;
     }
 
     internal bool IsItemRealized(object item)

@@ -4,20 +4,20 @@ namespace ModernFormsNext.Designer.Properties;
 
 /// <summary>Validates built-in list settings through production setters before a grid transaction commits.</summary>
 /// <remarks>
-/// The caller has resolved the exact framework ListView type. No project constructor, source,
+/// The caller has resolved the exact framework ListView or CollectionView type. No project constructor, source,
 /// binding or template is invoked. A source-free temporary list keeps validation bounded and
 /// avoids duplicating runtime size/cache/stack-wrap rules in the Designer.
 /// </remarks>
 internal static class DesignerVirtualizationPropertyValidator
 {
-    internal static bool TryValidate(DesignControlNode node, string path, out string? error)
+    internal static bool TryValidate(DesignControlNode node, string path, out string? error, bool collectionView = false)
     {
         error = null;
         if (path.Split('.', 2)[0] is not ("ItemSize" or "CacheItemCount" or "ItemsLayout" or
             "ItemOrientation" or "VariableItemSize" or "VirtualizationEnabled")) return true;
         try
         {
-            using var view = new ListView();
+            using ItemsControl view = collectionView ? new CollectionView() : new ListView();
             view.SuspendLayout();
             view.ItemSize = Read(node, "ItemSize", view.ItemSize);
             view.CacheItemCount = Read(node, "CacheItemCount", view.CacheItemCount);

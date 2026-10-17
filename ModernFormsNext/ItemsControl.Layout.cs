@@ -32,7 +32,9 @@ public abstract partial class ItemsControl
         itemLayoutPasses++;
         try
         {
-            if ((itemsSource?.Count ?? 0) != sourceCount)
+            int observedCount = itemsSource?.Count ?? 0;
+            if (!IsItemsPassCurrent(version, currentGenerator)) return false;
+            if (observedCount != sourceCount)
             {
                 HandleItemsChanged(itemsSource, new(System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
                 return false;
@@ -55,7 +57,9 @@ public abstract partial class ItemsControl
                     throw new InvalidOperationException("An owned item container was disposed or reparented by application code.");
                 if (metrics is not null)
                 {
-                    double extent = MeasureItemContainer(row, GetItem(index), index, itemSize);
+                    var measuredItem = GetItem(index);
+                    if (!IsItemsPassCurrent(version, currentGenerator)) return false;
+                    double extent = MeasureItemContainer(row, measuredItem, index, itemSize);
                     if (!IsItemsPassCurrent(version, currentGenerator)) return false;
                     measuredChange |= metrics.SetMeasuredExtent(index, extent);
                 }
@@ -64,7 +68,9 @@ public abstract partial class ItemsControl
                 row.SetBounds(ScrollCoordinate(Math.Round(bounds.X)), ScrollCoordinate(Math.Round(bounds.Y)),
                     ScrollCoordinate(Math.Ceiling(bounds.Width)), ScrollCoordinate(Math.Ceiling(bounds.Height)));
                 if (!IsItemsPassCurrent(version, currentGenerator)) return false;
-                OnItemContainerArranged(row, GetItem(index), index);
+                var arrangedItem = GetItem(index);
+                if (!IsItemsPassCurrent(version, currentGenerator)) return false;
+                OnItemContainerArranged(row, arrangedItem, index);
                 if (!IsItemsPassCurrent(version, currentGenerator)) return false;
             }
             if (measuredChange)

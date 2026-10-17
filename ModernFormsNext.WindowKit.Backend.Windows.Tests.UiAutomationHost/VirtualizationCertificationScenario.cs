@@ -31,6 +31,13 @@ internal static class VirtualizationCertificationScenario
                             item.Bounds.Y != fixture.View.LogicalToDeviceUnits(row.Top))
                             throw new InvalidOperationException("DPI converted item position more than once.");
                         Console.WriteLine($"PASS native-dpi-{dpi} scale={fixture.View.ScaleFactor}");
+                        fixture.Collection.ScrollToItem(70_000);
+                        var collectionRow = fixture.Collection.GetItemContainer(70_000)!;
+                        var collectionBounds = fixture.Collection.AccessibilityObject.GetChild(70_000)!.Bounds;
+                        if (collectionBounds.Location != collectionRow.PointToScreen(collectionRow.ClientRectangle.Location) ||
+                            collectionBounds.Size != collectionRow.ClientRectangle.Size)
+                            throw new InvalidOperationException("CollectionView logical peer has incorrect native DPI bounds.");
+                        Console.WriteLine($"PASS native-collection-dpi-{dpi} scale={fixture.Collection.ScaleFactor}");
                     }
                     for (int warm = 0; warm < 10; warm++)
                     {

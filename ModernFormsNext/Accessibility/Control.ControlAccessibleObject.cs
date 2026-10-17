@@ -146,6 +146,9 @@ public partial class Control
                 if (Owner is not { IsDisposed: false } owner)
                     return null;
 
+                if (owner.Parent is CollectionView collection && collection.OwnsItemContainer(owner) &&
+                    collection.AccessibilityObject is ControlAccessibleObject root && root.GetType() == typeof(ControlAccessibleObject))
+                    return collection.TryGetCurrentItemIndex(owner, out int index) ? root.GetCollectionItemObject(collection, index) : null;
                 return owner.Parent?.AccessibilityObject;
             }
         }
@@ -292,11 +295,16 @@ public partial class Control
             if (index < 0)
                 return null;
 
+            if (GetType() == typeof(ControlAccessibleObject) && Owner is CollectionView collection)
+                return GetCollectionChild(collection, index);
+
             return EnumerateActiveChildren().ElementAtOrDefault(index);
         }
 
         /// <inheritdoc/>
-        public override int GetChildCount() => EnumerateActiveChildren().Count();
+        public override int GetChildCount()
+            => GetType() == typeof(ControlAccessibleObject) && Owner is CollectionView collection
+                ? GetCollectionChildCount(collection) : EnumerateActiveChildren().Count();
 
         /// <summary>
         /// Enumerates the control and logical objects that are candidates for this object's child
@@ -325,7 +333,10 @@ public partial class Control
                 : owner.Controls;
 
             foreach (Control child in visualChildren)
+            {
+                if (GetType() == typeof(ControlAccessibleObject) && owner is CollectionView collection && collection.OwnsItemContainer(child)) continue;
                 yield return child.AccessibilityObject;
+            }
         }
 
         /// <inheritdoc/>
@@ -333,6 +344,20 @@ public partial class Control
         {
             if (Owner is not { } owner)
                 return null;
+
+            if (GetType() == typeof(ControlAccessibleObject) && owner is CollectionView collection)
+            {
+                int index = collection.GetFocusedItemIndex();
+                if (index >= 0 && index < collection.ItemCount)
+                {
+                    // An interactive template descendant keeps its real text/value provider.
+                    // Only focus on the owned row itself is represented by the logical item.
+                    var row = collection.GetItemContainer(index);
+                    return row is { Focused: false } ? row.AccessibilityObject.GetFocused() ?? GetCollectionItemObject(collection, index)
+                        : GetCollectionItemObject(collection, index);
+                }
+                return collection.Focused ? this : null;
+            }
 
             if (owner is ListView { VirtualizationEnabled: true } listView)
             {
@@ -594,7 +619,7 @@ public partial class Control
                 LinkLabel => AccessibleRole.Link,
                 Label => AccessibleRole.StaticText,
                 ListBox => AccessibleRole.List,
-                ListView => AccessibleRole.List,
+                ListView or CollectionView => AccessibleRole.List,
                 NumericUpDown => AccessibleRole.SpinButton,
                 TableLayoutPanel => AccessibleRole.Pane,
                 Panel => AccessibleRole.Pane,
@@ -625,7 +650,7 @@ public partial class Control
                 Switch => AccessibleControlType.Switch,
                 TextBox => AccessibleControlType.Edit,
                 ComboBox => AccessibleControlType.ComboBox,
-                ListBox or ListView => AccessibleControlType.List,
+                ListBox or ListView or CollectionView => AccessibleControlType.List,
                 TreeView => AccessibleControlType.Tree,
                 TabControl => AccessibleControlType.Tab,
                 TrackBar => AccessibleControlType.Slider,

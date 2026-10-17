@@ -12,11 +12,33 @@ public partial class Control
     // Reassociate only existing bindings after attachment, through the canonical BindingContext path.
     internal void RefreshItemContainerBindings()
     {
-        if (Properties.ContainsKey(s_bindingsProperty)) OnBindingContextChanged(EventArgs.Empty);
+        if (Properties.ContainsKey(s_bindingsProperty) || Controls.Count > 0) OnBindingContextChanged(EventArgs.Empty);
     }
 
     internal void ClearItemContainerBindings()
     {
-        if (Properties.TryGetValue(s_bindingsProperty, out ControlBindingsCollection? bindings)) bindings?.Clear();
+        // Composite templates own descendant bindings too. Capture that bounded old tree before
+        // clearing can invoke application code; newly inserted/reparented children belong to the
+        // newer operation and must not have their bindings removed by this retirement pass.
+        long version = parentAssignmentVersion;
+        (Control Child, long Version)[]? children = Controls.Count == 0 ? null : new (Control, long)[Controls.Count];
+        if (children is not null)
+            for (int index = 0; index < children.Length; index++)
+                children[index] = (Controls[index], Controls[index].parentAssignmentVersion);
+        List<Exception>? failures = null;
+        try
+        {
+            if (Properties.TryGetValue(s_bindingsProperty, out ControlBindingsCollection? bindings)) bindings?.Clear();
+        }
+        catch (Exception error) { (failures ??= []).Add(error); }
+        if (children is not null && !IsDisposed && version == parentAssignmentVersion)
+            foreach (var child in children)
+                if (ReferenceEquals(child.Child.Parent, this) && child.Child.parentAssignmentVersion == child.Version)
+                {
+                    try { child.Child.ClearItemContainerBindings(); }
+                    catch (Exception error) { (failures ??= []).Add(error); }
+                }
+        if (failures is { Count: 1 }) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is not null) throw new AggregateException("Item template binding cleanup failed.", failures);
     }
 }

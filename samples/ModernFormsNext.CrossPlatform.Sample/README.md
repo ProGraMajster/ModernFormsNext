@@ -41,6 +41,8 @@ instrumentation fixture.
 
 The explicit `VirtualizationValidationInstrumentation` runner certifies two synthetic
 100,000+ item consumers, bounded recycling, native input and a paced memory workload.
+Its variable/template consumer is now the concrete CollectionView, including native
+End/Enter, template replacement, logical peers, pointer selection and orientation recovery.
 It runs only when requested through adb. See [shared virtualization certification](../../docs/virtualization-certification.md)
 for invocation and separate emulator/physical/manual evidence requirements.
 

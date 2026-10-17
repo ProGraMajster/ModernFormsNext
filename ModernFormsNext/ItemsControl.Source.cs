@@ -22,21 +22,29 @@ public abstract partial class ItemsControl
     {
         VerifyItemsAccess();
         if (ReferenceEquals(source, itemsSource)) return;
+        long requestVersion = itemsVersion;
         int count = source?.Count ?? 0;
+        if (requestVersion != itemsVersion || IsDisposed || disposingItems) return;
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         UnsubscribeSource();
+        int oldCount = sourceCount;
         itemsSource = source; sourceCount = count;
         itemsVersion++;
         itemChanges.Clear();
         bool selectionChanged = selectedIndex != -1;
         selectedIndex = focusedIndex = -1; restoreFocus = false;
+        UpdateItemAccessibility(ItemIndexChange.Reset(oldCount, count));
         SubscribeSource();
         ResetMetrics((-1, 0), requestLayout: false);
         long version = itemsVersion;
         ReplaceGenerator();
         if (version != itemsVersion || IsDisposed || disposingItems) return;
         if (selectionChanged) OnSelectedIndexChanged(EventArgs.Empty);
-        if (version == itemsVersion && !IsDisposed && !disposingItems) { RequestItemsLayout(); Invalidate(); }
+        if (version == itemsVersion && !IsDisposed && !disposingItems)
+        {
+            RequestItemsLayout(); Invalidate();
+            if (version == itemsVersion && !IsDisposed && !disposingItems) OnItemsChanged(ItemIndexChange.Reset(oldCount, count));
+        }
     }
 
     /// <summary>Publishes a conservative reset after a source without notifications changes.</summary>
@@ -47,6 +55,12 @@ public abstract partial class ItemsControl
         VerifyItemsAccess();
         if (itemsSource is not null) HandleItemsChanged(itemsSource, new(NotifyCollectionChangedAction.Reset));
     }
+
+    /// <summary>Observes a source replacement or indexed change after canonical logical and binding state is committed.</summary>
+    /// <param name="change">The immutable occurrence mapping; source replacement is reported as a reset.</param>
+    /// <remarks>UI thread only. The base does nothing. Overrides may reenter, replace a source or dispose;
+    /// the old change must not overwrite newer state. This is not raised for a property-only binding refresh.</remarks>
+    protected virtual void OnItemsChanged(ItemIndexChange change) { }
 
     private void SubscribeSource()
     {
@@ -64,7 +78,9 @@ public abstract partial class ItemsControl
     {
         if (!ReferenceEquals(sender, itemsSource)) return;
         VerifyItemsAccess();
+        long countVersion = itemsVersion;
         int currentCount = itemsSource!.Count;
+        if (countVersion != itemsVersion || IsDisposed || disposingItems || !ReferenceEquals(sender, itemsSource)) return;
         if ((e.ListChangedType is ListChangedType.ItemAdded or ListChangedType.ItemChanged or ListChangedType.ItemMoved) &&
                 (uint)e.NewIndex >= (uint)currentCount ||
             e.ListChangedType == ListChangedType.ItemMoved && (uint)e.OldIndex >= (uint)sourceCount ||
@@ -102,7 +118,10 @@ public abstract partial class ItemsControl
         if (!ReferenceEquals(sender, itemsSource)) return;
         VerifyItemsAccess();
         itemsVersion++;
-        itemChanges.Enqueue((e, itemsSource!.Count));
+        long countVersion = itemsVersion;
+        int count = itemsSource!.Count;
+        if (countVersion != itemsVersion || IsDisposed || disposingItems || !ReferenceEquals(sender, itemsSource)) return;
+        itemChanges.Enqueue((e, count));
         if (handlingItemChanges) return;
         handlingItemChanges = true;
         SuspendLayout();
@@ -131,6 +150,7 @@ public abstract partial class ItemsControl
                 if (measurementAnchor is not null) measurementAnchor = anchor.Index >= 0 ? anchor : null;
                 metrics?.ApplyChange(change);
                 sourceCount = pending.Count;
+                UpdateItemAccessibility(change);
                 var currentGenerator = generator;
                 long version = itemsVersion;
                 // Commit logical state before clearing/preparing visual bindings can call application code.
@@ -141,6 +161,7 @@ public abstract partial class ItemsControl
                 RestoreAnchor(anchor);
                 RequestItemsLayout();
                 Invalidate();
+                if (version == itemsVersion && !IsDisposed && !disposingItems) OnItemsChanged(change);
             }
         }
         finally
@@ -150,5 +171,13 @@ public abstract partial class ItemsControl
             // owned controls; do not immediately enter the faulted generator from a deferred layout.
             ResumeLayout(!disposingItems && generator?.IsDisposed != true);
         }
+    }
+
+    private void UpdateItemAccessibility(in ItemIndexChange change)
+    {
+        // Update only already requested canonical peers, before native/template callbacks can
+        // observe the new collection. No per-source identity array or second semantic tree.
+        if (IsAccessibilityObjectCreated && AccessibilityObject is ControlAccessibleObject peer)
+            peer.ApplyCollectionItemChange(change);
     }
 }
