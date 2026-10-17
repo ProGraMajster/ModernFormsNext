@@ -253,7 +253,7 @@ public partial class Control
                         IsAttached && IsOwnerAvailable && current.SelectedIndex == expected;
                 }
                 if (action == AccessibleActions.Invoke) return current.InvokeLogicalItem(expected) && lifetime.IsCurrent;
-                current.ScrollToItem(expected);
+                if (!current.RevealAccessibilityItem(expected)) return false;
                 if (!lifetime.IsCurrent || current.ItemsGeneration != version || Index != expected || !IsAttached || !IsOwnerAvailable) return false;
                 if (action == AccessibleActions.Focus)
                 {

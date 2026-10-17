@@ -442,9 +442,9 @@ internal sealed class DesignerPropertyGridState
             committed = SelectedProperty.TryCommit(text, out error);
             if (committed && playgroundState.SelectedNode is { } node &&
                 playgroundState.ResolveControlType(node) is { } itemControlType &&
-                (itemControlType == typeof(ListView) || itemControlType == typeof(CollectionView)))
-                committed = DesignerVirtualizationPropertyValidator.TryValidate(node, SelectedProperty.Identity, out error,
-                    collectionView: itemControlType == typeof(CollectionView));
+                (itemControlType == typeof(ListView) || itemControlType == typeof(CollectionView) ||
+                 itemControlType == typeof(CarouselView) || itemControlType == typeof(RefreshView)))
+                committed = DesignerVirtualizationPropertyValidator.TryValidate(node, SelectedProperty.Identity, itemControlType, out error);
         }
         catch
         {

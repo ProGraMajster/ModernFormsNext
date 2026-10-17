@@ -36,6 +36,10 @@ keyframes, repeat, auto-reverse, custom definitions and interpolators, cancellat
 policies, reduced motion, animations disabled, and scheduler/ripple diagnostics. It is opt-in and
 restores the animation policy when unloaded.
 
+The **Carousel / Refresh** page demonstrates [collection utilities](collection-utilities.md):
+100,003 recyclable interactive pages, jump/navigation, source moves, axis changes,
+and a borrowed AsyncCommand with explicit completion and cooperative cancellation.
+
 The **MarkdownEditor** page demonstrates Editor, Preview, and Split modes, the public command
 toolbar, Ctrl+K, hosted link and image request dialogs built only from ModernFormsNext controls,
 preview link forwarding, and optional proportional scroll synchronization. Its source includes

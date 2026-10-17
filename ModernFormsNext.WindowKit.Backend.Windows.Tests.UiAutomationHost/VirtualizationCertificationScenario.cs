@@ -19,6 +19,28 @@ internal static class VirtualizationCertificationScenario
                 {
                     nint hwnd = form.PlatformHandle.Handle;
                     if (hwnd == 0 || !IsWindow(hwnd)) throw new InvalidOperationException("Actual HWND required.");
+                    using (var utilities = new CollectionUtilitiesCertification(form, Console.WriteLine))
+                    {
+                        utilities.Exercise(key =>
+                        {
+                            SendMessage(hwnd, 0x0100, (nint)(int)key, 0);
+                            SendMessage(hwnd, 0x0101, (nint)(int)key, 0);
+                        });
+                        var point = utilities.Point(140, 120);
+                        SendMessage(hwnd, 0x020A, unchecked((nint)(-120 << 16)), Pack(point));
+                        utilities.VerifyPage(1, "native-wheel-page");
+                        var button = utilities.ButtonPoint();
+                        if (!ScreenToClient(hwnd, ref button)) throw new InvalidOperationException("Cannot map native click.");
+                        SendMessage(hwnd, 0x0200, 0, Pack(button));
+                        SendMessage(hwnd, 0x0201, 1, Pack(button));
+                        SendMessage(hwnd, 0x0202, 0, Pack(button));
+                        utilities.VerifyActivation();
+                        foreach (int dpi in new[] { 96, 144, 192, 96 })
+                        {
+                            ApplyDpi(hwnd, dpi);
+                            utilities.VerifyGeometry();
+                        }
+                    }
                     using var fixture = new VirtualizationCertification(form, Console.WriteLine);
                     fixture.Exercise(key => SendMessage(hwnd, 0x0100, (nint)(int)key, 0));
                     foreach (int dpi in new[] { 96, 144, 192, 96 })
@@ -77,8 +99,11 @@ internal static class VirtualizationCertificationScenario
         finally { Marshal.FreeHGlobal(memory); }
     }
 
+    private static nint Pack(Point point) => (nint)((point.Y << 16) | (point.X & 0xffff));
+
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] private static extern bool GetWindowRect(nint hwnd, out NativeRect rectangle);
     [DllImport("user32.dll")] private static extern bool IsWindow(nint hwnd);
+    [DllImport("user32.dll")] private static extern bool ScreenToClient(nint hwnd, ref Point point);
     [DllImport("user32.dll")] private static extern nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 }

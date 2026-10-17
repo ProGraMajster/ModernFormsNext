@@ -21,6 +21,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 - [Data binding](data-binding.md)
 - [Shared item virtualization](virtualization.md) — reusable ItemsControl, opt-in ListView, indexed geometry and recycling.
 - [CollectionView](collection-view.md) — borrowed indexed sources, recyclable templates, logical selection and native accessibility.
+- [CarouselView and RefreshView](collection-utilities.md) — viewport pages, shared gesture ownership and command-driven refresh.
 - [Virtualization certification](virtualization-certification.md) — bounded Designer preview and repeatable HWND/Android workloads.
 - [Commands, shortcuts, and input routing](commands.md)
 - [Text input and composition](text-input.md)
