@@ -77,6 +77,7 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
                 });
                 return true;
             });
+            ExerciseUtilities();
             Record("STAGE native-touch");
             var point = Ui(() =>
             {
@@ -162,6 +163,88 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
             result.PutString("stream", report.ToString());
             Finish(success ? Result.Ok : Result.Canceled, result);
         }
+    }
+
+    private void ExerciseUtilities()
+    {
+        Record("STAGE collection-utilities");
+        var utilities = Ui(() => new CollectionUtilitiesCertification(ModernFormsNext.Application.OpenForms.Single(), Record));
+        try
+        {
+            Ui(() =>
+            {
+                utilities.Exercise(key =>
+                {
+                    var code = key switch { Keys.PageDown => Keycode.PageDown, Keys.F5 => Keycode.F5,
+                        _ => throw new InvalidOperationException("Unmapped utility key.") };
+                    var view = NativeValidationViews.Main(activity);
+                    // The two-argument native constructor has deviceId=-1 and intentionally
+                    // follows the framework's editing-only route. Exercise the established
+                    // hardware shortcut boundary, without claiming a physical keyboard.
+                    long time = SystemClock.UptimeMillis();
+                    using var down = new KeyEvent(time, time, KeyEventActions.Down, code, 0, 0, 0, 0,
+                        KeyEventFlags.FromSystem, InputSourceType.Keyboard);
+                    using var up = new KeyEvent(time, time + 1, KeyEventActions.Up, code, 0, 0, 0, 0,
+                        KeyEventFlags.FromSystem, InputSourceType.Keyboard);
+                    Record($"UTILITIES key={key} native={code} down={view.DispatchKeyEvent(down)} up={view.DispatchKeyEvent(up)}");
+                });
+                return true;
+            });
+            var button = Ui(utilities.ButtonPoint);
+            Drag(button, button);
+            Ui(() => { utilities.VerifyActivation(); return true; });
+            var left = Ui(() => utilities.PagePoint(.85, .3));
+            var right = Ui(() => utilities.PagePoint(.15, .3));
+            Drag(left, right);
+            Ui(() => { utilities.VerifyPage(1, "Android-touch-next-page"); return true; });
+            Drag(right, left);
+            Ui(() => { utilities.VerifyPage(0, "Android-touch-previous-page"); return true; });
+            Drag(left, right, canceled: true);
+            Ui(() => { utilities.VerifyPage(0, "Android-touch-cancel-page"); return true; });
+            var pullStart = Ui(() => utilities.Point(150, 80));
+            Drag(pullStart, Ui(() => utilities.Point(150, 110)));
+            Ui(() => { utilities.VerifyRefresh(2, "Android-short-pull"); return true; });
+            var pullEnd = Ui(() => utilities.Point(150, 180));
+            Drag(pullStart, pullEnd);
+            Ui(() => { utilities.VerifyRefresh(3, "Android-edge-pull-refresh"); return true; });
+            Drag(pullStart, pullEnd, canceled: true);
+            Ui(() => { utilities.VerifyRefresh(3, "Android-cancel-pull"); return true; });
+            Drag(pullStart, pullEnd, beforeRelease: () => Ui(() => { utilities.HideDuringPull(); return true; }));
+            Ui(() => { utilities.VerifyRefresh(3, "Android-hide-retires-pull"); utilities.VerifyGeometry(); return true; });
+            Ui(() => { utilities.Carousel.PageOrientation = Orientation.Vertical; return true; });
+            Drag(pullStart, pullEnd);
+            Ui(() => { utilities.VerifyRefresh(4, "Android-vertical-page-top-refresh"); utilities.Carousel.SelectedIndex = 1; return true; });
+            Drag(pullStart, pullEnd);
+            Ui(() => { utilities.VerifyRefresh(4, "Android-vertical-page-keeps-inner-gesture"); return true; });
+            var orientation = Ui(() => activity.RequestedOrientation);
+            try
+            {
+                Ui(() => { activity.RequestedOrientation = ScreenOrientation.Landscape; return true; });
+                Wait(() => Ui(() => NativeValidationViews.Main(activity).Width > NativeValidationViews.Main(activity).Height), "utilities-landscape-resize");
+                Ui(() => { utilities.VerifyGeometry(); activity.RequestedOrientation = ScreenOrientation.Portrait; return true; });
+                Wait(() => Ui(() => NativeValidationViews.Main(activity).Height > NativeValidationViews.Main(activity).Width), "utilities-portrait-resize");
+                Ui(() => { utilities.VerifyGeometry(); return true; });
+            }
+            finally { Ui(() => { activity.RequestedOrientation = orientation; return true; }); }
+        }
+        finally { Ui(() => { utilities.Dispose(); return true; }); }
+    }
+
+    private void Drag(System.Drawing.Point start, System.Drawing.Point end, bool canceled = false, Action? beforeRelease = null)
+    {
+        long time = SystemClock.UptimeMillis();
+        using (var down = MotionEvent.Obtain(time, time, MotionEventActions.Down, start.X, start.Y, 0)!) SendPointerSync(down);
+        for (int step = 1; step <= 4; step++)
+        {
+            Thread.Sleep(16); // Instrumentation thread, with the real UI loop free to process input.
+            float x = start.X + (end.X - start.X) * step / 4f;
+            float y = start.Y + (end.Y - start.Y) * step / 4f;
+            using var move = MotionEvent.Obtain(time, SystemClock.UptimeMillis(), MotionEventActions.Move, x, y, 0)!;
+            SendPointerSync(move);
+        }
+        beforeRelease?.Invoke();
+        using var finish = MotionEvent.Obtain(time, SystemClock.UptimeMillis(), canceled ? MotionEventActions.Cancel : MotionEventActions.Up, end.X, end.Y, 0)!;
+        SendPointerSync(finish);
     }
 
     private void Record(string line)

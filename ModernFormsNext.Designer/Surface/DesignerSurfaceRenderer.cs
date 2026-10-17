@@ -697,6 +697,10 @@ internal sealed class DesignerSurfaceRenderer
         {
             DesignerVirtualizationPreview.Populate(collectionView);
         }
+        else if (control is CarouselView carouselView)
+        {
+            DesignerVirtualizationPreview.Populate(carouselView);
+        }
     }
 
     private static bool UsesTextPreview(Control control)

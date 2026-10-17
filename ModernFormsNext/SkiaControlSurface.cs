@@ -283,6 +283,9 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
             case ControlSurfacePointerAction.Down:
                 if (pointers.Remove(pointerId, out var replaced))
                     CancelPointer(replaced);
+                // Cancellation is application code too. A nested Down is newer than this
+                // request; do not replace it or insert a duplicate platform pointer key.
+                if (disposed || pointers.ContainsKey(pointerId)) break;
 
                 pointerDownRouteDepth++;
                 try
@@ -305,7 +308,7 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                         try { accepted = target.RaiseMouseDown(CreateMouseArgs(target, location, MouseButtons.Left, 0, pointerId)); }
                         catch (Exception error)
                         {
-                            pointers.Remove(pointerId);
+                            if (IsCurrentPointer(downState)) pointers.Remove(pointerId);
                             var failures = new List<Exception> { error };
                             CaptureCleanupFailure(() => CancelPointer(downState), failures);
                             ThrowCleanupFailures(failures);
@@ -313,7 +316,12 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                         }
                         if (!accepted)
                         {
-                            pointers.Remove(pointerId);
+                            if (IsCurrentPointer(downState)) pointers.Remove(pointerId);
+                            CancelPointer(downState);
+                            return;
+                        }
+                        if (!IsCurrentPointer(downState))
+                        {
                             CancelPointer(downState);
                             return;
                         }
@@ -340,20 +348,50 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
                     moveState.ClickEligible = false;
                     if (moveState.ScrollCandidate is not null)
                     {
-                        moveState.CapturedControl?.CancelPointerInteraction(pointerId);
-                        moveState.CapturedControl = null;
-                        moveState.GestureOwner = moveState.ScrollCandidate;
-                        moveState.GestureOwner.Capture = true;
-                        cancelled = true;
+                        try
+                        {
+                            var owner = ResolveTouchScrollOwner(moveState, location);
+                            if (!IsCurrentPointer(moveState)) break;
+                            moveState.GestureOwner = owner;
+                            moveState.GestureLifetime = new AccessibilityControlLifetime(owner);
+                            moveState.GestureBounds = owner.Bounds;
+                            moveState.GestureScale = owner.ScaleFactor;
+                            var oldCapture = moveState.CapturedControl;
+                            moveState.CapturedControl = null;
+                            oldCapture?.CancelPointerInteraction(pointerId);
+                            if (!IsCurrentPointer(moveState)) break;
+                            if (!IsCurrentGesture(moveState)) { RetirePointer(moveState); break; }
+                            owner.Capture = true;
+                            owner.BeginTouchScroll(moveState,
+                                LogicalTouchPoint(owner, SurfaceToControl(owner, moveState.DownLocation)),
+                                LogicalTouchPoint(owner, new(totalX, totalY)));
+                            cancelled = true;
+                        }
+                        catch (Exception error) { FailPointer(moveState, error); }
                     }
                 }
 
-                var delta = new Point(location.X - moveState.LastLocation.X, location.Y - moveState.LastLocation.Y);
-                if (!moveState.ClickEligible && moveState.ScrollCandidate?.ScrollByTouchDelta(delta) == true)
-                    moveState.GestureOwner = moveState.ScrollCandidate;
+                if (!IsCurrentPointer(moveState)) break;
+                if (moveState.GestureOwner is { } gestureOwner)
+                {
+                    if (!IsCurrentGesture(moveState)) { RetirePointer(moveState); break; }
+                    // Convert cumulative positions, then subtract. Rounding each physical
+                    // delta independently loses small movements at fractional/high DPI.
+                    var total = LogicalTouchPoint(gestureOwner, new(totalX, totalY));
+                    var previous = LogicalTouchPoint(gestureOwner, new(
+                        moveState.LastLocation.X - moveState.DownLocation.X,
+                        moveState.LastLocation.Y - moveState.DownLocation.Y));
+                    try { gestureOwner.ContinueTouchScroll(moveState, total, new(total.X - previous.X, total.Y - previous.Y)); }
+                    catch (Exception error) { FailPointer(moveState, error); }
+                    if (!IsCurrentPointer(moveState)) break;
+                    if (!IsCurrentGesture(moveState)) { RetirePointer(moveState); break; }
+                }
                 else if (moveState.GestureOwner is null && moveState.CapturedControl is not null)
-                    moveState.CapturedControl.RaiseMouseMove(
-                        CreateMouseArgs(moveState.CapturedControl, location, MouseButtons.Left, 0, pointerId));
+                {
+                    try { moveState.CapturedControl.RaiseMouseMove(
+                        CreateMouseArgs(moveState.CapturedControl, location, MouseButtons.Left, 0, pointerId)); }
+                    catch (Exception error) { FailPointer(moveState, error); }
+                }
 
                 moveState.LastLocation = location;
                 break;
@@ -365,19 +403,31 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
 
                 if (upState.GestureOwner is not null)
                 {
-                    upState.GestureOwner.CancelPointerInteraction(pointerId);
+                    FinishTouchScroll(upState, canceled: !IsCurrentGesture(upState));
                 }
                 else if (upState.CapturedControl is not null)
                 {
                     var releasedOnCapture = hit is not null && ReferenceEquals(hit.Value.Control, upState.CapturedControl);
                     var upArgs = CreateMouseArgs(upState.CapturedControl, location, MouseButtons.Left, 1, pointerId);
+                    List<Exception>? failures = null;
                     if (upState.ClickEligible && releasedOnCapture)
                     {
-                        upState.CapturedControl.RaiseClick(upArgs);
-                        clickGenerated = true;
+                        try
+                        {
+                            upState.CapturedControl.RaiseClick(upArgs);
+                            clickGenerated = true;
+                        }
+                        catch (Exception error) { (failures ??= []).Add(error); }
                     }
-
-                    upState.CapturedControl.RaiseMouseUp(upArgs);
+                    // Click may start a newer pointer on the same control. Old mouse-up
+                    // cleanup must not release that newer capture; throwing clicks still
+                    // release their own old capture and preserve the original exception.
+                    if (!IsOwnedByAnotherPointer(upState.CapturedControl, upState))
+                    {
+                        try { upState.CapturedControl.RaiseMouseUp(upArgs); }
+                        catch (Exception error) { (failures ??= []).Add(error); }
+                    }
+                    if (failures is not null) ThrowCleanupFailures(failures);
                 }
                 break;
 
@@ -646,6 +696,8 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         control.ControlAdded += OnControlAdded;
         control.ControlRemoved += OnControlRemoved;
         control.Click += OnControlClick;
+        control.VisibleChanged += OnControlAvailabilityChanged;
+        control.EnabledChanged += OnControlAvailabilityChanged;
         foreach (var child in control.Controls.GetAllControls())
             ObserveTree(child);
     }
@@ -656,6 +708,8 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         control.ControlAdded -= OnControlAdded;
         control.ControlRemoved -= OnControlRemoved;
         control.Click -= OnControlClick;
+        control.VisibleChanged -= OnControlAvailabilityChanged;
+        control.EnabledChanged -= OnControlAvailabilityChanged;
         observedControls.Remove(control);
     }
 
@@ -672,30 +726,47 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
     private void OnControlAdded(object? sender, EventArgs<Control> e)
         => ObserveTree(e.Value);
 
+    private void OnControlAvailabilityChanged(object? sender, EventArgs e)
+    {
+        if (sender is Control control && (!control.Visible || !control.Enabled))
+            CancelPointersOwnedBy(control);
+    }
+
     private void OnControlRemoved(object? sender, EventArgs<Control> e)
     {
         // A detached/reinserted ancestor retires an in-flight key even if the editor's immediate
         // parent and eventual focus identity remain unchanged after application callbacks.
         keyboardTreeVersion++;
-        CancelPointersOwnedBy(e.Value);
-
-        if (e.Value is TextBox textBox)
-            textBox.document.FinishComposition();
-        UnobserveTree(e.Value);
+        try
+        {
+            CancelPointersOwnedBy(e.Value);
+            if (e.Value is TextBox textBox) textBox.document.FinishComposition();
+        }
+        finally { UnobserveTree(e.Value); }
     }
 
     private void CancelPointersOwnedBy(Control control, Control? alreadyCanceled = null)
     {
+        if (pointers.Count == 0) return;
         // Focus loss and detach are terminal for a control-owned gesture. Remove the router entry
         // as well as clearing Control.Capture so a later move/up cannot reach a stale text editor.
-        foreach (var pointer in pointers.Values.Where(pointer =>
+        var retired = pointers.Values.Where(pointer =>
                      IsSelfOrDescendant(pointer.CapturedControl, control) ||
                      IsSelfOrDescendant(pointer.GestureOwner, control) ||
-                     IsSelfOrDescendant(pointer.ScrollCandidate, control)).ToArray())
+                     IsSelfOrDescendant(pointer.ScrollCandidate, control)).ToArray();
+        // Commit retirement before any cancellation callback can start a newer sequence.
+        foreach (var pointer in retired)
+            // Dispose revokes public input before focus/visibility cleanup. Retirement must
+            // still remove its registered old entry even though IsCurrentPointer is then false.
+            if (pointers.TryGetValue(pointer.PointerId, out var current) && ReferenceEquals(current, pointer))
+                pointers.Remove(pointer.PointerId);
+        List<Exception>? failures = null;
+        foreach (var pointer in retired)
         {
-            pointers.Remove(pointer.PointerId);
-            CancelPointer(pointer, alreadyCanceled);
+            try { CancelPointer(pointer, alreadyCanceled); }
+            catch (Exception error) { (failures ??= []).Add(error); }
         }
+        if (failures is not null) ThrowCleanupFailures(failures);
     }
 
     private bool IsPointerOwnedBy(Control control)
@@ -724,14 +795,84 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         ThrowCleanupFailures(failures);
     }
 
-    private static void CancelPointer(PointerState pointer, Control? alreadyCanceled = null)
+    private void CancelPointer(PointerState pointer, Control? alreadyCanceled = null)
     {
         var failures = new List<Exception>();
-        if (!ReferenceEquals(pointer.CapturedControl, alreadyCanceled))
+        if (pointer.GestureOwner is { } owner)
+            CaptureCleanupFailure(() => owner.EndTouchScroll(pointer, canceled: true), failures);
+        if (pointer.CapturedControl is { IsDisposed: false } && !ReferenceEquals(pointer.CapturedControl, alreadyCanceled) &&
+            !IsOwnedByAnotherPointer(pointer.CapturedControl, pointer))
             CaptureCleanupFailure(() => pointer.CapturedControl?.CancelPointerInteraction(pointer.PointerId), failures);
-        if (!ReferenceEquals(pointer.GestureOwner, pointer.CapturedControl) && !ReferenceEquals(pointer.GestureOwner, alreadyCanceled))
+        if (pointer.GestureOwner is { IsDisposed: false } && !ReferenceEquals(pointer.GestureOwner, pointer.CapturedControl) &&
+            !ReferenceEquals(pointer.GestureOwner, alreadyCanceled) &&
+            !IsOwnedByAnotherPointer(pointer.GestureOwner, pointer))
             CaptureCleanupFailure(() => pointer.GestureOwner?.CancelPointerInteraction(pointer.PointerId), failures);
         ThrowCleanupFailures(failures);
+    }
+
+    private bool IsCurrentPointer(PointerState pointer)
+        => !disposed && pointers.TryGetValue(pointer.PointerId, out var current) && ReferenceEquals(current, pointer);
+
+    private static bool IsCurrentGesture(PointerState pointer)
+        => pointer.GestureOwner is { IsDisposed: false, Enabled: true, Visible: true, AutoScroll: true } owner &&
+           pointer.GestureLifetime?.IsCurrent == true && owner.Bounds == pointer.GestureBounds &&
+           owner.ScaleFactor == pointer.GestureScale;
+
+    private bool IsOwnedByAnotherPointer(Control? control, PointerState retired)
+    {
+        if (control is null) return false;
+        foreach (var current in pointers.Values)
+            if (!ReferenceEquals(current, retired) &&
+                (ReferenceEquals(current.CapturedControl, control) || ReferenceEquals(current.GestureOwner, control))) return true;
+        return false;
+    }
+
+    private void RetirePointer(PointerState pointer)
+    {
+        if (IsCurrentPointer(pointer)) pointers.Remove(pointer.PointerId);
+        CancelPointer(pointer);
+    }
+
+    private void FailPointer(PointerState pointer, Exception error)
+    {
+        if (IsCurrentPointer(pointer)) pointers.Remove(pointer.PointerId);
+        var failures = new List<Exception> { error };
+        CaptureCleanupFailure(() => CancelPointer(pointer), failures);
+        ThrowCleanupFailures(failures);
+    }
+
+    private void FinishTouchScroll(PointerState pointer, bool canceled)
+    {
+        var owner = pointer.GestureOwner!;
+        List<Exception>? failures = null;
+        // Finish the borrowed identity before callbacks can begin another gesture.
+        // End hooks retire their own identity before changing selection or invoking commands.
+        try { owner.EndTouchScroll(pointer, canceled); }
+        catch (Exception error) { (failures ??= []).Add(error); }
+        if (!IsOwnedByAnotherPointer(owner, pointer))
+        {
+            try { owner.CancelPointerInteraction(pointer.PointerId); }
+            catch (Exception error) { (failures ??= []).Add(error); }
+        }
+        if (failures is not null) ThrowCleanupFailures(failures);
+    }
+
+    private static Point LogicalTouchPoint(Control owner, Point devicePoint)
+        => new((int)Math.Round(devicePoint.X / owner.ScaleFactor.Width, MidpointRounding.AwayFromZero),
+               (int)Math.Round(devicePoint.Y / owner.ScaleFactor.Height, MidpointRounding.AwayFromZero));
+
+    private ScrollableControl ResolveTouchScrollOwner(PointerState pointer, Point location)
+    {
+        // Choose once at threshold crossing. An inner scroller that can consume movement
+        // keeps the whole sequence; reaching its edge later never starts an ancestor refresh.
+        var fallback = pointer.ScrollCandidate!;
+        for (Control? current = fallback; current is not null; current = current.Parent)
+            if (current is ScrollableControl { AutoScroll: true } scrollable &&
+                scrollable.CanStartTouchScroll(
+                    LogicalTouchPoint(scrollable, SurfaceToControl(scrollable, pointer.DownLocation)),
+                    LogicalTouchPoint(scrollable, new(location.X - pointer.DownLocation.X, location.Y - pointer.DownLocation.Y))))
+                return scrollable;
+        return fallback;
     }
 
     private static void CaptureCleanupFailure(Action action, List<Exception> failures)
@@ -912,6 +1053,9 @@ public sealed partial class SkiaControlSurface : IDisposable, IPlatformAccessibi
         public Control? CapturedControl { get; set; } = target;
         public ScrollableControl? ScrollCandidate { get; } = scrollCandidate;
         public ScrollableControl? GestureOwner { get; set; }
+        public AccessibilityControlLifetime? GestureLifetime { get; set; }
+        public Rectangle GestureBounds { get; set; }
+        public SizeF GestureScale { get; set; }
         public bool ClickEligible { get; set; } = true;
     }
 }

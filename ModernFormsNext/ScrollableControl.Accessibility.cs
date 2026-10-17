@@ -51,7 +51,7 @@ public partial class ScrollableControl
             AccessibilityScrollGeometry.ToCanonicalBounds(this, viewport));
     }
 
-    internal bool PerformAccessibleScroll(AccessibleScrollRequest request)
+    internal virtual bool PerformAccessibleScroll(AccessibleScrollRequest request)
     {
         if (IsDisposed || !Enabled || !Visible || !AutoScroll) return false;
         var lifetime = new AccessibilityControlLifetime(this);

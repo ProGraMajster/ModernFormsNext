@@ -40,4 +40,17 @@ internal static class DesignerVirtualizationPreview
         finally { view.ResumeLayout(); }
         view.PerformLayout();
     }
+
+    internal static void Populate(CarouselView view)
+    {
+        view.SuspendLayout();
+        try
+        {
+            view.CacheItemCount = Math.Min(view.CacheItemCount, 2);
+            if (view.ItemsSource is null)
+                view.ItemsSource = Enumerable.Range(1, ItemLimit).Select(index => (object)$"Page {index}").ToArray();
+        }
+        finally { view.ResumeLayout(); }
+        view.PerformLayout();
+    }
 }

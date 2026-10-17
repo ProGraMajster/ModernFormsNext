@@ -34,6 +34,14 @@ public class CollectionView : ItemsControl
     internal object? GetAccessibilityItem(int index) => GetItem(index);
     internal bool UsesDefaultItemTemplate => itemTemplate is null;
 
+    // Composite consumers may couple their current page to a canonical item reveal.
+    // The existing logical peer remains the sole semantic node and action dispatcher.
+    internal virtual bool RevealAccessibilityItem(int index)
+    {
+        ScrollToItem(index);
+        return true;
+    }
+
     /// <summary>Creates an empty collection view with shared virtualization enabled.</summary>
     public CollectionView() { }
 

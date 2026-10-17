@@ -36,6 +36,10 @@ presented as a finished replacement for WinForms, MAUI, or other established UI 
 
 The repository does not currently provide supported macOS or Linux application backends.
 
+The 1.12.0 development source includes [CarouselView and RefreshView](docs/collection-utilities.md):
+bounded pages built on CollectionView and refresh actions through the shared input/command system.
+Their ControlGallery page includes interactive pages and cancellable application-owned refresh work.
+
 ### Android status
 
 > [!WARNING]
