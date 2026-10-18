@@ -263,7 +263,7 @@ namespace ModernFormsNext
 
                 // Keep the current value inside the valid range.
                 if (Value < minDate)
-                    Value = minDate;
+                    SetValue(minDate, ActivateOnRangeClamp);
 
                 Invalidate ();
             }
@@ -292,7 +292,7 @@ namespace ModernFormsNext
 
                 // Keep the current value inside the valid range.
                 if (Value > maxDate)
-                    Value = maxDate;
+                    SetValue(maxDate, ActivateOnRangeClamp);
 
                 Invalidate ();
             }
@@ -307,27 +307,29 @@ namespace ModernFormsNext
         /// </exception>
         public DateTime Value {
             get => value;
-            set {
-                if (value < MinDate || value > MaxDate)
-                    throw new ArgumentOutOfRangeException (nameof (value), value, $"Value must be between {MinDate:G} and {MaxDate:G}.");
+            set => SetValue(value, activate: true);
+        }
 
-                bool changed = this.value != value || !userHasSetValue;
+        // Built-in time presentation borrows this same value/checked state. Its range clamp
+        // preserves an empty selection; ordinary DateTimePicker retains its activation policy.
+        internal virtual bool ActivateOnRangeClamp => true;
+        internal virtual string CheckedAccessibleName => "Enable date and time";
 
-                if (!changed)
-                    return;
-
-                this.value = value;
-                userHasSetValue = true;
-                if (popupCalendar is { } calendar) calendar.Value = value;
-
-                // Setting the value explicitly activates the control when a checkbox is shown.
-                if (ShowCheckBox)
-                    isChecked = true;
-
-                Invalidate ();
-                OnValueChanged (EventArgs.Empty);
-                OnTextChanged (EventArgs.Empty);
-            }
+        private void SetValue(DateTime candidate, bool activate)
+        {
+            if (candidate < MinDate || candidate > MaxDate)
+                throw new ArgumentOutOfRangeException(nameof(value), candidate, $"Value must be between {MinDate:G} and {MaxDate:G}.");
+            bool changed = value != candidate || !userHasSetValue || activate && ShowCheckBox && !isChecked;
+            if (!changed) return;
+            value = candidate;
+            userHasSetValue = true;
+            // Commit the complete state before a calendar/value observer can reenter it.
+            // An explicit equal value is still a change when it reactivates an empty picker.
+            if (ShowCheckBox && activate) isChecked = true;
+            if (popupCalendar is { } calendar) calendar.Value = candidate;
+            Invalidate();
+            OnValueChanged(EventArgs.Empty);
+            OnTextChanged(EventArgs.Empty);
         }
 
         /// <summary>
@@ -365,7 +367,7 @@ namespace ModernFormsNext
                     return;
                 }
 
-                Value = DateTime.Parse (value, CultureInfo.CurrentCulture);
+                Value = ParseValueText(value);
             }
         }
 
@@ -636,11 +638,14 @@ namespace ModernFormsNext
         /// Formats the current value as display text according to the selected format.
         /// </summary>
         /// <returns>A formatted date/time string.</returns>
-        private string GetDisplayText ()
-        {
-            DateTime displayValue = value;
+        private string GetDisplayText () => FormatDisplayValue(value);
 
-            return Format switch {
+        // Narrow representation seams for the built-in time-only consumer. Parsing, range
+        // validation, checked/value publication, input, rendering and peers remain canonical.
+        internal virtual DateTime ParseValueText(string text) => DateTime.Parse(text, CultureInfo.CurrentCulture);
+
+        internal virtual string FormatDisplayValue(DateTime displayValue)
+            => Format switch {
                 DateTimePickerFormat.Long => displayValue.ToString ("D", CultureInfo.CurrentCulture),
                 DateTimePickerFormat.Short => displayValue.ToString ("d", CultureInfo.CurrentCulture),
                 DateTimePickerFormat.Time => displayValue.ToString ("t", CultureInfo.CurrentCulture),
@@ -649,7 +654,6 @@ namespace ModernFormsNext
                     CultureInfo.CurrentCulture),
                 _ => displayValue.ToString (CultureInfo.CurrentCulture)
             };
-        }
 
         /// <summary>
         /// Resets the internal value state to its default representation.
@@ -658,7 +662,7 @@ namespace ModernFormsNext
         /// The stored value becomes <see cref="DateTime.Now"/>, but the control is marked as
         /// not explicitly set. If the checkbox is visible, the control becomes unchecked.
         /// </remarks>
-        private void ResetValue ()
+        internal virtual void ResetValue ()
         {
             var now = DateTime.Now;
             value = now < MinDate ? MinDate : now > MaxDate ? MaxDate : now;
@@ -748,13 +752,7 @@ namespace ModernFormsNext
             DateTime newValue;
             // AddMonths/AddYears can overflow before the ordinary MinDate/MaxDate clamp.
             // Stepping at the boundary is a no-op for every input and accessibility path.
-            try { newValue = Format switch {
-                DateTimePickerFormat.Time => Value.AddMinutes (delta),
-                DateTimePickerFormat.Short => Value.AddDays (delta),
-                DateTimePickerFormat.Long => Value.AddDays (delta),
-                DateTimePickerFormat.Custom => StepCustom (delta),
-                _ => Value.AddDays (delta)
-            }; }
+            try { newValue = GetSteppedValue(delta); }
             catch (ArgumentOutOfRangeException) { newValue = delta > 0 ? MaxDate : MinDate; }
 
             if (newValue < MinDate)
@@ -765,6 +763,15 @@ namespace ModernFormsNext
 
             Value = newValue;
         }
+
+        internal virtual DateTime GetSteppedValue(int delta)
+            => Format switch {
+                DateTimePickerFormat.Time => Value.AddMinutes (delta),
+                DateTimePickerFormat.Short => Value.AddDays (delta),
+                DateTimePickerFormat.Long => Value.AddDays (delta),
+                DateTimePickerFormat.Custom => StepCustom (delta),
+                _ => Value.AddDays (delta)
+            };
 
         /// <summary>
         /// Adjusts the current value when <see cref="Format"/> is <see cref="DateTimePickerFormat.Custom"/>.

@@ -37,6 +37,10 @@ public sealed class ItemContainerGenerator<TContainer> : IDisposable where TCont
     private long generation, appliedGeneration = -1;
     private bool processing;
 
+    // The control host must not arrange an in-progress binding when a template asks for
+    // another layout. Realize coalesces that request until the outer callback completes.
+    internal bool IsProcessing => processing;
+
     /// <summary>Creates a generator with a bounded pool of cleared containers.</summary>
     /// <param name="factory">The borrowed factory. The generator does not dispose it or the logical source.</param>
     /// <param name="recyclingCapacity">The nonnegative maximum number of additional cleared containers to retain.</param>

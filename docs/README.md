@@ -22,6 +22,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 - [Shared item virtualization](virtualization.md) — reusable ItemsControl, opt-in ListView, indexed geometry and recycling.
 - [CollectionView](collection-view.md) — borrowed indexed sources, recyclable templates, logical selection and native accessibility.
 - [CarouselView and RefreshView](collection-utilities.md) — viewport pages, shared gesture ownership and command-driven refresh.
+- [SearchBar and TimePicker](search-and-time.md) — canonical suggestions, bounded memory-only history and nullable culture-aware time.
 - [Virtualization certification](virtualization-certification.md) — bounded Designer preview and repeatable HWND/Android workloads.
 - [Commands, shortcuts, and input routing](commands.md)
 - [Text input and composition](text-input.md)

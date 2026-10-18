@@ -22,6 +22,7 @@ internal static class DesignerPropertyValueEditor
         {
             null => string.Empty,
             bool boolValue => boolValue ? "True" : "False",
+            TimeOnly time => time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture),
             DesignBounds bounds => $"{bounds.X}, {bounds.Y}, {bounds.Width}, {bounds.Height}",
             DesignSize size => $"{size.Width}, {size.Height}",
             DesignPoint point => $"{point.X}, {point.Y}",
@@ -80,6 +81,16 @@ internal static class DesignerPropertyValueEditor
 
             error = "Expected True or False.";
             value = null;
+            return false;
+        }
+
+        if (targetType == typeof(TimeOnly))
+        {
+            if (TimeOnly.TryParseExact(trimmed, ["HH:mm", "HH:mm:ss", "HH:mm:ss.FFFFFFF"],
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var time))
+            { value = time; error = null; return true; }
+            value = null;
+            error = "Expected invariant HH:mm, HH:mm:ss or HH:mm:ss.fffffff; use null for an empty nullable time.";
             return false;
         }
 
@@ -574,6 +585,12 @@ internal static class DesignerPropertyValueEditor
     private static object? FromStructuredValue(DesignPropertyValue value, Type targetType)
     {
         var properties = value.ObjectProperties ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+
+        if (targetType == typeof(TimeOnly))
+        {
+            if (!TimeOnlyDesignValue.TryRead(value, out var time, out var error)) throw new FormatException(error);
+            return time;
+        }
 
         if (targetType == typeof(System.Drawing.Size))
             return new System.Drawing.Size(ReadInt(properties, "Width"), ReadInt(properties, "Height"));

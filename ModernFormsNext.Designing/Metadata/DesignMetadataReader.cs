@@ -181,6 +181,7 @@ public sealed class DesignMetadataReader
             || valueType == typeof(int)
             || valueType == typeof(float)
             || valueType == typeof(double)
+            || valueType == typeof(TimeOnly)
             || valueType.IsEnum;
     }
 

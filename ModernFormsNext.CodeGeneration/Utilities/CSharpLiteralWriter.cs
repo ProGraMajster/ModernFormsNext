@@ -102,6 +102,12 @@ public static class CSharpLiteralWriter
         var typeName = value.ObjectTypeName ?? string.Empty;
         var properties = value.ObjectProperties ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
 
+        if (typeName == "System.TimeOnly")
+        {
+            if (!TimeOnlyDesignValue.TryRead(value, out var time, out var error)) throw new NotSupportedException(error);
+            return $"new global::System.TimeOnly({time.Ticks.ToString(CultureInfo.InvariantCulture)}L)";
+        }
+
         if (IsType(typeName, "System.Drawing.Size"))
             return $"new System.Drawing.Size({ReadInt(properties, "Width")}, {ReadInt(properties, "Height")})";
 

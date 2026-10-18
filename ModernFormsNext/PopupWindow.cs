@@ -34,6 +34,10 @@ namespace ModernFormsNext
         }
 
         internal Form ParentForm => parent_form;
+        // Suggestion presenters have no editor of their own. Keep their parent's canonical
+        // focus/IME connection alive while retaining ordinary popup placement/dismissal.
+        // Default false preserves the existing editable-popup handoff contract.
+        internal bool RetainParentTextInput { get; init; }
         internal bool OwnsParentTextInput => ownsTextInput && !InputBindingsClosed;
         internal long TextInputOwnershipVersion => textInputOwnershipVersion;
 
@@ -41,13 +45,14 @@ namespace ModernFormsNext
 
         internal void RestoreParentTextInput(long expectedVersion)
         {
-            if (!ownsTextInput || expectedVersion != textInputOwnershipVersion) return;
+            if (expectedVersion != textInputOwnershipVersion) return;
+            bool restore = ownsTextInput;
             ownsTextInput = false;
             // Relinquish only this popup. A finish observer may already have opened another
             // popup (or a fresh session of this one), which owns the shared native method now.
             if (ReferenceEquals(Application.ActivePopupWindow, this))
                 Application.ActivePopupWindow = null;
-            if (parent_form.IsActive && !parent_form.InputBindingsClosed)
+            if (restore && parent_form.IsActive && !parent_form.InputBindingsClosed)
                 parent_form.SetTextInputActive(true);
         }
 
@@ -98,10 +103,10 @@ namespace ModernFormsNext
 
             var previousPopup = Application.ActivePopupWindow;
             Application.ActivePopupWindow = this;
-            ownsTextInput = true;
+            ownsTextInput = !RetainParentTextInput;
             long version = ++textInputOwnershipVersion;
             bool IsCurrentShow() => !InputBindingsClosed && !parent_form.InputBindingsClosed &&
-                version == textInputOwnershipVersion && ownsTextInput &&
+                version == textInputOwnershipVersion &&
                 ReferenceEquals(Application.ActivePopupWindow, this);
             try {
                 // Only one popup leases native text input. Retire the old core proxy too,
@@ -112,7 +117,13 @@ namespace ModernFormsNext
                     RestoreParentTextInput(version);
                     return;
                 }
-                parent_form.SetTextInputActive(false);
+                if (RetainParentTextInput)
+                {
+                    // Replacing an editable popup may have retired the parent transport.
+                    // Reacquisition is idempotent when this presenter did not take it away.
+                    if (parent_form.IsActive) parent_form.SetTextInputActive(true);
+                }
+                else parent_form.SetTextInputActive(false);
                 if (!IsCurrentShow()) {
                     RestoreParentTextInput(version);
                     return;

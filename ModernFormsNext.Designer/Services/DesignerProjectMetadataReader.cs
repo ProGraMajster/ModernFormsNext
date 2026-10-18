@@ -205,6 +205,7 @@ internal static partial class DesignerProjectUserControlDiscovery
             SpecialType.System_Int32 => typeof(int),
             SpecialType.System_Double => typeof(double), _ => null
         };
+        if (type.ToDisplayString() == "System.TimeOnly") editor = typeof(TimeOnly);
         var enumType = type.TypeKind == TypeKind.Enum && type.ToDisplayString().Split('.').All(DesignDocumentValidator.IsValidCSharpIdentifier)
             ? type.ToDisplayString() : null;
         var enumFields = type.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue && DesignDocumentValidator.IsValidCSharpIdentifier(f.Name)).ToArray();

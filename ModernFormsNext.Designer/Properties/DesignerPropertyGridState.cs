@@ -445,6 +445,10 @@ internal sealed class DesignerPropertyGridState
                 (itemControlType == typeof(ListView) || itemControlType == typeof(CollectionView) ||
                  itemControlType == typeof(CarouselView) || itemControlType == typeof(RefreshView)))
                 committed = DesignerVirtualizationPropertyValidator.TryValidate(node, SelectedProperty.Identity, itemControlType, out error);
+            if (committed && playgroundState.SelectedNode is { } utilityNode &&
+                playgroundState.ResolveControlType(utilityNode) is { } utilityType &&
+                (utilityType == typeof(SearchBar) || utilityType == typeof(TimePicker)))
+                committed = DesignerSearchTimePropertyValidator.TryValidate(utilityNode, utilityType, out error);
         }
         catch
         {
