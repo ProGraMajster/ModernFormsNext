@@ -16,7 +16,7 @@ param(
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [string]$SdkRoot,
     [ValidateRange(30, 1800)][int]$TimeoutSeconds = 180,
-    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion')][string]$Scenario = 'ReleaseMatrix'
+    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation')][string]$Scenario = 'ReleaseMatrix'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,7 +30,11 @@ $destination = [IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $destination) { throw 'Choose a new output directory so previous evidence cannot be overwritten or mixed.' }
 New-Item -ItemType Directory -Path $destination | Out-Null
 $package = 'com.programajster.modernformsnext.sample'
-$runner = if ($Scenario -eq 'AccessibilityPhase4') { 'AccessibilityPhase4Instrumentation' } else { 'ReleaseValidationInstrumentation' }
+$runner = switch ($Scenario) {
+    'AccessibilityPhase4' { 'AccessibilityPhase4Instrumentation' }
+    'PageNavigation' { 'PageNavigationValidationInstrumentation' }
+    default { 'ReleaseValidationInstrumentation' }
+}
 
 function Invoke-AdbRead {
     param([string[]]$Arguments)
@@ -65,6 +69,7 @@ $facts = [ordered]@{
     Apk = $apk
     RunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs')).Hash
     AccessibilityRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/AccessibilityPhase4Instrumentation.cs')).Hash
+    PageNavigationRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/PageNavigationValidationInstrumentation.cs')).Hash
     ScriptSha256 = (Get-FileHash -LiteralPath $PSCommandPath).Hash
     Properties = [ordered]@{}
 }
@@ -120,10 +125,26 @@ try {
         & $adb -s $DeviceId pull $remote (Join-Path $destination 'native') > (Join-Path $destination 'pull.log')
         if ($LASTEXITCODE -ne 0) { throw 'Native artifact retrieval failed.' }
     }
-    $marker = if ($Scenario -eq 'AccessibilityPhase4') { 'ANDROID_ACCESSIBILITY_PHASE4_PASS' } else { 'ANDROID_RELEASE_MATRIX_PASS' }
+    $marker = switch ($Scenario) {
+        'AccessibilityPhase4' { 'ANDROID_ACCESSIBILITY_PHASE4_PASS' }
+        'PageNavigation' { 'ANDROID_PAGE_NAVIGATION_PASS' }
+        default { 'ANDROID_RELEASE_MATRIX_PASS' }
+    }
+    if ($Scenario -eq 'PageNavigation') {
+        $nativeDirectory = Join-Path $destination 'native'
+        New-Item -ItemType Directory -Path $nativeDirectory | Out-Null
+        foreach ($name in @('page-navigation-validation.txt', 'page-navigation-details.png', 'page-navigation-recreated.png')) {
+            $remoteFile = "/sdcard/Android/data/$package/files/$name"
+            & $adb -s $DeviceId shell test -f $remoteFile
+            if ($LASTEXITCODE -eq 0) {
+                & $adb -s $DeviceId pull $remoteFile (Join-Path $nativeDirectory $name) >> (Join-Path $destination 'pull.log') 2>&1
+                if ($LASTEXITCODE -ne 0) { throw 'Page navigation artifact retrieval failed.' }
+            } elseif ($result -match $marker) { throw "Passing runner did not provide required artifact: $name" }
+        }
+    }
     # Do not mistake numeric telemetry such as recorder_failures=0 for a failure marker.
     if ($instrumentationExit -ne 0 -or $result -notmatch $marker -or
-        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|INSTRUMENTATION_FAILED)') {
+        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."
     }
 }

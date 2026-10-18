@@ -5,6 +5,7 @@ using ModernFormsNext.WindowKit.Threading;
 using ModernFormsNext.WindowKit.Input;
 using System.Drawing;
 using WSize = ModernFormsNext.WindowKit.Size;
+using ModernFormsNext.Animations;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Tests;
 
@@ -457,6 +458,178 @@ public sealed class AndroidWindowingContractTests
         Assert.False(proxy.SetKeyboardVisible(true));
     }
 
+    [Fact]
+    public void SystemBackUsesCanonicalPageRouteThenRetainsLegacyRootClose()
+    {
+        using var f = new Fixture();
+        using var form = new Form();
+        var root = new ContentPage { Content = new TextBox { Text = "root" } };
+        var navigation = new NavigationPage(root) { TransitionDuration = TimeSpan.Zero };
+        form.Controls.Add(new PageHost { Page = navigation, Dock = DockStyle.Fill });
+        form.Show();
+        var next = new ContentPage { Content = new TextBox { Text = "next" } };
+        Assert.True(Completed(navigation.PushAsync(next, false)));
+        next.Content.Select();
+        Assert.True(f.Platform.Back());
+        Assert.True(form.Visible);
+        Assert.Same(root, navigation.CurrentPage);
+        Assert.Null(next.Parent);
+        next.Dispose();
+        Assert.True(f.Platform.Back());
+        Assert.False(form.Visible);
+    }
+
+    [Fact]
+    public void BusyNavigationConsumesBackInsteadOfClosingTheNativeWindow()
+    {
+        using var f = new Fixture();
+        using var form = new Form();
+        var root = new ContentPage { Content = new TextBox() };
+        var navigation = new NavigationPage(root);
+        form.Controls.Add(new PageHost { Page = navigation, Dock = DockStyle.Fill });
+        form.Show();
+        root.Content.Select();
+        var next = new ContentPage { Content = new TextBox() };
+        var pending = navigation.PushAsync(next);
+        Assert.True(navigation.IsNavigating);
+        Assert.True(f.Platform.Back());
+        Assert.True(form.Visible);
+        Assert.Same(next, navigation.CurrentPage);
+        navigation.Dispose();
+        f.Loop.Drain();
+        Assert.True(pending.IsCompleted);
+    }
+
+    [Fact]
+    public void BackPairsTheOriginalRouteAndConsumesReentrantDelivery()
+    {
+        using var f = new Fixture();
+        using var form = new Form();
+        int down = 0, up = 0, closing = 0;
+        form.KeyDown += (_, e) =>
+        {
+            Assert.Equal(Keys.BrowserBack, e.KeyData);
+            down++;
+            Assert.True(f.Platform.Back());
+            e.Handled = true;
+        };
+        form.KeyUp += (_, e) => { Assert.Equal(Keys.BrowserBack, e.KeyData); up++; };
+        form.Closing += (_, _) => closing++;
+        form.Show();
+        Assert.True(f.Platform.Back());
+        Assert.Equal((1, 1, 0), (down, up, closing));
+        Assert.True(form.Visible);
+    }
+
+    [Fact]
+    public void OldBackCannotReleaseOrCloseAReentrantReplacementPresentation()
+    {
+        using var f = new Fixture();
+        using var form = new Form();
+        bool replace = true;
+        int up = 0;
+        form.KeyDown += (_, _) => { if (replace) { replace = false; form.Hide(); form.Show(); } };
+        form.KeyUp += (_, _) => up++;
+        form.Show();
+        Assert.True(f.Platform.Back());
+        Assert.True(form.Visible);
+        Assert.Equal(0, up);
+        Assert.True(f.Platform.Back());
+        Assert.Equal(1, up);
+        Assert.False(form.Visible);
+    }
+
+    [Fact]
+    public void PopupBackPrecedesNavigationAndModalRootFallbackPrecedesMain()
+    {
+        using var f = new Fixture();
+        using var main = new Form();
+        using var dialog = new Form();
+        main.Show();
+        var navigation = new NavigationPage(new ContentPage { Content = new TextBox() }) { TransitionDuration = TimeSpan.Zero };
+        dialog.Controls.Add(new PageHost { Page = navigation, Dock = DockStyle.Fill });
+        var modal = dialog.ShowDialog(main);
+        using var next = new ContentPage { Content = new TextBox() };
+        Assert.True(Completed(navigation.PushAsync(next, false)));
+        next.Content.Select();
+        using var popup = new PopupWindow(dialog) { Size = new System.Drawing.Size(100, 70) };
+        popup.Show(0, 0);
+        Assert.True(f.Platform.Back());
+        Assert.False(popup.Visible);
+        Assert.Same(next, navigation.CurrentPage);
+        next.Content.Select();
+        Assert.True(f.Platform.Back());
+        Assert.False(modal.IsCompleted);
+        Assert.Same(navigation.RootPage, navigation.CurrentPage);
+        Assert.True(f.Platform.Back());
+        Assert.True(modal.IsCompletedSuccessfully);
+        Assert.True(main.Visible);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void BackReleaseStillRunsAndPreservesEveryInputCallbackFailure(bool throwDown, bool throwUp)
+    {
+        using var f = new Fixture();
+        using var form = new Form();
+        var downFailure = new InvalidOperationException("down");
+        var upFailure = new ArgumentException("up");
+        int down = 0, up = 0;
+        form.KeyDown += (_, _) => { down++; if (throwDown) throw downFailure; };
+        form.KeyUp += (_, _) => { up++; if (throwUp) throw upFailure; };
+        form.Show();
+        Exception? failure = Record.Exception(() => f.Platform.Back());
+        Assert.Equal((1, 1), (down, up));
+        Assert.True(form.Visible);
+        if (throwDown && throwUp)
+        {
+            var aggregate = Assert.IsType<AggregateException>(failure);
+            Assert.Equal(new Exception[] { downFailure, upFailure }, aggregate.InnerExceptions);
+        }
+        else Assert.Same(throwDown ? downFailure : (Exception)upFailure, failure);
+        throwDown = throwUp = false;
+        Assert.True(f.Platform.Back());
+        Assert.False(form.Visible);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BackCannotCloseTheOwnerAfterItsCallbackPresentsANewModalOrPopup(bool popup)
+    {
+        using var f = new Fixture();
+        using var main = new Form();
+        using var dialog = new Form();
+        main.Show();
+        using var child = new PopupWindow(main) { Size = new System.Drawing.Size(100, 70) };
+        bool open = true;
+        int releases = 0;
+        main.KeyDown += (_, _) =>
+        {
+            if (!open) return;
+            open = false;
+            if (popup) child.Show(0, 0); else _ = dialog.ShowDialog(main);
+        };
+        main.KeyUp += (_, _) => releases++;
+        Assert.True(f.Platform.Back());
+        Assert.True(main.Visible);
+        Assert.True(popup ? child.Visible : dialog.Visible);
+        Assert.Equal(1, releases);
+        Assert.True(f.Platform.Back());
+        Assert.False(popup ? child.Visible : dialog.Visible);
+        Assert.True(main.Visible);
+        Assert.True(f.Platform.Back());
+        Assert.False(main.Visible);
+    }
+
+    private static T Completed<T>(Task<T> task)
+    {
+        Assert.True(task.IsCompleted);
+        return task.GetAwaiter().GetResult();
+    }
+
     private sealed class NativeText : ITextInputMethod
     {
         internal Action? OnClient;
@@ -479,6 +652,14 @@ public sealed class AndroidWindowingContractTests
             var lifecycle = new PlatformApplicationLifecyclePublisher(Loop.Verify);
             scopes.Push(lifecycle);
             scopes.Push(PlatformServiceRegistry.PushServiceForTesting<IPlatformApplicationLifecycle>(lifecycle));
+            // Each fake application lifetime needs its own production scheduler. Resolving
+            // the process default would bind it to the first fixture and retain its Exited
+            // state for later tests. No application runtime or duration policy is changed.
+            var animationPlatform = new AnimationPlatform(Loop);
+            var scheduler = new AnimationScheduler(animationPlatform, animationPlatform, animationPlatform,
+                new AnimationPolicy(), lifecycle);
+            scopes.Push(scheduler);
+            scopes.Push(AnimationScheduler.PushDefaultForTesting(scheduler));
             Platform = new(Loop.Verify);
             scopes.Push(TestWindowFactoryScope.Push(Platform.CreateWindow));
             lifecycle.LifecycleChanged += (_, e) =>
@@ -509,6 +690,17 @@ public sealed class AndroidWindowingContractTests
             for (int i = 0; i < 100 && pending; i++) { pending = false; Signaled?.Invoke(); }
         }
         internal void Advance() { Now++; Timer?.Invoke(); Drain(); }
+    }
+    private sealed class AnimationPlatform(ExternalLoop loop) : IAnimationClock, IAnimationDispatcher, IAnimationTickSource
+    {
+        private Action? callback;
+        public TimeSpan CurrentTime => TimeSpan.FromMilliseconds(loop.Now);
+        public bool CheckAccess() => loop.CurrentThreadIsLoopThread;
+        public void Post(Action action) => Dispatcher.UIThread.Post(action);
+        public bool IsRunning => callback is not null;
+        public void Start(Action tickRequested) { Stop(); callback = tickRequested; loop.Timer += callback; }
+        public void Stop() { if (callback is { } previous) loop.Timer -= previous; callback = null; }
+        public void Dispose() => Stop();
     }
     private sealed class Host : IAndroidWindowHost
     {

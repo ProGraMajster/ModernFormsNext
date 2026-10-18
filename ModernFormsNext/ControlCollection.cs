@@ -76,6 +76,12 @@ public partial class Control
             return item;
         }
 
+        // Runtime-owned presentation children need the same parent/resource/input/layout
+        // notifications as authored controls. Constructor-only chrome retains the lighter
+        // AddImplicitControl path above. Both kinds remain in the one real control tree.
+        internal void AddDynamicImplicitControl(Control item)
+            => InsertChild(implicit_control_list.Count, item, implicit_control_list, implicitChild: true);
+
         /// <summary>
         /// Adds multiple child controls to this control. This suspends layouts until all
         /// controls are adding, which is more efficient than adding controls individually.
@@ -268,14 +274,17 @@ public partial class Control
         /// Adds the specified control at the specified index in the collection.
         /// </summary>
         public virtual void Insert (int index, Control value)
+            => InsertChild(index, value, control_list, implicitChild: false);
+
+        private void InsertChild(int index, Control value, List<Control> children, bool implicitChild)
         {
             if (value is null)
                 return;
 
             CheckParentingCycle (Owner, value);
 
-            if (value.parent == Owner && control_list.Contains(value)) {
-                value.SendToBack ();
+            if (value.parent == Owner && children.Contains(value)) {
+                if (!implicitChild) value.SendToBack ();
                 return;
             }
 
@@ -285,7 +294,7 @@ public partial class Control
             // Removal can finish IME composition and run application callbacks. A callback
             // may already have installed the child here or in another parent; keep that newer
             // canonical assignment instead of inserting a duplicate or stealing it back.
-            if (value.parent is { } currentParent && currentParent.Controls.Contains(value))
+            if (value.parent is { } currentParent && currentParent.Controls.GetAllControls().Contains(value))
                 return;
             CheckParentingCycle (Owner, value);
 
@@ -294,7 +303,8 @@ public partial class Control
                 value.tab_index = Count == 0 ? 0 : control_list.Max (c => c.TabIndex) + 1;
 
             // Add the control
-            control_list.Insert (index, value);
+            value.ImplicitControl = implicitChild;
+            children.Insert (index, value);
 
             // if we don't suspend layout, AssignParent will indirectly trigger a layout event
             // before we're ready (AssignParent will fire a PropertyChangedEvent("Visible"), which calls PerformLayout)
@@ -399,7 +409,7 @@ public partial class Control
             if (value is null)
                 return false;     // Don't do anything
 
-            if (value.Parent == Owner && control_list.Remove(value)) {
+            if (value.Parent == Owner && (control_list.Remove(value) || implicit_control_list.Remove(value))) {
 
                 // A nested Add can observe the old Parent after the collection removal but
                 // before AssignParent finishes its callbacks. Do not detach that child twice.
