@@ -53,6 +53,7 @@ namespace ControlGallery
             tree.Items.Add ("MaskedTextBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MessageBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NavigationPane", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Pages and navigation", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NotifyIcon", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NativeViewHost", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Panel", ImageLoader.Get ("button.png"));
@@ -117,6 +118,8 @@ namespace ControlGallery
         private Panel? CreatePanel (string text)
         {
             switch (text) {
+                case "Pages and navigation":
+                    return new PageNavigationPanel();
                 case "NativeViewHost":
                     return new NativeViewHostingPanel();
                 case "Accessibility":

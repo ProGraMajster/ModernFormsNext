@@ -18,6 +18,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 ## Controls, input, and data
 
 - [UserControls](user-controls.md)
+- [Pages and stack navigation](pages-and-navigation.md) — lightweight hosted pages, canonical validation, retained history and scoped Back.
 - [Data binding](data-binding.md)
 - [Shared item virtualization](virtualization.md) — reusable ItemsControl, opt-in ListView, indexed geometry and recycling.
 - [CollectionView](collection-view.md) — borrowed indexed sources, recyclable templates, logical selection and native accessibility.

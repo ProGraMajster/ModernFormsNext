@@ -9,6 +9,7 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
     [Theory]
     [InlineData("--focus", "FOCUS:PASS")]
     [InlineData("--native-view", "NATIVE_VIEW:PASS:")]
+    [InlineData("--pages", "PAGE_NAVIGATION:PASS:")]
     public async Task CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(string argument, string marker)
     {
         if (!OperatingSystem.IsWindows()) return;

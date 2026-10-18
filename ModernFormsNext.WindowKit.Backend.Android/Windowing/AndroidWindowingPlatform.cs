@@ -1,5 +1,7 @@
 using ModernFormsNext.WindowKit.Backend.Android.Lifecycle;
 using ModernFormsNext.WindowKit.Platform;
+using ModernFormsNext.WindowKit.Input;
+using ModernFormsNext.WindowKit.Input.Raw;
 
 namespace ModernFormsNext.WindowKit.Backend.Android.Windowing;
 
@@ -9,6 +11,8 @@ internal sealed class AndroidWindowingPlatform(Action verifyAccess) : IWindowing
 {
     private readonly WeakHostReference<IAndroidWindowHost> host = new();
     private readonly List<AndroidWindowImpl> windows = [];
+    private readonly KeyboardDevice backKeyboard = new();
+    private bool routingBack;
     internal long Generation { get; private set; }
     internal IAndroidWindowHost? Host => host.Target;
     internal AndroidWindowImpl? MainWindow { get; private set; }
@@ -152,12 +156,44 @@ internal sealed class AndroidWindowingPlatform(Action verifyAccess) : IWindowing
     internal bool Back()
     {
         VerifyAccess();
-        var target = windows.LastOrDefault(w => w.Visible && w.IsPopup) ??
-            windows.LastOrDefault(w => w.Visible && w.IsDialog) ?? MainWindow;
+        if (routingBack) return true;
+        var target = BackTarget();
         if (target is null) return false;
         if (target.IsPopup) target.DismissPopup();
-        else target.RequestClose();
+        else if (!RouteBack(target)) target.RequestClose();
         return true;
+    }
+
+    private AndroidWindowImpl? BackTarget() => windows.LastOrDefault(w => w.Visible && w.IsPopup) ??
+        windows.LastOrDefault(w => w.Visible && w.IsDialog) ?? MainWindow;
+
+    private bool RouteBack(AndroidWindowImpl target)
+    {
+        if (target.IsClosed || !target.Visible || target.InputRoot is not { } root || target.Input is not { } input) return false;
+        long generation = Generation, epoch = target.PresentationEpoch;
+        bool IsCurrent() => !Exited && Generation == generation && !target.IsClosed && target.Visible &&
+            target.PresentationEpoch == epoch && ReferenceEquals(target.InputRoot, root) && ReferenceEquals(target.Input, input);
+        ulong timestamp = unchecked((ulong)Environment.TickCount64);
+        var down = new RawKeyEventArgs(backKeyboard, timestamp, root, RawKeyEventType.KeyDown, Key.BrowserBack, RawInputModifiers.None);
+        RawKeyEventArgs? up = null;
+        routingBack = true;
+        try
+        {
+            Complete([() => input(down), () =>
+            {
+                // Pair a delivered press only on its original live route. Hide/close/recreation
+                // already retire that route's input state; never release into a replacement peer.
+                if (IsCurrent())
+                {
+                    up = new(backKeyboard, timestamp, root, RawKeyEventType.KeyUp, Key.BrowserBack, RawInputModifiers.None);
+                    input(up);
+                }
+            }]);
+            // Reentrant native replacement consumes the old Back even without Handled, so it
+            // cannot close a newly shown dialog/Activity after application code has taken over.
+            return !IsCurrent() || !ReferenceEquals(BackTarget(), target) || down.Handled || up?.Handled == true;
+        }
+        finally { routingBack = false; }
     }
 
     internal void Shutdown()

@@ -1,6 +1,8 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--pages", StringComparer.Ordinal)) { Environment.ExitCode = PageNavigationScenario.Run(); return; }
+
 if (args.Contains("--search-time", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationCertificationScenario.Run(searchTimeOnly: true); return; }
 
 if (args.Contains("--virtualization-certification", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationCertificationScenario.Run(); return; }

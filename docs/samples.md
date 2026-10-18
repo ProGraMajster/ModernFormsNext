@@ -40,6 +40,10 @@ The **Carousel / Refresh** page demonstrates [collection utilities](collection-u
 100,003 recyclable interactive pages, jump/navigation, source moves, axis changes,
 and a borrowed AsyncCommand with explicit completion and cooperative cancellation.
 
+The **Pages and navigation** page demonstrates [hosted pages](pages-and-navigation.md), retained
+stack entries, canonical validation veto, shared-scheduler appearance and scoped Back. Its
+application policy disposes pages after removal; framework Pop itself transfers without disposal.
+
 The **MarkdownEditor** page demonstrates Editor, Preview, and Split modes, the public command
 toolbar, Ctrl+K, hosted link and image request dialogs built only from ModernFormsNext controls,
 preview link forwarding, and optional proportional scroll synchronization. Its source includes

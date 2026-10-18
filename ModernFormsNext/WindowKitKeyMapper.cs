@@ -12,6 +12,8 @@ namespace ModernFormsNext
             Key.Tab => Keys.Tab,
             Key.Return => Keys.Return,
             Key.Escape => Keys.Escape,
+            // System Back and browser Back share the existing scoped command/key route.
+            Key.BrowserBack => Keys.BrowserBack,
             Key.Space => Keys.Space,
 
             Key.Left => Keys.Left,
