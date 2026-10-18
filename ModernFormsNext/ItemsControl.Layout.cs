@@ -26,6 +26,14 @@ public abstract partial class ItemsControl
     {
         if (!virtualizationEnabled || disposingItems || IsDisposed) return false;
         var currentGenerator = generator!;
+        if (currentGenerator.IsProcessing)
+        {
+            // A template can change size/viewport before its row is attached. The generator
+            // deliberately coalesces recursive Realize calls; arranging its partial mapping
+            // here would mistake that valid in-progress row for an ownership violation.
+            itemLayoutRequested = true;
+            return false;
+        }
         long version = itemsVersion;
         long started = Stopwatch.GetTimestamp();
         using var activity = PerformanceRecorder.Measure(PerformanceActivityKind.Custom, this);
@@ -243,7 +251,7 @@ public abstract partial class ItemsControl
     internal override void OnLayoutCompleted()
     {
         base.OnLayoutCompleted();
-        if (completingItemLayout || !itemLayoutRequested || disposingItems || IsDisposed) return;
+        if (completingItemLayout || !itemLayoutRequested || disposingItems || IsDisposed || generator?.IsProcessing == true) return;
         completingItemLayout = true;
         try
         {

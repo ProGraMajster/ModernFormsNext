@@ -563,6 +563,7 @@ internal sealed class DesignerSurfaceRenderer
             // Runtime previews own their temporary framework controls, including recycled rows
             // and cached paint resources. Retire them even when applying a value or painting fails.
             using var previewLifetime = control;
+            if (control is SearchBar searchPreview) searchPreview.SuppressSuggestionRequests = true;
             control.Name = node.Name;
             var logicalSize = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
             control.Bounds = new System.Drawing.Rectangle(System.Drawing.Point.Empty, logicalSize);

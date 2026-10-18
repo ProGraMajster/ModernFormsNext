@@ -126,16 +126,31 @@ public abstract partial class ItemsControl
             // An indexed provider is application code too: it can publish cached-page changes
             // or replace the source while returning a value. Do not invoke an old template,
             // attach its control or activate bindings against the newer source generation.
-            if (version != owner.itemsVersion || !ReferenceEquals(Generator, owner.generator) || owner.disposingItems || owner.IsDisposed) return;
+            if (!CanCompletePreparation(version, container, index)) return;
             owner.itemBindings[container] = new(item, index);
             owner.PrepareItemContainer(container, item, index);
-            if (version != owner.itemsVersion || !ReferenceEquals(Generator, owner.generator) || owner.disposingItems || owner.IsDisposed) return;
+            if (!CanCompletePreparation(version, container, index)) return;
             if (container.IsDisposed || container.Parent is not null && !ReferenceEquals(container.Parent, owner))
                 throw new InvalidOperationException("A template disposed or reparented its owned container.");
             owner.Controls.Add(container);
             if (version == owner.itemsVersion && ReferenceEquals(Generator, owner.generator) &&
                 ReferenceEquals(container.Parent, owner) && !container.IsDisposed && !owner.disposingItems)
                 container.RefreshItemContainerBindings();
+        }
+
+        private bool CanCompletePreparation(long version, Control container, int index)
+        {
+            var active = Generator;
+            if (active is null || active.IsDisposed || !ReferenceEquals(active, owner.generator) ||
+                owner.disposingItems || owner.IsDisposed) return false;
+            if (version == owner.itemsVersion) return true;
+            // A metric/cache change can retire this host pass without replacing the generator
+            // or its source mapping. Its generic entry was already marked prepared, but this
+            // factory deliberately did not attach the old binding. Refresh that same occurrence
+            // through the existing coalesced generator path before a later layout can arrange it.
+            if ((uint)index < (uint)owner.sourceCount && active.TryGetContainer(index, out var current) &&
+                ReferenceEquals(current, container)) active.RefreshItem(index);
+            return false;
         }
 
         public void ClearContainer(Control container, int index)

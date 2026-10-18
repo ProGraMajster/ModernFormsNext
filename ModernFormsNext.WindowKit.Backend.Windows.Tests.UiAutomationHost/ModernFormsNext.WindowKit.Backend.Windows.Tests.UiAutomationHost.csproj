@@ -12,6 +12,7 @@
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\VirtualizationCertification.cs" Link="VirtualizationCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\CollectionUtilitiesCertification.cs" Link="CollectionUtilitiesCertification.cs" />
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\SearchTimeCertification.cs" Link="SearchTimeCertification.cs" />
   </ItemGroup>
 
 </Project>

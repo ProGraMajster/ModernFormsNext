@@ -165,6 +165,7 @@ public sealed class DesignPropertyValue
             int intValue => FromInt32(intValue),
             float floatValue => FromDouble(floatValue),
             double doubleValue => FromDouble(doubleValue),
+            TimeOnly time => TimeOnlyDesignValue.FromTime(time),
             Enum enumValue => FromEnum(enumValue.GetType().FullName ?? enumValue.GetType().Name, enumValue.ToString()),
             _ => throw new NotSupportedException($"Designer property values do not support '{value.GetType().FullName}'.")
         };

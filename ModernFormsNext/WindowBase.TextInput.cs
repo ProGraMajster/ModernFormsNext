@@ -34,6 +34,7 @@ public abstract partial class WindowBase
     /// </remarks>
     public void SetTextInputActive(bool active)
     {
+        if (active && this is PopupWindow { RetainParentTextInput: true }) active = false;
         // Nonactivating native popups borrow their owner's text method. A repeated owner
         // activation or an older popup's Hide must not replace the current popup client.
         if (active && this is Form && Application.ActivePopupWindow is { } popup &&

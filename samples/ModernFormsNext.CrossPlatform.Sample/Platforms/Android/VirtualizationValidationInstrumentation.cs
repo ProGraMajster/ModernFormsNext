@@ -78,6 +78,7 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
                 return true;
             });
             ExerciseUtilities();
+            ExerciseSearchTime();
             Record("STAGE native-touch");
             var point = Ui(() =>
             {
@@ -228,6 +229,186 @@ public sealed class VirtualizationValidationInstrumentation : Instrumentation
             finally { Ui(() => { activity.RequestedOrientation = orientation; return true; }); }
         }
         finally { Ui(() => { utilities.Dispose(); return true; }); }
+    }
+
+    private void ExerciseSearchTime()
+    {
+        Record("STAGE search-time");
+        ConfirmSearchTimeParent();
+        var fixture = Ui(() => new SearchTimeCertification(ModernFormsNext.Application.OpenForms.Single(), Record));
+        var orientation = Ui(() => activity.RequestedOrientation);
+        try
+        {
+            Ui(() =>
+            {
+                fixture.FocusSearch();
+                using var info = new global::Android.Views.InputMethods.EditorInfo();
+                var connection = NativeValidationViews.Main(activity).OnCreateInputConnection(info)!;
+                using var composing = new Java.Lang.String("Entry");
+                fixture.Check(connection.SetComposingText(composing, 1), "Android-native-composition");
+                return true;
+            });
+            WaitForIdleSync();
+            Ui(() =>
+            {
+                fixture.Check(!fixture.Search.AreSuggestionsOpen, "Android-composition-suppresses-popup");
+                using var info = new global::Android.Views.InputMethods.EditorInfo();
+                var connection = NativeValidationViews.Main(activity).OnCreateInputConnection(info)!;
+                using var committed = new Java.Lang.String("Entry");
+                fixture.Check(connection.CommitText(committed, 1), "Android-native-commit");
+                return true;
+            });
+            Wait(() => Ui(() => fixture.Search.AreSuggestionsOpen), "search-time-popup-after-composition");
+            Ui(() =>
+            {
+                fixture.VerifyText("Entry");
+                fixture.VerifySuggestions();
+                using var info = new global::Android.Views.InputMethods.EditorInfo();
+                var connection = NativeValidationViews.Main(activity).OnCreateInputConnection(info)!;
+                using var text = new Java.Lang.String(" ");
+                fixture.Check(connection.CommitText(text, 1), "Android-native-typing-with-popup");
+                return true;
+            });
+            Wait(() => Ui(() => fixture.Search.AreSuggestionsOpen), "search-time-popup-after-typing");
+            Ui(() => { fixture.VerifyText("Entry "); fixture.ChooseWithKeys(SearchTimeKey); return true; });
+            Wait(() => Ui(() => fixture.Search.Text == "Entry 0"), "search-time-key-commit");
+            Ui(() => { fixture.VerifyCommit("Entry 0", 1); fixture.PreparePointer(); return true; });
+            Wait(() => Ui(() => fixture.Search.AreSuggestionsOpen), "search-time-pointer-popup");
+            var point = Ui(fixture.SuggestionPoint);
+            Drag(point, point);
+            Wait(() => Ui(() => fixture.Search.Text == "Entry 1"), "search-time-touch-commit");
+            Ui(() => { fixture.VerifyCommit("Entry 1", 2); fixture.ExerciseTimeKey(SearchTimeKey); return true; });
+            point = Ui(fixture.TimeIncreasePoint);
+            Drag(point, point);
+            Ui(() =>
+            {
+                fixture.VerifyTimePointer();
+                fixture.VerifyTimeGeometry();
+                fixture.FocusSearch();
+                fixture.Search.Text = string.Empty;
+                using var info = new global::Android.Views.InputMethods.EditorInfo();
+                var connection = NativeValidationViews.Main(activity).OnCreateInputConnection(info)!;
+                using var text = new Java.Lang.String("Action");
+                fixture.Check(connection.CommitText(text, 1), "Android-editor-action-text");
+                fixture.Check(connection.PerformEditorAction(global::Android.Views.InputMethods.ImeAction.Search), "Android-native-search-action");
+                fixture.VerifyCommit("Action", 3);
+                return true;
+            });
+            var expectedTime = new TimeOnly(16, 5, 6).Add(TimeSpan.FromTicks(1234567));
+            Ui(() => { fixture.Time.Time = expectedTime; fixture.PreparePointer(); return true; });
+            Wait(() => Ui(() => fixture.Search.AreSuggestionsOpen), "search-time-resize-popup");
+            Ui(() => { activity.RequestedOrientation = ScreenOrientation.Landscape; return true; });
+            Wait(() => Ui(() => NativeValidationViews.Main(activity).Width > NativeValidationViews.Main(activity).Height), "search-time-landscape-resize");
+            ConfirmSearchTimeParent();
+            Ui(() =>
+            {
+                // Native deactivation can retire the old IME session and dismiss its popup.
+                // Reacquire through production focus; identity continuity is asserted above
+                // within one activation, not across Android presentation retirement.
+                fixture.FocusSearch();
+                fixture.VerifyText("Entry");
+                fixture.Check(fixture.Time.Time == expectedTime && fixture.Time.Text == "16:05:06.1234567" &&
+                    fixture.Time.AccessibilityObject.GetChild(0)!.Bounds.Width > 0, "landscape-preserves-full-time");
+                fixture.Search.RefreshSuggestions();
+                return true;
+            });
+            Wait(() => Ui(() => fixture.Search.AreSuggestionsOpen), "search-time-landscape-popup");
+            SettleSearchTimeNativeTransitions();
+            Ui(() =>
+            {
+                fixture.VerifyText("Entry");
+                fixture.VerifySuggestions();
+                activity.RequestedOrientation = ScreenOrientation.Portrait;
+                return true;
+            });
+            Wait(() => Ui(() => NativeValidationViews.Main(activity).Height > NativeValidationViews.Main(activity).Width), "search-time-portrait-resize");
+            ConfirmSearchTimeParent();
+            Ui(() =>
+            {
+                fixture.FocusSearch();
+                fixture.VerifyText("Entry");
+                fixture.Check(fixture.Time.Time == expectedTime && fixture.Time.Text == "16:05:06.1234567" &&
+                    fixture.Time.AccessibilityObject.GetChild(0)!.Bounds.Width > 0, "portrait-preserves-full-time");
+                fixture.Search.RefreshSuggestions();
+                return true;
+            });
+            Wait(() => Ui(() => fixture.Search.AreSuggestionsOpen), "search-time-portrait-popup");
+            SettleSearchTimeNativeTransitions();
+            Ui(() => { fixture.VerifyText("Entry"); fixture.VerifySuggestions(); return true; });
+            long beforeCapture = Ui(PaintCount);
+            Ui(() => { fixture.Search.CloseSuggestions(); fixture.Time.Invalidate(); return true; });
+            Wait(() => Ui(PaintCount) > beforeCapture, "search-time-native-control-frame");
+            SettleSearchTimeNativeTransitions();
+            using (var bitmap = UiAutomation!.TakeScreenshot())
+            {
+                if (bitmap is null) throw new InvalidOperationException("Native search/time screenshot unavailable.");
+                var path = System.IO.Path.Combine(activity.GetExternalFilesDir(null)!.AbsolutePath, "search-time-validation.png");
+                using var stream = System.IO.File.Create(path);
+                if (!bitmap.Compress(global::Android.Graphics.Bitmap.CompressFormat.Png!, 100, stream))
+                    throw new InvalidOperationException("Native search/time screenshot encoding failed.");
+            }
+            Record("PASS search-time-native-control-screenshot");
+            Record("SEARCH_TIME_CERTIFICATION:ANDROID:PASS");
+        }
+        catch
+        {
+            try
+            {
+                Ui(() =>
+                {
+                    var main = ModernFormsNext.Application.OpenForms.Single();
+                    var input = main.TextInputDiagnostics;
+                    Record($"SEARCH_TIME failure-parent active={main.IsActive} input-active={input.IsActive} client={input.HasClient} native-method={input.HasNativeMethod} generation={input.Generation}");
+                    return true;
+                });
+            }
+            catch (Exception diagnosticError) { Record($"SEARCH_TIME diagnostic-failed {diagnosticError.GetType().Name}"); }
+            throw;
+        }
+        finally
+        {
+            try { Ui(() => { activity.RequestedOrientation = orientation; return true; }); }
+            finally { Ui(() => { fixture.Dispose(); return true; }); }
+        }
+    }
+
+    private void ConfirmSearchTimeParent()
+    {
+        SettleSearchTimeNativeTransitions();
+        Ui(() =>
+        {
+            var main = ModernFormsNext.Application.OpenForms.Single();
+            var view = NativeValidationViews.Main(activity);
+            Record($"SEARCH_TIME parent-before active={main.IsActive} native-window-focus={view.HasWindowFocus} native-view-focus={view.HasFocus}");
+            // Geometry and activation are separate native facts. Use ordinary Form activation
+            // after configuration changes, retaining the existing readiness timeout unchanged.
+            main.Activate();
+            return true;
+        });
+        Wait(() => Ui(() => ModernFormsNext.Application.OpenForms.Single().IsActive &&
+            AndroidWindowKit.Current.GetWindowingDiagnostics().Windows.Any(window => window.Main && window.Active && window.Attached) &&
+            NativeValidationViews.Main(activity).HasWindowFocus && NativeValidationViews.Main(activity).HasFocus), "search-time-native-parent-active");
+    }
+
+    private void SettleSearchTimeNativeTransitions()
+    {
+        // New dimensions arrive before the system's rotation, focus and IME transitions finish.
+        // Drain the main queue and use the same native idle barrier as the windowing runner;
+        // do not mistake an intermediate orientation frame for a settled activation/session.
+        // All original client-identity assertions, readiness deadlines and soak limits remain.
+        WaitForIdleSync();
+        UiAutomation!.WaitForIdle(300, 5000);
+    }
+
+    private void SearchTimeKey(Keys key)
+    {
+        var code = key switch { Keys.Down => Keycode.DpadDown, Keys.Up => Keycode.DpadUp, Keys.Enter => Keycode.Enter,
+            _ => throw new InvalidOperationException("Unmapped search/time key.") };
+        long time = SystemClock.UptimeMillis();
+        using var down = new KeyEvent(time, time, KeyEventActions.Down, code, 0, 0, 0, 0, KeyEventFlags.FromSystem, InputSourceType.Keyboard);
+        using var up = new KeyEvent(time, time + 1, KeyEventActions.Up, code, 0, 0, 0, 0, KeyEventFlags.FromSystem, InputSourceType.Keyboard);
+        var view = NativeValidationViews.Main(activity);
+        Record($"SEARCH_TIME native-key={code} down={view.DispatchKeyEvent(down)} up={view.DispatchKeyEvent(up)}");
     }
 
     private void Drag(System.Drawing.Point start, System.Drawing.Point end, bool canceled = false, Action? beforeRelease = null)

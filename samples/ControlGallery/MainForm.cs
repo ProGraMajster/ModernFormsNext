@@ -46,6 +46,7 @@ namespace ControlGallery
             tree.Items.Add ("Virtualization", ImageLoader.Get ("button.png"));
             tree.Items.Add ("CollectionView", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Carousel / Refresh", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Search / Time", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MarkdownEditor", ImageLoader.Get ("button.png"));
             tree.Items.Add ("MarkdownViewer", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Menu", ImageLoader.Get ("button.png"));
@@ -170,6 +171,8 @@ namespace ControlGallery
                     return new CollectionViewPanel ();
                 case "Carousel / Refresh":
                     return new CollectionUtilitiesPanel ();
+                case "Search / Time":
+                    return new SearchTimePanel ();
                 case "MarkdownEditor":
                     return new MarkdownEditorPanel ();
                 case "MarkdownViewer":

@@ -101,7 +101,7 @@ public partial class DateTimePicker
         public override AccessibilityView View => Attached ? root.View : AccessibilityView.Hidden;
         public override AccessibleControlType ControlType => kind == 0 ? AccessibleControlType.CheckBox : AccessibleControlType.Button;
         public override AccessibleRole Role => kind == 0 ? AccessibleRole.CheckButton : AccessibleRole.PushButton;
-        public override string? Name { get => kind switch { 0 => "Enable date and time", 1 => "Calendar", 2 => "Increase", _ => "Decrease" }; set { } }
+        public override string? Name { get => kind switch { 0 => Picker?.CheckedAccessibleName, 1 => "Calendar", 2 => "Increase", _ => "Decrease" }; set { } }
         public override bool IsSensitive => root.IsSensitive;
         public override AccessibleStates State => (Attached ? root.State : AccessibleStates.Unavailable | AccessibleStates.Invisible)
             & ~(AccessibleStates.Focused | AccessibleStates.Focusable | AccessibleStates.HasPopup | AccessibleStates.Expanded | AccessibleStates.Collapsed

@@ -1,6 +1,8 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--search-time", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationCertificationScenario.Run(searchTimeOnly: true); return; }
+
 if (args.Contains("--virtualization-certification", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationCertificationScenario.Run(); return; }
 
 if (args.Contains("--virtualization", StringComparer.Ordinal)) { Environment.ExitCode = VirtualizationScenario.Run(); return; }

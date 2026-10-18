@@ -1187,6 +1187,19 @@ public sealed class CSharpDesignerParser
         var typeName = objectCreation.Type.ToString();
         var propertyValues = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
 
+        // Only the generator's fully qualified, positional literal constructor is admitted.
+        // Do not execute TimeOnly.Parse, arbitrary expressions, initializers or user converters.
+        if (typeName is "System.TimeOnly" or "global::System.TimeOnly" && objectCreation.Initializer is null &&
+            objectCreation.ArgumentList is { Arguments.Count: 1 } timeArguments &&
+            timeArguments.Arguments[0].NameColon is null && timeArguments.Arguments[0].RefKindKeyword.RawKind == 0 &&
+            timeArguments.Arguments[0].Expression is LiteralExpressionSyntax timeLiteral)
+        {
+            long ticks = timeLiteral.Token.Value switch { long number => number, int number => number, _ => -1 };
+            if (ticks < 0 || ticks > TimeOnly.MaxValue.Ticks) return false;
+            value = TimeOnlyDesignValue.FromTime(new TimeOnly(ticks));
+            return true;
+        }
+
         if (IsType(typeName, "Size") && TryReadObjectArguments(expression, 2, out var size))
         {
             propertyValues["Width"] = DesignPropertyValue.FromInt32(size[0]);
