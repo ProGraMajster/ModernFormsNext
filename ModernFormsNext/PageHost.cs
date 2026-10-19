@@ -226,6 +226,14 @@ public class PageHost : Control
         }
     }
 
+    // A composition container can reveal an already-retained page with the same incoming
+    // effect as navigation. Defer its Appeared notification before making this host visible.
+    internal void DeferCurrentAppearance()
+    {
+        VerifyAccess();
+        if (current is { } frame && Owns(frame.Page)) frame.AppearanceDeferred = true;
+    }
+
     internal void RestorePageFocus()
     {
         if (retiring || current is not { } frame || !Owns(frame.Page) || !frame.Page.IsPresented) return;
@@ -286,7 +294,7 @@ public class PageHost : Control
             {
                 long operation = ++version;
                 Attempt(() => frame.Page.PublishState(PageLifecycleState.Appearing, PageNotification.Appearing));
-                if (operation == version && ReferenceEquals(current, frame) && Owns(frame.Page) && frame.Page.IsPresented && CanPresent() && frame.Page.Visible)
+                if (operation == version && ReferenceEquals(current, frame) && Owns(frame.Page) && !frame.AppearanceDeferred && frame.Page.IsPresented && CanPresent() && frame.Page.Visible)
                     Attempt(() => frame.Page.PublishState(PageLifecycleState.Appeared, PageNotification.Appeared));
             }
             else if (!visible && frame.Page.IsPresented)

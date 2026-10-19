@@ -794,11 +794,11 @@ public partial class Control
             {
                 if (child is null
                     || child.View == AccessibilityView.Hidden
-                    // The exact default peer's View already rejects invisible/disposed owners.
+                    // Canonical peers' View already rejects invisible/disposed owners.
                     // Membership queries must not repeatedly calculate its complete State,
                     // including presentation clipping, for every preceding sibling. Derived
                     // peers can independently report Invisible and retain the full state check.
-                    || (child.GetType() != typeof(ControlAccessibleObject)
+                    || (!IsVisibilityDeterminedByView(child)
                         && (child.State & AccessibleStates.Invisible) != 0))
                 {
                     continue;
