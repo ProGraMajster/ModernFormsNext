@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using ModernFormsNext;
+using ModernFormsNext.Animations;
 using ModernFormsNext.Validation;
 using ModernFormsNext.WindowKit.Threading;
 
@@ -32,11 +33,34 @@ internal static class PageCompositionScenario
                     Back(hwnd);
                     fixture.VerifyClosed();
                     fixture.Flyout.TransitionDuration = TimeSpan.FromSeconds(2);
+                    var scheduler = AnimationScheduler.Default;
+                    var policy = scheduler.GetPlatformDiagnostics();
+                    bool immediate = !policy.AnimationsEnabled || scheduler.Policy.DurationScale == 0d;
+                    Console.WriteLine("PAGE_COMPOSITION native-policy=" + System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        policy.Source, policy.ReducedMotion, policy.AnimationsEnabled, policy.PlatformDurationScale,
+                        ApplicationDurationScale = scheduler.Policy.DurationScale, policy.FallbackUsed, policy.ProviderState
+                    }));
                     opening = fixture.BeginAnimatedOpen();
-                    Require(!opening.IsCompleted, "Finite native busy-open case required.");
-                    Back(hwnd);
-                    await opening;
-                    fixture.VerifySupersededOpening(opening);
+                    // Native reduced motion legitimately has no busy interval. Assert its exact
+                    // settled contract without overriding the OS policy or reporting a busy PASS.
+                    if (immediate)
+                    {
+                        Require(opening.IsCompletedSuccessfully && opening.Result, "Native immediate-policy opening must settle successfully.");
+                        fixture.VerifyAnimatedOpen(opening);
+                        Require(scheduler.GetDiagnostics().ActiveAnimationCount == 0 && !scheduler.GetDiagnostics().IsTickSourceRunning,
+                            "Native immediate policy must leave no animation or tick demand.");
+                        Back(hwnd);
+                        fixture.VerifyClosed();
+                        Console.WriteLine("PAGE_COMPOSITION native-policy-immediate-Back=PASS");
+                    }
+                    else
+                    {
+                        Require(!opening.IsCompleted, "Finite native busy-open case required.");
+                        Back(hwnd);
+                        await opening;
+                        fixture.VerifySupersededOpening(opening);
+                    }
                     fixture.Flyout.TransitionDuration = TimeSpan.FromMilliseconds(180);
                     fixture.ExerciseModesAndOwnership();
                     int lifecycle = fixture.LifecycleEvents;

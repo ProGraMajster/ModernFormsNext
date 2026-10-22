@@ -168,3 +168,6 @@ The checkout-only native scenario uses the ordinary signed Release/default-AOT s
 Run separately on an emulator and an unlocked authorized phone. The existing runner records
 APK/source hashes, identity, original/final settings, native reports and two frames. Windows uses
 the native host's `--page-composition` case and its own HWND; it does not inject global keyboard input.
+The Windows runner records the actual motion policy: enabled motion exercises busy supersession;
+native immediate motion instead verifies settled lifecycle, idle scheduling and actual Back dismissal.
+It does not override system settings or report the immediate-policy case as a busy-transition pass.
