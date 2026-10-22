@@ -219,8 +219,12 @@ public partial class Control
             return owner is not (LinkLabel or NumericUpDown or ListBox or ComboBox or ListView or TreeView or TabControl or MenuBase);
         }
 
+        // Only framework-owned peers whose Invisible state follows View may opt in. Public
+        // custom peers keep the independent State check, including custom hidden projections.
+        internal virtual bool HasViewVisibility => GetType() == typeof(ControlAccessibleObject);
+
         internal static bool IsVisibilityDeterminedByView(AccessibleObject peer)
-            => peer.GetType() == typeof(ControlAccessibleObject) || peer is ListViewItemAccessibleObject or CollectionItemAccessibleObject;
+            => peer is ControlAccessibleObject { HasViewVisibility: true } or ListViewItemAccessibleObject or CollectionItemAccessibleObject;
 
         internal bool TryGetVirtualizedItemIndex(AccessibleObject child, out int index)
         {

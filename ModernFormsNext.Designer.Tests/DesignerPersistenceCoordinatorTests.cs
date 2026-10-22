@@ -262,7 +262,8 @@ public sealed class DesignerPersistenceCoordinatorTests
     [Fact]
     public async Task NewerRevisionDuringBlockedWriteSchedulesExactlyOneFollowUp()
     {
-        using var test = CoordinatorTestContext.CreateUnsaved(markDirty: false);
+        using var test = CoordinatorTestContext.CreateUnsaved(
+            markDirty: false, backgroundWorkQueue: new BlockingWriteTestBackgroundQueue());
         using var firstWriteEntered = new ManualResetEventSlim();
         using var releaseFirstWrite = new ManualResetEventSlim();
         test.Store.OnWrite = snapshot =>
@@ -2738,6 +2739,16 @@ public sealed class DesignerPersistenceCoordinatorTests
             Session.Dispose();
             Directory.Dispose();
         }
+    }
+
+    // This one regression deliberately blocks inside Write while the test waits for entry.
+    // Isolate that synthetic blocker from the runner's pool capacity through the existing
+    // queue seam; retain concurrent Write callbacks, both ten-second barriers and every assertion.
+    private sealed class BlockingWriteTestBackgroundQueue : IDesignerBackgroundWorkQueue
+    {
+        public Task<T> Run<T>(Func<T> callback)
+            => Task.Factory.StartNew(callback, CancellationToken.None,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
 
     private sealed class ManualDesignerBackgroundWorkQueue : IDesignerBackgroundWorkQueue

@@ -44,6 +44,10 @@ The **Pages and navigation** page demonstrates [hosted pages](pages-and-navigati
 stack entries, canonical validation veto, shared-scheduler appearance and scoped Back. Its
 application policy disposes pages after removal; framework Pop itself transfers without disposal.
 
+The **Tabbed / Flyout pages** page demonstrates [page composition](page-composition.md): retained
+editable tabs, add/remove/move, Auto/Overlay/Split modes, canonical dismissal and independent local
+directions. Its Open navigation action is inside the detail page; the sample owns disposal after removal.
+
 The **MarkdownEditor** page demonstrates Editor, Preview, and Split modes, the public command
 toolbar, Ctrl+K, hosted link and image request dialogs built only from ModernFormsNext controls,
 preview link forwarding, and optional proportional scroll synchronization. Its source includes

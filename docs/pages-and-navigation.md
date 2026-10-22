@@ -142,8 +142,8 @@ including Form.Closing cancellation. Hide/close/recreation during dispatch consu
 delivery; it cannot close a replacement presentation. The IME still owns Back while visible.
 Windows title-bar close remains a Form/window operation; it is not translated into a pop.
 
-This slice adds no tabs, flyouts, routes, shell, deep-link factory, Designer code generation
-or template integration. Those follow the stable runtime in the remaining children of #12.
+[TabbedPage and FlyoutPage](page-composition.md) now compose this same runtime. Routes, shell,
+deep-link factories, Designer code generation and template integration remain later children of #12.
 Human TalkBack/IME/physical-keyboard and interactive Visual Studio qualification remain
 separate from deterministic, native automated, emulator and physical-device evidence.
 

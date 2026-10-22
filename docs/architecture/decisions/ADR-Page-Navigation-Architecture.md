@@ -1,15 +1,16 @@
 # ADR: Page and navigation architecture
 
-- Status: Runtime implemented by #302; composition, routing and shell remain proposed
+- Status: Runtime and page composition implemented by #302/#303; routing and shell remain proposed
 - Date: 2026-07-17
 - Runtime update: 2026-10-18
 
 ## Context
 
 The original proposal started with `Form`, `WindowBase`, `Control`, `NavigationPane`, and
-`TabControl`. The runtime slice now adds `Page`, `ContentPage`, `PageHost` and `NavigationPage`;
-see [the runtime contract](../../pages-and-navigation.md). Routes, composition containers and
-an application shell remain later sequential slices. Windows uses `IWindowImpl`; Android's
+`TabControl`. The runtime slices now add `Page`, `ContentPage`, `PageHost`, `NavigationPage`,
+`TabbedPage` and `FlyoutPage`; see [the runtime contract](../../pages-and-navigation.md) and
+[page composition](../../page-composition.md). Routes and an application shell remain later
+sequential slices. Windows uses `IWindowImpl`; Android's
 experimental Application/Form backend now supports one main Form plus modal descendants and
 popups in an externally owned Activity loop. Neutral `SkiaControlSurface` hosting also remains.
 
@@ -35,11 +36,13 @@ by native handle creation.
 
 `NavigationPage` owns a stack and serializes push/pop operations on the UI dispatcher. Its runtime
 contract defines event order, cancellation, back navigation, and transition ownership. No new
-Application or command runtime is introduced. The remaining proposal is: routing is a separate service
+Application or command runtime is introduced. `TabbedPage` retains pages in a real PageHost with
+actual scrollable header controls. `FlyoutPage` composes separate flyout/detail hosts and an owned
+overlay backdrop, using canonical validation and the shared incoming appearance effect. Their explicit
+local direction does not add general RTL inheritance. The remaining proposal is: routing is a separate service
 that maps normalized route patterns to factories and parameters; it has no renderer dependency.
-`TabbedPage` and `FlyoutPage` compose child pages and reuse existing layout/input primitives but do
-not subclass `TabControl` or `NavigationPane` if that would expose item/control semantics as page
-lifecycle semantics. `AppShell` is the final composition layer over routes, navigation hosts, tabs,
+The page containers do not subclass `TabControl` or `NavigationPane`: item/control selection is not
+page lifecycle admission. `AppShell` is the final proposed composition layer over routes, navigation hosts, tabs,
 and flyout descriptors.
 
 ## Consequences
