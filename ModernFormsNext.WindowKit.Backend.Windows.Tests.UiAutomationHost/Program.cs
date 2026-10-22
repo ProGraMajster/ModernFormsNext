@@ -1,6 +1,8 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--app-shell", StringComparer.Ordinal)) { Environment.ExitCode = AppShellScenario.Run(); return; }
+
 if (args.Contains("--pages", StringComparer.Ordinal)) { Environment.ExitCode = PageNavigationScenario.Run(); return; }
 
 if (args.Contains("--page-composition", StringComparer.Ordinal)) { Environment.ExitCode = PageCompositionScenario.Run(); return; }

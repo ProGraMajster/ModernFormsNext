@@ -32,6 +32,8 @@
     href: content/docs/pages-and-navigation.md
   - name: Tabbed and flyout pages
     href: content/docs/page-composition.md
+  - name: AppShell routes and lifecycle
+    href: content/docs/app-shell-routing.md
   - name: Data binding
     href: content/docs/data-binding.md
   - name: Item virtualization foundation

@@ -1,5 +1,8 @@
 # Pages and stack navigation
 
+For instance routes, parameters and explicit lifecycle/state integration over these hosts, see
+[AppShell routes and lifecycle](app-shell-routing.md).
+
 `Page` is a lightweight `Control`, not a native window. `ContentPage` supplies one content
 slot, `PageHost` presents a page inside an existing Form or `SkiaControlSurface`, and
 `NavigationPage` retains a stack. Application startup remains `Application.Run(form)`.

@@ -1,5 +1,8 @@
 # Application lifecycle, activation and host recreation
 
+An application can explicitly bind a page shell to these existing notifications; see
+[AppShell routes and lifecycle](app-shell-routing.md) for bounded URI mapping and route-only state.
+
 `Application.Lifecycle` exposes the lifecycle provider already used by the platform backend and
 animation scheduler. Applications can observe state, receive activation, and explicitly hand off
 small versioned state. The API does not create another message loop, serialize controls, or choose
