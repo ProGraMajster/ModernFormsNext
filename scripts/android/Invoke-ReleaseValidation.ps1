@@ -16,7 +16,7 @@ param(
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [string]$SdkRoot,
     [ValidateRange(30, 1800)][int]$TimeoutSeconds = 180,
-    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition')][string]$Scenario = 'ReleaseMatrix'
+    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell')][string]$Scenario = 'ReleaseMatrix'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +34,7 @@ $runner = switch ($Scenario) {
     'AccessibilityPhase4' { 'AccessibilityPhase4Instrumentation' }
     'PageNavigation' { 'PageNavigationValidationInstrumentation' }
     'PageComposition' { 'PageCompositionValidationInstrumentation' }
+    'AppShell' { 'AppShellValidationInstrumentation' }
     default { 'ReleaseValidationInstrumentation' }
 }
 
@@ -72,6 +73,7 @@ $facts = [ordered]@{
     AccessibilityRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/AccessibilityPhase4Instrumentation.cs')).Hash
     PageNavigationRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/PageNavigationValidationInstrumentation.cs')).Hash
     PageCompositionRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/PageCompositionValidationInstrumentation.cs')).Hash
+    AppShellRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/AppShellValidationInstrumentation.cs')).Hash
     ScriptSha256 = (Get-FileHash -LiteralPath $PSCommandPath).Hash
     Properties = [ordered]@{}
 }
@@ -131,15 +133,18 @@ try {
         'AccessibilityPhase4' { 'ANDROID_ACCESSIBILITY_PHASE4_PASS' }
         'PageNavigation' { 'ANDROID_PAGE_NAVIGATION_PASS' }
         'PageComposition' { 'ANDROID_PAGE_COMPOSITION_PASS' }
+        'AppShell' { 'ANDROID_APP_SHELL_PASS' }
         default { 'ANDROID_RELEASE_MATRIX_PASS' }
     }
-    if ($Scenario -in @('PageNavigation', 'PageComposition')) {
+    if ($Scenario -in @('PageNavigation', 'PageComposition', 'AppShell')) {
         $nativeDirectory = Join-Path $destination 'native'
         New-Item -ItemType Directory -Path $nativeDirectory | Out-Null
         $pageArtifacts = if ($Scenario -eq 'PageNavigation') {
             @('page-navigation-validation.txt', 'page-navigation-details.png', 'page-navigation-recreated.png')
-        } else {
+        } elseif ($Scenario -eq 'PageComposition') {
             @('page-composition-validation.txt', 'page-composition-overlay.png', 'page-composition-recreated.png')
+        } else {
+            @('app-shell-validation.txt', 'app-shell-document.png', 'app-shell-recreated.png')
         }
         foreach ($name in $pageArtifacts) {
             $remoteFile = "/sdcard/Android/data/$package/files/$name"
@@ -152,7 +157,7 @@ try {
     }
     # Do not mistake numeric telemetry such as recorder_failures=0 for a failure marker.
     if ($instrumentationExit -ne 0 -or $result -notmatch $marker -or
-        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|INSTRUMENTATION_FAILED)') {
+        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."
     }
 }

@@ -278,6 +278,10 @@ for deployment. The full setup is documented in [Android platform status](docs/p
 
 ## Roadmap and versioning
 
+The current source includes lightweight pages, retained navigation/tab/flyout composition and
+[AppShell routing with opt-in lifecycle integration](docs/app-shell-routing.md). These additive
+runtime contracts do not register OS protocols or publish a new package version.
+
 The [framework roadmap](docs/roadmap/ModernFormsNext-Framework-Roadmap.md) separates implemented
 capabilities from future work. Items such as navigation, localization, advanced visualization, and
 optional feature packages are roadmap work unless the current code and release notes say otherwise.

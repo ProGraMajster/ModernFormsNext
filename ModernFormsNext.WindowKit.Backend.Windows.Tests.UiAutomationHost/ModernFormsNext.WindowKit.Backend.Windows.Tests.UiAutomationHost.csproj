@@ -12,6 +12,7 @@
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\PageNavigationCertification.cs" Link="PageNavigationCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\PageCompositionCertification.cs" Link="PageCompositionCertification.cs" />
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\AppShellCertification.cs" Link="AppShellCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\VirtualizationCertification.cs" Link="VirtualizationCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\CollectionUtilitiesCertification.cs" Link="CollectionUtilitiesCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\SearchTimeCertification.cs" Link="SearchTimeCertification.cs" />

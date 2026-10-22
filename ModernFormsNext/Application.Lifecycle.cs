@@ -218,6 +218,13 @@ public sealed class ApplicationLifecycle
         get { EnsureBound(); return provider as IPlatformApplicationLifecycleController; }
     }
 
+    // Scoped consumers borrow notification identity rather than requiring delivery/controller
+    // support. Read-only rich providers remain valid application overrides.
+    internal IPlatformApplicationLifecycleNotifications? NotificationProvider
+    {
+        get { EnsureBound(); return provider; }
+    }
+
     private IPlatformApplicationLifecycleController GetController()
         => Controller ?? throw new NotSupportedException("The current platform lifecycle provider does not support explicit activation or state delivery.");
 
