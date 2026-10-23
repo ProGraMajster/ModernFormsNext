@@ -14,6 +14,7 @@ public static class CSharpLiteralWriter
     /// </summary>
     /// <param name="value">The designer property value, or <see langword="null"/> for a literal null assignment.</param>
     /// <returns>A C# expression representing the value.</returns>
+    /// <exception cref="FormatException">A type name or enum member contains unsupported C# syntax.</exception>
     public static string WriteValue(DesignPropertyValue? value)
     {
         if (value is null)
@@ -75,9 +76,12 @@ public static class CSharpLiteralWriter
         if (string.IsNullOrWhiteSpace(value.EnumTypeName))
             return WriteStringLiteral(memberName);
 
+        if (!CSharpIdentifierSanitizer.IsValidTypeName(value.EnumTypeName))
+            throw new FormatException("The enum type name is not a supported C# type name.");
+
         var members = memberName.Split(
             ',',
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            StringSplitOptions.TrimEntries);
 
         if (members.Length > 0 && members.All(CSharpIdentifierSanitizer.IsValidIdentifier))
         {
@@ -88,24 +92,31 @@ public static class CSharpLiteralWriter
 
         // Enum.ToString() returns a numeric value when no named member represents the value.
         // Emit a cast instead of producing an invalid member-access expression such as Type.3.
-        if (long.TryParse(memberName, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)
-            || ulong.TryParse(memberName, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
-        {
-            return $"({value.EnumTypeName}){memberName}";
-        }
+        if (long.TryParse(memberName, NumberStyles.Integer, CultureInfo.InvariantCulture, out long signed))
+            return $"({value.EnumTypeName}){signed.ToString(CultureInfo.InvariantCulture)}";
+        if (ulong.TryParse(memberName, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong unsigned))
+            return $"({value.EnumTypeName}){unsigned.ToString(CultureInfo.InvariantCulture)}";
 
-        return value.EnumTypeName + "." + memberName;
+        throw new FormatException("The enum value must contain identifiers separated by commas or an integer.");
     }
 
     private static string WriteObjectValue(DesignPropertyValue value)
     {
         var typeName = value.ObjectTypeName ?? string.Empty;
+        if (!CSharpIdentifierSanitizer.IsValidTypeName(typeName))
+            throw new FormatException("The structured value type name is not a supported C# type name.");
         var properties = value.ObjectProperties ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
 
         if (typeName == "System.TimeOnly")
         {
             if (!TimeOnlyDesignValue.TryRead(value, out var time, out var error)) throw new NotSupportedException(error);
             return $"new global::System.TimeOnly({time.Ticks.ToString(CultureInfo.InvariantCulture)}L)";
+        }
+
+        if (typeName == "System.TimeSpan")
+        {
+            if (!TimeSpanDesignValue.TryRead(value, out var duration, out var error)) throw new NotSupportedException(error);
+            return $"new global::System.TimeSpan({duration.Ticks.ToString(CultureInfo.InvariantCulture)}L)";
         }
 
         if (IsType(typeName, "System.Drawing.Size"))
@@ -254,6 +265,31 @@ public static class CSharpLiteralWriter
         }
 
         throw new NotSupportedException($"Unsupported structured designer property value type '{typeName}'.");
+    }
+
+    // Preflight all authored value names before writing any source, including nested
+    // values and table-layout arguments. This invokes no type resolution or user code.
+    internal static void ValidateSourceNames(DesignPropertyValue? value)
+    {
+        var pending = new Stack<(DesignPropertyValue Value, int Depth, bool Exit)>();
+        var ancestors = new HashSet<DesignPropertyValue>(ReferenceEqualityComparer.Instance);
+        if (value is not null) pending.Push((value, 0, false));
+        int count = 0;
+        while (pending.TryPop(out var item))
+        {
+            if (item.Exit) { ancestors.Remove(item.Value); continue; }
+            if (++count > DesignDocumentValidator.MaximumNodeCount
+                || item.Depth > DesignDocumentValidator.MaximumTreeDepth || !ancestors.Add(item.Value))
+                throw new FormatException("The structured value graph contains a cycle or exceeds the designer value budget.");
+            pending.Push((item.Value, item.Depth, true));
+            if (item.Value.Kind == DesignPropertyValueKind.Enum) _ = WriteEnumValue(item.Value);
+            if (item.Value.Kind != DesignPropertyValueKind.Object) continue;
+            if (!CSharpIdentifierSanitizer.IsValidTypeName(item.Value.ObjectTypeName))
+                throw new FormatException("The structured value type name is not a supported C# type name.");
+            if (item.Value.ObjectProperties is not { } properties) continue;
+            foreach (var child in properties.Values)
+                if (child is not null) pending.Push((child, item.Depth + 1, false));
+        }
     }
 
     private static bool IsType(string actual, string expected)

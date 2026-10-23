@@ -12,13 +12,19 @@ internal sealed class DesignerTabPageCollectionDialog : Form
     private readonly TextBox nameTextBox;
     private readonly TextBox textTextBox;
     private readonly Label errorLabel;
+    private readonly bool knownPageOwner;
+    private readonly ComboBox? addType;
+    private readonly ComboBox? slot;
+    private bool loading;
 
     public DesignerTabPageCollectionDialog(DesignerSession session, DesignControlNode tabControl)
     {
         this.session = session;
         this.tabControl = tabControl;
+        knownPageOwner = DesignPageContainers.IsPage(tabControl.TypeName)
+            || DesignPageContainers.IsType(tabControl.TypeName, "PageHost");
 
-        Text = "TabPage Collection Editor";
+        Text = knownPageOwner ? "Authored Page Content Editor" : "TabPage Collection Editor";
         Name = "DesignerTabPageCollectionDialog";
         Size = new System.Drawing.Size(680, 460);
         StartPosition = FormStartPosition.CenterParent;
@@ -127,6 +133,25 @@ internal sealed class DesignerTabPageCollectionDialog : Form
             Height = 62,
             Text = string.Empty
         });
+        if (knownPageOwner)
+        {
+            addType = Controls.Add(new ComboBox { Left = 328, Top = 156, Width = 308, Height = 28 });
+            addType.Items.AddRange((DesignPageContainers.IsType(tabControl.TypeName, "ContentPage")
+                ? new[] { "Panel", "Button", "Label", "TextBox", "PageHost", "ContentPage", "NavigationPage", "TabbedPage", "FlyoutPage", "AppShell" }
+                : new[] { "ContentPage", "NavigationPage", "TabbedPage", "FlyoutPage", "AppShell" }).Cast<object>().ToArray());
+            addType.SelectedIndex = 0;
+            Controls.Add(new Label { Left = 328, Top = 128, Width = 308, Height = 24, Text = "Type to add (existing nodes keep their type)" });
+            if (DesignPageContainers.IsType(tabControl.TypeName, "FlyoutPage"))
+            {
+                Controls.Add(new Label { Left = 328, Top = 192, Width = 308, Height = 24, Text = "Selected/new slot" });
+                slot = Controls.Add(new ComboBox { Left = 328, Top = 220, Width = 308, Height = 28 });
+                slot.Items.AddRange(new object[] { "Detail", "Flyout" });
+                slot.SelectedIndex = 0;
+                slot.SelectedIndexChanged += (_, _) => UpdateSelectedEntry();
+            }
+            errorLabel.Top = 260;
+            errorLabel.Height = 94;
+        }
 
         var okButton = Controls.Add(new Button
         {
@@ -146,7 +171,7 @@ internal sealed class DesignerTabPageCollectionDialog : Form
             Text = "Cancel"
         });
 
-        foreach (var page in tabControl.Children.Where(DesignerSpecialContainers.IsTabPage))
+        foreach (var page in tabControl.Children.Where(page => knownPageOwner || DesignerSpecialContainers.IsTabPage(page)))
         {
             pages.Add(new PageEntry(page, page.Name, GetText(page)));
         }
@@ -191,17 +216,25 @@ internal sealed class DesignerTabPageCollectionDialog : Form
         if (!TryGetSelectedEntry(out var entry))
             return;
 
-        nameTextBox.Text = entry.Name;
-        textTextBox.Text = entry.Text;
+        loading = true;
+        try
+        {
+            nameTextBox.Text = entry.Name;
+            textTextBox.Text = entry.Text;
+            if (slot is not null) slot.SelectedIndex = entry.Role == DesignNodeRoleNames.FlyoutPageFlyout ? 1 : 0;
+        }
+        finally { loading = false; }
     }
 
     private void UpdateSelectedEntry()
     {
-        if (!TryGetSelectedEntry(out var entry))
+        if (loading || !TryGetSelectedEntry(out var entry))
             return;
 
         entry.Name = nameTextBox.Text.Trim();
         entry.Text = textTextBox.Text;
+        if (slot is not null) entry.Role = slot.SelectedIndex == 1
+            ? DesignNodeRoleNames.FlyoutPageFlyout : DesignNodeRoleNames.FlyoutPageDetail;
 
         var selectedIndex = pageList.SelectedIndex;
         pageList.Items[selectedIndex] = entry;
@@ -210,15 +243,21 @@ internal sealed class DesignerTabPageCollectionDialog : Form
 
     private void AddPage()
     {
+        if (pages.Count >= 256) { ShowError("This editor supports at most 256 authored entries."); return; }
         var name = CreateUniquePageName();
-        pages.Add(new PageEntry(null, name, name));
+        var entry = new PageEntry(null, name, name);
+        if (addType is not null && addType.SelectedIndex >= 0)
+            entry.TypeName = addType.Items[addType.SelectedIndex].ToString()!;
+        if (slot is not null) entry.Role = slot.SelectedIndex == 1
+            ? DesignNodeRoleNames.FlyoutPageFlyout : DesignNodeRoleNames.FlyoutPageDetail;
+        pages.Add(entry);
         RefreshList();
         pageList.SelectedIndex = pages.Count - 1;
     }
 
     private void RemoveSelectedPage()
     {
-        if (pages.Count <= 1)
+        if (!knownPageOwner && pages.Count <= 1)
         {
             ShowError("A TabControl must keep at least one TabPage in the designer.");
             return;
@@ -258,20 +297,27 @@ internal sealed class DesignerTabPageCollectionDialog : Form
             return;
         }
 
+        using var transaction = session.Transactions.Begin(knownPageOwner ? "Edit authored page content" : "Edit Tab Pages");
         var committedPages = new List<DesignControlNode>(pages.Count);
 
         foreach (var page in pages)
         {
-            var node = page.Node ?? DesignerSpecialContainers.CreateTabPage(page.Name, page.Text);
+            var node = page.Node ?? (knownPageOwner
+                ? new DesignControlNode { Name = page.Name, TypeName = page.TypeName, Bounds = new DesignBounds(0, 0, 300, 200) }
+                : DesignerSpecialContainers.CreateTabPage(page.Name, page.Text));
+            var textProperty = DesignPageContainers.IsPage(node.TypeName) ? "Title" : "Text";
             if (page.Node is null)
             {
                 node.Name = page.Name;
-                node.Properties["Text"] = DesignPropertyValue.FromString(page.Text);
+                node.Properties[textProperty] = DesignPropertyValue.FromString(page.Text);
+                if (slot is not null) node.Properties[DesignNodeRoleNames.RolePropertyName] = DesignPropertyValue.FromString(page.Role);
             }
             else
             {
                 session.SetNodeName(node, page.Name);
-                session.SetPropertyValue(node, "Text", DesignPropertyValue.FromString(page.Text));
+                session.SetPropertyValue(node, textProperty, DesignPropertyValue.FromString(page.Text));
+                if (textProperty == "Title") session.RemovePropertyValue(node, "Text");
+                if (slot is not null) session.SetPropertyValue(node, DesignNodeRoleNames.RolePropertyName, DesignPropertyValue.FromString(page.Role));
             }
 
             committedPages.Add(node);
@@ -279,16 +325,28 @@ internal sealed class DesignerTabPageCollectionDialog : Form
 
         session.ReplaceChildren(tabControl, committedPages, "Edit Tab Pages");
 
-        session.SetPropertyValue(
+        if (!knownPageOwner || DesignPageContainers.IsType(tabControl.TypeName, "TabbedPage")) session.SetPropertyValue(
             tabControl,
             DesignerSpecialContainers.SelectedIndexPropertyName,
-            DesignPropertyValue.FromInt32(Math.Clamp(pageList.SelectedIndex, 0, Math.Max(0, pages.Count - 1))));
+            DesignPropertyValue.FromInt32(pages.Count == 0 ? -1 : Math.Clamp(pageList.SelectedIndex, 0, pages.Count - 1)));
 
+        transaction.Commit();
         DialogResult = DialogResult.OK;
     }
 
     private string? ValidatePages()
     {
+        if (knownPageOwner)
+        {
+            var proposed = new DesignControlNode { TypeName = tabControl.TypeName };
+            foreach (var page in pages)
+            {
+                var candidate = new DesignControlNode { Name = page.Name, TypeName = page.TypeName };
+                if (slot is not null) candidate.Properties[DesignNodeRoleNames.RolePropertyName] = DesignPropertyValue.FromString(page.Role);
+                proposed.Children.Add(candidate);
+            }
+            if (DesignPageContainers.GetChildError(proposed) is { } error) return error;
+        }
         var names = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var page in pages)
@@ -340,7 +398,7 @@ internal sealed class DesignerTabPageCollectionDialog : Form
 
         for (var index = 1; index < int.MaxValue; index++)
         {
-            var candidate = $"tabPage{index}";
+            var candidate = $"{(knownPageOwner ? "pageContent" : "tabPage")}{index}";
 
             if (!usedNames.Contains(candidate))
                 return candidate;
@@ -350,7 +408,7 @@ internal sealed class DesignerTabPageCollectionDialog : Form
     }
 
     private static string GetText(DesignControlNode node)
-        => node.Properties.TryGetValue("Text", out var value)
+        => node.Properties.TryGetValue(DesignPageContainers.IsPage(node.TypeName) && node.Properties.ContainsKey("Title") ? "Title" : "Text", out var value)
             ? value.Value?.ToString() ?? string.Empty
             : node.Name;
 
@@ -361,6 +419,8 @@ internal sealed class DesignerTabPageCollectionDialog : Form
             Node = node;
             Name = name;
             Text = text;
+            TypeName = node?.TypeName ?? "TabPage";
+            Role = node?.Properties.TryGetValue(DesignNodeRoleNames.RolePropertyName, out var role) == true ? role.GetString() : string.Empty;
         }
 
         public DesignControlNode? Node { get; }
@@ -368,6 +428,8 @@ internal sealed class DesignerTabPageCollectionDialog : Form
         public string Name { get; set; }
 
         public string Text { get; set; }
+        public string TypeName { get; set; }
+        public string Role { get; set; }
 
         public override string ToString()
             => Name;

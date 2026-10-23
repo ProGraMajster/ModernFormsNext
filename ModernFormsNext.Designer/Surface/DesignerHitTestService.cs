@@ -172,7 +172,7 @@ internal sealed class DesignerHitTestService
                 continue;
 
             var absoluteBounds = layout.GetEffectiveBounds(control);
-            var visibleBounds = Intersect(absoluteBounds, parentClip);
+            var visibleBounds = Intersect(layout.GetVisibleBounds(state.Document, control), parentClip);
 
             if (!visibleBounds.Contains(point.X, point.Y))
                 continue;
@@ -222,7 +222,7 @@ internal sealed class DesignerHitTestService
                 continue;
 
             var absoluteBounds = layout.GetEffectiveBounds(control);
-            var visibleBounds = Intersect(absoluteBounds, parentClip);
+            var visibleBounds = Intersect(layout.GetVisibleBounds(state.Document, control), parentClip);
 
             if (!visibleBounds.Contains(point.X, point.Y))
                 continue;
@@ -262,7 +262,7 @@ internal sealed class DesignerHitTestService
                 continue;
 
             var absoluteBounds = layout.GetEffectiveBounds(control);
-            var visibleBounds = Intersect(absoluteBounds, parentClip);
+            var visibleBounds = Intersect(layout.GetVisibleBounds(state.Document, control), parentClip);
 
             if (!visibleBounds.Contains(point.X, point.Y))
                 continue;

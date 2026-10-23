@@ -56,6 +56,7 @@ namespace ControlGallery
             tree.Items.Add ("Pages and navigation", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Tabbed / Flyout pages", ImageLoader.Get ("button.png"));
             tree.Items.Add ("AppShell routes", ImageLoader.Get ("button.png"));
+            tree.Items.Add ("Designer page content", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NotifyIcon", ImageLoader.Get ("button.png"));
             tree.Items.Add ("NativeViewHost", ImageLoader.Get ("button.png"));
             tree.Items.Add ("Panel", ImageLoader.Get ("button.png"));
@@ -126,6 +127,8 @@ namespace ControlGallery
                     return new PageCompositionPanel();
                 case "AppShell routes":
                     return new AppShellPanel();
+                case "Designer page content":
+                    return new PageDesignerPanel();
                 case "NativeViewHost":
                     return new NativeViewHostingPanel();
                 case "Accessibility":

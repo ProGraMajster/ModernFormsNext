@@ -10,8 +10,8 @@ namespace ModernFormsNext.Designer.Clipboard;
 internal static class DesignerClipboardSerializer
 {
     internal const int MaximumContentLength = 4 * 1024 * 1024;
-    internal const int MaximumNodeCount = 10_000;
-    internal const int MaximumTreeDepth = 96;
+    internal const int MaximumNodeCount = DesignDocumentValidator.MaximumNodeCount;
+    internal const int MaximumTreeDepth = DesignDocumentValidator.MaximumTreeDepth;
 
     private static readonly JsonSerializerOptions Options = CreateOptions();
 

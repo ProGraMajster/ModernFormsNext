@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text;
 using ModernFormsNext.Designing;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ModernFormsNext.CodeGeneration.Utilities;
 
@@ -20,6 +23,50 @@ public static class CSharpIdentifierSanitizer
     /// <returns><see langword="true"/> when the identifier is valid; otherwise, <see langword="false"/>.</returns>
     public static bool IsValidIdentifier(string? identifier)
         => DesignDocumentValidator.IsValidCSharpIdentifier(identifier);
+
+    // A type name is data, not a source fragment. Parse the entire bounded input and
+    // allow only named types with ordinary type arguments; no recovery, comments,
+    // directives, statements or constructor syntax can cross into generated source.
+    internal static bool IsValidTypeName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 16_384)
+            return false;
+        int nesting = 0;
+        foreach (char character in value)
+        {
+            if (character is '<' or '[' or '(' && ++nesting > 64) return false;
+            if (character is '>' or ']' or ')') nesting--;
+        }
+        var syntax = SyntaxFactory.ParseTypeName(value, consumeFullText: true);
+        // Roslyn can leave trailing directives on the unreturned end-of-file token.
+        // Require exact full-text coverage as well as valid syntax and safe trivia.
+        return string.Equals(syntax.ToFullString(), value, StringComparison.Ordinal)
+            && !syntax.ContainsDiagnostics && syntax is NameSyntax
+            && syntax.DescendantTrivia(descendIntoTrivia: true).All(trivia =>
+                trivia.IsKind(SyntaxKind.WhitespaceTrivia) || trivia.IsKind(SyntaxKind.EndOfLineTrivia))
+            && IsSupportedType(syntax, 0);
+    }
+
+    private static bool IsSupportedType(TypeSyntax syntax, int depth)
+    {
+        if (depth > 64) return false;
+        return syntax switch
+        {
+            IdentifierNameSyntax name => IsValidIdentifier(name.Identifier.Text),
+            GenericNameSyntax name => IsValidIdentifier(name.Identifier.Text)
+                && name.TypeArgumentList.Arguments.All(argument => IsSupportedType(argument, depth + 1)),
+            QualifiedNameSyntax name => IsSupportedType(name.Left, depth + 1)
+                && IsSupportedType(name.Right, depth + 1),
+            AliasQualifiedNameSyntax name => (name.Alias.Identifier.Text == "global"
+                    || IsValidIdentifier(name.Alias.Identifier.Text))
+                && IsSupportedType(name.Name, depth + 1),
+            PredefinedTypeSyntax type => !type.Keyword.IsKind(SyntaxKind.VoidKeyword),
+            NullableTypeSyntax type => IsSupportedType(type.ElementType, depth + 1),
+            ArrayTypeSyntax type => IsSupportedType(type.ElementType, depth + 1)
+                && type.RankSpecifiers.All(rank => rank.Sizes.All(size => size is OmittedArraySizeExpressionSyntax)),
+            _ => false
+        };
+    }
 
     /// <summary>
     /// Creates a valid C# identifier from arbitrary text.

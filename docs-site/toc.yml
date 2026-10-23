@@ -82,6 +82,8 @@
   items:
   - name: Designer architecture
     href: content/docs/designer-architecture.md
+  - name: Page and shell authoring
+    href: content/docs/designer-pages.md
   - name: Visual Studio host
     href: content/docs/visual-studio-designer-host.md
   - name: Transactions and undo

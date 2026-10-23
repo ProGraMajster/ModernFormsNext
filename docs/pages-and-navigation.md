@@ -146,7 +146,9 @@ delivery; it cannot close a replacement presentation. The IME still owns Back wh
 Windows title-bar close remains a Form/window operation; it is not translated into a pop.
 
 [TabbedPage and FlyoutPage](page-composition.md) now compose this same runtime. Routes, shell,
-deep-link factories, Designer code generation and template integration remain later children of #12.
+deep-link factories and lifecycle binding are documented under [AppShell](app-shell-routing.md).
+Known container authoring, safe preview and the optional generated example are documented in
+[Page and shell authoring](designer-pages.md); default application startup remains minimal.
 Human TalkBack/IME/physical-keyboard and interactive Visual Studio qualification remain
 separate from deterministic, native automated, emulator and physical-device evidence.
 

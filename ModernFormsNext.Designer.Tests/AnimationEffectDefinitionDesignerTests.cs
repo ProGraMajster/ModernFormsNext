@@ -133,7 +133,11 @@ public sealed class AnimationEffectDefinitionDesignerTests
             new CSharpDesignerGenerationOptions { AnimationDefinitions = [descriptor] });
 
         Assert.DoesNotContain("System.Console.WriteLine", generated.Code, StringComparison.Ordinal);
-        Assert.Contains(generated.Validation.Warnings, warning => warning.Contains("safe C# syntax", StringComparison.Ordinal));
+        // Unsafe authored source names now reject the entire generation, rather than
+        // merely omitting one effect with a warning and returning partial source.
+        Assert.False(generated.Succeeded);
+        Assert.Empty(generated.Code);
+        Assert.Contains(generated.Validation.Errors, error => error.Contains("source names", StringComparison.Ordinal));
     }
 
     [Fact]

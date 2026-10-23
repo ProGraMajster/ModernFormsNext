@@ -23,6 +23,7 @@ internal static class DesignerPropertyValueEditor
             null => string.Empty,
             bool boolValue => boolValue ? "True" : "False",
             TimeOnly time => time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture),
+            TimeSpan duration => ((decimal)duration.Ticks / TimeSpan.TicksPerMillisecond).ToString(CultureInfo.InvariantCulture),
             DesignBounds bounds => $"{bounds.X}, {bounds.Y}, {bounds.Width}, {bounds.Height}",
             DesignSize size => $"{size.Width}, {size.Height}",
             DesignPoint point => $"{point.X}, {point.Y}",
@@ -91,6 +92,23 @@ internal static class DesignerPropertyValueEditor
             { value = time; error = null; return true; }
             value = null;
             error = "Expected invariant HH:mm, HH:mm:ss or HH:mm:ss.fffffff; use null for an empty nullable time.";
+            return false;
+        }
+
+        if (targetType == typeof(TimeSpan))
+        {
+            if (decimal.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal milliseconds))
+            {
+                try
+                {
+                    decimal ticks = milliseconds * TimeSpan.TicksPerMillisecond;
+                    if (ticks >= long.MinValue && ticks <= long.MaxValue && ticks == decimal.Truncate(ticks))
+                    { value = TimeSpan.FromTicks((long)ticks); error = null; return true; }
+                }
+                catch (OverflowException) { }
+            }
+            value = null;
+            error = "Expected invariant milliseconds within the TimeSpan range, in whole 100-nanosecond ticks.";
             return false;
         }
 
@@ -222,6 +240,8 @@ internal static class DesignerPropertyValueEditor
 
         if (value is null)
             return DesignPropertyValue.FromNull();
+
+        if (value is TimeSpan duration) return TimeSpanDesignValue.FromDuration(duration);
 
         if (targetType.IsEnum)
             return DesignPropertyValue.FromEnum(targetType.FullName ?? targetType.Name, value.ToString() ?? string.Empty);
@@ -373,6 +393,13 @@ internal static class DesignerPropertyValueEditor
         ArgumentNullException.ThrowIfNull(value);
 
         var targetType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+
+        if (targetType == typeof(TimeSpan))
+        {
+            if (value.Kind == DesignPropertyValueKind.Null && Nullable.GetUnderlyingType(valueType) is not null) return null;
+            if (!TimeSpanDesignValue.TryRead(value, out var duration, out var error)) throw new FormatException(error);
+            return duration;
+        }
 
         return value.Kind switch
         {

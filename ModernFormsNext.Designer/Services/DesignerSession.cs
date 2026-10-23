@@ -657,6 +657,9 @@ public sealed class DesignerSession : IDisposable
         var destination = GetChildCollectionForNewControl(parent, out var targetName);
         AssignDefaultTableLayoutPosition(node, parent);
         var targetCollection = destination ?? Document.Controls;
+        TryFindParentForCollection(targetCollection, out var actualParent);
+        if (!CanInsertNode(node, new DesignerPasteTarget(targetCollection, actualParent, targetName, targetCollection.Count), out error))
+            throw new InvalidOperationException(error);
 
         using var transaction = Transactions.Begin($"Add {shortTypeName}");
         Transactions.ExecuteChange(new DesignerTreeInsertChange(targetCollection, node, targetCollection.Count));
@@ -733,6 +736,12 @@ public sealed class DesignerSession : IDisposable
         if (ReferenceEquals(sourceCollection, destinationCollection) && sourceIndex < destinationIndex)
             destinationIndex--;
 
+        TryFindParentForCollection(destinationCollection, out var pageDestination);
+        if (!CanInsertNode(node, new DesignerPasteTarget(destinationCollection, pageDestination, targetName, destinationIndex), out var insertionError))
+        { Log(insertionError!); return false; }
+        var sourceParent = FindParent(node);
+        var sourcePageSelection = CapturePageSelection(sourceParent);
+
         var layout = new DesignerLayoutEngine().Layout(Document);
         var absoluteBounds = layout.GetEffectiveBounds(node);
         var parentBounds = target is not null && IsContainerNode(target)
@@ -765,6 +774,7 @@ public sealed class DesignerSession : IDisposable
             snapshot.RecordChanges(Transactions);
         }
         Host.Selection.Select(node);
+        RestorePageSelection(sourceParent, sourcePageSelection);
         transaction.Commit();
         Log($"Moved {node.Name} to {targetName}.");
         return true;
@@ -956,6 +966,11 @@ public sealed class DesignerSession : IDisposable
         var destination = targetParent is null
             ? Document.Controls
             : GetChildCollectionForNewControl(targetParent, out _) ?? targetParent.Children;
+        TryFindParentForCollection(destination, out var actualParent);
+        if (!CanInsertNode(node, new DesignerPasteTarget(destination, actualParent,
+            targetParent?.Name ?? Document.FormName, destination.Count), out var insertionError))
+        { Log(insertionError!); return false; }
+        var sourcePageSelection = CapturePageSelection(currentParent);
 
         using var transaction = Transactions.Begin($"Move {node.Name}");
         var snapshot = DesignerModelMutationSnapshot.CaptureNode(node);
@@ -979,6 +994,7 @@ public sealed class DesignerSession : IDisposable
             snapshot.RecordChanges(Transactions);
         }
         Host.Selection.Select(node);
+        RestorePageSelection(currentParent, sourcePageSelection);
         transaction.Commit();
         Log($"Reparented {node.Name} to {(targetParent is null ? Document.FormName : targetParent.Name)}.");
         return true;
@@ -1008,6 +1024,7 @@ public sealed class DesignerSession : IDisposable
 
         using var transaction = Transactions.Begin($"Delete {node.Name}");
         Transactions.ExecuteChange(new DesignerTreeRemoveChange(collection, node, index));
+        UpdatePageSelectionAfterRemoval(parentNode, index);
 
         if (parentNode is null)
             Host.Selection.Clear();
@@ -1088,6 +1105,7 @@ public sealed class DesignerSession : IDisposable
         clipboard.SetContent(content!);
         using var transaction = Transactions.Begin($"Cut {source.Name}");
         Transactions.ExecuteChange(new DesignerTreeRemoveChange(collection, source, index));
+        UpdatePageSelectionAfterRemoval(parent, index);
         Host.Selection.Select(parent);
         transaction.Commit();
         Log($"Cut {source.Name}.");
@@ -1228,7 +1246,10 @@ public sealed class DesignerSession : IDisposable
         }
 
         using var transaction = Transactions.Begin(delta < 0 ? $"Move {node.Name} up" : $"Move {node.Name} down");
+        var pageParent = FindParent(node);
+        var pageSelection = CapturePageSelection(pageParent);
         Transactions.ExecuteChange(new DesignerTreeMoveChange(node, collection, index, collection, newIndex));
+        RestorePageSelection(pageParent, pageSelection);
         Host.Selection.Select(node);
         transaction.Commit();
         Log(delta < 0
@@ -1254,6 +1275,9 @@ public sealed class DesignerSession : IDisposable
         // internal children belong to its own .mfdesign document and are never edited in place.
         if (IsProjectUserControlType(node.TypeName))
             return false;
+
+        if (DesignPageContainers.IsPage(node.TypeName) || DesignPageContainers.IsType(node.TypeName, "PageHost"))
+            return !DesignPageContainers.IsType(node.TypeName, "AppShell");
 
         var type = ResolveControlType(node);
 
@@ -1407,11 +1431,13 @@ public sealed class DesignerSession : IDisposable
             throw new ArgumentException("A Designer child collection cannot contain the same node more than once.", nameof(children));
 
         var collection = parent?.Children ?? Document.Controls;
+        var pageSelection = CapturePageSelection(parent);
         using var transaction = Transactions.Begin(description);
         Transactions.ExecuteChange(new DesignerChildrenReplaceChange(
             collection,
             collection.ToArray(),
             children.ToArray()));
+        RestorePageSelection(parent, pageSelection);
         transaction.Commit();
     }
 
@@ -1844,8 +1870,7 @@ public sealed class DesignerSession : IDisposable
             if (ReferenceEquals(node, draggedNode) || ContainsDescendant(draggedNode, node))
                 continue;
 
-            var bounds = layout.GetEffectiveBounds(node);
-            var visible = Intersect(bounds, clip);
+            var visible = Intersect(layout.GetVisibleBounds(Document, node), clip);
 
             if (!visible.Contains(point.X, point.Y))
                 continue;
@@ -2132,6 +2157,19 @@ public sealed class DesignerSession : IDisposable
             return false;
         }
 
+        if (target.Parent is { } pageParent && (DesignPageContainers.IsPage(pageParent.TypeName)
+            || DesignPageContainers.IsType(pageParent.TypeName, "PageHost")))
+        {
+            // Borrow references for an immediate data-only slot check. Never insert into
+            // the live graph merely to discover that a slot is occupied or ambiguous.
+            var proposed = new DesignControlNode { TypeName = pageParent.TypeName, Properties = pageParent.Properties };
+            foreach (var existing in target.Collection)
+                if (!ReferenceEquals(existing, node)) proposed.Children.Add(existing);
+            proposed.Children.Add(node);
+            error = DesignPageContainers.GetChildError(proposed);
+            if (error is not null) return false;
+        }
+
         if (DesignerSpecialContainers.IsTabPage(node)
             && (target.Parent is null || !DesignerSpecialContainers.IsTabControl(target.Parent)))
         {
@@ -2155,6 +2193,31 @@ public sealed class DesignerSession : IDisposable
 
         error = null;
         return true;
+    }
+
+    private void UpdatePageSelectionAfterRemoval(DesignControlNode? parent, int removedIndex)
+    {
+        if (parent is not null && DesignPageContainers.IsType(parent.TypeName, "TabbedPage")
+            && parent.Properties.TryGetValue("SelectedIndex", out var selection) && selection.Value is int selected
+            && selected >= removedIndex)
+            SetPropertyValue(parent, "SelectedIndex", DesignPropertyValue.FromInt32(
+                selected > removedIndex ? selected - 1 : Math.Min(selected, parent.Children.Count - 1)));
+    }
+
+    private static (DesignControlNode? Page, int Index) CapturePageSelection(DesignControlNode? parent)
+    {
+        if (parent is not null && DesignPageContainers.IsType(parent.TypeName, "TabbedPage")
+            && parent.Properties.TryGetValue("SelectedIndex", out var value) && value.Value is int index && index >= 0)
+            return (index < parent.Children.Count ? parent.Children[index] : null, index);
+        return (null, -1);
+    }
+
+    private void RestorePageSelection(DesignControlNode? parent, (DesignControlNode? Page, int Index) previous)
+    {
+        if (parent is null || previous.Index < 0) return;
+        int index = previous.Page is null ? -1 : parent.Children.IndexOf(previous.Page);
+        if (index < 0) index = Math.Min(previous.Index, parent.Children.Count - 1);
+        SetPropertyValue(parent, "SelectedIndex", DesignPropertyValue.FromInt32(index));
     }
 
     private void ApplyClipboardPositioning(DesignControlNode node, DesignControlNode? parent)

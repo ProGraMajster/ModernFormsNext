@@ -1,0 +1,84 @@
+{
+  "metadata": { "formatVersion": 1, "toolName": "ModernFormsNext.ControlGallery" },
+  "namespace": "ControlGallery.Examples",
+  "className": "DesignedPagesView",
+  "formName": "DesignedPagesView",
+  "rootKind": "userControl",
+  "size": { "width": 800, "height": 500 },
+  "properties": {},
+  "events": {},
+  "controls": [
+    {
+      "typeName": "PageHost", "name": "pageHost",
+      "bounds": { "x": 0, "y": 0, "width": 800, "height": 500 },
+      "memberVisibility": "private",
+      "properties": { "Dock": { "kind": "enum", "typeName": "ModernFormsNext.DockStyle", "value": "Fill" } },
+      "events": {},
+      "children": [
+        {
+          "typeName": "TabbedPage", "name": "pages",
+          "bounds": { "x": 0, "y": 0, "width": 800, "height": 500 },
+          "memberVisibility": "private", "properties": { "SelectedIndex": 0 }, "events": {},
+          "children": [
+            {
+              "typeName": "ContentPage", "name": "homePage",
+              "bounds": { "x": 0, "y": 0, "width": 800, "height": 440 },
+              "memberVisibility": "private", "properties": { "Title": "Designed content" }, "events": {},
+              "children": [
+                {
+                  "typeName": "Panel", "name": "body",
+                  "bounds": { "x": 0, "y": 0, "width": 800, "height": 440 },
+                  "memberVisibility": "private", "properties": {}, "events": {},
+                  "children": [
+                    {
+                      "typeName": "Label", "name": "explanation",
+                      "bounds": { "x": 0, "y": 0, "width": 800, "height": 68 },
+                      "memberVisibility": "private",
+                      "properties": {
+                        "Text": "This authored page tree comes from DesignedPagesView.mfdesign. Edit the text, switch tabs and return: the retained editor keeps its value.",
+                        "Multiline": true,
+                        "Dock": { "kind": "enum", "typeName": "ModernFormsNext.DockStyle", "value": "Top" }
+                      },
+                      "events": {}, "children": []
+                    },
+                    {
+                      "typeName": "TextBox", "name": "editor",
+                      "bounds": { "x": 0, "y": 68, "width": 800, "height": 372 },
+                      "memberVisibility": "private",
+                      "properties": {
+                        "Text": "Retained designer-authored text",
+                        "Dock": { "kind": "enum", "typeName": "ModernFormsNext.DockStyle", "value": "Fill" }
+                      },
+                      "events": {}, "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "typeName": "NavigationPage", "name": "navigation",
+              "bounds": { "x": 0, "y": 0, "width": 800, "height": 440 },
+              "memberVisibility": "private", "properties": { "Title": "Navigation root" }, "events": {},
+              "children": [
+                {
+                  "typeName": "ContentPage", "name": "navigationRoot",
+                  "bounds": { "x": 0, "y": 0, "width": 800, "height": 440 },
+                  "memberVisibility": "private", "properties": { "Title": "Root" }, "events": {},
+                  "children": [
+                    {
+                      "typeName": "Label", "name": "navigationNote",
+                      "bounds": { "x": 0, "y": 0, "width": 800, "height": 440 },
+                      "memberVisibility": "private",
+                      "properties": { "Text": "The generator admits this declared root through NavigationPage(root). Register routes, guards and application callbacks explicitly in application code.", "Multiline": true },
+                      "events": {}, "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

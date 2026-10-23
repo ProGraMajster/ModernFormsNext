@@ -449,6 +449,9 @@ internal sealed class DesignerPropertyGridState
                 playgroundState.ResolveControlType(utilityNode) is { } utilityType &&
                 (utilityType == typeof(SearchBar) || utilityType == typeof(TimePicker)))
                 committed = DesignerSearchTimePropertyValidator.TryValidate(utilityNode, utilityType, out error);
+            if (committed && playgroundState.SelectedNode is { } pageNode &&
+                playgroundState.ResolveControlType(pageNode) is { } pageType && DesignerPagePropertyValidator.IsKnown(pageType))
+                committed = DesignerPagePropertyValidator.TryValidate(pageNode, pageType, out error);
         }
         catch
         {
@@ -830,7 +833,21 @@ internal sealed class DesignerPropertyGridState
 
         AddSpecialContainerDescriptors(descriptors, node);
 
-        if (ShouldShowModelProperty(node, "Text"))
+        if (DesignPageContainers.IsPage(node.TypeName))
+            descriptors.Add(new DesignerPropertyDescriptor
+            {
+                Name = "Title", DisplayName = "Title", Category = "Appearance", ValueType = typeof(string),
+                Description = "The page title. Text is its runtime alias; editing Title replaces legacy authored Text.",
+                GetValue = () => node.Properties.TryGetValue("Title", out var title) ? title.Value
+                    : node.Properties.TryGetValue("Text", out var text) ? text.Value : string.Empty,
+                CommitText = text =>
+                {
+                    node.Properties.Remove("Text");
+                    node.Properties["Title"] = DesignPropertyValue.FromString(text);
+                    return (true, null);
+                }
+            });
+        else if (ShouldShowModelProperty(node, "Text"))
             descriptors.Add(NodeProperty(node, "Text", "Text", "Appearance", "Text displayed by the control.", typeof(string), string.Empty));
 
         if (ShouldShowModelProperty(node, "Enabled"))
@@ -847,6 +864,16 @@ internal sealed class DesignerPropertyGridState
 
         if (DesignerSpecialContainers.IsTabControl(node))
             descriptors.Add(TabPagesProperty(node));
+        if ((DesignPageContainers.IsPage(node.TypeName) && !DesignPageContainers.IsType(node.TypeName, "AppShell"))
+            || DesignPageContainers.IsType(node.TypeName, "PageHost"))
+            descriptors.Add(new DesignerPropertyDescriptor
+            {
+                Name = "AuthoredContent", DisplayName = "AuthoredContent", Category = "Data", ValueType = typeof(string),
+                Description = "Edits the canonical authored Content, Page, constructor root, Pages or explicit Flyout/Detail slots. Runtime history and implicit hosts are excluded.",
+                IsReadOnly = true, ShouldSerialize = false, HasDialogEditor = true,
+                DialogEditor = DesignerPropertyDialogEditors.TabPages(node),
+                GetValue = () => $"{node.Children.Count} authored children"
+            });
 
         var parent = playgroundState.FindParent(node);
 
@@ -1024,10 +1051,14 @@ internal sealed class DesignerPropertyGridState
         var existingNames = new HashSet<string>(descriptors.Select(property => property.Name), StringComparer.Ordinal);
         var existingDisplayNames = new HashSet<string>(descriptors.Select(property => property.DisplayName), StringComparer.Ordinal);
         var defaultInstance = TryCreateDefaultControlInstance(controlType);
+        // Only trusted framework defaults reach this path. Descriptor fallbacks are data/style
+        // values; the temporary control and its constructor-owned children remain ours to retire.
+        using var defaultLifetime = defaultInstance as IDisposable;
 
         foreach (var metadata in metadataReader.ReadControl(controlType).Properties)
         {
-            if (metadata.IsHidden || existingNames.Contains(metadata.Name) || existingDisplayNames.Contains(metadata.DisplayName))
+            if (metadata.IsHidden || DesignerPagePropertyValidator.HideProperty(controlType, metadata.Property)
+                || existingNames.Contains(metadata.Name) || existingDisplayNames.Contains(metadata.DisplayName))
                 continue;
 
             var fallback = metadata.HasDefaultValue
@@ -1047,6 +1078,8 @@ internal sealed class DesignerPropertyGridState
             var description = GetPropertyDescription(
                 metadata.Description ?? "Designer metadata does not provide a description for this property.",
                 unsupported);
+            if ((Nullable.GetUnderlyingType(metadata.PropertyType) ?? metadata.PropertyType) == typeof(TimeSpan))
+                description += " Enter invariant milliseconds; 0.0001 ms is one 100-nanosecond tick.";
             // TryCreateRuntimeDescriptor below is the allow-list for complex values that have a
             // deterministic editor and serializer. Do not require the primitive-only metadata
             // Serialize flag for those values, otherwise Brush, PointCollection, and Geometry
@@ -1122,7 +1155,8 @@ internal sealed class DesignerPropertyGridState
             .OrderBy(property => GuessPropertyCategory(property.Name, property.PropertyType), StringComparer.Ordinal)
             .ThenBy(property => property.Name, StringComparer.Ordinal))
         {
-            if (existingNames.Contains(property.Name) || IsHiddenByDesignerAttributes(property))
+            if (existingNames.Contains(property.Name) || IsHiddenByDesignerAttributes(property)
+                || DesignerPagePropertyValidator.HideProperty(controlType, property))
                 continue;
 
             var metadata = metadataReader.ReadProperty(property);

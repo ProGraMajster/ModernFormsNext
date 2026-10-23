@@ -3,6 +3,8 @@
 Animation/effect Property Grid editing, source-only custom-effect discovery, stable easing IDs,
 and round-trip boundaries are documented separately in
 [Designer animation and interaction-effect definitions](designer-animation-effects.md).
+Known page ownership, bounded production-tree preview and source-generation boundaries are
+documented in [Page and shell authoring](designer-pages.md).
 
 ModernFormsNext designer support is split into small projects with separate responsibilities.
 Atomic edit transactions, per-document undo/redo history, save revisions, and editor integration
