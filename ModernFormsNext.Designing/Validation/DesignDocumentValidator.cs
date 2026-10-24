@@ -10,7 +10,7 @@ namespace ModernFormsNext.Designing;
 /// non-empty names, C# identifier validity, duplicate control names, non-negative
 /// sizes, and non-empty control type names.
 /// </remarks>
-public sealed class DesignDocumentValidator
+public sealed partial class DesignDocumentValidator
 {
     /// <summary>Gets the maximum number of authored nodes in one bounded designer graph.</summary>
     /// <remarks>This matches the established Designer clipboard node budget; item data is not a control node.</remarks>
@@ -60,7 +60,8 @@ public sealed class DesignDocumentValidator
     /// <returns>Structural errors for cycles, shared node identities, malformed collections, limits or known page slots.</returns>
     /// <remarks>
     /// This iterative preflight invokes no runtime control, application constructor, factory or converter.
-    /// Names and ordinary property values remain editable and are checked by Validate, not this preflight.
+    /// Primitive value shapes, finite numbers, collection cardinality and data budgets are checked
+    /// without invoking runtime setters. Other editable member semantics are checked by Validate or hosts.
     /// Hosts can reject malformed graphs before changing the active document or normalizing its children.
     /// </remarks>
     public DesignDocumentValidationResult ValidateStructure(DesignDocument document)
@@ -72,6 +73,16 @@ public sealed class DesignDocumentValidator
             result.AddError("Designer root collections must not be null.");
             return result;
         }
+        if (document.Size.Width < 0 || document.Size.Height < 0)
+        { result.AddError("The design root size cannot contain negative dimensions."); return result; }
+        var values = new ValueValidationContext(result, MaximumPropertyValueCount, MaximumTextLength);
+        values.AddText(document.Namespace, MaximumTypeNameLength);
+        values.AddText(document.ClassName, MaximumTypeNameLength);
+        values.AddText(document.FormName, MaximumTypeNameLength);
+        values.AddText(document.Metadata?.ToolName, MaximumTypeNameLength);
+        values.ValidateProperties(document.Properties);
+        values.ValidateEvents(document.Events);
+        if (!result.IsValid) return result;
         if (document.Controls.Count > MaximumNodeCount)
         {
             result.AddError($"Designer graphs support at most {MaximumNodeCount} control nodes.");
@@ -93,6 +104,15 @@ public sealed class DesignDocumentValidator
             { result.AddError($"Designer control depth must not exceed {MaximumTreeDepth}."); continue; }
             if (node.Children is null || node.Properties is null || node.Events is null)
             { result.AddError($"Control '{node.Name}' collections must not be null."); continue; }
+            if (node.Bounds.Width < 0 || node.Bounds.Height < 0
+                || (long)node.Bounds.X + node.Bounds.Width > int.MaxValue
+                || (long)node.Bounds.Y + node.Bounds.Height > int.MaxValue)
+            { result.AddError("Authored bounds require non-negative dimensions and representable right/bottom edges."); continue; }
+            values.AddText(node.Name, MaximumTypeNameLength);
+            values.AddText(node.TypeName, MaximumTypeNameLength);
+            values.ValidateProperties(node.Properties);
+            values.ValidateEvents(node.Events);
+            if (!result.IsValid) break;
             if (node.Children.Any(child => child is null))
             { result.AddError($"Control '{node.Name}' contains a null authored child."); continue; }
             if (DesignPageContainers.GetChildError(node) is { } pageError)

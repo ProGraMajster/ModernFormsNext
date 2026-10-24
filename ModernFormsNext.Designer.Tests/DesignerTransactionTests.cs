@@ -366,7 +366,12 @@ public sealed class DesignerTransactionTests
             var snapshot = DesignerModelMutationSnapshot.CaptureNode(button);
             button.Properties["Data"] = DesignPropertyValue.FromStructuredObject(
                 "PathGeometry",
-                new Dictionary<string, DesignPropertyValue> { ["Figures"] = DesignPropertyValue.FromInt32(2) });
+                new Dictionary<string, DesignPropertyValue>
+                {
+                    ["FigureCount"] = DesignPropertyValue.FromInt32(1),
+                    ["Figure0"] = DesignPropertyValue.FromStructuredObject("PathFigure",
+                        new Dictionary<string, DesignPropertyValue> { ["SegmentCount"] = DesignPropertyValue.FromInt32(0) })
+                });
             snapshot.RecordChanges(session.Transactions);
             transaction.Commit();
         }

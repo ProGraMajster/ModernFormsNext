@@ -13,6 +13,8 @@ internal sealed class DesignerPagePreview : IDisposable
 {
     internal const int MaximumNodes = 256;
     internal const int MaximumDepth = 16;
+    internal const int MaximumPropertyValues = 2048;
+    internal const int MaximumPropertyTextLength = 64 * 1024;
     private readonly List<Control> owned = [];
     internal Dictionary<DesignControlNode, Control> Controls { get; } = [];
     internal Control Root { get; private set; } = null!;
@@ -28,6 +30,7 @@ internal sealed class DesignerPagePreview : IDisposable
         var validation = new DesignDocumentValidator().ValidateStructure(document);
         if (!validation.IsValid) { error = string.Join(" ", validation.Errors); return null; }
         var pending = new Stack<(DesignControlNode Node, int Depth)>();
+        var values = new List<DesignPropertyValue?>();
         pending.Push((node, 0));
         int count = 0;
         while (pending.TryPop(out var item))
@@ -37,8 +40,13 @@ internal sealed class DesignerPagePreview : IDisposable
             var type = DesignerSurfaceRenderer.ResolveFrameworkControlType(item.Node.TypeName);
             if (type is null || type.IsAbstract || !typeof(Control).IsAssignableFrom(type) || type.GetConstructor(Type.EmptyTypes) is null)
             { error = $"Page preview requires a known framework control: {item.Node.TypeName}."; return null; }
+            if (item.Node.Properties.Count > MaximumPropertyValues - values.Count)
+            { error = "Page preview exceeds its property value budget."; return null; }
+            values.AddRange(item.Node.Properties.Values);
             foreach (var child in item.Node.Children) pending.Push((child, item.Depth + 1));
         }
+        var valueValidation = new DesignDocumentValidator().ValidatePropertyValues(values, MaximumPropertyValues, MaximumPropertyTextLength);
+        if (!valueValidation.IsValid) { error = string.Join(" ", valueValidation.Errors); return null; }
         var preview = new DesignerPagePreview();
         try
         {

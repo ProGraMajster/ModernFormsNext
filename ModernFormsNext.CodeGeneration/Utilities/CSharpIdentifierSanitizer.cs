@@ -29,14 +29,24 @@ public static class CSharpIdentifierSanitizer
     // directives, statements or constructor syntax can cross into generated source.
     internal static bool IsValidTypeName(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.Length > 16_384)
+        if (string.IsNullOrWhiteSpace(value) || value.Length > DesignDocumentValidator.MaximumTypeNameLength)
             return false;
+        Span<char> delimiters = stackalloc char[64];
         int nesting = 0;
         foreach (char character in value)
         {
-            if (character is '<' or '[' or '(' && ++nesting > 64) return false;
-            if (character is '>' or ']' or ')') nesting--;
+            if (character is '<' or '[' or '(')
+            {
+                if (nesting == delimiters.Length) return false;
+                delimiters[nesting++] = character;
+            }
+            else if (character is '>' or ']' or ')')
+            {
+                char expected = character switch { '>' => '<', ']' => '[', _ => '(' };
+                if (nesting == 0 || delimiters[--nesting] != expected) return false;
+            }
         }
+        if (nesting != 0) return false;
         var syntax = SyntaxFactory.ParseTypeName(value, consumeFullText: true);
         // Roslyn can leave trailing directives on the unreturned end-of-file token.
         // Require exact full-text coverage as well as valid syntax and safe trivia.

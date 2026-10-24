@@ -6,6 +6,10 @@ namespace ModernFormsNext.Designing;
 
 internal sealed class DesignPropertyValueJsonConverter : JsonConverter<DesignPropertyValue>
 {
+    // JSON null is a valid authored literal, not a missing model entry. Ask System.Text.Json
+    // to route it through Read so the canonical FromNull value survives a file round trip.
+    public override bool HandleNull => true;
+
     public override DesignPropertyValue? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         return reader.TokenType switch

@@ -14,12 +14,17 @@ public static class CSharpLiteralWriter
     /// </summary>
     /// <param name="value">The designer property value, or <see langword="null"/> for a literal null assignment.</param>
     /// <returns>A C# expression representing the value.</returns>
-    /// <exception cref="FormatException">A type name or enum member contains unsupported C# syntax.</exception>
+    /// <exception cref="FormatException">The data shape, geometry, names or value budgets are invalid.</exception>
     public static string WriteValue(DesignPropertyValue? value)
     {
         if (value is null)
             return "null";
+        ValidateSourceNames(value);
+        return WriteValueCore(value);
+    }
 
+    private static string WriteValueCore(DesignPropertyValue value)
+    {
         return value.Kind switch
         {
             DesignPropertyValueKind.Null => "null",
@@ -38,10 +43,13 @@ public static class CSharpLiteralWriter
     /// </summary>
     /// <param name="value">The string to write.</param>
     /// <returns>A C# string literal.</returns>
+    /// <exception cref="FormatException">The string exceeds the shared designer text budget.</exception>
     public static string WriteStringLiteral(string? value)
     {
         if (value is null)
             return "null";
+        if (value.Length > DesignDocumentValidator.MaximumTextLength)
+            throw new FormatException("The designer string exceeds the supported text budget.");
 
         var builder = new StringBuilder(value.Length + 2);
         builder.Append('"');
@@ -60,7 +68,8 @@ public static class CSharpLiteralWriter
                 '\r' => "\\r",
                 '\t' => "\\t",
                 '\v' => "\\v",
-                _ when char.IsControl(character) => "\\u" + ((int)character).ToString("x4", CultureInfo.InvariantCulture),
+                _ when char.IsControl(character) || char.IsSurrogate(character) || character is '\u2028' or '\u2029'
+                    => "\\u" + ((int)character).ToString("x4", CultureInfo.InvariantCulture),
                 _ => character.ToString()
             });
         }
@@ -78,6 +87,8 @@ public static class CSharpLiteralWriter
 
         if (!CSharpIdentifierSanitizer.IsValidTypeName(value.EnumTypeName))
             throw new FormatException("The enum type name is not a supported C# type name.");
+        if (memberName.Count(character => character == ',') >= 256)
+            throw new FormatException("The designer enum value exceeds the supported member count.");
 
         var members = memberName.Split(
             ',',
@@ -174,7 +185,7 @@ public static class CSharpLiteralWriter
         if (IsType(typeName, "ModernFormsNext.Font"))
         {
             var name = WriteStringLiteral(ReadString(properties, "Name", "Segoe UI"));
-            var size = ReadDouble(properties, "Size", 9).ToString("R", CultureInfo.InvariantCulture) + "f";
+            var size = ReadFloat(properties, "Size", 9);
             var style = WriteFontStyle(properties);
             return $"new Font({name}, {size}, {style})";
         }
@@ -210,7 +221,7 @@ public static class CSharpLiteralWriter
         if (IsType(typeName, "ModernFormsNext.Drawing.SolidColorBrush"))
         {
             var color = properties.TryGetValue("Color", out var colorValue)
-                ? WriteValue(colorValue)
+                ? WriteValueCore(colorValue)
                 : "new SkiaSharp.SKColor(255, 255, 255, 255)";
             return $"new ModernFormsNext.Drawing.SolidColorBrush({color}) {{ {WriteBrushProperties(properties)} }}";
         }
@@ -271,6 +282,9 @@ public static class CSharpLiteralWriter
     // values and table-layout arguments. This invokes no type resolution or user code.
     internal static void ValidateSourceNames(DesignPropertyValue? value)
     {
+        if (value is null) return;
+        var data = new DesignDocumentValidator().ValidatePropertyValue(value);
+        if (!data.IsValid) throw new FormatException(string.Join(" ", data.Errors));
         var pending = new Stack<(DesignPropertyValue Value, int Depth, bool Exit)>();
         var ancestors = new HashSet<DesignPropertyValue>(ReferenceEqualityComparer.Instance);
         if (value is not null) pending.Push((value, 0, false));
@@ -293,8 +307,11 @@ public static class CSharpLiteralWriter
     }
 
     private static bool IsType(string actual, string expected)
-        => string.Equals(actual, expected, StringComparison.Ordinal)
-        || string.Equals(actual, expected.Split('.').Last(), StringComparison.Ordinal);
+    {
+        if (actual.StartsWith("global::", StringComparison.Ordinal)) actual = actual[8..];
+        return string.Equals(actual, expected, StringComparison.Ordinal)
+            || string.Equals(actual, expected[(expected.LastIndexOf('.') + 1)..], StringComparison.Ordinal);
+    }
 
     private static int ReadInt(IReadOnlyDictionary<string, DesignPropertyValue> properties, string name, int fallback = 0)
         => properties.TryGetValue(name, out var value) && value is not null
@@ -310,7 +327,11 @@ public static class CSharpLiteralWriter
             : fallback;
 
     private static string ReadFloat(IReadOnlyDictionary<string, DesignPropertyValue> properties, string name, double fallback = 0)
-        => ((float)ReadDouble(properties, name, fallback)).ToString("R", CultureInfo.InvariantCulture) + "f";
+    {
+        float number = (float)ReadDouble(properties, name, fallback);
+        if (!float.IsFinite(number)) throw new FormatException("The designer numeric value exceeds the finite Single range.");
+        return number.ToString("R", CultureInfo.InvariantCulture) + "f";
+    }
 
     private static string ReadString(IReadOnlyDictionary<string, DesignPropertyValue> properties, string name, string fallback = "")
         => properties.TryGetValue(name, out var value) && value is not null
@@ -322,7 +343,7 @@ public static class CSharpLiteralWriter
         string name,
         string fallback)
         => properties.TryGetValue(name, out var value) && value is not null
-            ? WriteValue(value)
+            ? WriteValueCore(value)
             : fallback;
 
     private static string ReadBoolLiteral(
@@ -330,7 +351,7 @@ public static class CSharpLiteralWriter
         string name,
         bool fallback = false)
         => properties.TryGetValue(name, out var value) && value is not null
-            ? WriteValue(value)
+            ? WriteValueCore(value)
             : fallback ? "true" : "false";
 
     private static string WriteBrushProperties(IReadOnlyDictionary<string, DesignPropertyValue> properties)
@@ -345,7 +366,7 @@ public static class CSharpLiteralWriter
         IReadOnlyDictionary<string, DesignPropertyValue> properties,
         string name)
         => properties.TryGetValue(name, out DesignPropertyValue? value) && value is not null
-            ? $", {name} = {WriteValue(value)}"
+            ? $", {name} = {WriteValueCore(value)}"
             : string.Empty;
 
     private static string WriteGradientStopsInitializer(IReadOnlyDictionary<string, DesignPropertyValue> properties)
@@ -378,7 +399,7 @@ public static class CSharpLiteralWriter
         for (int index = 0; index < count; index++)
         {
             if (properties.TryGetValue($"Point{index}", out DesignPropertyValue? point))
-                points.Add(WriteValue(point));
+                points.Add(WriteValueCore(point));
         }
         return points.Count == 0
             ? "new ModernFormsNext.Drawing.PointCollection()"
@@ -387,7 +408,7 @@ public static class CSharpLiteralWriter
 
     private static string WriteGeometryInitializer(IReadOnlyDictionary<string, DesignPropertyValue> properties)
         => properties.TryGetValue("Transform", out DesignPropertyValue? transform)
-            ? $" {{ Transform = {WriteValue(transform)} }}"
+            ? $" {{ Transform = {WriteValueCore(transform)} }}"
             : string.Empty;
 
     private static string WritePathGeometry(IReadOnlyDictionary<string, DesignPropertyValue> properties)

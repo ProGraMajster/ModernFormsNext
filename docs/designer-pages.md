@@ -71,6 +71,48 @@ nested structured values use the same boundary. Invalid source names fail genera
 diagnostics and **empty code**, rather than returning a partially usable initializer. Names are
 never repaired by silently stripping input, and validation does not resolve or execute types.
 Structured object types still use the existing explicit literal allow-list.
+The same neutral data preflight runs before file writes, generation and preview conversion.
+It admits at most **10,000 property values and event entries**, counting nested and repeated
+values, and **4,194,304 UTF-16 characters** across authored strings. Individual type/member
+names are limited to **16,384 characters**. Property nesting is bounded to depth 96; active
+value cycles, missing entries, mismatched primitive kinds and non-finite numbers are errors.
+Sharing an immutable value in separate properties remains supported.
+
+Known geometry collections must declare a non-negative integer count and contain exactly their
+canonical indexed elements with known data shapes. Points, rectangles and transforms require
+finite coordinates that remain finite after conversion to their runtime floating-point type.
+Authored control bounds require non-negative dimensions and representable right/bottom edges;
+root dimensions cannot be negative.
+Unknown metadata can remain neutral stored data; preview never substitutes an empty geometry
+for an unsupported type. Preview has smaller limits of **2,048 property values** and **65,536
+UTF-16 characters** per subtree, checked before constructing controls.
+The shared runtime preview painter also limits its temporary device bitmap to **8,192 pixels
+per edge** and **16,777,216 pixels total** before allocation. These limits apply after DPI and
+zoom; an over-budget destination produces a diagnostic rather than a silently resized preview.
+Temporary bitmap allocation failures are reported through the same preview diagnostic path.
+
+Document JSON is limited to **4,194,304 UTF-16 characters**, including migration output and
+bounded file reads. Duplicate JSON member names and excessive JSON value counts are rejected.
+Saving validates the complete model and serialized length before creating a temporary file,
+so rejected data leaves the existing destination unchanged. These are tooling data limits,
+not a claim that project code or arbitrary converters are safe to execute.
+
+A tooling host can apply a smaller budget to a borrowed set of property values without
+constructing runtime objects. This checks that set, while `ValidateStructure(document)` checks
+the complete document, including ownership, root and child values:
+
+```csharp
+using ModernFormsNext.Designing;
+
+var validator = new DesignDocumentValidator();
+var result = validator.ValidatePropertyValues(
+    document.Properties.Values,
+    maximumValueCount: 2_048,
+    maximumTextLength: 65_536);
+foreach (var error in result.Errors)
+    Console.WriteLine(error);
+```
+
 Informational source-name and hash header comments escape C# line terminators, including Unicode
 line/paragraph separators, while leaving the caller's stored metadata unchanged.
 
