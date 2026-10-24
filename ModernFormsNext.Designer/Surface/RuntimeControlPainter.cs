@@ -8,6 +8,10 @@ namespace ModernFormsNext.Designer.Surface;
 
 internal static class RuntimeControlPainter
 {
+    // Bound device allocation independently of authored logical coordinates, DPI and zoom.
+    // At four bytes per pixel the admitted temporary bitmap uses at most 64 MiB.
+    internal const int MaximumBitmapDimension = 8192;
+    internal const int MaximumBitmapPixelCount = 16 * 1024 * 1024;
     private static readonly BindingFlags PaintMethodFlags = BindingFlags.Instance | BindingFlags.NonPublic;
     private static readonly MethodInfo? RaisePaintBackgroundMethod = typeof(Control).GetMethod("RaisePaintBackground", PaintMethodFlags);
     private static readonly MethodInfo? RaisePaintMethod = typeof(Control).GetMethod("RaisePaint", PaintMethodFlags);
@@ -26,26 +30,33 @@ internal static class RuntimeControlPainter
         if (logicalSize.Width <= 0 || logicalSize.Height <= 0 || destination.Width <= 0 || destination.Height <= 0)
             return true;
 
-        var deviceImageInfo = new SKImageInfo(destination.Width, destination.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
-        var logicalImageInfo = new SKImageInfo(logicalSize.Width, logicalSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
-
-        using var bitmap = new SKBitmap(deviceImageInfo);
-        using var canvas = new SKCanvas(bitmap);
-        canvas.Clear(SKColors.Transparent);
-
-        // Runtime preview controls are intentionally detached from a real window, so their
-        // ScaleFactor is 1. Keep their entire layout and paint pass in logical 96-DPI units and
-        // scale the canvas once to the preview's device-pixel destination. Passing the monitor DPI
-        // through PaintEventArgs would scale fonts and paint metrics while ClientRectangle stayed
-        // unscaled, producing the smaller control visible inside a larger high-DPI rectangle.
-        canvas.Scale(
-            destination.Width / (float)logicalSize.Width,
-            destination.Height / (float)logicalSize.Height);
-
-        var controlPaintArgs = new PaintEventArgs(logicalImageInfo, canvas, scaling: 1d);
+        if (destination.Width > MaximumBitmapDimension || destination.Height > MaximumBitmapDimension
+            || (long)destination.Width * destination.Height > MaximumBitmapPixelCount)
+        {
+            error = $"Preview bitmap exceeds {MaximumBitmapDimension} device pixels per edge or {MaximumBitmapPixelCount} pixels in total.";
+            return false;
+        }
 
         try
         {
+            var deviceImageInfo = new SKImageInfo(destination.Width, destination.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+            var logicalImageInfo = new SKImageInfo(logicalSize.Width, logicalSize.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+
+            using var bitmap = new SKBitmap(deviceImageInfo);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);
+
+            // Runtime preview controls are intentionally detached from a real window, so their
+            // ScaleFactor is 1. Keep their entire layout and paint pass in logical 96-DPI units and
+            // scale the canvas once to the preview's device-pixel destination. Passing the monitor DPI
+            // through PaintEventArgs would scale fonts and paint metrics while ClientRectangle stayed
+            // unscaled, producing the smaller control visible inside a larger high-DPI rectangle.
+            canvas.Scale(
+                destination.Width / (float)logicalSize.Width,
+                destination.Height / (float)logicalSize.Height);
+
+            var controlPaintArgs = new PaintEventArgs(logicalImageInfo, canvas, scaling: 1d);
+
             // Paint into an isolated surface first. Runtime background drawing clears the
             // canvas, so doing it directly on the designer surface would erase the workspace.
             if (!TryRaiseRuntimePaint(control, controlPaintArgs, out error))

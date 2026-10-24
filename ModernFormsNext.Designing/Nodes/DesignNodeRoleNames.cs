@@ -35,4 +35,10 @@ public static class DesignNodeRoleNames
     /// Gets the role value used for the second panel of a split container.
     /// </summary>
     public const string SplitContainerPanel2 = "SplitContainer.Panel2";
+
+    /// <summary>Identifies the authored Page assigned to FlyoutPage.Flyout.</summary>
+    public const string FlyoutPageFlyout = "FlyoutPage.Flyout";
+
+    /// <summary>Identifies the authored Page assigned to FlyoutPage.Detail.</summary>
+    public const string FlyoutPageDetail = "FlyoutPage.Detail";
 }

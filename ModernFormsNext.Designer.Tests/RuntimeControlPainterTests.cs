@@ -47,14 +47,39 @@ public sealed class RuntimeControlPainterTests
         Assert.Equal(0, targetBitmap.GetPixel(destination.Right + 1, destination.Bottom + 1).Alpha);
     }
 
+    [Theory]
+    [InlineData(8193, 1)]
+    [InlineData(1, 8193)]
+    [InlineData(8192, 2049)]
+    [InlineData(4097, 4096)]
+    public void OversizedDevicePreviewIsRejectedBeforePainting(int width, int height)
+    {
+        var info = new SKImageInfo(16, 16, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+        using var bitmap = new SKBitmap(info);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        using var control = new LogicalFillControl { Bounds = new Rectangle(0, 0, 16, 16) };
+
+        bool painted = RuntimeControlPainter.TryPaint(new PaintEventArgs(info, canvas, 1d), control,
+            new Size(16, 16), new Rectangle(0, 0, width, height), out var diagnostics, out var error);
+
+        Assert.False(painted);
+        Assert.Contains("Preview bitmap exceeds", error);
+        Assert.Equal(0, control.PaintCount);
+        Assert.Equal(default, diagnostics);
+        Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
+    }
+
     private sealed class LogicalFillControl : Control
     {
+        public int PaintCount { get; private set; }
         protected override void OnPaintBackground(PaintEventArgs e)
         {
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
+            PaintCount++;
             e.Canvas.FillRectangle(new Rectangle(0, 0, Width, Height), SKColors.Red);
         }
     }

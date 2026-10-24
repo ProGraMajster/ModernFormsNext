@@ -14,6 +14,9 @@ namespace ModernFormsNext.Designing;
 /// </remarks>
 public sealed class DesignDocumentSerializer
 {
+    /// <summary>Gets the maximum document JSON length in UTF-16 characters.</summary>
+    /// <remarks>Applied before parsing, after migrations and before replacing a saved document.</remarks>
+    public const int MaximumContentLength = DesignDocumentValidator.MaximumTextLength;
     private const string FormatVersionJsonPath = "$.metadata.formatVersion";
     private static readonly UTF8Encoding Utf8WithoutBom = new(
         encoderShouldEmitUTF8Identifier: false,
@@ -73,12 +76,16 @@ public sealed class DesignDocumentSerializer
     /// </summary>
     /// <param name="document">The document to serialize.</param>
     /// <returns>A readable JSON representation of the document.</returns>
+    /// <exception cref="InvalidOperationException">The model is malformed or exceeds the documented data or JSON limits.</exception>
     public string Serialize(DesignDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
         EnsureCurrentDocumentFormat(document);
-
-        return JsonSerializer.Serialize(document, Options);
+        var validation = new DesignDocumentValidator().ValidateStructure(document);
+        if (!validation.IsValid) throw new InvalidOperationException(string.Join(" ", validation.Errors));
+        string json = JsonSerializer.Serialize(document, Options);
+        if (json.Length > MaximumContentLength) throw new InvalidOperationException("The designer document exceeds the supported JSON text budget.");
+        return json;
     }
 
     /// <summary>
@@ -88,7 +95,7 @@ public sealed class DesignDocumentSerializer
     /// <returns>The deserialized designer document.</returns>
     /// <exception cref="JsonException">
     /// Thrown when the JSON cannot be parsed, declares an unsupported format version, or cannot be
-    /// migrated to the current designer document format.
+    /// migrated to the current designer document format, contains duplicate members, or exceeds data limits.
     /// </exception>
     public DesignDocument Deserialize(string json)
     {
@@ -102,7 +109,7 @@ public sealed class DesignDocumentSerializer
     /// <returns>The deserialized document together with migration and compatibility diagnostics.</returns>
     /// <exception cref="JsonException">
     /// Thrown when the JSON is malformed, declares an unsupported format version, or a registered
-    /// migration fails to produce its declared target version.
+    /// migration fails to produce its declared target version, or input/output exceeds data limits.
     /// </exception>
     public DesignDocumentDeserializationResult DeserializeWithDiagnostics(string json)
     {
@@ -198,6 +205,8 @@ public sealed class DesignDocumentSerializer
         DesignDocument document = JsonSerializer.Deserialize<DesignDocument>(currentJson, Options)
             ?? throw new JsonException("The JSON did not contain a designer document.");
         EnsureCurrentDocumentFormat(document);
+        var validation = new DesignDocumentValidator().ValidateStructure(document);
+        if (!validation.IsValid) throw new JsonException(string.Join(" ", validation.Errors));
 
         return new DesignDocumentDeserializationResult(
             document,
@@ -287,7 +296,7 @@ public sealed class DesignDocumentSerializer
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return Deserialize(File.ReadAllText(path));
+        return Deserialize(ReadBoundedDocument(path));
     }
 
     /// <summary>
@@ -302,7 +311,7 @@ public sealed class DesignDocumentSerializer
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return DeserializeWithDiagnostics(File.ReadAllText(path));
+        return DeserializeWithDiagnostics(ReadBoundedDocument(path));
     }
 
     private static IReadOnlyDictionary<int, IDesignDocumentMigration> CreateMigrationMap(
@@ -356,8 +365,11 @@ public sealed class DesignDocumentSerializer
 
     private static FormatVersionInspection InspectFormatVersion(string json)
     {
+        if (json.Length > MaximumContentLength)
+            throw new JsonException("The designer document exceeds the supported JSON text budget.");
         using JsonDocument parsed = JsonDocument.Parse(json);
         JsonElement root = parsed.RootElement;
+        ValidateJsonStructure(root);
         if (root.ValueKind != JsonValueKind.Object)
         {
             throw new JsonException(
@@ -426,6 +438,55 @@ public sealed class DesignDocumentSerializer
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
 
         return options;
+    }
+
+    private static string ReadBoundedDocument(string path)
+    {
+        // Read at most the admitted character count, including BOM-detected encodings.
+        // Checking FileInfo.Length alone would leave a race with a concurrently growing file.
+        using var reader = new StreamReader(path);
+        var text = new StringBuilder();
+        var buffer = new char[4096];
+        int read;
+        while ((read = reader.Read(buffer, 0, buffer.Length)) != 0)
+        {
+            if (read > MaximumContentLength - text.Length)
+                throw new JsonException("The designer document exceeds the supported JSON text budget.");
+            text.Append(buffer, 0, read);
+        }
+        return text.ToString();
+    }
+
+    private static void ValidateJsonStructure(JsonElement root)
+    {
+        const int maximumTokens = DesignDocumentValidator.MaximumNodeCount * 32
+            + DesignDocumentValidator.MaximumPropertyValueCount * 4;
+        var pending = new Stack<JsonElement>();
+        pending.Push(root);
+        int visited = 0;
+        while (pending.TryPop(out var element))
+        {
+            if (++visited > maximumTokens)
+                throw new JsonException("The designer document exceeds the supported JSON value budget.");
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var names = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (!names.Add(property.Name)) throw new JsonException("Duplicate designer JSON members are not supported.");
+                    if (pending.Count >= maximumTokens - visited)
+                        throw new JsonException("The designer document exceeds the supported JSON value budget.");
+                    pending.Push(property.Value);
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+                foreach (var child in element.EnumerateArray())
+                {
+                    if (pending.Count >= maximumTokens - visited)
+                        throw new JsonException("The designer document exceeds the supported JSON value budget.");
+                    pending.Push(child);
+                }
+        }
     }
 
     private readonly record struct FormatVersionInspection(int? DeclaredVersion, int EffectiveVersion);

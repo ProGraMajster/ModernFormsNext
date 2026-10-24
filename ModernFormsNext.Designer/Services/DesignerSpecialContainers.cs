@@ -19,16 +19,22 @@ internal static class DesignerSpecialContainers
 
     public static void NormalizeDocument(DesignDocument document)
     {
+        var validation = new DesignDocumentValidator().ValidateStructure(document);
+        if (!validation.IsValid)
+            throw new ArgumentException(string.Join(Environment.NewLine, validation.Errors), nameof(document));
         foreach (var node in document.Controls)
-            NormalizeNode(node);
+            NormalizeNodeCore(node);
     }
 
     public static void NormalizeNode(DesignControlNode node)
+        => NormalizeDocument(new DesignDocument { Controls = { node } });
+
+    private static void NormalizeNodeCore(DesignControlNode node)
     {
         EnsureSpecialChildren(node);
 
         foreach (var child in node.Children)
-            NormalizeNode(child);
+            NormalizeNodeCore(child);
     }
 
     public static void InitializeNewNode(DesignControlNode node)

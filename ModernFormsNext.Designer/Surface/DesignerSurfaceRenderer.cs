@@ -150,7 +150,7 @@ internal sealed class DesignerSurfaceRenderer
         int offsetY,
         HashSet<string> previewStack)
     {
-        if (!DesignerLayoutProperties.IsVisible(node))
+        if (!DesignerLayoutProperties.IsVisible(node) || layout.GetVisibleBounds(state.Document, node).Width <= 0)
             return;
 
         var localAbsolute = layout.GetEffectiveBounds(node);
@@ -190,7 +190,22 @@ internal sealed class DesignerSurfaceRenderer
             DrawPlaceholder(previewPaintArgs, node, bounds);
         }
 
-        if (node.Children.Count > 0 && !isProjectUserControl)
+        var paintedPageTree = state.ControlRenderMode == DesignerControlRenderMode.Runtime
+            && DesignerPagePreview.IsPageContainer(node) && !isProjectUserControl;
+        if (paintedPageTree && state.SelectedNode is { } selectedChild && !ReferenceEquals(selectedChild, node)
+            && layout.GetVisibleBounds(state.Document, selectedChild) is { Width: > 0, Height: > 0 })
+        {
+            for (var parent = state.FindParent(selectedChild); parent is not null; parent = state.FindParent(parent))
+                if (ReferenceEquals(parent, node))
+                {
+                    var selectedBounds = coordinateMapper.ToSurfaceBounds(Offset(layout.GetEffectiveBounds(selectedChild), offsetX, offsetY), view);
+                    DesignerSelectionAdorner.Draw(surfacePaintArgs,
+                        DesignerDpiCoordinateConverter.LogicalToDevice(selectedBounds, surfacePaintArgs.Scaling),
+                        DesignerLayoutProperties.GetResizeHandles(selectedChild));
+                    break;
+                }
+        }
+        if (node.Children.Count > 0 && !isProjectUserControl && !paintedPageTree)
         {
             surfacePaintArgs.Canvas.Save();
             surfacePaintArgs.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
@@ -547,6 +562,18 @@ internal sealed class DesignerSurfaceRenderer
         DesignBounds logicalBounds,
         System.Drawing.Rectangle deviceBounds)
     {
+        if (DesignerPagePreview.IsPageContainer(node))
+        {
+            var size = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
+            using var pagePreview = DesignerPagePreview.TryCreate(node, size, out var pageError);
+            if (pagePreview is null || !RuntimeControlPainter.TryPaint(surfacePaintArgs, pagePreview.Root, size,
+                deviceBounds, out _, out pageError))
+            {
+                LogRuntimeRenderFailure(state, node, pageError ?? "Page preview unavailable.");
+                DrawUnknown(previewPaintArgs, node, deviceBounds);
+            }
+            return; // The production paint pass already includes authored and implicit children.
+        }
         var saved = false;
 
         try
@@ -601,18 +628,26 @@ internal sealed class DesignerSurfaceRenderer
         }
     }
 
-    private static Type? ResolveFrameworkControlType(string typeName)
+    internal static Type? ResolveFrameworkControlType(string typeName)
     {
         // Preview rendering resolves types only from the already-loaded framework assembly. Using
         // Type.GetType for an assembly-qualified project type could load user binaries before the
         // custom UserControl boundary is recognized, which would violate the data-only contract.
-        var normalized = DesignerProjectUserControlDiscovery.NormalizeTypeName(typeName);
+        if (string.IsNullOrWhiteSpace(typeName)) return null;
+        var normalized = typeName.Trim();
+        if (normalized.StartsWith("global::", StringComparison.Ordinal)) normalized = normalized[8..];
+        // Only exact metadata identifiers reach reflection: no assembly-qualified generic
+        // arguments, arrays, embedded NUL truncation or other CLR type-name expressions.
+        if (!normalized.Split('.').All(DesignDocumentValidator.IsValidCSharpIdentifier)) return null;
         var frameworkAssembly = typeof(Control).Assembly;
         return frameworkAssembly.GetType(normalized, throwOnError: false)
             ?? frameworkAssembly.GetType($"ModernFormsNext.{normalized}", throwOnError: false);
     }
 
     private static int ApplyNodeProperties(Control control, DesignControlNode node, List<string> propertyErrors)
+        => ApplyPreviewProperties(control, node, propertyErrors, includeLayout: false);
+
+    internal static int ApplyPreviewProperties(Control control, DesignControlNode node, List<string> propertyErrors, bool includeLayout)
     {
         var appliedCount = 0;
 
@@ -620,7 +655,16 @@ internal sealed class DesignerSurfaceRenderer
         {
             var propertyPath = NormalizeRuntimePropertyPath(property.Key);
 
-            if (IsDesignerAuthoredLayoutProperty(propertyPath))
+            if (!includeLayout && IsDesignerAuthoredLayoutProperty(propertyPath))
+                continue;
+            if (propertyPath is DesignNodeRoleNames.RolePropertyName or DesignNodeRoleNames.DisplayNamePropertyName or DesignNodeRoleNames.DisplayTypePropertyName
+                || propertyPath is "TableColumn" or "TableRow" or "TableColumnSpan" or "TableRowSpan")
+                continue;
+            if (includeLayout && control is TabbedPage && propertyPath == "SelectedIndex")
+                continue;
+            var rootProperty = control.GetType().GetProperty(propertyPath.Split('.')[0], BindingFlags.Instance | BindingFlags.Public);
+            if (rootProperty is not null && DesignerPagePropertyValidator.HideProperty(control.GetType(), rootProperty)
+                && propertyPath != "Text")
                 continue;
 
             if (propertyPath.Contains('.', StringComparison.Ordinal))

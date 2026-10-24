@@ -153,7 +153,9 @@ managed page/tree cleanup. Synchronous request nesting is bounded at 32 and layo
 
 NativeViewHost retains its existing [airspace/composition limitations](native-view-hosting.md); these page
 containers do not introduce native controls, a renderer or a second application runtime. Runtime composition
-does not yet implement AppShell/routes or Designer/template authoring; those are the next children of #12.
+uses [AppShell/routes](app-shell-routing.md) where application navigation is required.
+[Designer page authoring](designer-pages.md) supports known static ownership and bounded preview;
+route factories and application callbacks stay explicit in user code.
 Native automated, emulator, physical-device, human IME/TalkBack/keyboard and interactive VS evidence remain
 separate qualification lanes.
 

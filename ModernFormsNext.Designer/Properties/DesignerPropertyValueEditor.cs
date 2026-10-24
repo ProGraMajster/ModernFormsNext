@@ -23,6 +23,7 @@ internal static class DesignerPropertyValueEditor
             null => string.Empty,
             bool boolValue => boolValue ? "True" : "False",
             TimeOnly time => time.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture),
+            TimeSpan duration => ((decimal)duration.Ticks / TimeSpan.TicksPerMillisecond).ToString(CultureInfo.InvariantCulture),
             DesignBounds bounds => $"{bounds.X}, {bounds.Y}, {bounds.Width}, {bounds.Height}",
             DesignSize size => $"{size.Width}, {size.Height}",
             DesignPoint point => $"{point.X}, {point.Y}",
@@ -91,6 +92,23 @@ internal static class DesignerPropertyValueEditor
             { value = time; error = null; return true; }
             value = null;
             error = "Expected invariant HH:mm, HH:mm:ss or HH:mm:ss.fffffff; use null for an empty nullable time.";
+            return false;
+        }
+
+        if (targetType == typeof(TimeSpan))
+        {
+            if (decimal.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal milliseconds))
+            {
+                try
+                {
+                    decimal ticks = milliseconds * TimeSpan.TicksPerMillisecond;
+                    if (ticks >= long.MinValue && ticks <= long.MaxValue && ticks == decimal.Truncate(ticks))
+                    { value = TimeSpan.FromTicks((long)ticks); error = null; return true; }
+                }
+                catch (OverflowException) { }
+            }
+            value = null;
+            error = "Expected invariant milliseconds within the TimeSpan range, in whole 100-nanosecond ticks.";
             return false;
         }
 
@@ -222,6 +240,8 @@ internal static class DesignerPropertyValueEditor
 
         if (value is null)
             return DesignPropertyValue.FromNull();
+
+        if (value is TimeSpan duration) return TimeSpanDesignValue.FromDuration(duration);
 
         if (targetType.IsEnum)
             return DesignPropertyValue.FromEnum(targetType.FullName ?? targetType.Name, value.ToString() ?? string.Empty);
@@ -371,8 +391,21 @@ internal static class DesignerPropertyValueEditor
     public static object? FromDesignPropertyValue(DesignPropertyValue value, Type valueType)
     {
         ArgumentNullException.ThrowIfNull(value);
+        var validation = new DesignDocumentValidator().ValidatePropertyValue(value);
+        if (!validation.IsValid) throw new FormatException(string.Join(" ", validation.Errors));
+        return ConvertValueCore(value, valueType);
+    }
 
+    private static object? ConvertValueCore(DesignPropertyValue value, Type valueType)
+    {
         var targetType = Nullable.GetUnderlyingType(valueType) ?? valueType;
+
+        if (targetType == typeof(TimeSpan))
+        {
+            if (value.Kind == DesignPropertyValueKind.Null && Nullable.GetUnderlyingType(valueType) is not null) return null;
+            if (!TimeSpanDesignValue.TryRead(value, out var duration, out var error)) throw new FormatException(error);
+            return duration;
+        }
 
         return value.Kind switch
         {
@@ -380,13 +413,20 @@ internal static class DesignerPropertyValueEditor
             DesignPropertyValueKind.String => value.Value?.ToString() ?? string.Empty,
             DesignPropertyValueKind.Boolean => Convert.ToBoolean(value.Value, CultureInfo.InvariantCulture),
             DesignPropertyValueKind.Int32 => Convert.ToInt32(value.Value, CultureInfo.InvariantCulture),
-            DesignPropertyValueKind.Double when targetType == typeof(float) => Convert.ToSingle(value.Value, CultureInfo.InvariantCulture),
+            DesignPropertyValueKind.Double when targetType == typeof(float) => ToFiniteSingle((double)value.Value!),
             DesignPropertyValueKind.Double => Convert.ToDouble(value.Value, CultureInfo.InvariantCulture),
             DesignPropertyValueKind.Enum when targetType.IsEnum && value.Value is string memberName => Enum.Parse(targetType, memberName),
             DesignPropertyValueKind.Enum => value.Value?.ToString(),
             DesignPropertyValueKind.Object => FromStructuredValue(value, targetType),
             _ => value.Value
         };
+    }
+
+    private static float ToFiniteSingle(double value)
+    {
+        float converted = (float)value;
+        if (!float.IsFinite(converted)) throw new FormatException("The preview numeric value exceeds the finite Single range.");
+        return converted;
     }
 
     public static DesignPropertyValue ToColorPropertyValue(SKColor color)
@@ -584,6 +624,8 @@ internal static class DesignerPropertyValueEditor
 
     private static object? FromStructuredValue(DesignPropertyValue value, Type targetType)
     {
+        if (!IsSupportedStructuredTarget(value, targetType))
+            throw new FormatException("The structured value type does not match its supported preview target.");
         var properties = value.ObjectProperties ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
 
         if (targetType == typeof(TimeOnly))
@@ -774,7 +816,7 @@ internal static class DesignerPropertyValueEditor
         {
             geometry = new ModernFormsNext.Drawing.EllipseGeometry(ReadRectangleF(properties, "Rect"));
         }
-        else
+        else if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.PathGeometry)))
         {
             var path = new ModernFormsNext.Drawing.PathGeometry();
             if (properties.TryGetValue("FillRule", out DesignPropertyValue? fillRuleValue)
@@ -791,6 +833,7 @@ internal static class DesignerPropertyValueEditor
             }
             geometry = path;
         }
+        else throw new FormatException("The structured geometry type is not supported by preview.");
 
         if (properties.TryGetValue("Transform", out DesignPropertyValue? transformValue)
             && FromDesignPropertyValue(transformValue, typeof(Matrix3x2)) is Matrix3x2 transform)
@@ -1414,8 +1457,34 @@ internal static class DesignerPropertyValueEditor
     }
 
     private static bool IsStructuredType(DesignPropertyValue value, Type type)
-        => string.Equals(value.ObjectTypeName, type.FullName, StringComparison.Ordinal)
-        || string.Equals(value.ObjectTypeName, type.Name, StringComparison.Ordinal);
+    {
+        string? name = value.ObjectTypeName;
+        if (name?.StartsWith("global::", StringComparison.Ordinal) == true) name = name[8..];
+        return string.Equals(name, type.FullName, StringComparison.Ordinal)
+            || string.Equals(name, type.Name, StringComparison.Ordinal);
+    }
+
+    private static bool IsSupportedStructuredTarget(DesignPropertyValue value, Type targetType)
+    {
+        if (targetType == typeof(object) || IsStructuredType(value, targetType)) return true;
+        // Bounds use neutral designer structs in some editing paths and ordinary drawing
+        // structs in controls. Preserve only these established, equivalent data shapes.
+        if ((targetType == typeof(DesignBounds) && IsStructuredType(value, typeof(System.Drawing.Rectangle)))
+            || (targetType == typeof(System.Drawing.Rectangle) && IsStructuredType(value, typeof(DesignBounds)))
+            || (targetType == typeof(DesignSize) && IsStructuredType(value, typeof(System.Drawing.Size)))
+            || (targetType == typeof(System.Drawing.Size) && IsStructuredType(value, typeof(DesignSize)))
+            || (targetType == typeof(DesignPoint) && IsStructuredType(value, typeof(System.Drawing.Point)))
+            || (targetType == typeof(System.Drawing.Point) && IsStructuredType(value, typeof(DesignPoint)))) return true;
+        Type[] knownPolymorphic =
+        [
+            typeof(ModernFormsNext.Drawing.SolidColorBrush), typeof(ModernFormsNext.Drawing.GlassBrush),
+            typeof(ModernFormsNext.Drawing.LinearGradientBrush), typeof(ModernFormsNext.Drawing.RadialGradientBrush),
+            typeof(ModernFormsNext.Drawing.SweepGradientBrush), typeof(ModernFormsNext.Drawing.LineGeometry),
+            typeof(ModernFormsNext.Drawing.RectangleGeometry), typeof(ModernFormsNext.Drawing.EllipseGeometry),
+            typeof(ModernFormsNext.Drawing.PathGeometry)
+        ];
+        return knownPolymorphic.Any(type => targetType.IsAssignableFrom(type) && IsStructuredType(value, type));
+    }
 
     private static bool IsGeometryTypeName(string? typeName)
         => typeName is not null

@@ -298,6 +298,14 @@ public sealed class DesignerTransactionManager
     {
         EnsureAccess();
         var frame = GetCurrentFrame(transactionId);
+        if (frames.Count == 1)
+        {
+            // Compound slot edits may be temporarily incomplete. Validate only the final
+            // outer graph, before publishing history; a failed commit remains rollbackable.
+            var structure = new DesignDocumentValidator().ValidateStructure(session.Document);
+            if (!structure.IsValid)
+                throw new InvalidOperationException(string.Join(Environment.NewLine, structure.Errors));
+        }
         frames.RemoveAt(frames.Count - 1);
 
         if (frames.Count > 0)

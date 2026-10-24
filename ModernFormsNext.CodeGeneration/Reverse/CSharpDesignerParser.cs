@@ -99,6 +99,9 @@ public sealed class CSharpDesignerParser
 
         BuildHierarchy(document);
 
+        foreach (var error in new DesignDocumentValidator().ValidateStructure(document).Errors)
+            AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, error, null);
+
         if (string.IsNullOrWhiteSpace(document.FormName))
             document.FormName = document.ClassName;
 
@@ -195,10 +198,12 @@ public sealed class CSharpDesignerParser
             if (TryReadObjectCreationType(variable.Initializer?.Value, out var typeName))
             {
                 var declaredType = localDeclaration.Declaration.Type is IdentifierNameSyntax { Identifier.ValueText: "var" }
+                    || DesignPageContainers.IsPage(typeName)
                     ? typeName
                     : localDeclaration.Declaration.Type.ToString();
 
                 EnsureNode(variable.Identifier.ValueText, declaredType, DesignerMemberVisibility.None, variable);
+                ReadControlConstructor(variable.Identifier.ValueText, variable.Initializer!.Value, variable);
                 continue;
             }
 
@@ -218,6 +223,7 @@ public sealed class CSharpDesignerParser
                 && fields.TryGetValue(createdName, out var field))
             {
                 EnsureNode(createdName, createdType, field.Visibility, assignment);
+                ReadControlConstructor(createdName, assignment.Right, assignment);
                 return;
             }
 
@@ -247,13 +253,31 @@ public sealed class CSharpDesignerParser
         if (TryProcessInteractionEffectAdd(invocation, document) || TryProcessVisualStateTransitionAdd(invocation, document))
             return;
 
-        if (TryReadControlsAdd(invocation, out var parentName, out var childName))
+        if (TryReadControlsAdd(invocation, out var parentName, out var childName, out var member))
         {
-            addOperations.Add(new ControlAddOperation(parentName, childName, invocation));
+            addOperations.Add(new ControlAddOperation(parentName, childName, invocation, member));
             return;
         }
 
         AddUnsupported(invocation, "Unsupported method call in InitializeComponent.");
+    }
+
+    private void ReadControlConstructor(string name, ExpressionSyntax expression, SyntaxNode syntax)
+    {
+        if (expression is not ObjectCreationExpressionSyntax creation) return;
+        var arguments = creation.ArgumentList?.Arguments ?? default;
+        if (creation.Initializer is null && arguments.Count == 0) return;
+        if (creation.Initializer is null && DesignPageContainers.IsType(nodes[name].TypeName, "NavigationPage") &&
+            arguments.Count == 1 && arguments[0].NameColon is null && arguments[0].RefKindKeyword.RawKind == 0 &&
+            syntaxReader.GetObjectReferenceName(arguments[0].Expression) is { } child &&
+            nodes.TryGetValue(child, out var root) && DesignPageContainers.IsPage(root.TypeName))
+        {
+            addOperations.Add(new ControlAddOperation(name, child, syntax, "RootPage"));
+            return;
+        }
+        AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
+            "Designer control construction requires an empty constructor or NavigationPage with one declared known page; executable arguments and object initializers are unsupported.",
+            syntax, syntax.ToString());
     }
 
     private bool TryProcessInteractionEffectAdd(InvocationExpressionSyntax invocation, DesignDocument document)
@@ -572,6 +596,32 @@ public sealed class CSharpDesignerParser
         if (!TryGetNode(ownerName, syntax, out var node))
             return;
 
+        // Recognize only data-only references to declared children in known framework slots.
+        // A method call, property getter or factory is source code, never a preview operation.
+        if (DesignPageContainers.IsType(node.TypeName, "PageHost") && propertyPath == "Page" ||
+            DesignPageContainers.IsType(node.TypeName, "ContentPage") && propertyPath == "Content" ||
+            DesignPageContainers.IsType(node.TypeName, "FlyoutPage") && propertyPath is "Flyout" or "Detail")
+        {
+            bool assigned = addOperations.Any(operation => operation.ParentName == ownerName && operation.Member == propertyPath);
+            if (assigned)
+            {
+                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Repeated or clearing authored page assignments cannot be represented without losing source behavior.", syntax, syntax.ToString());
+                return;
+            }
+            if (valueExpression.IsKind(SyntaxKind.NullLiteralExpression)) return;
+            var childName = syntaxReader.GetObjectReferenceName(valueExpression);
+            if (childName is not null && nodes.ContainsKey(childName))
+                addOperations.Add(new ControlAddOperation(ownerName, childName, syntax, propertyPath));
+            else
+                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
+                    $"{node.TypeName}.{propertyPath} requires a declared authored child reference, not executable source.", syntax);
+            return;
+        }
+
+        // Page.Title aliases Text at runtime. Keep source assignment order by storing
+        // one canonical key, rather than sorting the two aliases into a different order.
+        if (DesignPageContainers.IsPage(node.TypeName) && propertyPath is "Text" or "Title")
+            propertyPath = "Title";
         switch (propertyPath)
         {
             case "Name":
@@ -808,7 +858,7 @@ public sealed class CSharpDesignerParser
             if (!added.Add(operation.ChildName))
             {
                 AddDiagnostic(
-                    CSharpDesignerDiagnosticSeverity.Warning,
+                    operation.Member is null ? CSharpDesignerDiagnosticSeverity.Warning : CSharpDesignerDiagnosticSeverity.Error,
                     $"Control '{operation.ChildName}' is added to more than one parent. The first add is kept.",
                     operation.Syntax);
                 continue;
@@ -833,12 +883,17 @@ public sealed class CSharpDesignerParser
             if (ReferenceEquals(parent, child) || ContainsDescendant(child, parent))
             {
                 AddDiagnostic(
-                    CSharpDesignerDiagnosticSeverity.Warning,
-                    $"Controls.Add would create a cycle between '{operation.ParentName}' and '{operation.ChildName}'.",
+                    DesignPageContainers.IsPage(parent.TypeName) || DesignPageContainers.IsType(parent.TypeName, "PageHost")
+                        ? CSharpDesignerDiagnosticSeverity.Error : CSharpDesignerDiagnosticSeverity.Warning,
+                    $"Authored ownership between '{operation.ParentName}' and '{operation.ChildName}' would create a cycle or exceed the supported graph bounds.",
                     operation.Syntax);
                 document.Controls.Add(child);
                 continue;
             }
+
+            if (DesignPageContainers.IsType(parent.TypeName, "FlyoutPage") && operation.Member is "Flyout" or "Detail")
+                child.Properties[DesignNodeRoleNames.RolePropertyName] = DesignPropertyValue.FromString(
+                    operation.Member == "Flyout" ? DesignNodeRoleNames.FlyoutPageFlyout : DesignNodeRoleNames.FlyoutPageDetail);
 
             if (PreservesSequentialChildOrder(parent))
                 parent.Children.Add(child);
@@ -862,31 +917,38 @@ public sealed class CSharpDesignerParser
     private static bool PreservesSequentialChildOrder(DesignControlNode node)
         => IsType(node.TypeName, "FlowLayoutPanel")
         || IsType(node.TypeName, "TableLayoutPanel")
-        || IsType(node.TypeName, "TabControl");
+        || IsType(node.TypeName, "TabControl")
+        || DesignPageContainers.IsType(node.TypeName, "TabbedPage");
 
     private static bool ContainsDescendant(DesignControlNode root, DesignControlNode candidate)
     {
-        foreach (var child in root.Children)
+        var pending = new Stack<(DesignControlNode Node, int Depth)>();
+        var seen = new HashSet<DesignControlNode>(ReferenceEqualityComparer.Instance);
+        pending.Push((root, 0));
+        while (pending.TryPop(out var item))
         {
-            if (ReferenceEquals(child, candidate) || ContainsDescendant(child, candidate))
+            if (!seen.Add(item.Node) || seen.Count > DesignDocumentValidator.MaximumNodeCount ||
+                item.Depth >= DesignDocumentValidator.MaximumTreeDepth || ReferenceEquals(item.Node, candidate))
                 return true;
+            foreach (var child in item.Node.Children) pending.Push((child, item.Depth + 1));
         }
-
         return false;
     }
 
     private bool TryReadControlsAdd(
         InvocationExpressionSyntax invocation,
         out string? parentName,
-        out string childName)
+        out string childName,
+        out string? member)
     {
         parentName = null;
         childName = string.Empty;
+        member = null;
 
         if (invocation.Expression is not MemberAccessExpressionSyntax addAccess
             || !string.Equals(addAccess.Name.Identifier.ValueText, "Add", StringComparison.Ordinal)
             || addAccess.Expression is not MemberAccessExpressionSyntax controlsAccess
-            || !string.Equals(controlsAccess.Name.Identifier.ValueText, "Controls", StringComparison.Ordinal)
+            || controlsAccess.Name.Identifier.ValueText is not ("Controls" or "Pages")
             || invocation.ArgumentList.Arguments.Count != 1)
         {
             return false;
@@ -894,6 +956,20 @@ public sealed class CSharpDesignerParser
 
         if (controlsAccess.Expression is not ThisExpressionSyntax)
             parentName = syntaxReader.GetObjectReferenceName(controlsAccess.Expression);
+
+        if (controlsAccess.Name.Identifier.ValueText == "Pages")
+        {
+            if (parentName is null || !nodes.TryGetValue(parentName, out var owner) || !DesignPageContainers.IsType(owner.TypeName, "TabbedPage")) return false;
+            member = "Pages";
+        }
+        else if (parentName is not null && nodes.TryGetValue(parentName, out var owner) &&
+            (DesignPageContainers.IsType(owner.TypeName, "PageHost") ||
+             DesignPageContainers.IsType(owner.TypeName, "NavigationPage") ||
+             DesignPageContainers.IsType(owner.TypeName, "TabbedPage") ||
+             DesignPageContainers.IsType(owner.TypeName, "FlyoutPage") ||
+             DesignPageContainers.IsType(owner.TypeName, "AppShell")))
+            AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
+                "Known page containers require their canonical authored slots, not Controls.Add.", invocation, invocation.ToString());
 
         childName = syntaxReader.GetObjectReferenceName(invocation.ArgumentList.Arguments[0].Expression) ?? string.Empty;
         return !string.IsNullOrWhiteSpace(childName)
@@ -1005,6 +1081,31 @@ public sealed class CSharpDesignerParser
 
         value = false;
         return false;
+    }
+
+    private static bool TryReadInt64Literal(ExpressionSyntax expression, out long value)
+    {
+        value = 0;
+        bool negative = false;
+        if (expression is PrefixUnaryExpressionSyntax unary)
+        {
+            if (!unary.IsKind(SyntaxKind.UnaryMinusExpression) && !unary.IsKind(SyntaxKind.UnaryPlusExpression)) return false;
+            negative = unary.IsKind(SyntaxKind.UnaryMinusExpression);
+            expression = unary.Operand;
+        }
+        if (expression is not LiteralExpressionSyntax literal || !literal.IsKind(SyntaxKind.NumericLiteralExpression)) return false;
+        if (literal.Token.Value is ulong magnitude)
+        {
+            // Roslyn represents the magnitude of the legal long.MinValue literal as UInt64.
+            if (negative && magnitude == 1UL << 63 && literal.Token.Text.EndsWith('L') &&
+                !literal.Token.Text.EndsWith("UL", StringComparison.OrdinalIgnoreCase))
+            { value = long.MinValue; return true; }
+            return false;
+        }
+        if (literal.Token.Value is not (int or uint or long)) return false;
+        long number = Convert.ToInt64(literal.Token.Value, CultureInfo.InvariantCulture);
+        value = negative ? -number : number;
+        return true;
     }
 
     private static bool TryReadInt32(ExpressionSyntax expression, out int value)
@@ -1186,6 +1287,15 @@ public sealed class CSharpDesignerParser
 
         var typeName = objectCreation.Type.ToString();
         var propertyValues = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+
+        if (typeName is "System.TimeSpan" or "global::System.TimeSpan" && objectCreation.Initializer is null &&
+            objectCreation.ArgumentList is { Arguments.Count: 1 } durationArguments &&
+            durationArguments.Arguments[0].NameColon is null && durationArguments.Arguments[0].RefKindKeyword.RawKind == 0 &&
+            TryReadInt64Literal(durationArguments.Arguments[0].Expression, out long durationTicks))
+        {
+            value = TimeSpanDesignValue.FromDuration(TimeSpan.FromTicks(durationTicks));
+            return true;
+        }
 
         // Only the generator's fully qualified, positional literal constructor is admitted.
         // Do not execute TimeOnly.Parse, arbitrary expressions, initializers or user converters.
@@ -1622,5 +1732,6 @@ public sealed class CSharpDesignerParser
     private readonly record struct ControlAddOperation(
         string? ParentName,
         string ChildName,
-        SyntaxNode Syntax);
+        SyntaxNode Syntax,
+        string? Member = null);
 }

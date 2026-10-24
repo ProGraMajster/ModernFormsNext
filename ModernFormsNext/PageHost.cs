@@ -12,6 +12,8 @@ namespace ModernFormsNext;
 /// pages still owned by it. A page must be detached before admission. Native focus loss and
 /// application pause do not change the current page. Page events start only in a shown window
 /// or an attached neutral surface; detached constructors remain inert.
+/// A visible design-mode host paints its selected page through the same real presentation frame,
+/// while suppressing appearance events and runtime lifecycle activation.
 /// </remarks>
 /// <example><code>
 /// var host = new PageHost { Dock = DockStyle.Fill };
@@ -288,8 +290,11 @@ public class PageHost : Control
             if (++passes > 64) throw new InvalidOperationException("Page visibility callbacks did not settle.");
             BindWindow();
             if (current is not { } frame || !Owns(frame.Page)) break;
-            Attempt(() => frame.Visible = CanPresent());
-            bool visible = frame.Visible && frame.Page.Visible;
+            bool canPresent = CanPresent();
+            // A design-mode host uses the same selected frame, layout and paint tree,
+            // but never publishes appearance or activates runtime lifecycle bindings.
+            Attempt(() => frame.Visible = canPresent || Visible && IsDesignPreview());
+            bool visible = canPresent && frame.Visible && frame.Page.Visible;
             if (visible && !frame.Page.IsPresented)
             {
                 long operation = ++version;
@@ -320,11 +325,14 @@ public class PageHost : Control
         var window = FindWindow();
         // A preview can site the owning page, an ancestor or the Form rather than this
         // private/runtime host. Match the existing NativeViewHost ancestry boundary.
-        if (current?.Page.Site?.DesignMode == true || window?.Site?.DesignMode == true ||
-            observedAncestors.Any(ancestor => ancestor.Site?.DesignMode == true)) return false;
+        if (IsDesignPreview()) return false;
         return window is not null ? window.shown && window.Visible && !window.InputBindingsClosed && !window.IsBackendClosed
             : GetRoot().IsCommandRoutingRoot && GetRoot().IsFocusRootAvailable;
     }
+
+    private bool IsDesignPreview() => Site?.DesignMode == true || current?.Page.Site?.DesignMode == true
+        || FindWindow()?.Site?.DesignMode == true
+        || observedAncestors.Any(ancestor => ancestor.Site?.DesignMode == true);
 
     private Control GetRoot() { Control root = this; while (root.Parent is { } parent) root = parent; return root; }
     private static bool IsWithin(Control? control, Control ancestor)

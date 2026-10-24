@@ -5,10 +5,16 @@ namespace ModernFormsNext.Designer.Surface;
 internal sealed class DesignerLayoutResult
 {
     private readonly IReadOnlyDictionary<DesignControlNode, DesignBounds> effectiveBounds;
+    private readonly IReadOnlyDictionary<DesignControlNode, DesignBounds>? runtimeVisibleBounds;
+    internal IReadOnlyDictionary<DesignControlNode, string> PreviewDiagnostics { get; }
 
-    public DesignerLayoutResult(IReadOnlyDictionary<DesignControlNode, DesignBounds> effectiveBounds)
+    public DesignerLayoutResult(IReadOnlyDictionary<DesignControlNode, DesignBounds> effectiveBounds,
+        IReadOnlyDictionary<DesignControlNode, DesignBounds>? runtimeVisibleBounds = null,
+        IReadOnlyDictionary<DesignControlNode, string>? previewDiagnostics = null)
     {
         this.effectiveBounds = effectiveBounds;
+        this.runtimeVisibleBounds = runtimeVisibleBounds;
+        PreviewDiagnostics = previewDiagnostics ?? new Dictionary<DesignControlNode, string>();
     }
 
     public DesignBounds GetEffectiveBounds(DesignControlNode node)
@@ -19,7 +25,8 @@ internal sealed class DesignerLayoutResult
 
     public DesignBounds GetVisibleBounds(DesignDocument document, DesignControlNode node)
     {
-        var visible = GetEffectiveBounds(node);
+        var visible = runtimeVisibleBounds?.TryGetValue(node, out var runtimeVisible) == true
+            ? runtimeVisible : GetEffectiveBounds(node);
 
         foreach (var clip in GetAncestorClipBounds(document, node))
             visible = Intersect(visible, clip);
@@ -28,7 +35,8 @@ internal sealed class DesignerLayoutResult
     }
 
     public bool IsPointInsideVisibleParentChain(DesignDocument document, DesignControlNode node, DesignPoint documentPoint)
-        => GetAncestorClipBounds(document, node).All(bounds => bounds.Contains(documentPoint.X, documentPoint.Y));
+        => (runtimeVisibleBounds?.TryGetValue(node, out var visible) != true || visible.Width > 0 && visible.Height > 0)
+            && GetAncestorClipBounds(document, node).All(bounds => bounds.Contains(documentPoint.X, documentPoint.Y));
 
     private IEnumerable<DesignBounds> GetAncestorClipBounds(DesignDocument document, DesignControlNode node)
     {

@@ -158,6 +158,8 @@ public sealed partial class PageNavigationTests
         Assert.Equal(PageLifecycleState.Attached, f.Navigation.LifecycleState);
         Assert.Equal(PageLifecycleState.Attached, f.Root.LifecycleState);
         Assert.Equal(0, AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount);
+        Assert.True(f.Navigation.Parent!.Visible);
+        Assert.True(f.Root.Parent!.Visible);
         designOwner.Site = null;
         f.Presenter.PerformLayout();
         AnimationScheduler.Default.Policy.ReducedMotion = true;
@@ -180,6 +182,8 @@ public sealed partial class PageNavigationTests
         Assert.Equal(PageLifecycleState.Attached, navigation.LifecycleState);
         Assert.Equal(PageLifecycleState.Attached, root.LifecycleState);
         Assert.Equal(0, AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount);
+        Assert.True(navigation.Parent!.Visible);
+        Assert.True(root.Parent!.Visible);
     }
 
     [Fact]
@@ -191,6 +195,8 @@ public sealed partial class PageNavigationTests
         Assert.Equal(PageLifecycleState.Attached, f.Navigation.LifecycleState);
         Assert.Equal(PageLifecycleState.Attached, f.Root.LifecycleState);
         Assert.Equal(0, AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount);
+        Assert.True(f.Navigation.Parent!.Visible);
+        Assert.True(f.Root.Parent!.Visible);
     }
 
     [Theory]

@@ -34,8 +34,35 @@ internal sealed class DesignerLayoutEngine
             : documentBounds;
 
         LayoutGenericChildren(document.Controls, documentBounds, documentContentBounds, document.Size, bounds, baseline);
+        var visibleBounds = new Dictionary<DesignControlNode, DesignBounds>();
+        var diagnostics = new Dictionary<DesignControlNode, string>();
+        CapturePages(document.Controls, bounds, visibleBounds, diagnostics);
+        return new DesignerLayoutResult(bounds, visibleBounds, diagnostics);
+    }
 
-        return new DesignerLayoutResult(bounds);
+    private static void CapturePages(IEnumerable<DesignControlNode> nodes, IDictionary<DesignControlNode, DesignBounds> bounds,
+        IDictionary<DesignControlNode, DesignBounds> visibleBounds, IDictionary<DesignControlNode, string> diagnostics)
+    {
+        foreach (var node in nodes)
+        {
+            if (!DesignerPagePreview.IsPageContainer(node)) { CapturePages(node.Children, bounds, visibleBounds, diagnostics); continue; }
+            var area = bounds[node];
+            using var preview = DesignerPagePreview.TryCreate(node, new System.Drawing.Size(area.Width, area.Height), out var error);
+            if (preview is null)
+            {
+                diagnostics[node] = error!;
+                // Only the diagnostic placeholder is painted. Its unavailable descendants
+                // must not become invisible hit/drop targets from generic fallback geometry.
+                var pending = new Stack<DesignControlNode>(node.Children);
+                while (pending.TryPop(out var child))
+                {
+                    visibleBounds[child] = new DesignBounds(0, 0, 0, 0);
+                    foreach (var descendant in child.Children) pending.Push(descendant);
+                }
+                continue;
+            }
+            preview.Capture(new System.Drawing.Point(area.X, area.Y), bounds, visibleBounds);
+        }
     }
 
     /// <summary>

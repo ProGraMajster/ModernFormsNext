@@ -4,7 +4,8 @@
 `NavigationPage`. Host it in an existing `PageHost` inside a Form or `SkiaControlSurface`.
 It uses the existing focus, validation, resource inheritance, routed commands, dispatcher and
 animation scheduler. Windows remains the primary platform; Android's Application/Form backend
-is experimental. Designer/template integration is a subsequent slice.
+is experimental. [Designer integration](designer-pages.md) authors an empty shell and known page
+containers without executing route factories. The default application template stays minimal.
 
 ```csharp
 var shell = new AppShell();

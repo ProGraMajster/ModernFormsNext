@@ -50,10 +50,12 @@ public sealed class CSharpDesignerGenerationOptions
     /// <summary>
     /// Gets or sets the optional source <c>.mfdesign</c> file path or display name written to the generated header.
     /// </summary>
+    /// <remarks>C# line terminators are escaped for comment display; the stored value is not modified.</remarks>
     public string? SourceFilePath { get; set; }
 
     /// <summary>
     /// Gets or sets an optional hash of the design model used to produce the generated file.
     /// </summary>
+    /// <remarks>C# line terminators are escaped so this informational value cannot introduce source directives.</remarks>
     public string? DesignHash { get; set; }
 }

@@ -40,6 +40,18 @@ internal sealed record LayoutSnapshot(
 /// </remarks>
 internal static class DesignerRuntimeLayoutParityHarness
 {
+    internal static void AssertPageGeometry(string scenario, DesignDocument document, object initializedRoot)
+    {
+        var designer = CaptureDesigner(scenario, document, document.Size);
+        using var runtimeTree = RuntimeLayoutTree.Attach(document, initializedRoot);
+        runtimeTree.Resize(document.Size);
+        var runtime = runtimeTree.Capture(scenario);
+        Assert.Equal(runtime.Nodes.Keys.Order(), designer.Nodes.Keys.Order());
+        foreach (var pair in runtime.Nodes)
+            Assert.True(pair.Value.Bounds == designer.Nodes[pair.Key].Bounds,
+                $"{scenario}: {pair.Key}: runtime={pair.Value.Bounds}, Designer={designer.Nodes[pair.Key].Bounds}");
+    }
+
     public static void AssertParity(ParityScenario scenario)
     {
         var document = scenario.CreateDocument();
@@ -325,6 +337,7 @@ internal static class DesignerRuntimeLayoutParityHarness
             {
                 controlRoot.Size = ToSize(size);
                 PerformLayoutRecursively(controlRoot);
+                LayoutImplicitAncestors();
                 return;
             }
 
@@ -333,6 +346,18 @@ internal static class DesignerRuntimeLayoutParityHarness
             directChild?.Parent?.PerformLayout();
             foreach (var child in document.Controls)
                 PerformLayoutRecursively(controls[child]);
+            LayoutImplicitAncestors();
+        }
+
+        private void LayoutImplicitAncestors()
+        {
+            foreach (var control in controls.Values)
+            {
+                var ancestors = new Stack<Control>();
+                for (var parent = control.Parent; parent is not null; parent = parent.Parent) ancestors.Push(parent);
+                foreach (var parent in ancestors) parent.PerformLayout();
+                control.PerformLayout();
+            }
         }
 
         public LayoutSnapshot Capture(string scenario)
@@ -354,7 +379,7 @@ internal static class DesignerRuntimeLayoutParityHarness
                     rootBounds,
                     rootDisplay.Size));
 
-            CaptureRuntimeChildren(document.Controls, rootPath, Point.Empty, rootBounds, nodes);
+            CaptureRuntimeChildren(document.Controls, rootPath, Point.Empty, rootBounds, nodes, controlRoot);
             return new LayoutSnapshot(scenario, nodes);
         }
 
@@ -372,13 +397,17 @@ internal static class DesignerRuntimeLayoutParityHarness
             string parentPath,
             Point parentOffset,
             Rectangle parentClip,
-            IDictionary<string, LayoutNodeSnapshot> snapshots)
+            IDictionary<string, LayoutNodeSnapshot> snapshots,
+            Control? authoredParent = null)
         {
             foreach (var node in children)
             {
                 var control = controls[node];
                 var path = $"{parentPath}.{node.Name}";
                 var bounds = control.Bounds;
+                if (authoredParent is not null)
+                    for (var parent = control.Parent; parent is not null && !ReferenceEquals(parent, authoredParent); parent = parent.Parent)
+                        bounds.Offset(parent.Location);
                 bounds.Offset(parentOffset);
                 var visible = Intersect(bounds, parentClip);
                 var isContainer = IsContainer(node.TypeName);
@@ -402,7 +431,7 @@ internal static class DesignerRuntimeLayoutParityHarness
                         visible,
                         display?.Size));
 
-                CaptureRuntimeChildren(node.Children, path, bounds.Location, visible, snapshots);
+                CaptureRuntimeChildren(node.Children, path, bounds.Location, visible, snapshots, control);
             }
         }
 
@@ -530,7 +559,18 @@ internal static class DesignerRuntimeLayoutParityHarness
         {
             foreach (var node in designChildren)
             {
-                var control = runtimeChildren.Single(candidate => string.Equals(candidate.Name, node.Name, StringComparison.Ordinal));
+                Control? slot = runtimeChildren.Owner switch
+                {
+                    ContentPage page => page.Content,
+                    PageHost host => host.Page,
+                    NavigationPage navigation => navigation.RootPage,
+                    TabbedPage tabs => tabs.Pages.Single(candidate => candidate.Name == node.Name),
+                    FlyoutPage flyout => DesignPageContainers.GetChildMember(
+                        new DesignControlNode { TypeName = nameof(FlyoutPage) }, node) == "Flyout" ? flyout.Flyout : flyout.Detail,
+                    _ => null
+                };
+                var control = slot ?? runtimeChildren.Single(candidate => string.Equals(candidate.Name, node.Name, StringComparison.Ordinal));
+                Assert.Equal(node.Name, control.Name);
                 controls.Add(node, control);
                 AttachChildren(node.Children, control.Controls, controls);
             }
