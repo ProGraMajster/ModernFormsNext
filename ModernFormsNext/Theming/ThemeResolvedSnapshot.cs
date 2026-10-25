@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Drawing;
+using ModernFormsNext.Drawing;
 using MfnBrush = ModernFormsNext.Drawing.Brush;
 
 namespace ModernFormsNext;
@@ -29,9 +30,12 @@ public readonly record struct ThemeTokenCounts(
     int Animations,
     int Resources)
 {
+    /// <summary>Gets the number of resolved outer-shadow tokens.</summary>
+    public int Shadows { get; init; }
+
     /// <summary>Gets the combined number of resolved tokens.</summary>
     public int Total => Colors + Brushes + Typography + Spacing + Padding + Sizing + Corners +
-        BorderThickness + Animations + Resources;
+        BorderThickness + Animations + Resources + Shadows;
 }
 
 /// <summary>
@@ -52,6 +56,7 @@ public sealed class ThemeResolvedSnapshot
         IReadOnlyList<string> baseChain,
         Dictionary<string, Color> colors,
         Dictionary<string, MfnBrush> brushes,
+        Dictionary<string, Shadow> shadows,
         Dictionary<string, ThemeTypography> typography,
         Dictionary<string, double> spacing,
         Dictionary<string, Padding> padding,
@@ -76,6 +81,7 @@ public sealed class ThemeResolvedSnapshot
         Tags = Array.AsReadOnly(source.Tags.ToArray());
         Colors = new ReadOnlyDictionary<string, Color>(colors);
         this.brushes = new ReadOnlyDictionary<string, MfnBrush>(brushes);
+        Shadows = new ReadOnlyDictionary<string, Shadow>(shadows);
         Typography = new ReadOnlyDictionary<string, ThemeTypography>(typography);
         Spacing = new ReadOnlyDictionary<string, double>(spacing);
         Padding = new ReadOnlyDictionary<string, Padding>(padding);
@@ -94,7 +100,7 @@ public sealed class ThemeResolvedSnapshot
             corners.Count,
             borderThickness.Count,
             animations.Count,
-            resources.Count);
+            resources.Count) { Shadows = shadows.Count };
     }
 
     /// <summary>Gets the stable theme identifier.</summary>
@@ -125,6 +131,9 @@ public sealed class ThemeResolvedSnapshot
     public IEnumerable<string> BrushTokenNames => brushes.Keys;
     /// <summary>Gets resolved typography tokens.</summary>
     public IReadOnlyDictionary<string, ThemeTypography> Typography { get; }
+
+    /// <summary>Gets immutable outer-shadow tokens in logical pixels.</summary>
+    public IReadOnlyDictionary<string, Shadow> Shadows { get; }
     /// <summary>Gets resolved spacing tokens.</summary>
     public IReadOnlyDictionary<string, double> Spacing { get; }
     /// <summary>Gets resolved four-sided padding tokens in logical pixels.</summary>
@@ -155,6 +164,7 @@ public sealed class ThemeResolvedSnapshot
             ThemeTokenCategory.Color => Colors.TryGetValue(token.Name, out Color color) && Assign(color, out result),
             ThemeTokenCategory.Brush => brushes.TryGetValue(token.Name, out MfnBrush? brush) && Assign(ThemeValueCloner.CloneBrush(brush), out result),
             ThemeTokenCategory.Typography => Typography.TryGetValue(token.Name, out ThemeTypography? typography) && Assign(typography, out result),
+            ThemeTokenCategory.Shadow => Shadows.TryGetValue(token.Name, out Shadow? shadow) && Assign(shadow, out result),
             ThemeTokenCategory.Spacing => Spacing.TryGetValue(token.Name, out double spacing) && Assign(spacing, out result),
             ThemeTokenCategory.Padding => Padding.TryGetValue(token.Name, out Padding padding) && Assign(padding, out result),
             ThemeTokenCategory.Sizing => Sizing.TryGetValue(token.Name, out double sizing) && Assign(sizing, out result),
@@ -193,6 +203,7 @@ public sealed class ThemeResolvedSnapshot
         Add(result, ThemeTokenCategory.Color, Colors, static value => value);
         Add(result, ThemeTokenCategory.Brush, brushes, ThemeValueCloner.CloneBrush);
         Add(result, ThemeTokenCategory.Typography, Typography, static value => value);
+        Add(result, ThemeTokenCategory.Shadow, Shadows, static value => value);
         Add(result, ThemeTokenCategory.Spacing, Spacing, static value => value);
         Add(result, ThemeTokenCategory.Padding, Padding, static value => value);
         Add(result, ThemeTokenCategory.Sizing, Sizing, static value => value);

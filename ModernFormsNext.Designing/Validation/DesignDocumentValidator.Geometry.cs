@@ -15,6 +15,7 @@ public sealed partial class DesignDocumentValidator
             ? type["ModernFormsNext.Drawing.".Length..] : type.Contains('.') ? string.Empty : type;
         string? error = drawing switch
         {
+            "Shadow" => ValidateShadowShape(properties),
             "PathGeometry" => ValidateIndexedValues(properties, "FigureCount", "Figure", "ModernFormsNext.Drawing.PathFigure"),
             "PathFigure" => ValidateIndexedValues(properties, "SegmentCount", "Segment",
                 "ModernFormsNext.Drawing.LineSegment", "ModernFormsNext.Drawing.QuadraticBezierSegment", "ModernFormsNext.Drawing.BezierSegment"),
@@ -105,6 +106,29 @@ public sealed partial class DesignDocumentValidator
         if (drawing == "RadialGradientBrush" && properties.TryGetValue("GradientOrigin", out var origin)
             && !IsStructuredValue(origin, "System.Drawing.PointF"))
             return "A gradient origin must use its known PointF data shape.";
+        return null;
+    }
+
+    private static string? ValidateShadowShape(IReadOnlyDictionary<string, DesignPropertyValue> properties)
+    {
+        // This closed persistence shape uses only neutral scalar data. Its bounds follow the
+        // runtime Shadow constructor contract, without loading or activating framework types.
+        string[] channels = ["R", "G", "B", "A"];
+        string[] distances = ["BlurRadius", "OffsetX", "OffsetY", "Spread"];
+        if (properties.Count != 8) return "A shadow must contain its eight known scalar members.";
+        foreach (string channel in channels)
+            if (!properties.TryGetValue(channel, out var value) || value is null || value.Kind != DesignPropertyValueKind.Int32
+                || value.Value is not int component || component < 0 || component > 255)
+                return "A shadow color component must be an integer between zero and 255.";
+        foreach (string distance in distances)
+        {
+            if (!properties.TryGetValue(distance, out var value) || !IsFiniteFloat(value))
+                return "A shadow distance must remain finite after Single conversion.";
+            double number = Convert.ToDouble(value.Value, CultureInfo.InvariantCulture);
+            double limit = distance is "OffsetX" or "OffsetY" ? 2048 : 128;
+            double minimum = distance == "BlurRadius" ? 0 : -limit;
+            if (number < minimum || number > limit) return "A shadow distance exceeds its bounded logical-pixel range.";
+        }
         return null;
     }
 

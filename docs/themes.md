@@ -91,12 +91,14 @@ theme.Set(chartPositive, Color.SeaGreen);
 ```
 
 Typography roles include Body, Caption, Heading, Title, Button, and Input. Font family, size, and
-style map to the existing renderer. Line height and letter spacing round-trip as tokens but are not
-globally applied by the base renderer; only a control with explicit support should consume them.
+style map to the existing renderer. The Body role also supplies default line-height and letter-spacing
+metrics for shared control-aware text measurement, painting and TextBox layout. Local control/style
+values override these defaults. Independently styled rich documents and custom renderers retain
+their own typography; see [shadows and typography](shadows-and-typography.md) for the support matrix.
 
 Spacing, four-sided padding, sizing/control heights/icon sizes, corners, border thickness,
-animation settings, and a closed set of custom resource values are supported. Shadows are not yet
-modeled because there is no complete shared shadow-rendering contract.
+animation settings, named immutable shadows, and a closed set of custom resource values are supported.
+Shadows are opt-in: bind `Control.Shadow` to a shadow token or assign a description explicitly.
 
 ## Inheritance
 
@@ -183,8 +185,9 @@ Hover, Pressed, Focused, Disabled, and control-specific interaction state is pre
 resolve that state again against the committed style values. Dynamic-resource setters and control
 theme handlers can issue multiple visual invalidations, but ThemeManager coalesces them into one
 platform repaint request per affected window for each commit or animation tick. Generic theme
-refresh does not force layout; controls whose cached measurements depend on theme typography or
-metrics may request their existing targeted layout path from `OnThemeChanged`. Animation ticks
+refresh does not force layout for color-only changes. A global line-height or letter-spacing change
+retires text metrics and remeasures auto-sized controls. Controls with additional cached measurements
+can use their existing targeted layout path from `OnThemeChanged`. Animation ticks
 bypass those layout/cache hooks and perform visual-only subtree invalidation because layout tokens
 have already committed before the transition starts.
 
@@ -304,8 +307,8 @@ kept for rendering, window-lifecycle, emulator/device, and interactive Designer 
 - no automatic OS-theme-change notification;
 - no file hot reload;
 - no animated layout tokens, GlassBrush, NoBrush, or incompatible gradients;
-- no shared shadow token/rendering contract;
-- line height and letter spacing are not globally honored;
+- shadow pixels are clipped by ancestor bounds and do not reserve layout space;
+- independently styled rich documents, custom renderers and explicit font-only drawing calls do not consume control typography metrics automatically;
 - Android has no system-theme provider and remains experimental;
 - physical-device Android and interactive Designer checks cannot be replaced by headless tests.
 

@@ -52,6 +52,9 @@ public static class BuiltInThemes
         theme.Typography[ThemeTokens.Typography.Title.Name] = new ThemeTypography("Segoe UI", 24f, FontStyle.Bold);
         theme.Typography[ThemeTokens.Typography.Button.Name] = new ThemeTypography("Segoe UI", 14f, FontStyle.Bold);
         theme.Typography[ThemeTokens.Typography.Input.Name] = new ThemeTypography("Segoe UI", 14f);
+        theme.Shadows[ThemeTokens.Shadows.Low.Name] = new Shadow(Color.FromArgb(64, Color.Black), 2, offsetY: 1);
+        theme.Shadows[ThemeTokens.Shadows.Medium.Name] = new Shadow(Color.FromArgb(80, Color.Black), 5, offsetY: 3);
+        theme.Shadows[ThemeTokens.Shadows.High.Name] = new Shadow(Color.FromArgb(96, Color.Black), 10, offsetY: 6);
         theme.Spacing.Add("Small", 4d);
         theme.Spacing.Add("Medium", 8d);
         theme.Spacing.Add("Large", 16d);

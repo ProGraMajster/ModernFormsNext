@@ -1812,13 +1812,15 @@ namespace ModernFormsNext
         /// Called when the theme changes.
         /// </summary>
         /// <remarks>
-        /// The base implementation requests visual invalidation without changing layout or the
-        /// current hover, pressed, focus, enabled, or selection state. Derived controls should call
-        /// the base implementation and request layout only when theme-dependent measurements or
-        /// cached content require it. The framework invokes this method on the UI thread.
+        /// The base implementation refreshes visual state and repaints. A changed global line-height
+        /// or letter-spacing default also retires content metrics and remeasures auto-sized controls;
+        /// color-only changes do not request layout. The current input/selection state is preserved.
+        /// Derived controls should call base and refresh their additional caches when needed.
+        /// The framework invokes this method on the UI thread.
         /// </remarks>
         protected internal virtual void OnThemeChanged (EventArgs e)
         {
+            RefreshTypographyAfterThemeChange();
             RefreshVisualStateAfterThemeChange ();
             // CurrentStyle is resolved lazily from the control's existing interaction state.
             // Repaint without changing hover, pressed, focus, enabled, or selection state.
@@ -2780,6 +2782,7 @@ namespace ModernFormsNext
                     DisposeLayoutTransitionConfiguration ();
                     DisposeResourceReferences ();
                     DisposeBrushInvalidationSubscriptions ();
+                    DisposeShadowRendering();
                     FreeBackBuffer ();
 
                     foreach (var c in Controls.GetAllControls (true))

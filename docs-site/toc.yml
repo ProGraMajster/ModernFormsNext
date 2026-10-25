@@ -66,6 +66,8 @@
     href: content/docs/dynamic-resources.md
   - name: Themes
     href: content/docs/themes.md
+  - name: Shadows and typography
+    href: content/docs/shadows-and-typography.md
   - name: Theme JSON schema
     href: content/docs/theme-json-schema.md
   - name: Paint and gradients

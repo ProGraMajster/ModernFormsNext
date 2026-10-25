@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\ModernFormsNext.CrossPlatform.Sample\ShadowTypographyCertification.cs" Link="Examples\ShadowTypographyCertification.cs" />
     <ProjectReference Include="..\..\ModernFormsNext\ModernFormsNext.csproj" />
 	  <ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Windows\ModernFormsNext.WindowKit.Backend.Windows.csproj" />
   </ItemGroup>

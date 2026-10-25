@@ -496,8 +496,14 @@ namespace ModernFormsNext
         /// <inheritdoc/>
         internal override void OnPresentationContentMetricsChanged ()
         {
+            if (document is null) return;
+            using var accessibleChange = BeginAccessibleTextChange();
             base.OnPresentationContentMetricsChanged ();
             document.Width = PaddedClientRectangle.Width;
+            // Shaping is rebuilt lazily from its width/typography cache key. Retire derived
+            // geometry now so accessibility and the native caret do not keep old text bounds.
+            InvalidateAccessibleTextLayout();
+            if (!IsDisposed && !Disposing) AccessibleTextFormattingChanged();
         }
 
         /// <summary>

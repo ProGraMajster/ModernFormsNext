@@ -46,6 +46,7 @@ internal static class DesignerPropertyValueEditor
             ModernFormsNext.Drawing.PointCollection points => WritePointCollectionText(points),
             ModernFormsNext.Drawing.Geometry geometry => WriteGeometryText(geometry),
             ModernFormsNext.Font font => $"{font.FamilyName}, {font.SizeInPoints.ToString("G", CultureInfo.InvariantCulture)}pt",
+            ModernFormsNext.Drawing.Shadow shadow => WriteShadowText(shadow),
             float floatValue => floatValue.ToString("R", CultureInfo.InvariantCulture),
             double doubleValue => doubleValue.ToString("R", CultureInfo.InvariantCulture),
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
@@ -223,6 +224,9 @@ internal static class DesignerPropertyValueEditor
         if (targetType == typeof(ModernFormsNext.Font))
             return TryParseFont(trimmed, out value, out error);
 
+        if (targetType == typeof(ModernFormsNext.Drawing.Shadow))
+            return TryParseShadow(trimmed, out value, out error);
+
         if (targetType == typeof(ModernFormsNext.Drawing.PointCollection))
             return TryParsePointCollection(trimmed, out value, out error);
 
@@ -384,6 +388,20 @@ internal static class DesignerPropertyValueEditor
 
         if (value is ModernFormsNext.Font font)
             return ToFontPropertyValue(font);
+
+        if (value is ModernFormsNext.Drawing.Shadow shadow)
+            return DesignPropertyValue.FromStructuredObject(typeof(ModernFormsNext.Drawing.Shadow).FullName!,
+                new Dictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+                {
+                    ["R"] = DesignPropertyValue.FromInt32(shadow.Color.R),
+                    ["G"] = DesignPropertyValue.FromInt32(shadow.Color.G),
+                    ["B"] = DesignPropertyValue.FromInt32(shadow.Color.B),
+                    ["A"] = DesignPropertyValue.FromInt32(shadow.Color.A),
+                    ["BlurRadius"] = DesignPropertyValue.FromDouble(shadow.BlurRadius),
+                    ["OffsetX"] = DesignPropertyValue.FromDouble(shadow.OffsetX),
+                    ["OffsetY"] = DesignPropertyValue.FromDouble(shadow.OffsetY),
+                    ["Spread"] = DesignPropertyValue.FromDouble(shadow.Spread)
+                });
 
         return DesignPropertyValue.FromObject(value);
     }
@@ -622,11 +640,41 @@ internal static class DesignerPropertyValueEditor
             ? $"#{color.Red:X2}{color.Green:X2}{color.Blue:X2}"
             : $"#{color.Alpha:X2}{color.Red:X2}{color.Green:X2}{color.Blue:X2}";
 
+    private static string WriteShadowText(ModernFormsNext.Drawing.Shadow shadow)
+        => FormattableString.Invariant($"Shadow({ToHex(new SKColor(shadow.Color.R, shadow.Color.G, shadow.Color.B, shadow.Color.A))}; {shadow.BlurRadius:R}; {shadow.OffsetX:R}; {shadow.OffsetY:R}; {shadow.Spread:R})");
+
+    private static bool TryParseShadow(string text, out object? value, out string? error)
+    {
+        value = null;
+        error = "Expected Shadow(#AARRGGBB; blur; offsetX; offsetY; spread) in logical pixels.";
+        if (text.Length > 256 || !text.StartsWith("Shadow(", StringComparison.Ordinal) || !text.EndsWith(')')) return false;
+        string[] parts = text[7..^1].Split(';', StringSplitOptions.TrimEntries);
+        if (parts.Length != 5 || !TryParseColor(parts[0], out var parsed, out _) || parsed is not SKColor color)
+            return false;
+        Span<float> numbers = stackalloc float[4];
+        for (int i = 0; i < numbers.Length; i++)
+            if (!float.TryParse(parts[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out numbers[i])) return false;
+        try
+        {
+            value = new ModernFormsNext.Drawing.Shadow(System.Drawing.Color.FromArgb(color.Alpha, color.Red, color.Green, color.Blue),
+                numbers[0], numbers[1], numbers[2], numbers[3]);
+            error = null;
+            return true;
+        }
+        catch (ArgumentOutOfRangeException) { return false; }
+    }
+
     private static object? FromStructuredValue(DesignPropertyValue value, Type targetType)
     {
         if (!IsSupportedStructuredTarget(value, targetType))
             throw new FormatException("The structured value type does not match its supported preview target.");
         var properties = value.ObjectProperties ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
+
+        if (targetType == typeof(ModernFormsNext.Drawing.Shadow))
+            return new ModernFormsNext.Drawing.Shadow(System.Drawing.Color.FromArgb(ReadInt(properties, "A"),
+                ReadInt(properties, "R"), ReadInt(properties, "G"), ReadInt(properties, "B")),
+                (float)ReadDouble(properties, "BlurRadius"), (float)ReadDouble(properties, "OffsetX"),
+                (float)ReadDouble(properties, "OffsetY"), (float)ReadDouble(properties, "Spread"));
 
         if (targetType == typeof(TimeOnly))
         {

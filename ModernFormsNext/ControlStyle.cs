@@ -11,6 +11,50 @@ namespace ModernFormsNext
     {
         private SKTypeface? font;
         private Font? textFont;
+        private double? lineHeight;
+        private double? letterSpacing;
+
+        /// <summary>Gets or sets the optional line-height multiplier for shared text layout.</summary>
+        /// <remarks>
+        /// Null inherits from the parent style and ultimately the theme. A positive finite value at most 16
+        /// multiplies the font's natural line height; 1 preserves natural spacing. Set on the UI
+        /// thread before activating the style. Use <see cref="Control.LineHeight"/> for a live
+        /// control change that also invalidates cached measurement and requests layout.
+        /// </remarks>
+        public double? LineHeight
+        {
+            get => lineHeight;
+            set
+            {
+                if (value is { } height && (!double.IsFinite(height) || (float)height <= 0 || height > ThemeTypography.MaximumLineHeight))
+                    throw new ArgumentOutOfRangeException(nameof(value), "Line height must be finite, positive and at most 16.");
+                lineHeight = value;
+            }
+        }
+
+        /// <summary>Gets or sets optional additional character spacing in logical pixels.</summary>
+        /// <remarks>
+        /// Null inherits from the parent style and ultimately the theme; zero uses natural glyph
+        /// advances. Finite spacing from -1024 through 1024 is allowed. DPI conversion occurs once when building
+        /// the shared text block. Use <see cref="Control.LetterSpacing"/> to update a live control.
+        /// Independently styled rich documents and custom renderers can use their own text metrics.
+        /// </remarks>
+        public double? LetterSpacing
+        {
+            get => letterSpacing;
+            set
+            {
+                if (value is { } spacing && (!double.IsFinite(spacing) || Math.Abs(spacing) > ThemeTypography.MaximumLetterSpacing))
+                    throw new ArgumentOutOfRangeException(nameof(value), "Letter spacing must be finite and between -1024 and 1024 logical pixels.");
+                letterSpacing = value;
+            }
+        }
+
+        /// <summary>Gets the inherited line-height multiplier, falling back to the theme.</summary>
+        public double GetLineHeight() => ResolveNullableValue(static style => style.LineHeight) ?? Theme.LineHeight;
+
+        /// <summary>Gets inherited additional character spacing in logical pixels.</summary>
+        public double GetLetterSpacing() => ResolveNullableValue(static style => style.LetterSpacing) ?? Theme.LetterSpacing;
 
         /// <summary>
         /// Initializes a new instance of the ControlStyle class.  This constructor is

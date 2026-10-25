@@ -11,8 +11,14 @@ namespace ModernFormsNext
     /// </summary>
     public static class TextMeasurer
     {
-        internal static TextBlock CreateTextBlock (string text, SKTypeface font, int fontSize, Size maxSize, TextAlignment alignment = TextAlignment.Auto, SKColor color = new SKColor (), int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular)
+        internal static TextBlock CreateTextBlock (string text, SKTypeface font, int fontSize, Size maxSize, TextAlignment alignment = TextAlignment.Auto, SKColor color = new SKColor (), int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular, double lineHeight = 1d, double letterSpacing = 0d)
         {
+            if (!double.IsFinite(lineHeight) || (float)lineHeight <= 0)
+                throw new ArgumentOutOfRangeException(nameof(lineHeight));
+            if (!double.IsFinite(letterSpacing)) throw new ArgumentOutOfRangeException(nameof(letterSpacing));
+            if (!float.IsFinite((float)(lineHeight * fontSize * Math.Max(1, text.Length))) ||
+                !float.IsFinite((float)(letterSpacing * Math.Max(1, text.Length))))
+                throw new ArgumentOutOfRangeException(nameof(lineHeight), "Text metrics exceed the finite shaping coordinate range.");
             if (maxLines == 1) {
                 text = text.Replace ("\n\r", "»");
                 text = text.Replace ("\n", "»");
@@ -30,6 +36,8 @@ namespace ModernFormsNext
             var styleNormal = new Style {
                 FontFamily = font.FamilyName,
                 FontSize = fontSize,
+                LineHeight = (float)lineHeight,
+                LetterSpacing = (float)letterSpacing,
                 TextColor = color,
                 FontWeight = fontStyle.HasFlag(FontStyle.Bold) ? (int)SKFontStyleWeight.Bold : font.FontWeight,
                 FontItalic = fontStyle.HasFlag(FontStyle.Italic) || font.FontSlant is SKFontStyleSlant.Italic or SKFontStyleSlant.Oblique,
@@ -216,7 +224,23 @@ namespace ModernFormsNext
         /// Measures the specified text using font characteristics from the provided control.
         /// </summary>
         public static SKSize MeasureText (string text, Control control, Size maxSize)
-            => MeasureText (text, control.CurrentStyle.GetFont (), control.LogicalToDeviceUnits (control.CurrentStyle.GetFontSize ()), maxSize, control.CurrentStyle.GetFontStyle());
+        {
+            if (!text.HasValue()) return SKSize.Empty;
+            var style = control.CurrentStyle;
+            var block = CreateTextBlock(text, style.GetFont(), control.LogicalToDeviceUnits(style.GetFontSize()),
+                maxSize, fontStyle: style.GetFontStyle(), lineHeight: style.GetLineHeight(),
+                letterSpacing: GetDeviceLetterSpacing(control));
+            return new SKSize(block.MeasuredWidth, block.MeasuredHeight);
+        }
+
+        // Preserve fractional logical spacing: the integer coordinate helper would round small
+        // values away and make measurement disagree with rendering at fractional DPI.
+        internal static double GetDeviceLetterSpacing(Control control)
+        {
+            double spacing = control.CurrentStyle.GetLetterSpacing() * control.Scaling;
+            if (!double.IsFinite(spacing) || !float.IsFinite((float)spacing)) throw new ArgumentOutOfRangeException(nameof(control), "Scaled letter spacing must be finite.");
+            return spacing;
+        }
 
         /// <summary>
         /// Measures the specified text using the provided font characteristics.

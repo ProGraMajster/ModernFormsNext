@@ -140,6 +140,8 @@ internal static class ThemeLegacyProjector
         {
             values[nameof(Theme.UIFont)] = body.ToFont().ToTypeface();
             values[nameof(Theme.FontSize)] = Math.Max(1, (int)Math.Round(body.Size));
+            values[nameof(Theme.LineHeight)] = (double)(body.LineHeight ?? 1f);
+            values[nameof(Theme.LetterSpacing)] = (double)(body.LetterSpacing ?? 0f);
         }
         if (snapshot.Typography.TryGetValue(ThemeTokens.Typography.Caption.Name, out ThemeTypography? caption))
             values[nameof(Theme.ItemFontSize)] = Math.Max(1, (int)Math.Round(caption.Size));

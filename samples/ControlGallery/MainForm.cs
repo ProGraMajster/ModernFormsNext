@@ -85,6 +85,7 @@ namespace ControlGallery
             tree.Items.Add ("ToolTip", ImageLoader.Get ("button.png"));
             tree.Items.Add("TrackBar", ImageLoader.Get("button.png"));
             tree.Items.Add("ThemeManager", ImageLoader.Get("swatches.png"));
+            tree.Items.Add("Shadows and Typography", ImageLoader.Get("swatches.png"));
             tree.Items.Add ("TreeView", ImageLoader.Get ("button.png"));
             tree.Items.Add("ColorDialog", ImageLoader.Get("button.png"));
             tree.Items.Add("DateTimePicker" , ImageLoader.Get("button.png"));
@@ -251,6 +252,8 @@ namespace ControlGallery
                     return new TrackBarPanel();
                 case "ThemeManager":
                     return new ThemeManagerPanel();
+                case "Shadows and Typography":
+                    return new ShadowTypographyPanel();
                 case "TreeView":
                     return new TreeViewPanel ();
                 case "ColorDialog":

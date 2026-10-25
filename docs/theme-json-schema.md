@@ -21,6 +21,7 @@ migrations, but version 1 registers no migrations.
   "colors": {},
   "brushes": {},
   "typography": {},
+  "shadows": {},
   "spacing": {},
   "padding": {},
   "sizing": {},
@@ -154,6 +155,24 @@ the existing Brush property validation.
 No CLR type name, assembly name, or reflection-based type activation is accepted. Exact framework
 Brush types are written; unknown subclasses are rejected.
 
+## Shadows
+
+An optional `shadows` dictionary maps stable names to immutable descriptions:
+
+```json
+"shadows": {
+  "Card": { "color": "#50000000", "blurRadius": 5, "offsetX": 0, "offsetY": 3, "spread": 0 }
+}
+```
+
+Color is required and uses the normal theme color syntax. The four distance members default to zero.
+Distances are finite logical pixels: blurRadius is a Gaussian standard deviation in 0–128, offsets
+are in -2048–2048, and spread is in -128–128. Unknown/duplicate members are rejected. Shadow tokens
+count toward the normal total-token budget. A custom resource may use `"type": "shadow"` with this
+same value object. No CLR type names or constructors are resolved from this data.
+
+See [shared shadows and typography](shadows-and-typography.md) for consumption, clipping and ownership.
+
 ## Typography
 
 ```json
@@ -174,8 +193,9 @@ Brush types are written; unknown subclasses are rejected.
 ```
 
 `size` is positive and finite. Style supports existing `FontStyle` names/flags. `lineHeight` is an
-optional positive multiplier; `letterSpacing` is an optional finite logical-pixel value. Those last
-two values are preserved even though the global renderer does not yet apply them universally.
+optional positive multiplier at most 16; `letterSpacing` is an optional finite logical-pixel value
+from -1024 through 1024. Body supplies defaults to the shared control-aware text path. See the
+[support matrix](shadows-and-typography.md) for independently styled rich documents and custom renderers.
 
 ## Numeric and animation tokens
 
@@ -216,6 +236,7 @@ Custom resources use a closed `{ "type", "value" }` union:
 | `padding` | `{ "left", "top", "right", "bottom" }` integers |
 | `typography` | typography object |
 | `animation` | animation object |
+| `shadow` | bounded outer-shadow object |
 
 Example:
 
