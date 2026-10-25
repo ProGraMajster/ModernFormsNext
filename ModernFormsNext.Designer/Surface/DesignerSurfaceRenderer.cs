@@ -655,6 +655,17 @@ internal sealed class DesignerSurfaceRenderer
         {
             var propertyPath = NormalizeRuntimePropertyPath(property.Key);
 
+            if (propertyPath == LayoutTransitionDesignValue.PropertyName)
+            {
+                // Static previews validate the closed metadata but never install motion policies.
+                // This also applies to production page trees containing created descendants.
+                if (LayoutTransitionDesignValue.TryRead(property.Value, out _, out _, out _, out _, out var transitionError))
+                    appliedCount++;
+                else
+                    propertyErrors.Add($"{property.Key}: {transitionError}");
+                continue;
+            }
+
             if (!includeLayout && IsDesignerAuthoredLayoutProperty(propertyPath))
                 continue;
             if (propertyPath is DesignNodeRoleNames.RolePropertyName or DesignNodeRoleNames.DisplayNamePropertyName or DesignNodeRoleNames.DisplayTypePropertyName

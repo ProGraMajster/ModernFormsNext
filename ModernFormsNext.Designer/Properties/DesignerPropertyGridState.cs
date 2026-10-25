@@ -952,8 +952,8 @@ internal sealed class DesignerPropertyGridState
                     return "(none)";
                 if (isLayout)
                 {
-                    return LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out _, out _)
-                        ? enabled ? $"{duration:0.##} ms" : "Disabled"
+                    return LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out _, out bool scope, out _)
+                        ? (enabled ? $"{duration:0.##} ms" : "Disabled") + (scope ? " (descendants)" : string.Empty)
                         : "(invalid)";
                 }
                 return VisualStateTransitionDesignValue.TryRead(value, out var transitions, out _)

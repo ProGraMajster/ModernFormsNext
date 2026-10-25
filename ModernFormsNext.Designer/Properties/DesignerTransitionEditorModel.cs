@@ -12,20 +12,25 @@ internal sealed class DesignerLayoutTransitionEditorModel
             out bool enabled,
             out double duration,
             out string easing,
+            out bool applyToDescendants,
             out string? error))
         {
             LoadError = error ?? "The stored layout transition is malformed.";
             enabled = true;
             duration = 250d;
             easing = "EaseOut";
+            applyToDescendants = false;
         }
 
         Enabled = enabled;
+        ApplyToDescendants = applyToDescendants;
         DurationMilliseconds = duration;
         Easing = easing;
     }
 
     public bool Enabled { get; private set; }
+
+    public bool ApplyToDescendants { get; private set; }
 
     public double DurationMilliseconds { get; private set; }
 
@@ -36,6 +41,9 @@ internal sealed class DesignerLayoutTransitionEditorModel
     public string? LoadError { get; private set; }
 
     public bool TrySet(bool enabled, double durationMilliseconds, string easing, out string? error)
+        => TrySet(enabled, durationMilliseconds, easing, ApplyToDescendants, out error);
+
+    public bool TrySet(bool enabled, double durationMilliseconds, string easing, bool applyToDescendants, out string? error)
     {
         if (!double.IsFinite(durationMilliseconds) || durationMilliseconds < 0d)
         {
@@ -49,6 +57,7 @@ internal sealed class DesignerLayoutTransitionEditorModel
         }
 
         Enabled = enabled;
+        ApplyToDescendants = applyToDescendants;
         DurationMilliseconds = durationMilliseconds;
         Easing = easing;
         IsExplicit = true;
@@ -60,6 +69,7 @@ internal sealed class DesignerLayoutTransitionEditorModel
     public void Reset()
     {
         Enabled = true;
+        ApplyToDescendants = false;
         DurationMilliseconds = 250d;
         Easing = "EaseOut";
         IsExplicit = false;
@@ -83,7 +93,7 @@ internal sealed class DesignerLayoutTransitionEditorModel
 
         try
         {
-            value = LayoutTransitionDesignValue.Create(Enabled, DurationMilliseconds, Easing);
+            value = LayoutTransitionDesignValue.Create(Enabled, DurationMilliseconds, Easing, ApplyToDescendants);
             error = null;
             return true;
         }

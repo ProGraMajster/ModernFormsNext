@@ -13,6 +13,7 @@ internal sealed class DesignerTransitionDialog : Form
     private DesignerLayoutTransitionEditorModel? layoutModel;
     private DesignerVisualStateTransitionEditorModel? visualModel;
     private CheckBox? layoutEnabled;
+    private CheckBox? layoutDescendants;
     private NumericUpDown? layoutDuration;
     private ComboBox? layoutEasing;
     private DataGridView? transitionGrid;
@@ -46,7 +47,8 @@ internal sealed class DesignerTransitionDialog : Form
         if (isLayout)
         {
             Size = new System.Drawing.Size(470, 300);
-            MinimumSize = new System.Drawing.Size(430, 280);
+            // Keep the descendant row clear of the bottom-anchored diagnostics at minimum size.
+            MinimumSize = new System.Drawing.Size(430, 300);
             errorLabel = Controls.Add(new Label
             {
                 Left = 18,
@@ -92,6 +94,12 @@ internal sealed class DesignerTransitionDialog : Form
         Controls.Add(new Label { Left = 18, Top = 104, Width = 120, Height = 24, Text = "Easing" });
         layoutEasing = Controls.Add(CreateEasingEditor(154, 100, 220));
         layoutEasing.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+        layoutDescendants = Controls.Add(new CheckBox
+        {
+            Left = 18, Top = 138, Width = 418, Height = 26,
+            Text = "Default for descendants without a local value",
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+        });
 
         var resetButton = Controls.Add(new Button
         {
@@ -122,6 +130,7 @@ internal sealed class DesignerTransitionDialog : Form
         });
 
         layoutEnabled.CheckedChanged += (_, _) => UpdateLayoutModel();
+        layoutDescendants.CheckedChanged += (_, _) => UpdateLayoutModel();
         layoutDuration.ValueChanged += (_, _) => UpdateLayoutModel();
         layoutEasing.SelectedIndexChanged += (_, _) => UpdateLayoutModel();
         resetButton.Click += (_, _) => ResetLayout();
@@ -274,11 +283,11 @@ internal sealed class DesignerTransitionDialog : Form
 
     private void UpdateLayoutModel()
     {
-        if (loadingControls || layoutModel is null || layoutEnabled is null || layoutDuration is null || layoutEasing is null)
+        if (loadingControls || layoutModel is null || layoutEnabled is null || layoutDuration is null || layoutEasing is null || layoutDescendants is null)
             return;
 
         string easing = SelectedText(layoutEasing);
-        if (!layoutModel.TrySet(layoutEnabled.Checked, (double)layoutDuration.Value, easing, out string? error))
+        if (!layoutModel.TrySet(layoutEnabled.Checked, (double)layoutDuration.Value, easing, layoutDescendants.Checked, out string? error))
             ShowError(error ?? "The layout transition is invalid.");
         else
             errorLabel.Text = string.Empty;
@@ -288,6 +297,7 @@ internal sealed class DesignerTransitionDialog : Form
     {
         loadingControls = true;
         layoutEnabled!.Checked = layoutModel!.Enabled;
+        layoutDescendants!.Checked = layoutModel.ApplyToDescendants;
         layoutDuration!.Value = ClampToDecimal(layoutModel.DurationMilliseconds);
         SelectText(layoutEasing!, layoutModel.Easing);
         loadingControls = false;
@@ -476,6 +486,7 @@ internal sealed class DesignerTransitionDialog : Form
     private void SetLayoutControlsEnabled(bool enabled)
     {
         layoutEnabled!.Enabled = enabled;
+        layoutDescendants!.Enabled = enabled;
         layoutDuration!.Enabled = enabled;
         layoutEasing!.Enabled = enabled;
         okButton!.Enabled = enabled;

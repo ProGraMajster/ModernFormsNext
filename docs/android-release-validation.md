@@ -4,6 +4,13 @@ Android remains an **experimental single-surface host**. Issue [#69](https://git
 collects repeatable evidence for the existing rendering, input, accessibility, lifecycle and
 animation paths. It does not declare general Android production, store, GPU or trim safety.
 
+The focused `LayoutPolicy` scenario certifies opt-in inherited layout configuration with the same
+production fixture as the Windows HWND runner. It observes intermediate semantic geometry under
+the native motion policy, retarget/cancel/local override, and zero-area snap/restore. API29+ native
+frame-committed captures verify that collapsed content disappears and restored content returns.
+Use a separate output directory per explicit emulator/device; this does not qualify API23–28
+capture behavior or manual gestures. See [animated layout](architecture/animated-layout.md).
+
 ## Evidence types and acceptance
 
 Keep these labels separate in every report:

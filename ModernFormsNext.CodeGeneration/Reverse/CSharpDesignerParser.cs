@@ -727,6 +727,7 @@ public sealed class CSharpDesignerParser
     private static bool TryReadLayoutTransition(ExpressionSyntax expression, out DesignPropertyValue value)
     {
         bool enabled = true;
+        bool applyToDescendants = false;
         double duration = 250d;
         string easing = "EaseOut";
         value = null!;
@@ -741,14 +742,16 @@ public sealed class CSharpDesignerParser
             string name = assignment.Left.ToString();
             if (name == "Enabled" && !TryReadBoolean(assignment.Right, out enabled))
                 return false;
+            if (name == "ApplyToDescendants" && !TryReadBoolean(assignment.Right, out applyToDescendants))
+                return false;
             if (name == "Duration" && !TryReadTimeSpanMilliseconds(assignment.Right, out duration))
                 return false;
             if (name == "Easing" && !TryReadKnownEasing(assignment.Right, out easing))
                 return false;
-            if (name is not ("Enabled" or "Duration" or "Easing"))
+            if (name is not ("Enabled" or "Duration" or "Easing" or "ApplyToDescendants"))
                 return false;
         }
-        value = LayoutTransitionDesignValue.Create(enabled, duration, easing);
+        value = LayoutTransitionDesignValue.Create(enabled, duration, easing, applyToDescendants);
         return true;
     }
 

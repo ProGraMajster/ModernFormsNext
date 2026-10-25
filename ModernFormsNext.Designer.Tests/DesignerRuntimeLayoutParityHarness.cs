@@ -509,11 +509,13 @@ internal static class DesignerRuntimeLayoutParityHarness
                         out var enabled,
                         out var durationMilliseconds,
                         out _,
+                        out var scope,
                         out _))
                 {
                     control.LayoutTransition = new LayoutTransition
                     {
                         Enabled = enabled,
+                        ApplyToDescendants = scope,
                         Duration = TimeSpan.FromMilliseconds(durationMilliseconds)
                     };
                     continue;

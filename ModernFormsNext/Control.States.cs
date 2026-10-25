@@ -31,6 +31,8 @@ public partial class Control
         UseWaitCursor = 0x00000400,
         Disposed = 0x00000800,
         Disposing = 0x00001000,
+        // Optional ancestor policy is stored only for opted-in branches.
+        HasInheritedLayoutTransition = 0x00002000,
         //MouseEnterPending       = 0x00002000,
         //TrackingMouseEvent      = 0x00004000,
         //ThreadMarshalPending    = 0x00008000,

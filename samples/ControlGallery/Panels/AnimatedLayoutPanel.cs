@@ -61,13 +61,15 @@ public sealed class AnimatedLayoutPanel : BasePanel
         transition = new LayoutTransition
         {
             Duration = TimeSpan.FromMilliseconds(550),
-            Easing = Easings.EaseOut
+            Easing = Easings.EaseOut,
+            ApplyToDescendants = true
         };
+        // Borrowed container configuration; card.LayoutTransition intentionally remains null.
+        stage.LayoutTransition = transition;
         card = stage.Controls.Add(new Panel
         {
             Bounds = StartBounds,
-            BackgroundBrush = new SolidColorBrush(Color.MediumPurple),
-            LayoutTransition = transition
+            BackgroundBrush = new SolidColorBrush(Color.MediumPurple)
         });
         card.Style.Border.Width = 1;
         card.Style.Border.Color = new SKColor(75, 0, 130);
@@ -83,6 +85,19 @@ public sealed class AnimatedLayoutPanel : BasePanel
         AddButton(190, 450, 158, "Rapid retarget", RapidRetarget);
         transitionButton = AddButton(356, 450, 178, string.Empty, ToggleTransition);
         AddButton(542, 450, 158, "Reset", ResetCard);
+        AddButton(24, 630, 220, "Zero width / restore", () =>
+        {
+            if (card.Width == 0)
+            {
+                // Restore the logical toggle state as well as its rectangle, so the next move
+                // always selects the alternate target, including while motion is disabled.
+                ResetCard();
+                return;
+            }
+
+            card.Width = 0;
+            UpdateStatus();
+        });
 
         status = Controls.Add(new Label
         {
@@ -101,7 +116,7 @@ public sealed class AnimatedLayoutPanel : BasePanel
             Width = 720,
             Height = 58,
             Multiline = true,
-            Text = "Manual checks: click the moving card, retarget it repeatedly, and disable the transition mid-flight. The visual must not jump on retarget, hit testing must follow the card, and disabling must snap to the current logical target."
+            Text = "The stage supplies an inherited policy; the card has no local value. Click while moving, retarget, or disable mid-flight. Zero width and restoring from zero must snap, with no old content left behind."
         });
 
         UpdateStatus();
