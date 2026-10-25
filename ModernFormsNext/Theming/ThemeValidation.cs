@@ -73,6 +73,7 @@ internal sealed class ThemeResolver
 
         var colors = new Dictionary<string, System.Drawing.Color>(StringComparer.Ordinal);
         var brushes = new Dictionary<string, MfnBrush>(StringComparer.Ordinal);
+        var shadows = new Dictionary<string, Shadow>(StringComparer.Ordinal);
         var typography = new Dictionary<string, ThemeTypography>(StringComparer.Ordinal);
         var spacing = new Dictionary<string, double>(StringComparer.Ordinal);
         var padding = new Dictionary<string, Padding>(StringComparer.Ordinal);
@@ -85,6 +86,7 @@ internal sealed class ThemeResolver
         {
             Merge(item.Colors, colors, static value => value);
             Merge(item.Brushes, brushes, ThemeValueCloner.CloneBrush);
+            Merge(item.Shadows, shadows, static value => value);
             Merge(item.Typography, typography, static value => value);
             Merge(item.Spacing, spacing, static value => value);
             Merge(item.Padding, padding, static value => value);
@@ -148,6 +150,7 @@ internal sealed class ThemeResolver
             baseChain,
             colors,
             brushes,
+            shadows,
             typography,
             spacing,
             padding,
@@ -243,6 +246,10 @@ internal sealed class ThemeResolver
 
         ValidateKeys(definition.Colors, ThemeTokenCategory.Color, diagnostics);
         ValidateKeys(definition.Brushes, ThemeTokenCategory.Brush, diagnostics);
+        ValidateKeys(definition.Shadows, ThemeTokenCategory.Shadow, diagnostics);
+        foreach ((string key, Shadow? shadow) in definition.Shadows)
+            if (shadow is null)
+                diagnostics.Add(Error("THEME_SHADOW_NULL", "A shadow token cannot be null.", $"shadows.{key}"));
         ValidateKeys(definition.Typography, ThemeTokenCategory.Typography, diagnostics);
         ValidateNumbers(definition.Spacing, ThemeTokenCategory.Spacing, diagnostics);
         ValidatePadding(definition.Padding, diagnostics);
@@ -414,7 +421,7 @@ internal sealed class ThemeResolver
     }
 
     private static int CountTokens(ThemeDefinition definition)
-        => definition.Colors.Count + definition.Brushes.Count + definition.Typography.Count +
+        => definition.Colors.Count + definition.Brushes.Count + definition.Shadows.Count + definition.Typography.Count +
            definition.Spacing.Count + definition.Padding.Count + definition.Sizing.Count + definition.Corners.Count +
            definition.BorderThickness.Count + definition.Animations.Count + definition.Resources.Count;
 

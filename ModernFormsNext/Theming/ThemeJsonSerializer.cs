@@ -39,7 +39,7 @@ public sealed partial class ThemeJsonSerializer
     {
         "schemaVersion", "id", "name", "description", "author", "baseTheme", "variant",
         "metadata", "tags", "colors", "brushes", "typography", "spacing", "padding", "sizing",
-        "corners", "borderThickness", "animations", "resources"
+        "corners", "borderThickness", "animations", "resources", "shadows"
     };
 
     private readonly ThemeSecurityLimits limits;
@@ -272,6 +272,8 @@ public sealed partial class ThemeJsonSerializer
             ReadColorDictionary(root, "colors", theme.Colors);
             ReadBrushDictionary(root, "brushes", theme.Brushes);
             ReadTypographyDictionary(root, "typography", theme.Typography);
+            if (root.TryGetProperty("shadows", out JsonElement shadows))
+                ReadDictionary(shadows, "shadows", theme.Shadows, ReadShadow);
             ReadNumberDictionary(root, "spacing", theme.Spacing);
             ReadPaddingDictionary(root, "padding", theme.Padding);
             ReadNumberDictionary(root, "sizing", theme.Sizing);

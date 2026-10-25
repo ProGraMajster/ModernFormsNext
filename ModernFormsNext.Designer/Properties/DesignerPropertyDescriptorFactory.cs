@@ -189,6 +189,13 @@ internal static class DesignerPropertyDescriptorFactory
             return true;
         }
 
+        if (type == typeof(ModernFormsNext.Drawing.Shadow))
+        {
+            descriptor = CreateStoredRoot(node, name, displayName, category, description,
+                propertyType, fallbackValue, canEdit, isAdvanced);
+            return true;
+        }
+
         if (type == typeof(System.Drawing.Rectangle))
         {
             descriptor = CreateStoredRectangleDescriptor(node, name, displayName, category, description, propertyType, fallbackValue, canEdit, isAdvanced);

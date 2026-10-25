@@ -436,8 +436,8 @@ public partial class Control
     }
 
     /// <summary>
-    /// Notifies framework controls that cached content layout depends on presentation padding or
-    /// border thickness.
+    /// Notifies framework controls that cached content layout depends on presentation padding,
+    /// border thickness or shared typography metrics.
     /// </summary>
     /// <remarks>
     /// This does not raise <see cref="PaddingChanged"/> because the persistent public
@@ -617,7 +617,9 @@ public partial class Control
         int BorderLeftWidth,
         int BorderTopWidth,
         int BorderRightWidth,
-        int BorderBottomWidth)
+        int BorderBottomWidth,
+        double LineHeight,
+        double LetterSpacing)
     {
         public static VisualStateLayoutMetrics Capture(ControlStyle style, Control control)
             => new(
@@ -625,6 +627,8 @@ public partial class Control
                 style.Border.Left.GetWidth(),
                 style.Border.Top.GetWidth(),
                 style.Border.Right.GetWidth(),
-                style.Border.Bottom.GetWidth());
+                style.Border.Bottom.GetWidth(),
+                style.GetLineHeight(),
+                style.GetLetterSpacing());
     }
 }

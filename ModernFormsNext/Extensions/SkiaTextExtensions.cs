@@ -29,7 +29,8 @@ namespace ModernFormsNext
                 maxLines,
                 ellipsis,
                 control.CurrentStyle.GetFontStyle (),
-                control.Enabled ? control.EffectiveTextBrush : null);
+                control.Enabled ? control.EffectiveTextBrush : null,
+                control.CurrentStyle.GetLineHeight(), TextMeasurer.GetDeviceLetterSpacing(control));
 
         /// <summary>
         /// Draws a string of text.
@@ -37,12 +38,12 @@ namespace ModernFormsNext
         public static void DrawText (this SKCanvas canvas, string text, SKTypeface font, int fontSize, Rectangle bounds, SKColor color, ContentAlignment alignment, int selectionStart = -1, int selectionEnd = -1, SKColor? selectionColor = null, int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular)
             => canvas.DrawTextCore (text, font, fontSize, bounds, color, alignment, selectionStart, selectionEnd, selectionColor, maxLines, ellipsis, fontStyle, brush: null);
 
-        internal static void DrawTextCore (this SKCanvas canvas, string text, SKTypeface font, int fontSize, Rectangle bounds, SKColor color, ContentAlignment alignment, int selectionStart = -1, int selectionEnd = -1, SKColor? selectionColor = null, int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular, Drawing.Brush? brush = null)
+        internal static void DrawTextCore (this SKCanvas canvas, string text, SKTypeface font, int fontSize, Rectangle bounds, SKColor color, ContentAlignment alignment, int selectionStart = -1, int selectionEnd = -1, SKColor? selectionColor = null, int? maxLines = null, bool ellipsis = false, FontStyle fontStyle = FontStyle.Regular, Drawing.Brush? brush = null, double lineHeight = 1d, double letterSpacing = 0d)
         {
             if (string.IsNullOrWhiteSpace (text))
                 return;
 
-            var tb = TextMeasurer.CreateTextBlock (text, font, fontSize, bounds.Size, TextMeasurer.GetTextAlign (alignment), brush is null ? color : SKColors.White, maxLines, ellipsis, fontStyle);
+            var tb = TextMeasurer.CreateTextBlock (text, font, fontSize, bounds.Size, TextMeasurer.GetTextAlign (alignment), brush is null ? color : SKColors.White, maxLines, ellipsis, fontStyle, lineHeight, letterSpacing);
             var location = bounds.Location;
             var vertical = TextMeasurer.GetVerticalAlign (alignment);
 
@@ -111,6 +112,7 @@ namespace ModernFormsNext
                 maxLines: 1,
                 ellipsis: ellipsis,
                 fontStyle: control.CurrentStyle.GetFontStyle (),
-                brush: control.Enabled ? control.EffectiveTextBrush : null);
+                brush: control.Enabled ? control.EffectiveTextBrush : null,
+                lineHeight: control.CurrentStyle.GetLineHeight(), letterSpacing: TextMeasurer.GetDeviceLetterSpacing(control));
     }
 }

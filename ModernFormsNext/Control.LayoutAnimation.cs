@@ -267,6 +267,7 @@ public partial class Control
         bool hasPresentationTransform = HasDistinctPresentationBounds;
         if (!hasRenderTransform && !hasPresentationTransform)
         {
+            DrawShadow(canvas, parentOffsetX + ScaledLeft, parentOffsetY + ScaledTop);
             DrawClippedBackBuffer(canvas, buffer, parentOffsetX + ScaledLeft, parentOffsetY + ScaledTop);
             return;
         }
@@ -279,6 +280,14 @@ public partial class Control
 
         if (!hasRenderTransform)
         {
+            canvas.Save();
+            try
+            {
+                canvas.Translate(drawX, drawY);
+                canvas.Scale(drawWidth / buffer.Width, drawHeight / buffer.Height);
+                DrawShadow(canvas, 0, 0);
+            }
+            finally { canvas.Restore(); }
             canvas.DrawBitmap(buffer, new SKRect(drawX, drawY, drawX + drawWidth, drawY + drawHeight));
             return;
         }
@@ -295,6 +304,13 @@ public partial class Control
         canvas.RotateDegrees(EffectiveRotation);
         canvas.Scale(EffectiveScaleX, EffectiveScaleY);
         canvas.Translate(-drawWidth / 2f, -drawHeight / 2f);
+        canvas.Save();
+        try
+        {
+            if (hasPresentationTransform) canvas.Scale(drawWidth / buffer.Width, drawHeight / buffer.Height);
+            DrawShadow(canvas, 0, 0);
+        }
+        finally { canvas.Restore(); }
         if (hasPresentationTransform)
             canvas.DrawBitmap(buffer, new SKRect(0f, 0f, drawWidth, drawHeight), paint);
         else

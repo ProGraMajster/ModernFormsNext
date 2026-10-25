@@ -10,6 +10,8 @@ public sealed partial class ThemeJsonSerializer
 {
     private static readonly HashSet<string> TypographyProperties = new(StringComparer.Ordinal)
         { "fontFamily", "size", "style", "lineHeight", "letterSpacing" };
+    private static readonly HashSet<string> ShadowProperties = new(StringComparer.Ordinal)
+        { "color", "blurRadius", "offsetX", "offsetY", "spread" };
     private static readonly HashSet<string> AnimationProperties = new(StringComparer.Ordinal)
         { "durationMs", "easing", "enabled" };
     private static readonly HashSet<string> ResourceProperties = new(StringComparer.Ordinal)
@@ -108,6 +110,17 @@ public sealed partial class ThemeJsonSerializer
         }
     }
 
+    private Shadow ReadShadow(JsonElement element, string path)
+    {
+        RequireKind(element, JsonValueKind.Object, path);
+        EnsureAllowedProperties(element, ShadowProperties, path);
+        return new Shadow(ReadColor(Required(element, "color", path), path + ".color"),
+            OptionalSingle(element, "blurRadius", path + ".blurRadius") ?? 0,
+            OptionalSingle(element, "offsetX", path + ".offsetX") ?? 0,
+            OptionalSingle(element, "offsetY", path + ".offsetY") ?? 0,
+            OptionalSingle(element, "spread", path + ".spread") ?? 0);
+    }
+
     private ThemeTypography ReadTypography(JsonElement element, string path)
     {
         RequireKind(element, JsonValueKind.Object, path);
@@ -148,6 +161,7 @@ public sealed partial class ThemeJsonSerializer
             "brush" => ThemeResourceValue.FromBrush(ReadBrush(value, path + ".value")),
             "padding" => ThemeResourceValue.FromPadding(ReadPadding(value, path + ".value")),
             "typography" => ThemeResourceValue.FromTypography(ReadTypography(value, path + ".value")),
+            "shadow" => ThemeResourceValue.FromShadow(ReadShadow(value, path + ".value")),
             "animation" => ThemeResourceValue.FromAnimation(ReadAnimation(value, path + ".value")),
             _ => throw Error($"Resource discriminator '{type}' is not allowed", path + ".type")
         };
@@ -303,6 +317,7 @@ public sealed partial class ThemeJsonSerializer
         WriteDictionary(writer, "colors", theme.Colors, static (json, value) => WriteColor(json, value));
         WriteDictionary(writer, "brushes", theme.Brushes, WriteBrush);
         WriteDictionary(writer, "typography", theme.Typography, WriteTypography);
+        WriteDictionary(writer, "shadows", theme.Shadows, WriteShadow);
         WriteDictionary(writer, "spacing", theme.Spacing, static (json, value) => json.WriteNumberValue(value));
         WriteDictionary(writer, "padding", theme.Padding, WritePadding);
         WriteDictionary(writer, "sizing", theme.Sizing, static (json, value) => json.WriteNumberValue(value));
@@ -329,6 +344,18 @@ public sealed partial class ThemeJsonSerializer
             writer.WritePropertyName(key);
             write(writer, value);
         }
+        writer.WriteEndObject();
+    }
+
+    private static void WriteShadow(Utf8JsonWriter writer, Shadow value)
+    {
+        writer.WriteStartObject();
+        writer.WritePropertyName("color");
+        WriteColor(writer, value.Color);
+        writer.WriteNumber("blurRadius", value.BlurRadius);
+        writer.WriteNumber("offsetX", value.OffsetX);
+        writer.WriteNumber("offsetY", value.OffsetY);
+        writer.WriteNumber("spread", value.Spread);
         writer.WriteEndObject();
     }
 
@@ -370,6 +397,7 @@ public sealed partial class ThemeJsonSerializer
             case ThemeResourceKind.Brush: WriteBrush(writer, (MfnBrush)value); break;
             case ThemeResourceKind.Padding: WritePadding(writer, (Padding)value); break;
             case ThemeResourceKind.Typography: WriteTypography(writer, (ThemeTypography)value); break;
+            case ThemeResourceKind.Shadow: WriteShadow(writer, (Shadow)value); break;
             case ThemeResourceKind.Animation: WriteAnimation(writer, (ThemeAnimationSettings)value); break;
             default: throw new InvalidOperationException("The theme resource kind is not supported.");
         }
@@ -509,6 +537,7 @@ public sealed partial class ThemeJsonSerializer
         ThemeResourceKind.Brush => "brush",
         ThemeResourceKind.Padding => "padding",
         ThemeResourceKind.Typography => "typography",
+        ThemeResourceKind.Shadow => "shadow",
         ThemeResourceKind.Animation => "animation",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "The resource kind is not defined.")
     };

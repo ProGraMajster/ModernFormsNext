@@ -16,6 +16,8 @@ namespace ModernFormsNext
         private string placeholder = string.Empty;
 
         private TextBlock? cached_text_block;
+        private double cachedLineHeight;
+        private double cachedLetterSpacing;
         private int[]? code_point_to_utf16_offsets;
         
         private bool enabled = true;
@@ -187,7 +189,9 @@ namespace ModernFormsNext
 
         public TextBlock GetTextBlock ()
         {
-            if (cached_text_block != null)
+            double lineHeight = textbox.CurrentStyle.GetLineHeight();
+            double letterSpacing = TextMeasurer.GetDeviceLetterSpacing(textbox);
+            if (cached_text_block != null && cachedLineHeight == lineHeight && cachedLetterSpacing == letterSpacing)
                 return cached_text_block;
 
             // Single-line text still needs the viewport width so Center/Right alignment
@@ -198,7 +202,9 @@ namespace ModernFormsNext
                         Text.HasValue () ? textbox.CurrentStyle.GetForegroundColor () : 
                                 PlaceholderFontColor;
 
-            return cached_text_block = TextMeasurer.CreateTextBlock(DisplayText, textbox.CurrentStyle.GetFont(), textbox.CurrentFontSize, max_size, alignment, color, MaxLines, fontStyle: textbox.CurrentStyle.GetFontStyle());
+            cachedLineHeight = lineHeight;
+            cachedLetterSpacing = letterSpacing;
+            return cached_text_block = TextMeasurer.CreateTextBlock(DisplayText, textbox.CurrentStyle.GetFont(), textbox.CurrentFontSize, max_size, alignment, color, MaxLines, fontStyle: textbox.CurrentStyle.GetFontStyle(), lineHeight: lineHeight, letterSpacing: letterSpacing);
         }
 
         public bool InsertText (string str)

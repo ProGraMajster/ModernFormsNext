@@ -440,6 +440,15 @@ internal sealed class DesignerPropertyGridState
         try
         {
             committed = SelectedProperty.TryCommit(text, out error);
+            if (committed)
+            {
+                var appearanceNode = playgroundState.SelectedNode;
+                Type? appearanceType = appearanceNode is not null ? playgroundState.ResolveControlType(appearanceNode)
+                    : playgroundState.Document.RootKind == DesignRootKind.UserControl ? typeof(UserControl) : null;
+                if (appearanceType is not null)
+                    committed = DesignerTypographyPropertyValidator.TryValidate(
+                        appearanceNode?.Properties ?? playgroundState.Document.Properties, appearanceType, out error);
+            }
             if (committed && playgroundState.SelectedNode is { } node &&
                 playgroundState.ResolveControlType(node) is { } itemControlType &&
                 (itemControlType == typeof(ListView) || itemControlType == typeof(CollectionView) ||

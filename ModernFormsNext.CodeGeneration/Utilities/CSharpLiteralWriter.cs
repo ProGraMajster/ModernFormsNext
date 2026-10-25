@@ -190,6 +190,11 @@ public static class CSharpLiteralWriter
             return $"new Font({name}, {size}, {style})";
         }
 
+        if (IsType(typeName, "ModernFormsNext.Drawing.Shadow"))
+            return "new global::ModernFormsNext.Drawing.Shadow("
+                + $"global::System.Drawing.Color.FromArgb({ReadByte(properties, "A")}, {ReadByte(properties, "R")}, {ReadByte(properties, "G")}, {ReadByte(properties, "B")}), "
+                + $"{ReadFloat(properties, "BlurRadius")}, {ReadFloat(properties, "OffsetX")}, {ReadFloat(properties, "OffsetY")}, {ReadFloat(properties, "Spread")})";
+
         if (IsType(typeName, "ModernFormsNext.Drawing.PointCollection"))
             return WritePointCollection(properties);
 

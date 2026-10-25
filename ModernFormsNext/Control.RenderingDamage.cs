@@ -21,7 +21,15 @@ public partial class Control
             Math.Max(Math.Max(a.Y, b.Y), Math.Max(c.Y, d.Y)));
     }
 
-    private RectangleF DevicePresentationArea => DamageToParent(new RectangleF(0, 0, ScaledWidth, ScaledHeight));
+    private RectangleF DevicePresentationArea
+    {
+        get
+        {
+            var area = new RectangleF(0, 0, ScaledWidth, ScaledHeight);
+            if (ShadowLocalArea is { IsEmpty: false } shadowArea) area = RectangleF.Union(area, shadowArea);
+            return DamageToParent(area);
+        }
+    }
 
     private static void DrawClippedBackBuffer(SKCanvas canvas, SKBitmap buffer, float x, float y)
     {
@@ -68,6 +76,8 @@ public partial class Control
             // Hidden/offscreen content keeps its dirty bitmap state until it becomes visible,
             // but must not cause repeated paints of ancestors that cannot display it.
             if (!current.Visible || damage.Width <= 0 || damage.Height <= 0) return;
+            if (current.ShadowLocalArea is { IsEmpty: false } shadowArea)
+                damage = RectangleF.Union(damage, shadowArea);
             damage = current.DamageToParent(damage);
             if (current.Parent is not { } parent) return;
             var currentArea = current.DevicePresentationArea;

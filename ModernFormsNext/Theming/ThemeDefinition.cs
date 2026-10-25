@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Drawing;
+using ModernFormsNext.Drawing;
 using MfnBrush = ModernFormsNext.Drawing.Brush;
 
 namespace ModernFormsNext;
@@ -91,6 +92,11 @@ public sealed class ThemeDefinition
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public IDictionary<string, ThemeTypography> Typography { get; } = new Dictionary<string, ThemeTypography>(StringComparer.Ordinal);
 
+    /// <summary>Gets named immutable outer shadows in logical pixels.</summary>
+    /// <remarks>Shadows are opt-in resources; merely defining a token does not change control appearance.</remarks>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public IDictionary<string, Shadow> Shadows { get; } = new Dictionary<string, Shadow>(StringComparer.Ordinal);
+
     /// <summary>Gets spacing tokens in logical pixels.</summary>
     [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public IDictionary<string, double> Spacing { get; } = new Dictionary<string, double>(StringComparer.Ordinal);
@@ -134,6 +140,7 @@ public sealed class ThemeDefinition
             case (ThemeTokenCategory.Color, Color color): Colors[token.Name] = color; break;
             case (ThemeTokenCategory.Brush, MfnBrush brush): Brushes[token.Name] = brush; break;
             case (ThemeTokenCategory.Typography, ThemeTypography typography): Typography[token.Name] = typography; break;
+            case (ThemeTokenCategory.Shadow, Shadow shadow): Shadows[token.Name] = shadow; break;
             case (ThemeTokenCategory.Spacing, double spacing): Spacing[token.Name] = spacing; break;
             case (ThemeTokenCategory.Padding, Padding padding): Padding[token.Name] = padding; break;
             case (ThemeTokenCategory.Sizing, double sizing): Sizing[token.Name] = sizing; break;
@@ -167,6 +174,7 @@ public sealed class ThemeDefinition
         Copy(Colors, clone.Colors, static value => value);
         Copy(Brushes, clone.Brushes, static value => value is null ? null! : ThemeValueCloner.CloneBrush(value));
         Copy(Typography, clone.Typography, static value => value);
+        Copy(Shadows, clone.Shadows, static value => value);
         Copy(Spacing, clone.Spacing, static value => value);
         Copy(Padding, clone.Padding, static value => value);
         Copy(Sizing, clone.Sizing, static value => value);

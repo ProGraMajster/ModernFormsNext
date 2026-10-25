@@ -7,7 +7,7 @@ namespace ModernFormsNext.Designer.Panels;
 internal sealed class OutputPanel : DesignerPanelBase
 {
     private const int ContentPadding = 8;
-    private const int LineHeight = 20;
+    private const int OutputRowHeight = 20;
 
     private readonly DesignerSession state;
 
@@ -22,7 +22,7 @@ internal sealed class OutputPanel : DesignerPanelBase
     protected override void OnPaintContent(PaintEventArgs e)
     {
         var availableHeight = Math.Max(1, Height - HeaderHeight - (ContentPadding * 2));
-        var maxLines = Math.Max(1, availableHeight / LineHeight);
+        var maxLines = Math.Max(1, availableHeight / OutputRowHeight);
         var lines = state.OutputLines.TakeLast(maxLines).ToArray();
         var y = HeaderHeight + ContentPadding;
 
@@ -32,12 +32,12 @@ internal sealed class OutputPanel : DesignerPanelBase
                 line,
                 Theme.UIFont,
                 e.LogicalToDeviceUnits(Theme.FontSize),
-                new System.Drawing.Rectangle(e.LogicalToDeviceUnits(ContentPadding), e.LogicalToDeviceUnits(y), e.LogicalToDeviceUnits(Math.Max(1, Width - (ContentPadding * 2))), e.LogicalToDeviceUnits(LineHeight)),
+                new System.Drawing.Rectangle(e.LogicalToDeviceUnits(ContentPadding), e.LogicalToDeviceUnits(y), e.LogicalToDeviceUnits(Math.Max(1, Width - (ContentPadding * 2))), e.LogicalToDeviceUnits(OutputRowHeight)),
                 DesignerColors.Text,
                 ContentAlignment.MiddleLeft,
                 maxLines: 1,
                 ellipsis: true);
-            y += LineHeight;
+            y += OutputRowHeight;
         }
     }
 }

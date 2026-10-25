@@ -37,7 +37,10 @@ public enum ThemeTokenCategory
     Animation,
 
     /// <summary>A custom allow-listed resource value.</summary>
-    Resource
+    Resource,
+
+    /// <summary>An immutable bounded control shadow.</summary>
+    Shadow
 }
 
 /// <summary>
@@ -162,6 +165,17 @@ public static class ThemeTokens
         public static ThemeToken<Color> Focus { get; } = new(ThemeTokenCategory.Color, nameof(Focus));
         /// <summary>The selection background.</summary>
         public static ThemeToken<Color> Selection { get; } = new(ThemeTokenCategory.Color, nameof(Selection));
+    }
+
+    /// <summary>Contains opt-in outer-shadow roles; controls do not acquire a shadow automatically.</summary>
+    public static class Shadows
+    {
+        /// <summary>A subtle raised surface.</summary>
+        public static ThemeToken<Shadow> Low { get; } = new(ThemeTokenCategory.Shadow, nameof(Low));
+        /// <summary>A moderately raised surface.</summary>
+        public static ThemeToken<Shadow> Medium { get; } = new(ThemeTokenCategory.Shadow, nameof(Medium));
+        /// <summary>A strongly raised surface.</summary>
+        public static ThemeToken<Shadow> High { get; } = new(ThemeTokenCategory.Shadow, nameof(High));
     }
 
     /// <summary>Contains standard typography roles.</summary>

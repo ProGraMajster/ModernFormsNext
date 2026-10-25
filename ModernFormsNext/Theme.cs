@@ -26,6 +26,8 @@ namespace ModernFormsNext
             values[nameof (UIFontBold)] = CreateTypefaceOrDefault("Segoe UI Emoji", SKFontStyleWeight.Bold, SKFontStyleSlant.Upright);
             values[nameof (FontSize)] = 14;
             values[nameof (ItemFontSize)] = 12;
+            values[nameof(LineHeight)] = 1d;
+            values[nameof(LetterSpacing)] = 0d;
         }
 
         /// <summary>
@@ -181,6 +183,35 @@ namespace ModernFormsNext
         public static int FontSize {
             get => GetValue<int> (nameof (FontSize));
             set => SetValue (nameof (FontSize), value);
+        }
+
+        /// <summary>Gets or sets the default positive finite line-height multiplier, at most 16.</summary>
+        /// <remarks>
+        /// One preserves the font's natural line height. ThemeManager applies the Body typography
+        /// token here atomically. Changing this UI-thread setting publishes the existing theme
+        /// notification and invalidates shared text layouts; it does not change the font size.
+        /// </remarks>
+        public static double LineHeight
+        {
+            get => GetValue<double>(nameof(LineHeight));
+            set
+            {
+                if (!double.IsFinite(value) || (float)value <= 0 || value > ThemeTypography.MaximumLineHeight)
+                    throw new ArgumentOutOfRangeException(nameof(value));
+                SetValue(nameof(LineHeight), value);
+            }
+        }
+
+        /// <summary>Gets or sets default additional character spacing in logical pixels.</summary>
+        /// <remarks>Must be finite and between -1024 and 1024. Zero preserves natural advances; negative spacing is supported.</remarks>
+        public static double LetterSpacing
+        {
+            get => GetValue<double>(nameof(LetterSpacing));
+            set
+            {
+                if (!double.IsFinite(value) || Math.Abs(value) > ThemeTypography.MaximumLetterSpacing) throw new ArgumentOutOfRangeException(nameof(value));
+                SetValue(nameof(LetterSpacing), value);
+            }
         }
 
         /// <summary>

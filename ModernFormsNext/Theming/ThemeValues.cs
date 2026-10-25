@@ -10,20 +10,26 @@ namespace ModernFormsNext;
 /// Describes a named typography role in a theme.
 /// </summary>
 /// <remarks>
-/// Font family, size, bold, and italic styling can be mapped to the current renderer. Line height
-/// and letter spacing are preserved as tokens for controls that support them; the base text
-/// renderer does not yet apply those two values globally.
+/// ThemeManager projects the Body role's line height and letter spacing into the shared text
+/// defaults. Control-specific style values take precedence. Shared control-aware measurement,
+/// painting and TextBox layout consume the same metrics; independently styled rich documents
+/// and custom renderers retain their own text layout. ToFont describes only the font itself.
 /// </remarks>
 public sealed class ThemeTypography : IEquatable<ThemeTypography>
 {
+    /// <summary>The maximum line-height multiplier admitted by shared text rendering.</summary>
+    public const float MaximumLineHeight = 16;
+    /// <summary>The maximum absolute additional character spacing in logical pixels.</summary>
+    public const float MaximumLetterSpacing = 1024;
+
     /// <summary>
     /// Creates a typography value.
     /// </summary>
     /// <param name="fontFamily">The non-empty platform font family name.</param>
     /// <param name="size">The positive finite size in points.</param>
     /// <param name="style">The ModernFormsNext font style flags.</param>
-    /// <param name="lineHeight">An optional positive finite line-height multiplier.</param>
-    /// <param name="letterSpacing">Optional finite letter spacing in logical pixels.</param>
+    /// <param name="lineHeight">An optional positive finite line-height multiplier, at most 16.</param>
+    /// <param name="letterSpacing">Optional finite letter spacing from -1024 through 1024 logical pixels.</param>
     public ThemeTypography(
         string fontFamily,
         float size,
@@ -37,10 +43,10 @@ public sealed class ThemeTypography : IEquatable<ThemeTypography>
             throw new ArgumentOutOfRangeException(nameof(size), size, "The typography size must be finite and positive.");
         if ((style & ~(FontStyle.Bold | FontStyle.Italic | FontStyle.Underline | FontStyle.Strikeout)) != 0)
             throw new ArgumentOutOfRangeException(nameof(style), style, "The font style contains unsupported flags.");
-        if (lineHeight is { } line && (!float.IsFinite(line) || line <= 0f))
-            throw new ArgumentOutOfRangeException(nameof(lineHeight), lineHeight, "Line height must be finite and positive.");
-        if (letterSpacing is { } spacing && !float.IsFinite(spacing))
-            throw new ArgumentOutOfRangeException(nameof(letterSpacing), letterSpacing, "Letter spacing must be finite.");
+        if (lineHeight is { } line && (!float.IsFinite(line) || line <= 0f || line > MaximumLineHeight))
+            throw new ArgumentOutOfRangeException(nameof(lineHeight), lineHeight, "Line height must be finite, positive and at most 16.");
+        if (letterSpacing is { } spacing && (!float.IsFinite(spacing) || MathF.Abs(spacing) > MaximumLetterSpacing))
+            throw new ArgumentOutOfRangeException(nameof(letterSpacing), letterSpacing, "Letter spacing must be finite and between -1024 and 1024 logical pixels.");
 
         FontFamily = fontFamily;
         Size = size;
@@ -169,7 +175,9 @@ public enum ThemeResourceKind
     /// <summary>A typography value.</summary>
     Typography,
     /// <summary>An animation setting.</summary>
-    Animation
+    Animation,
+    /// <summary>An immutable bounded control shadow.</summary>
+    Shadow
 }
 
 /// <summary>
@@ -237,6 +245,15 @@ public sealed class ThemeResourceValue
     {
         ArgumentNullException.ThrowIfNull(value);
         return new(ThemeResourceKind.Typography, value);
+    }
+
+    /// <summary>Creates an immutable outer-shadow resource.</summary>
+    /// <param name="value">The non-null shadow description, which may safely be shared.</param>
+    /// <returns>A closed, data-only resource wrapper.</returns>
+    public static ThemeResourceValue FromShadow(Shadow value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new(ThemeResourceKind.Shadow, value);
     }
 
     /// <summary>Creates an animation resource.</summary>
