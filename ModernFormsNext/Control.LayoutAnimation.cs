@@ -19,7 +19,10 @@ public partial class Control
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A <see langword="null"/> value preserves the existing immediate layout behavior. When a
+    /// A <see langword="null"/> value uses the nearest ancestor configuration whose
+    /// <see cref="Animations.LayoutTransition.ApplyToDescendants"/> is true; without such an
+    /// explicit container policy it preserves immediate layout. A local value always wins,
+    /// including a disabled one. The getter returns only the local value. When a
     /// transition is configured, <see cref="Bounds"/>, <see cref="Location"/>, <see cref="Size"/>,
     /// and their scalar counterparts continue to expose the logical target. Only rendering,
     /// clipping, accessibility geometry, and hit testing observe the interpolated presentation
@@ -59,7 +62,7 @@ public partial class Control
             if (value is not null)
                 value.Changed += OnLayoutTransitionConfigurationChanged;
 
-            OnLayoutTransitionConfigurationChanged(value, EventArgs.Empty);
+            RefreshInheritedLayoutTransitionForSubtree(localConfigurationChanged: true);
         }
     }
 
@@ -331,7 +334,7 @@ public partial class Control
             oldLogicalBounds.Width,
             oldLogicalBounds.Height);
 
-        LayoutTransition? transition = LayoutTransition;
+        LayoutTransition? transition = EffectiveLayoutTransition;
         if (!CanAnimateLayout(transition, from, newLogicalBounds))
         {
             if (state is not null)
@@ -360,6 +363,7 @@ public partial class Control
             transition.Changed -= OnLayoutTransitionConfigurationChanged;
         Properties.SetObject(s_layoutTransitionProperty, null);
         Properties.SetObject(s_layoutPresentationStateProperty, null);
+        ClearInheritedLayoutTransition();
     }
 
     private bool CanAnimateLayout(LayoutTransition? transition, RectangleF from, Rectangle target)
@@ -368,6 +372,8 @@ public partial class Control
             return false;
         if (!Created || Parent is null || !Visible || Site?.DesignMode == true)
             return false;
+        // Permanent geometry contract: a zero logical buffer cannot be painted or hit-tested.
+        // Enter/exit effects instead retain positive logical bounds and compose opacity/scale.
         if (from.Width <= 0f || from.Height <= 0f || target.Width <= 0 || target.Height <= 0)
             return false;
         if (HasAncestorCommittingAnimatedLayoutSize())
@@ -381,7 +387,7 @@ public partial class Control
     {
         for (Control? ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
         {
-            if (ancestor.animatedLayoutSizeCommitDepth > 0)
+            if (ancestor.animatedLayoutSizeCommitDepth > 0 || ancestor.Site?.DesignMode == true)
                 return true;
         }
 
@@ -404,6 +410,9 @@ public partial class Control
             Properties.GetObject(s_layoutPresentationStateProperty) as LayoutPresentationState ?? new();
         state.Current = from;
         state.IsAnimating = true;
+        state.Configuration = transition;
+        state.Duration = transition.Duration;
+        state.Easing = transition.Easing;
         int generation = ++state.Generation;
         Properties.SetObject(s_layoutPresentationStateProperty, state);
 
@@ -436,6 +445,9 @@ public partial class Control
                             >= 1f => 1f,
                             _ => transition.Easing(frame.Progress)
                         };
+                        // Custom easing may reparent/dispose the control or replace its policy.
+                        // A retired callback must not publish over the newer presentation state.
+                        if (state.Generation != generation) return;
                         if (!float.IsFinite(easedProgress))
                             throw new InvalidOperationException(
                                 "The layout transition easing function returned NaN or infinity.");
@@ -492,22 +504,7 @@ public partial class Control
     }
 
     private void OnLayoutTransitionConfigurationChanged(object? sender, EventArgs e)
-    {
-        LayoutPresentationState? state =
-            Properties.GetObject(s_layoutPresentationStateProperty) as LayoutPresentationState;
-        if (state is null)
-            return;
-
-        Rectangle logical = Bounds;
-        LayoutTransition? transition = LayoutTransition;
-        if (!CanAnimateLayout(transition, state.Current, logical))
-        {
-            ResetLayoutPresentationBounds(cancelScheduledAnimation: true);
-            return;
-        }
-
-        BeginLayoutPresentationTransition(state.Current, logical, transition!);
-    }
+        => RefreshInheritedLayoutTransitionForSubtree(sender as LayoutTransition, localConfigurationChanged: true);
 
     private void ResetLayoutPresentationBounds(bool cancelScheduledAnimation)
     {
@@ -551,5 +548,8 @@ public partial class Control
         public RectangleF Current;
         public int Generation;
         public bool IsAnimating;
+        public LayoutTransition? Configuration;
+        public TimeSpan Duration;
+        public Func<float, float>? Easing;
     }
 }

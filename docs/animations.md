@@ -30,6 +30,17 @@ Retargeting begins at the current presentation rectangle, and disabling the tran
 logical target and unregisters the control from the scheduler. No layout pass runs on animation
 frames.
 
+Container policies are opt-in: set `container.LayoutTransition = new LayoutTransition {
+ApplyToDescendants = true }` to supply the nearest default to descendants without a local value.
+Local values always win, including disabled configurations. The getter remains local. Each
+control owns its scheduler entry; parent resize layout still suppresses redundant child easing.
+Changes retarget active runs without animating already settled bounds.
+
+Zero-width or zero-height source/target geometry always snaps. To animate entry or exit, retain
+positive logical bounds while using the existing opacity/scale effects, then hide/remove the
+control when your application decides its lifetime is complete. See the permanent fallback and
+ownership example in the architecture guide.
+
 See [Animated layout architecture](architecture/animated-layout.md) for rendering, input,
 lifecycle, constraints, and current limitations.
 

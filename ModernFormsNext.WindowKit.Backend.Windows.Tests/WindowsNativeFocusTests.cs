@@ -13,6 +13,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
     [InlineData("--page-composition", "PAGE_COMPOSITION:PASS:")]
     [InlineData("--app-shell", "APP_SHELL:PASS:")]
     [InlineData("--shadow-typography", "SHADOW_TYPOGRAPHY:PASS:")]
+    [InlineData("--layout-policy", "LAYOUT_POLICY:PASS:")]
+    [InlineData("--layout-policy-immediate", "LAYOUT_POLICY:PASS:")]
     public async Task CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(string argument, string marker)
     {
         if (!OperatingSystem.IsWindows()) return;
@@ -45,6 +47,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
             output.WriteLine(report);
             Assert.True(process.ExitCode == 0, $"Native focus host failed: {errors}\n{report}");
             Assert.Contains(marker, report);
+            if (argument == "--layout-policy-immediate")
+                Assert.Contains("native-policy-immediate=True", report);
             if (argument == "--focus")
             {
                 Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:False:PASS", report);

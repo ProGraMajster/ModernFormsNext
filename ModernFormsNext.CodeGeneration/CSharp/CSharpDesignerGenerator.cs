@@ -523,10 +523,10 @@ public sealed class CSharpDesignerGenerator
         }
         if (string.Equals(propertyName, LayoutTransitionDesignValue.PropertyName, StringComparison.Ordinal))
         {
-            if (!LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out string easing, out string? error))
+            if (!LayoutTransitionDesignValue.TryRead(value, out bool enabled, out double duration, out string easing, out bool scope, out string? error))
                 validation.AddWarning($"LayoutTransition on '{ownerName}' was skipped: {error}");
             else
-                writer.WriteLine($"        {targetExpression}.LayoutTransition = new ModernFormsNext.Animations.LayoutTransition {{ Enabled = {(enabled ? "true" : "false")}, Duration = System.TimeSpan.FromMilliseconds({duration.ToString("R", CultureInfo.InvariantCulture)}), Easing = ModernFormsNext.Animations.Easings.{easing} }};");
+                writer.WriteLine($"        {targetExpression}.LayoutTransition = new ModernFormsNext.Animations.LayoutTransition {{ Enabled = {(enabled ? "true" : "false")}, Duration = System.TimeSpan.FromMilliseconds({duration.ToString("R", CultureInfo.InvariantCulture)}), Easing = ModernFormsNext.Animations.Easings.{easing}{(scope ? ", ApplyToDescendants = true" : string.Empty)} }};");
             return true;
         }
         if (string.Equals(propertyName, VisualStateTransitionDesignValue.PropertyName, StringComparison.Ordinal))

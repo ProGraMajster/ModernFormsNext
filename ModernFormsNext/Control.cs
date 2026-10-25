@@ -134,6 +134,9 @@ namespace ModernFormsNext
                 NotifyNativePresentationChanged();
                 if (previousParent is not null && value is null)
                     CancelOwnedControlAnimationsForSubtree();
+                RefreshInheritedLayoutTransitionForSubtree();
+                if (assignmentVersion != parentAssignmentVersion || GetAnyDisposingInHierarchy())
+                    return;
                 RefreshResourceBindingsForSubtree ();
                 RefreshRoutedCommandSourcesForSubtree();
                 OnParentChanged (EventArgs.Empty);
