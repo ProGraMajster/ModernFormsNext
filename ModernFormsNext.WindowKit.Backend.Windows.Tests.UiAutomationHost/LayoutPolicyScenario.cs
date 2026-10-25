@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ModernFormsNext;
+using ModernFormsNext.Animations;
 using ModernFormsNext.Validation;
 using ModernFormsNext.WindowKit.Threading;
 
 internal static class LayoutPolicyScenario
 {
-    internal static int Run()
+    internal static int Run(bool immediate = false)
     {
         try
         {
@@ -18,6 +19,8 @@ internal static class LayoutPolicyScenario
                 {
                     nint hwnd = form.PlatformHandle.Handle;
                     if (!IsWindow(hwnd)) throw new InvalidOperationException("Actual HWND required.");
+                    // Exercise the same immediate-completion path on hosts whose native motion policy allows animation.
+                    if (immediate) AnimationScheduler.Default.Policy.DurationScale = 0;
                     using var fixture = new LayoutPolicyCertification(form.Controls, Console.WriteLine);
                     fixture.Begin();
                     if (!fixture.Immediate)
@@ -49,8 +52,12 @@ internal static class LayoutPolicyScenario
     private static void Paint(nint hwnd, LayoutPolicyCertification fixture)
     {
         int before = fixture.PaintCount;
+        // Immediate policy can settle without changing any geometry. RedrawWindow alone may
+        // legitimately reuse a clean control cache, so request fresh fixture content explicitly.
+        fixture.Root.Invalidate();
         if (!RedrawWindow(hwnd, 0, 0, 0x0001 | 0x0100) || fixture.PaintCount <= before)
             throw new InvalidOperationException("Native layout fixture did not paint.");
+        Console.WriteLine($"LAYOUT_POLICY native-paint {before}->{fixture.PaintCount}");
     }
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint handle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool RedrawWindow(nint hwnd, nint rectangle, nint region, uint flags);
