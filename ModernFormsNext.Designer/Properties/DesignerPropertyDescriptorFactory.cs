@@ -513,7 +513,11 @@ internal static class DesignerPropertyDescriptorFactory
 
         root.Children.Add(CreateStoredColorDescriptor(node, $"{path}.BackgroundColor", "BackgroundColor", category, "The explicit style background color.", typeof(SKColor?), fallbackStyle?.BackgroundColor, canEdit: true, depth: 1, isAdvanced));
         root.Children.Add(CreateStoredColorDescriptor(node, $"{path}.ForegroundColor", "ForegroundColor", category, "The explicit style foreground color.", typeof(SKColor?), fallbackStyle?.ForegroundColor, canEdit: true, depth: 1, isAdvanced));
-        root.Children.Add(CreateStoredNullableIntDescriptor(node, $"{path}.FontSize", "FontSize", category, "The explicit style font size in points.", fallbackStyle?.FontSize, canEdit: true, depth: 1, isAdvanced, requirePositive: true));
+        root.Children.Add(CreateStoredNullableIntDescriptor(node, $"{path}.FontSize", "FontSize", category, "The explicit integer style font size, using the runtime's existing font-size units.", fallbackStyle?.FontSize, canEdit: true, depth: 1, isAdvanced, requirePositive: true));
+        root.Children.Add(CreateStoredTypographyDescriptor(node, $"{path}.LineHeight", nameof(Control.LineHeight), category,
+            "The shared line-height multiplier, or null to inherit. Compatible state transitions can reflow text.", fallbackStyle?.LineHeight, isAdvanced));
+        root.Children.Add(CreateStoredTypographyDescriptor(node, $"{path}.LetterSpacing", nameof(Control.LetterSpacing), category,
+            "Additional shared character spacing in logical pixels, or null to inherit.", fallbackStyle?.LetterSpacing, isAdvanced));
         root.Children.Add(CreateStoredFontDescriptor(node, $"{path}.TextFont", "TextFont", category, "The explicit ModernFormsNext font for this style.", typeof(Font), fallbackStyle?.TextFont, canEdit: true, depth: 1, isAdvanced));
         root.Children.Add(CreateBorderDescriptor(node, $"{path}.Border", "Border", category, "The explicit border style values.", fallbackStyle?.Border, depth: 1, isAdvanced));
 
@@ -1372,6 +1376,38 @@ internal static class DesignerPropertyDescriptorFactory
 
         return root;
     }
+
+    private static DesignerPropertyDescriptor CreateStoredTypographyDescriptor(DesignControlNode node,
+        string path, string member, string category, string description, double? fallbackValue, bool isAdvanced)
+        => new()
+        {
+            Name = path,
+            Path = path,
+            DisplayName = member,
+            Category = category,
+            Description = description,
+            ValueType = typeof(double?),
+            IsReadOnly = false,
+            IsAdvanced = isAdvanced,
+            Depth = 1,
+            GetValue = () => GetStoredValue(node, path, typeof(double?), fallbackValue),
+            CommitText = text =>
+            {
+                DesignPropertyValue value;
+                if (string.IsNullOrWhiteSpace(text) || string.Equals(text.Trim(), "null", StringComparison.OrdinalIgnoreCase))
+                    value = DesignPropertyValue.FromNull();
+                else
+                {
+                    if (!DesignerPropertyValueEditor.TryConvert(text, typeof(double), out var converted, out var error))
+                        return (false, error);
+                    value = DesignPropertyValue.FromDouble((double)converted!);
+                }
+                if (!DesignerTypographyPropertyValidator.TryValidateMetricValue(member, value, out _, out var admissionError))
+                    return (false, admissionError);
+                node.Properties[path] = value;
+                return (true, null);
+            }
+        };
 
     private static DesignerPropertyDescriptor CreateStoredNullableIntDescriptor(
         DesignControlNode node,

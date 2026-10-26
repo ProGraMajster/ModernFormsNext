@@ -18,6 +18,9 @@ namespace ModernFormsNext
         private TextBlock? cached_text_block;
         private double cachedLineHeight;
         private double cachedLetterSpacing;
+        private SKTypeface? cachedTypeface;
+        private int cachedFontSize;
+        private FontStyle cachedFontStyle;
         private int[]? code_point_to_utf16_offsets;
         
         private bool enabled = true;
@@ -189,9 +192,18 @@ namespace ModernFormsNext
 
         public TextBlock GetTextBlock ()
         {
-            double lineHeight = textbox.CurrentStyle.GetLineHeight();
+            var style = textbox.CurrentStyle;
+            var typeface = style.GetFont();
+            int fontSize = textbox.LogicalToDeviceUnits(style.GetFontSize());
+            var fontStyle = style.GetFontStyle();
+            double lineHeight = style.GetLineHeight();
             double letterSpacing = TextMeasurer.GetDeviceLetterSpacing(textbox);
-            if (cached_text_block != null && cachedLineHeight == lineHeight && cachedLetterSpacing == letterSpacing)
+            // Presentation font changes do not raise the persistent FontChanged event.
+            // Include every shaping font input so state frames, caret/hit testing and paint
+            // share one lazily rebuilt block, while unchanged raster inputs reuse it.
+            if (cached_text_block != null && ReferenceEquals(cachedTypeface, typeface) &&
+                cachedFontSize == fontSize && cachedFontStyle == fontStyle &&
+                cachedLineHeight == lineHeight && cachedLetterSpacing == letterSpacing)
                 return cached_text_block;
 
             // Single-line text still needs the viewport width so Center/Right alignment
@@ -204,7 +216,10 @@ namespace ModernFormsNext
 
             cachedLineHeight = lineHeight;
             cachedLetterSpacing = letterSpacing;
-            return cached_text_block = TextMeasurer.CreateTextBlock(DisplayText, textbox.CurrentStyle.GetFont(), textbox.CurrentFontSize, max_size, alignment, color, MaxLines, fontStyle: textbox.CurrentStyle.GetFontStyle(), lineHeight: lineHeight, letterSpacing: letterSpacing);
+            cachedTypeface = typeface;
+            cachedFontSize = fontSize;
+            cachedFontStyle = fontStyle;
+            return cached_text_block = TextMeasurer.CreateTextBlock(DisplayText, typeface, fontSize, max_size, alignment, color, MaxLines, fontStyle: fontStyle, lineHeight: lineHeight, letterSpacing: letterSpacing);
         }
 
         public bool InsertText (string str)

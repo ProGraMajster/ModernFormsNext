@@ -1,6 +1,9 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--visual-state-metrics", StringComparer.Ordinal)) { Environment.ExitCode = VisualStateMetricScenario.Run(); return; }
+if (args.Contains("--visual-state-metrics-immediate", StringComparer.Ordinal)) { Environment.ExitCode = VisualStateMetricScenario.Run(immediate: true); return; }
+
 if (args.Contains("--layout-policy", StringComparer.Ordinal)) { Environment.ExitCode = LayoutPolicyScenario.Run(); return; }
 
 if (args.Contains("--layout-policy-immediate", StringComparer.Ordinal)) { Environment.ExitCode = LayoutPolicyScenario.Run(immediate: true); return; }

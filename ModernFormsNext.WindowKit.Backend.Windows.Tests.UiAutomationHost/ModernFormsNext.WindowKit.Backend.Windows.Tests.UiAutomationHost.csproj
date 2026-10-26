@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\LayoutPolicyCertification.cs" Link="LayoutPolicyCertification.cs" />
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\VisualStateMetricCertification.cs" Link="VisualStateMetricCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\ShadowTypographyCertification.cs" Link="ShadowTypographyCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\PageNavigationCertification.cs" Link="PageNavigationCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\PageCompositionCertification.cs" Link="PageCompositionCertification.cs" />
