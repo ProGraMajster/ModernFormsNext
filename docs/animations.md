@@ -44,6 +44,20 @@ ownership example in the architecture guide.
 See [Animated layout architecture](architecture/animated-layout.md) for rendering, input,
 lifecycle, constraints, and current limitations.
 
+## Visual-state text and corner metrics
+
+Configured `StyleTransitions` also interpolate compatible integer font sizes from 1 through 4096,
+shared line-height multipliers, logical-pixel character spacing and non-negative border radii.
+Typeface identity and complete font-style flags must match for text interpolation; incompatible
+text endpoints switch together when the target state is activated. Radius is render-only, while
+changed text metrics use existing caches and grouped layout. Reduced motion and zero duration
+still apply the exact target immediately.
+
+Persistent control/style values stay unchanged. Text reflow and AutoSize can allocate and measure
+each changed frame, so use bounded content or render effects for large surfaces. See the
+[supported matrix and performance policy](architecture/layout-aware-visual-state-metrics.md)
+for units, conservative font fallback, renderer limitations and Designer behavior.
+
 ## Basic control animation
 
 Use `Control.Animate` for a custom eased-progress callback owned by a control:

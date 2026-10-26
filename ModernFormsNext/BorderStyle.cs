@@ -100,6 +100,11 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the radius for all border corners.
         /// </summary>
+        /// <remarks>
+        /// Uses the existing integer style-radius coordinates; the renderer owns DPI conversion.
+        /// Configured visual-state transitions interpolate non-negative radius pairs and repaint
+        /// without requesting content layout. Legacy negative pairs retain target-discrete behavior.
+        /// </remarks>
         public int? Radius { get; set; }
 
         /// <summary>

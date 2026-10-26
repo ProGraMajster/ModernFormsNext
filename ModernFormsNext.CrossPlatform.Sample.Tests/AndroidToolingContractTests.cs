@@ -92,6 +92,26 @@ public sealed class AndroidToolingContractTests
         Assert.Contains("Zażółć gęślą jaźń", page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MetricQualificationBindsItsRunnerFailureMarkerAndCommittedArtifacts()
+    {
+        var script = ReadScript("Invoke-ReleaseValidation.ps1");
+        var runner = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android",
+            "VisualStateMetricsValidationInstrumentation.cs"));
+
+        Assert.Contains("'VisualStateMetrics' { 'VisualStateMetricsValidationInstrumentation' }", script, StringComparison.Ordinal);
+        Assert.Contains("VisualStateMetricsRunnerSourceSha256", script, StringComparison.Ordinal);
+        Assert.Contains("ANDROID_VISUAL_STATE_METRICS_PASS", script, StringComparison.Ordinal);
+        Assert.Contains("|ANDROID_VISUAL_STATE_METRICS_FAIL|", script, StringComparison.Ordinal);
+        foreach (var name in new[] { "visual-state-metrics-validation.txt", "visual-state-metrics-source.png",
+                     "visual-state-metrics-target.png", "visual-state-metrics-restored.png" })
+        {
+            Assert.Contains(name, script, StringComparison.Ordinal);
+            Assert.Contains(name, runner, StringComparison.Ordinal);
+        }
+        Assert.Contains("RegisterFrameCommitCallback", runner, StringComparison.Ordinal);
+    }
+
     private static string ReadScript(string name)
         => File.ReadAllText(IOPath.Combine(AndroidScriptsDirectory, name));
 

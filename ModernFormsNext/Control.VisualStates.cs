@@ -217,6 +217,11 @@ public partial class Control
         transitionStyle = runtime.AnimatedStyle;
         try
         {
+            // An unsupported font pair switches when this style is installed, before the
+            // scheduler's first non-immediate tick. Notify its caches/layout exactly once now.
+            ApplyVisualStateLayoutMetrics(previousMetrics, CapturePresentationLayoutMetrics());
+            if (visualStateTransitionGeneration != generation || GetState(States.Disposing | States.Disposed))
+                return;
             EffectiveAnimationScheduler.StartFrames(
                 this,
                 VisualStateAnimationKey,
@@ -240,6 +245,10 @@ public partial class Control
                                 "The visual-state transition easing function returned NaN or infinity.");
                         }
 
+                        // Caller easing can change state, reparent or dispose this control.
+                        // Its retired frame must not overwrite newer per-control transforms.
+                        if (visualStateTransitionGeneration != generation)
+                            return;
                         runtime.Apply(easedProgress, this);
                         if (visualStateTransitionGeneration != generation)
                             return;
@@ -287,6 +296,8 @@ public partial class Control
         {
             if (visualStateTransitionGeneration == generation)
             {
+                // Initial metric callbacks can fail before StartFrames replaces the prior run.
+                EffectiveAnimationScheduler.Cancel(this, VisualStateAnimationKey);
                 transitionStyle = null;
                 ApplyStateTransforms(targetStyle);
                 ApplyVisualStateLayoutMetrics(previousMetrics, CapturePresentationLayoutMetrics());
@@ -410,11 +421,14 @@ public partial class Control
         VisualStateLayoutMetrics previous,
         VisualStateLayoutMetrics current)
     {
+        int generation = visualStateTransitionGeneration;
+        int parentVersion = parentAssignmentVersion;
         NotifyNativePresentationChanged();
-        if (previous == current || GetState(States.Disposing | States.Disposed))
+        if (previous == current || GetState(States.Disposing | States.Disposed) ||
+            generation != visualStateTransitionGeneration || parentVersion != parentAssignmentVersion)
             return;
 
-        // Padding and border thickness both change the content rectangle. Batch all metrics from
+        // Padding, border thickness and typography affect content measurement. Batch all metrics from
         // this scheduler frame into one self-layout. Auto-sized controls additionally ask their
         // parent to measure once. The #25 suppression scope keeps resulting child bounds from
         // starting a second eased transition for the same visual-state change.
@@ -423,10 +437,16 @@ public partial class Control
         try
         {
             OnPresentationContentMetricsChanged();
+            if (GetState(States.Disposing | States.Disposed) || generation != visualStateTransitionGeneration ||
+                parentVersion != parentAssignmentVersion)
+                return;
 
             SetState(States.LayoutIsDirty, true);
             if (AutoSize && Parent is not null)
                 LayoutTransaction.DoLayout(Parent, this, PropertyNames.PreferredSize);
+            if (GetState(States.Disposing | States.Disposed) || generation != visualStateTransitionGeneration ||
+                parentVersion != parentAssignmentVersion)
+                return;
             LayoutTransaction.DoLayout(this, this, PropertyNames.Padding);
         }
         finally
@@ -481,6 +501,7 @@ public partial class Control
         private readonly IAnimationInterpolator<Brush>? backgroundInterpolator;
         private readonly IAnimationInterpolator<Brush>? foregroundInterpolator;
         private readonly IAnimationInterpolator<Brush>? borderInterpolator;
+        private readonly bool interpolateTextMetrics;
 
         public VisualStateTransitionRuntime(
             ControlStyle source,
@@ -491,6 +512,17 @@ public partial class Control
             from = VisualSnapshot.Capture(source, control, useCurrentTransform);
             to = VisualSnapshot.Capture(target, control, useCurrentTransform: false);
             AnimatedStyle = new ControlStyle(target);
+            // Fonts and typefaces remain borrowed. Preserve the exact selected face and text
+            // effects for the captured timeline, including a same-family custom typeface.
+            if (to.TextFont is { } textFont)
+                AnimatedStyle.TextFont = textFont;
+            else
+                AnimatedStyle.Font = to.Typeface;
+            // Text reflow is opt-in through the existing configured state transition. Bound
+            // font interpolation to ordinary UI sizes; larger/invalid legacy sizes and changed
+            // faces/effects retain the deterministic target-discrete behavior.
+            interpolateTextMetrics = ReferenceEquals(from.Typeface, to.Typeface) && from.FontStyle == to.FontStyle &&
+                from.FontSize is > 0 and <= 4096 && to.FontSize is > 0 and <= 4096;
             backgroundInterpolator = TryCreateBrushInterpolator(from.BackgroundBrush, to.BackgroundBrush);
             foregroundInterpolator = TryCreateBrushInterpolator(from.ForegroundBrush, to.ForegroundBrush);
             borderInterpolator = TryCreateBrushInterpolator(from.BorderBrush, to.BorderBrush);
@@ -522,6 +554,18 @@ public partial class Control
                 from.BorderRightWidth, to.BorderRightWidth, progress);
             AnimatedStyle.Border.Bottom.Width = AnimationInterpolators.Int32.Interpolate(
                 from.BorderBottomWidth, to.BorderBottomWidth, progress);
+            // These additional metrics must stay in their valid endpoint ranges even when
+            // other visual channels intentionally use an overshooting easing.
+            float metricProgress = Math.Clamp(progress, 0f, 1f);
+            AnimatedStyle.Border.Radius = from.BorderRadius >= 0 && to.BorderRadius >= 0
+                ? AnimationInterpolators.Int32.Interpolate(from.BorderRadius, to.BorderRadius, metricProgress)
+                : to.BorderRadius;
+            AnimatedStyle.FontSize = interpolateTextMetrics
+                ? AnimationInterpolators.Int32.Interpolate(from.FontSize, to.FontSize, metricProgress) : to.FontSize;
+            AnimatedStyle.LineHeight = interpolateTextMetrics
+                ? InterpolateTextMetric(from.LineHeight, to.LineHeight, metricProgress) : to.LineHeight;
+            AnimatedStyle.LetterSpacing = interpolateTextMetrics
+                ? InterpolateTextMetric(from.LetterSpacing, to.LetterSpacing, metricProgress) : to.LetterSpacing;
             control.visualStateOpacity = Lerp(from.Opacity, to.Opacity, progress);
             control.visualStateTranslationX = Lerp(from.TranslationX, to.TranslationX, progress);
             control.visualStateTranslationY = Lerp(from.TranslationY, to.TranslationY, progress);
@@ -565,6 +609,12 @@ public partial class Control
 
         private static float Lerp(float from, float to, float progress)
             => from + ((to - from) * progress);
+
+        private static double InterpolateTextMetric(double from, double to, float progress)
+            // The shaping engine consumes Single metrics. Reuse an identical raster metric
+            // instead of remeasuring for double-precision changes it cannot display. Preserve
+            // exact captured values at both endpoints; raw completion releases the target style.
+            => progress <= 0f ? from : progress >= 1f ? to : (float)(from + ((to - from) * progress));
     }
 
     private readonly record struct VisualSnapshot(
@@ -580,6 +630,13 @@ public partial class Control
         int BorderTopWidth,
         int BorderRightWidth,
         int BorderBottomWidth,
+        int BorderRadius,
+        SKTypeface Typeface,
+        Font? TextFont,
+        FontStyle FontStyle,
+        int FontSize,
+        double LineHeight,
+        double LetterSpacing,
         float Opacity,
         float TranslationX,
         float TranslationY,
@@ -604,6 +661,13 @@ public partial class Control
                 style.Border.Top.GetWidth(),
                 style.Border.Right.GetWidth(),
                 style.Border.Bottom.GetWidth(),
+                style.Border.GetRadius(),
+                style.GetFont(),
+                style.GetResolvedTextFont(),
+                style.GetFontStyle(),
+                style.GetFontSize(),
+                style.GetLineHeight(),
+                style.GetLetterSpacing(),
                 useCurrentTransform ? control.GetVisualOpacity() : Math.Clamp(style.GetResolvedOpacity() ?? 1f, 0f, 1f),
                 useCurrentTransform ? control.GetVisualTranslationX() : style.GetResolvedTranslationX() ?? 0f,
                 useCurrentTransform ? control.GetVisualTranslationY() : style.GetResolvedTranslationY() ?? 0f,
@@ -618,9 +682,27 @@ public partial class Control
         int BorderTopWidth,
         int BorderRightWidth,
         int BorderBottomWidth,
+        SKTypeface Typeface,
+        FontStyle FontStyle,
+        int FontSize,
         double LineHeight,
         double LetterSpacing)
     {
+        // Padding has only ValueType equality. Synthesized record equality boxes it twice
+        // per frame; compare its four scalar components while keeping this snapshot a value.
+        public bool Equals(VisualStateLayoutMetrics other)
+            => Padding.Left == other.Padding.Left && Padding.Top == other.Padding.Top &&
+                Padding.Right == other.Padding.Right && Padding.Bottom == other.Padding.Bottom &&
+                BorderLeftWidth == other.BorderLeftWidth && BorderTopWidth == other.BorderTopWidth &&
+                BorderRightWidth == other.BorderRightWidth && BorderBottomWidth == other.BorderBottomWidth &&
+                ReferenceEquals(Typeface, other.Typeface) && FontStyle == other.FontStyle && FontSize == other.FontSize &&
+                LineHeight == other.LineHeight && LetterSpacing == other.LetterSpacing;
+
+        public override int GetHashCode()
+            => HashCode.Combine(HashCode.Combine(Padding.Left, Padding.Top, Padding.Right, Padding.Bottom),
+                HashCode.Combine(BorderLeftWidth, BorderTopWidth, BorderRightWidth, BorderBottomWidth),
+                System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(Typeface), FontStyle, FontSize, LineHeight, LetterSpacing);
+
         public static VisualStateLayoutMetrics Capture(ControlStyle style, Control control)
             => new(
                 control.ResolveVisualStatePadding(style),
@@ -628,6 +710,9 @@ public partial class Control
                 style.Border.Top.GetWidth(),
                 style.Border.Right.GetWidth(),
                 style.Border.Bottom.GetWidth(),
+                style.GetFont(),
+                style.GetFontStyle(),
+                style.GetFontSize(),
                 style.GetLineHeight(),
                 style.GetLetterSpacing());
     }

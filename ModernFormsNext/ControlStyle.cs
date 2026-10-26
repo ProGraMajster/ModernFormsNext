@@ -20,6 +20,8 @@ namespace ModernFormsNext
         /// multiplies the font's natural line height; 1 preserves natural spacing. Set on the UI
         /// thread before activating the style. Use <see cref="Control.LineHeight"/> for a live
         /// control change that also invalidates cached measurement and requests layout.
+        /// A configured visual-state transition interpolates compatible font/text metrics;
+        /// changed presentation metrics can reflow text and remeasure AutoSize ancestors each frame.
         /// </remarks>
         public double? LineHeight
         {
@@ -38,6 +40,8 @@ namespace ModernFormsNext
         /// advances. Finite spacing from -1024 through 1024 is allowed. DPI conversion occurs once when building
         /// the shared text block. Use <see cref="Control.LetterSpacing"/> to update a live control.
         /// Independently styled rich documents and custom renderers can use their own text metrics.
+        /// Compatible visual-state transitions interpolate this value without changing the
+        /// persistent style or raising a public font/padding event.
         /// </remarks>
         public double? LetterSpacing
         {
@@ -127,6 +131,14 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the font size.
         /// </summary>
+        /// <remarks>
+        /// Retains the framework's existing integer font-size units and renderer DPI conversion.
+        /// Configured visual-state transitions interpolate resolved sizes from 1 through 4096
+        /// only when the borrowed typeface and full font-style flags match; other pairs switch
+        /// discretely. This does not impose a new setter limit. Presentation size is exposed by
+        /// <see cref="GetFontSize"/> without constructing or mutating a <see cref="TextFont"/>.
+        /// Set style values on the UI thread before activation; text reflow can require layout.
+        /// </remarks>
         public int? FontSize { get; set; }
 
         /// <summary>
@@ -237,6 +249,12 @@ namespace ModernFormsNext
         /// </remarks>
         public SKTypeface GetFont ()
             => ResolveValue(TryGetFont, static () => Theme.UIFont);
+
+        // A presentation style borrows the same immutable font descriptor so underline and
+        // strikeout survive without constructing a Font or selecting a typeface on every frame.
+        // A nearer low-level typeface deliberately stops inherited TextFont resolution.
+        internal Font? GetResolvedTextFont()
+            => ResolveValue<Font?>(TryGetTextFont, static () => null);
 
         /// <summary>
         /// Gets the family name of the computed font.
@@ -409,6 +427,12 @@ namespace ModernFormsNext
 
             value = default;
             return false;
+        }
+
+        private static bool TryGetTextFont(ControlStyle style, out Font? value)
+        {
+            value = style.textFont;
+            return style.font is not null;
         }
 
         private static bool TryGetFontStyle (ControlStyle style, out FontStyle value)

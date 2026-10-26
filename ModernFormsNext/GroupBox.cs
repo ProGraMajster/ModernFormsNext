@@ -440,7 +440,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets the effective caption font size used by layout and rendering.
         /// </summary>
-        internal int EffectiveCaptionFontSize => CaptionFontSize ?? Style.GetFontSize();
+        internal int EffectiveCaptionFontSize => CaptionFontSize ?? CurrentStyle.GetFontSize();
 
         /// <summary>
         /// Gets the effective caption foreground color used by the renderer.
@@ -577,9 +577,9 @@ namespace ModernFormsNext
         {
             get
             {
-                var typeface = Style.GetFont();
+                var typeface = CurrentStyle.GetFont();
                 int fontSize = EffectiveCaptionFontSize;
-                var fontStyle = Style.GetFontStyle();
+                var fontStyle = CurrentStyle.GetFontStyle();
 
                 if (cachedCaptionHeight >= 0
                     && ReferenceEquals(cachedTypeface, typeface)
@@ -712,10 +712,10 @@ namespace ModernFormsNext
 
             var measured = TextMeasurer.MeasureText(
                 Text,
-                Style.GetFont(),
+                CurrentStyle.GetFont(),
                 EffectiveCaptionFontSize,
                 TextMeasurer.MaxSize,
-                Style.GetFontStyle());
+                CurrentStyle.GetFontStyle());
 
             return (int)Math.Ceiling(measured.Width);
         }

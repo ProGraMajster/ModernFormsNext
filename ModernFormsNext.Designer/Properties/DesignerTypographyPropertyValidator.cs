@@ -1,4 +1,3 @@
-using System.Globalization;
 using ModernFormsNext.Designing;
 
 namespace ModernFormsNext.Designer.Properties;
@@ -14,7 +13,6 @@ internal static class DesignerTypographyPropertyValidator
         if (type.Assembly != typeof(Control).Assembly || !typeof(Control).IsAssignableFrom(type)) return true;
         try
         {
-            var style = new ControlStyle(null);
             foreach ((string path, DesignPropertyValue value) in properties)
             {
                 string[] parts = path.Split('.');
@@ -23,13 +21,39 @@ internal static class DesignerTypographyPropertyValidator
                 bool controlMetric = parts.Length == 1 && type.GetProperty(member)?.DeclaringType == typeof(Control);
                 bool styleMetric = parts.Length == 2 && type.GetProperty(parts[0])?.PropertyType == typeof(ControlStyle);
                 if (!controlMetric && !styleMetric) continue;
-                double? number = value.Kind == DesignPropertyValueKind.Null ? null
-                    : value.Kind is DesignPropertyValueKind.Double or DesignPropertyValueKind.Int32
-                        ? Convert.ToDouble(value.Value, CultureInfo.InvariantCulture)
-                        : throw new FormatException("A typography metric must be numeric or null.");
-                if (member == nameof(Control.LineHeight)) style.LineHeight = number;
-                else style.LetterSpacing = number;
+                if (!TryValidateMetricValue(member, value, out _, out error)) return false;
             }
+            return true;
+        }
+        catch (Exception failure) when (failure is ArgumentException or FormatException or InvalidCastException or OverflowException)
+        {
+            error = failure.Message;
+            return false;
+        }
+    }
+
+    // Both nested style editors and preview admission use the same closed scalar contract
+    // and runtime bounds. Inspect the stored CLR scalar directly rather than converting an
+    // arbitrary object supplied by a malformed in-memory document.
+    internal static bool TryValidateMetricValue(string member, DesignPropertyValue value,
+        out double? number, out string? error)
+    {
+        number = null;
+        error = null;
+        try
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            number = value.Kind switch
+            {
+                DesignPropertyValueKind.Null when value.Value is null => null,
+                DesignPropertyValueKind.Double when value.Value is double scalar => scalar,
+                DesignPropertyValueKind.Int32 when value.Value is int scalar => scalar,
+                _ => throw new FormatException("A typography metric must be numeric or null.")
+            };
+            var style = new ControlStyle(null);
+            if (member == nameof(Control.LineHeight)) style.LineHeight = number;
+            else if (member == nameof(Control.LetterSpacing)) style.LetterSpacing = number;
+            else throw new FormatException("Unknown typography metric.");
             return true;
         }
         catch (Exception failure) when (failure is ArgumentException or FormatException or InvalidCastException or OverflowException)

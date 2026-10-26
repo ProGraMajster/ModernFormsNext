@@ -267,6 +267,9 @@ internal static class TextImageLayoutEngine
         if (control.Text is null)
             return SKSize.Empty;
 
-        return TextMeasurer.MeasureText (control.Text, control.Style.GetFont (), control.LogicalToDeviceUnits (control.Style.GetFontSize ()), new Size(1000, 1000), control.Style.GetFontStyle ());
+        // The renderer consumes CurrentStyle, including transient text metrics. Measuring
+        // the persistent style can leave a growing single line with a too-short MaxHeight,
+        // causing the shaper to omit it entirely even when the control has enough space.
+        return TextMeasurer.MeasureText (control.Text, control, new Size(1000, 1000));
     }
 }

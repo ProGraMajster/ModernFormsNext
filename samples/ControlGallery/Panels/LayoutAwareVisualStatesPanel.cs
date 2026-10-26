@@ -34,7 +34,7 @@ public sealed class LayoutAwareVisualStatesPanel : BasePanel
             Width = 760,
             Height = 48,
             Multiline = true,
-            Text = "Hover and press the card. Padding and border thickness share one visual-state timeline; the Dock.Fill child follows the changing content rectangle without a second bounds transition."
+            Text = "Hover and press the card or caption. Padding, border thickness, corner radius and compatible text metrics share the state transition; the Dock.Fill child follows the content rectangle."
         });
 
         var stage = Controls.Add(new Panel
@@ -56,10 +56,13 @@ public sealed class LayoutAwareVisualStatesPanel : BasePanel
         card.Style.Padding = new Padding(12);
         card.Style.Border.Width = 2;
         card.Style.Border.Color = new SKColor(55, 35, 120);
+        card.Style.Border.Radius = 2;
         card.StyleHover.Padding = new Padding(28);
         card.StyleHover.Border.Width = 6;
+        card.StyleHover.Border.Radius = 18;
         card.StylePressed.Padding = new Padding(36);
         card.StylePressed.Border.Width = 8;
+        card.StylePressed.Border.Radius = 10;
 
         AddTransition(card, VisualState.Normal, VisualState.Hover, 260);
         AddTransition(card, VisualState.Hover, VisualState.Normal, 220);
@@ -75,6 +78,33 @@ public sealed class LayoutAwareVisualStatesPanel : BasePanel
             BackColor = new SKColor(126, 94, 205)
         });
 
+        var caption = stage.Controls.Add(new HoverMetricLabel
+        {
+            Name = "VisualStateMetricCaption",
+            AccessibleName = "Visual state metric caption",
+            Bounds = new Rectangle(28, 268, 664, 54),
+            Text = "Hover text: size, height, spacing, corners",
+            TextAlign = ModernFormsNext.ContentAlignment.MiddleCenter,
+            ForeColor = SKColors.White,
+            BackColor = new SKColor(41, 98, 160)
+        });
+        caption.Style.FontSize = 12;
+        caption.Style.LineHeight = 1;
+        caption.Style.LetterSpacing = 0;
+        caption.Style.Border.Radius = 2;
+        caption.StyleHover.FontSize = 20;
+        caption.StyleHover.LineHeight = 1.5;
+        caption.StyleHover.LetterSpacing = 0.75;
+        caption.StyleHover.Border.Radius = 18;
+        caption.StylePressed.FontSize = 18;
+        caption.StylePressed.LineHeight = 1.25;
+        caption.StylePressed.LetterSpacing = 0.25;
+        caption.StylePressed.Border.Radius = 10;
+        AddTransition(caption, VisualState.Normal, VisualState.Hover, 300);
+        AddTransition(caption, VisualState.Hover, VisualState.Normal, 220);
+        AddTransition(caption, VisualState.Hover, VisualState.Pressed, 120);
+        AddTransition(caption, VisualState.Pressed, VisualState.Hover, 180);
+
         Controls.Add(new Label
         {
             Left = 24,
@@ -82,7 +112,7 @@ public sealed class LayoutAwareVisualStatesPanel : BasePanel
             Width = 720,
             Height = 54,
             Multiline = true,
-            Text = "Manual check: quickly move in/out and press repeatedly. Content must remain smooth, the final inset must be exact, and no delayed child animation should continue after the state settles."
+            Text = "Manual check: quickly move in/out and press repeatedly. Text and corners must settle exactly. Padding must follow the card smoothly, with no delayed child motion after the state settles."
         });
     }
 
@@ -114,5 +144,10 @@ public sealed class LayoutAwareVisualStatesPanel : BasePanel
         {
             SetControlBehavior(ControlBehaviors.ReceivesMouseEvents, false);
         }
+    }
+
+    private sealed class HoverMetricLabel : Label
+    {
+        public HoverMetricLabel() => SetControlBehavior(ControlBehaviors.Hoverable);
     }
 }

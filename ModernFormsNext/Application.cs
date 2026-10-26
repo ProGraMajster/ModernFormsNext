@@ -196,6 +196,11 @@ namespace ModernFormsNext
             if (state.Depth != 0)
                 return;
 
+            // A scheduler frame can update only detached controls or unchanged raster values.
+            // Preserve the snapshot boundary for real invalidations without allocating an
+            // empty window list on every such frame.
+            if (state.Windows.Count == 0)
+                return;
             var windows = new List<WindowBase>(state.Windows);
             state.Windows.Clear();
 

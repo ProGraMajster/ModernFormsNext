@@ -11,6 +11,14 @@ frame-committed captures verify that collapsed content disappears and restored c
 Use a separate output directory per explicit emulator/device; this does not qualify API23–28
 capture behavior or manual gestures. See [animated layout](architecture/animated-layout.md).
 
+The focused `VisualStateMetrics` scenario uses the same production fixture as the Windows HWND
+runner. It checks compatible intermediate font size, line height, letter spacing and corner radius,
+then exact targets, cancellation and restoration. API29+ frame-committed screenshots independently
+compare the rendered TextBox glyph width and rounded corner pixels at source, target and restored
+states. Motion-disabled devices follow the immediate policy; screenshots qualify settled states.
+This synthetic enabled-state scenario does not qualify manual hover, vendor IME behavior or general
+control typography parity. See the [supported metrics matrix](architecture/layout-aware-visual-state-metrics.md).
+
 ## Evidence types and acceptance
 
 Keep these labels separate in every report:
@@ -66,6 +74,8 @@ $device = '<explicit adb serial>'
   -Scenario AccessibilityPhase4 -OutputDirectory artifacts/android-release/accessibility
 ./scripts/android/Invoke-ReleaseValidation.ps1 -DeviceId $device -ApkPath $apk `
   -Scenario SystemReducedMotion -OutputDirectory artifacts/android-release/system-motion
+./scripts/android/Invoke-ReleaseValidation.ps1 -DeviceId $device -ApkPath $apk `
+  -Scenario VisualStateMetrics -OutputDirectory artifacts/android-release/visual-state-metrics
 
 # Packaging evidence only: installing the APK above is a separate gate.
 dotnet publish samples/ModernFormsNext.CrossPlatform.Sample/ModernFormsNext.CrossPlatform.Sample.csproj `
