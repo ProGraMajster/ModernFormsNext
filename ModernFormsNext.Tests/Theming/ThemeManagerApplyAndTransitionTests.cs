@@ -11,6 +11,54 @@ namespace ModernFormsNext.Tests;
 public sealed class ThemeManagerApplyAndTransitionTests
 {
     [Fact]
+    public async Task BrushPolicyIsCapturedWithoutChangingDirectThemeColorInterpolation()
+    {
+        using var harness = new ThemeManagerTestHarness();
+        var start = Theme("brush-policy.start", Color.Black);
+        start.Brushes["Card"] = new SolidColorBrush(Color.Black);
+        var target = Theme("brush-policy.target", Color.White);
+        target.Brushes["Card"] = new SolidColorBrush(Color.White);
+        Assert.True(harness.Manager.Apply(start, Immediate()).Success);
+        var options = Animated();
+        options.Transition.BrushInterpolation.ColorSpace = ColorInterpolationSpace.LinearSrgb;
+        var result = harness.Manager.Apply(target, options);
+        options.Transition.BrushInterpolation.ColorSpace = ColorInterpolationSpace.Srgb;
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        var working = Assert.IsType<SolidColorBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.Equal(188, working.PaintColor.R);
+        Assert.Equal(128, ResourceColor(harness, ThemeTokens.Colors.Background.ResourceKey).R);
+        Assert.Equal(Color.Black.ToArgb(), Assert.IsType<SolidColorBrush>(start.Brushes["Card"]).PaintColor.ToArgb());
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        Assert.Equal(ThemeTransitionStatus.Completed, await result.Transition!.Completion);
+        Assert.NotSame(working, harness.Resources[BrushKey("Card")]);
+    }
+
+    [Fact]
+    public async Task ExtendedNoPaintThemeRetargetLeavesOneRunAndExactFinalSnapshot()
+    {
+        using var harness = new ThemeManagerTestHarness();
+        var start = Theme("no-paint.start", Color.Black);
+        start.Brushes["Card"] = new NoBrush();
+        var target = Theme("no-paint.target", Color.White);
+        target.Brushes["Card"] = new GlassBrush();
+        Assert.True(harness.Manager.Apply(start, Immediate()).Success);
+        var options = Animated();
+        options.Transition.BrushInterpolation.EnableExtendedMorphing = true;
+        var first = harness.Manager.Apply(target, options);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+        var working = Assert.IsType<GlassBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.Equal(0.5f, working.Opacity);
+        var final = harness.Manager.Apply(start, options);
+        Assert.Same(working, harness.Resources[BrushKey("Card")]);
+        Assert.Equal(1, harness.SchedulerHarness.Scheduler.GetDiagnostics().ActiveAnimationCount);
+        harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(100));
+        Assert.Equal(ThemeTransitionStatus.Canceled, await first.Transition!.Completion);
+        Assert.Equal(ThemeTransitionStatus.Completed, await final.Transition!.Completion);
+        Assert.IsType<NoBrush>(harness.Resources[BrushKey("Card")]);
+        Assert.False(harness.SchedulerHarness.TickSource.IsRunning);
+    }
+
+    [Fact]
     public void DefaultApplyOptionsKeepThemeTransitionsOptIn()
     {
         var options = new ThemeApplyOptions();

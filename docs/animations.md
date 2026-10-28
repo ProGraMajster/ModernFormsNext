@@ -272,8 +272,9 @@ AnimationHandle handle = AnimationScheduler.Default.Animate(
 
 Built-in interpolators cover `float`, `double`, `int`, `PointF`, `SizeF`, `RectangleF`,
 `System.Drawing.Color` including alpha, and `Matrix3x2`. Numeric and geometric values interpolate
-component by component. `int` uses midpoint rounding away from zero. Color interpolation currently
-uses sRGB byte channels rather than a linear-light color space.
+component by component. `int` uses midpoint rounding away from zero. The default color interpolator
+uses sRGB byte channels. `AnimationInterpolators.CreateColorInterpolator(ColorInterpolationSpace.LinearSrgb)`
+selects temporal linear-light RGB with separately linear alpha.
 
 `AnimationOptions.Duration` and `Delay` are non-negative `TimeSpan` values. A zero duration applies
 the final value once on the UI thread and completes without starting the tick source. Delayed or
@@ -381,9 +382,14 @@ AnimationHandle handle = sharedBrush.AnimateTo(
 
 Local transitions support solid-to-solid, same-kind gradient pairs with equal or different
 non-empty stop counts, and solid-to-linear/radial/sweep promotion. Exact endpoints retain their
-authored references; normalization never mutates authored brushes. Cross-kind gradients,
+authored references; normalization never mutates authored brushes. By default, cross-kind gradients,
 `GlassBrush`, `NoBrush`, null, empty-to-populated gradients, and custom/derived brushes use the
-calling subsystem's discrete fallback. See the
+calling subsystem's discrete fallback. Opt-in `BrushInterpolationOptions` adds glass pairs with
+matching layer flags and opacity fades between explicit no-paint and supported paint. It also
+selects temporal sRGB or linear-light RGB. Assign the policy to `VisualStateTransition.BrushInterpolation`
+or `ThemeTransitionOptions.BrushInterpolation`, or pass it to `CreateBrushInterpolator(policy)`.
+Configuration is captured at animation start (at creation for an explicit factory).
+Planning admits up to 4096 authored/normalized stops. See the
 [brush interpolation compatibility matrix](architecture/brush-interpolation.md) for the precise
 normalization and fallback rules.
 
@@ -700,8 +706,8 @@ stops when no runnable work remains.
 
 - Animated layout covers bounds, while visual-state metric interpolation currently covers padding
   and border widths. Other layout-aware state metrics remain discrete.
-- Brush cross-kind geometry, `GlassBrush`, `NoBrush`, null, empty-to-populated gradients, and
-  custom/derived brush types switch discretely.
+- Populated brush cross-kind geometry, mismatched Glass layer flags, null and custom/derived brush
+  types switch discretely. Additional Glass/no-paint mappings require explicit opt-in.
 - The Designer supports built-in effects, explicitly source-described project effects, layout
   transitions, visual-state transitions, and built-in easing identifiers. Custom easing delegates,
   general `AnimationDefinition` activation, and Designer undo/redo remain code-first/unavailable.

@@ -470,7 +470,8 @@ public sealed class CSharpDesignerParser
             return true;
         if (!TryReadVisualState(invocation.ArgumentList.Arguments[0].Expression, out string from)
             || !TryReadVisualState(invocation.ArgumentList.Arguments[1].Expression, out string to)
-            || !TryReadVisualStateTransition(invocation.ArgumentList.Arguments[2].Expression, out double duration, out string easing))
+            || !TryReadVisualStateTransition(invocation.ArgumentList.Arguments[2].Expression,
+                out double duration, out string easing, out string colorSpace, out bool extended))
         {
             AddUnsupported(invocation, $"Unsupported visual-state transition initializer for '{ownerName}'.");
             return true;
@@ -494,7 +495,8 @@ public sealed class CSharpDesignerParser
         try
         {
             properties[VisualStateTransitionDesignValue.PropertyName] = VisualStateTransitionDesignValue.Create(
-                transitions.Append(new DesignVisualStateTransition(from, to, duration, easing)));
+                transitions.Append(new DesignVisualStateTransition(from, to, duration, easing)
+                    { BrushColorSpace = colorSpace, EnableExtendedBrushMorphing = extended }));
         }
         catch (ArgumentException exception)
         {
@@ -514,25 +516,70 @@ public sealed class CSharpDesignerParser
     private static bool TryReadVisualStateTransition(
         ExpressionSyntax expression,
         out double duration,
-        out string easing)
+        out string easing,
+        out string colorSpace,
+        out bool extended)
     {
         duration = 150d;
         easing = "CubicOut";
+        colorSpace = "Srgb";
+        extended = false;
         if (expression is not ObjectCreationExpressionSyntax creation
             || !IsTypeReference(creation.Type, "VisualStateTransition", "ModernFormsNext.Animations.VisualStateTransition")
+            || creation.ArgumentList?.Arguments.Count > 0
             || creation.Initializer is null)
             return false;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (ExpressionSyntax item in creation.Initializer.Expressions)
         {
             if (item is not AssignmentExpressionSyntax assignment)
                 return false;
             string name = assignment.Left.ToString();
+            if (!seen.Add(name))
+                return false;
             if (name == "Duration" && !TryReadTimeSpanMilliseconds(assignment.Right, out duration))
                 return false;
             if (name == "Easing" && !TryReadKnownEasing(assignment.Right, out easing))
                 return false;
-            if (name is not ("Duration" or "Easing"))
+            if (name == "BrushInterpolation" && !TryReadBrushInterpolation(assignment.Right, out colorSpace, out extended))
                 return false;
+            if (name is not ("Duration" or "Easing" or "BrushInterpolation"))
+                return false;
+        }
+        return true;
+    }
+
+    private static bool TryReadBrushInterpolation(ExpressionSyntax expression, out string colorSpace, out bool extended)
+    {
+        colorSpace = "Srgb";
+        extended = false;
+        // Admit a closed initializer only. Preview never constructs caller-selected types or evaluates code.
+        if (expression is not ObjectCreationExpressionSyntax creation
+            || !IsTypeReference(creation.Type, "BrushInterpolationOptions", "ModernFormsNext.Animations.BrushInterpolationOptions")
+            || creation.ArgumentList?.Arguments.Count > 0 || creation.Initializer is null
+            || creation.Initializer.Expressions.Count > 2)
+            return false;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in creation.Initializer.Expressions)
+        {
+            if (item is not AssignmentExpressionSyntax assignment || !seen.Add(assignment.Left.ToString()))
+                return false;
+            switch (assignment.Left.ToString())
+            {
+                case "ColorSpace" when assignment.Right is MemberAccessExpressionSyntax member
+                    && IsTypeReference(member.Expression, "ColorInterpolationSpace", "ModernFormsNext.Animations.ColorInterpolationSpace")
+                    && member.Name.Identifier.ValueText is "Srgb" or "LinearSrgb":
+                    colorSpace = member.Name.Identifier.ValueText;
+                    break;
+                case "EnableExtendedMorphing" when assignment.Right.IsKind(SyntaxKind.TrueLiteralExpression):
+                    extended = true;
+                    break;
+                case "EnableExtendedMorphing" when assignment.Right.IsKind(SyntaxKind.FalseLiteralExpression):
+                    extended = false;
+                    break;
+                default:
+                    return false;
+            }
         }
         return true;
     }

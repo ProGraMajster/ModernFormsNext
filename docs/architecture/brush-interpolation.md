@@ -16,7 +16,7 @@ returns the exact source reference, progress at or above one returns the exact t
 and only the open interval uses the animation-local working brush. This gives theme resources and
 visual states deterministic identity and notification behavior at both endpoints.
 
-## Compatibility matrix
+## Default compatibility matrix
 
 The table describes the end-to-end behavior of visual-state and `ThemeManager` transitions. Those
 callers probe compatibility before creating a local interpolator and apply their established
@@ -34,10 +34,39 @@ retains the existing validation exception for an unsupported pair because
 | Glass | discrete | discrete | discrete | discrete | discrete | discrete |
 | NoBrush, null, custom | discrete | discrete | discrete | discrete | discrete | discrete |
 
-Only the exact built-in `SolidColorBrush`, `LinearGradientBrush`, `RadialGradientBrush`, and
+By default only the exact built-in `SolidColorBrush`, `LinearGradientBrush`, `RadialGradientBrush`, and
 `SweepGradientBrush` types participate. A derived or otherwise unknown brush may add state with no
 safe generic interpolation rule, so it deliberately uses the caller's existing discrete fallback.
 There is no implicit reflection or user-code invocation to discover a custom path.
+
+## Opt-in compatibility matrix
+
+Set `BrushInterpolationOptions.EnableExtendedMorphing = true` to add the following mappings.
+The default matrix remains unchanged when the option is false.
+
+| Pair, in either direction | Extended behavior |
+| --- | --- |
+| Solid / populated gradient of any supported kind | Existing promotion to the gradient geometry |
+| Same populated gradient kind | Existing ordinal or normalized stop interpolation |
+| Different populated gradient kinds | Permanent discrete fallback |
+| Glass / Glass with equal `ShowHighlight` and `ShowInnerBorder` | Interpolate four colors, opacity and transform |
+| Glass / Glass with different layer flags | Permanent discrete fallback |
+| NoBrush or any empty gradient / supported painted brush | Fade the painted endpoint using its complete geometry and layer flags |
+| Any two explicit no-paint values, including different empty gradient kinds | One local NoBrush during the open interval |
+| Glass / Solid or populated gradient | Permanent discrete fallback |
+| Null / any brush; custom or derived / any brush | Permanent discrete fallback |
+
+A no-paint fade copies the painted endpoint's colors, stop structure, transform and geometry,
+then interpolates opacity from or to zero. It has no invented transparent stop colors or geometry.
+The exact original references are restored at both endpoints. Null stays distinct: a control may
+resolve it to its fallback color. Glass here means the existing layered tint/border brush; it does
+not sample the background, add blur or require GPU work. Its flags must match because fill and
+stroke paths interpret those layers differently.
+
+Unknown and derived brushes permanently retain the automatic planner's discrete fallback.
+For a custom code-first animation, supply an explicit `IAnimationInterpolator<T>` to the existing
+typed scheduler API and manage that custom value's ownership. Automatic state/theme planning does
+not invoke custom interpolators or a global registration mechanism.
 
 Linear, radial, and sweep geometry is not morphed across kinds. Such a morph would need an authored
 geometry contract rather than an arbitrary conversion, so these pairs also remain discrete.
@@ -64,9 +93,18 @@ Stops are ordered and captured once when the plan is created.
 - Each endpoint is resampled onto that canonical structure once. Exact duplicate colors retain
   stable order; missing offsets use piecewise color interpolation between neighboring authored
   stops.
-- An empty gradient is treated as no paint, not as a transparent color. Empty-to-populated and
+- By default an empty gradient is treated as no paint. Empty-to-populated and
   solid-to-empty pairs therefore use the discrete fallback. Two empty gradients of the same kind
   remain structurally compatible.
+
+Planning admits at most **4096 authored stops per endpoint and 4096 normalized canonical stops**.
+Over-budget pairs are incompatible before sorting or constructing working collections. A union
+that exceeds the budget is rejected before canonical/resampled arrays are allocated. This is an
+animation admission bound, not a new brush setter limit; an oversized authored resource remains
+unchanged and can still render. Direct factory use throws for an incompatible pair; state/theme
+callers take their discrete fallback. Explicit in-place animation rejects unsupported size before
+scheduling. Planning is O(n log n) for ordering and O(n + m) for union/resampling; frame work is
+O(k) for the fixed working stop count.
 
 The canonical offsets stay fixed for intermediate frames. The exact authored target replaces the
 working brush at completion, so normalization cannot permanently alter authored stop count,
@@ -76,7 +114,7 @@ ordering, offsets, or identity.
 
 Compatible plans interpolate:
 
-- color channels, including alpha, in the existing sRGB byte interpolation;
+- color channels using the captured temporal color-space policy, with separately linear alpha;
 - brush opacity;
 - `Matrix3x2` transform;
 - linear start and end points;
@@ -86,6 +124,43 @@ Compatible plans interpolate:
 
 `GradientSpreadMode` is categorical. The source mode is retained for intermediate frames and the
 exact target mode becomes visible at completion. Radius remains non-negative.
+
+## Temporal color space
+
+`ColorInterpolationSpace.Srgb` keeps encoded byte-channel interpolation (black/white midpoint
+128). `LinearSrgb` decodes RGB with the standard sRGB transfer function, interpolates in linear
+light, then encodes the result (black/white midpoint 188). Alpha remains a straight, separately
+linear byte channel in both policies. This does not change premultiplication, the renderer's
+compositor, display color management or gradient spatial sampling. The transfer functions follow
+the [W3C sRGB definition](https://www.w3.org/TR/css-color-4/#valdef-color-srgb).
+
+Gradient normalization continues to sample each endpoint's **spatial** color function in encoded
+sRGB, matching the current renderer. Only interpolation **over time** uses the selected policy.
+This preserves the source's gradient appearance when a transition first starts.
+
+```csharp
+var policy = new BrushInterpolationOptions
+{
+    ColorSpace = ColorInterpolationSpace.LinearSrgb,
+    EnableExtendedMorphing = true
+};
+button.StyleTransitions.Add(VisualState.Normal, VisualState.Hover,
+    new VisualStateTransition { BrushInterpolation = policy });
+
+var options = new ThemeApplyOptions();
+options.Transition.Enabled = true;
+options.Transition.BrushInterpolation = policy;
+// ThemeManager.Apply(theme, options) uses the same planner.
+
+var interpolation = AnimationInterpolators.CreateBrushInterpolator(policy);
+var presented = interpolation.Interpolate(new NoBrush(), new SolidColorBrush(Color.White), 0.5f);
+```
+
+Factories snapshot configuration when created; states and theme requests snapshot it when started.
+Configure on the UI thread. Editing the original options does not alter a running animation.
+Brush-only policy leaves raw visual-state fallback colors and non-brush theme colors unchanged.
+`CreateColorInterpolator(space)` and `CreateGradientStopInterpolator(space)` allow explicit
+code-first temporal policies for those values too.
 
 ## Scheduling, retargeting, and lifecycle
 
@@ -104,6 +179,11 @@ An explicit `Brush.AnimateTo` is different: it intentionally preserves the desti
 identity and mutates it in place. Because its structure cannot change without replacing that
 object, this compatibility API still requires matching exact built-in types and equal gradient
 stop counts. It raises normal observable brush notifications on every changed frame.
+Its opt-in overload is `brush.AnimateTo(target, policy, duration, ...)`; the argument order keeps
+the original duration/key overload unambiguous, including an existing null key argument. Glass
+still requires matching flags. No-paint fades that replace types belong to the value-style factory.
+The policy overloads for brushes and stops are provided by `BrushInterpolationExtensions` in the
+same `ModernFormsNext.Animations` namespace; existing static extension-class entry points remain.
 
 ## Rendering and resource notifications
 
@@ -118,19 +198,22 @@ resources continue to invalidate through the established resource and observable
 
 ## Performance contract
 
-Plan creation may allocate snapshots, sorted stop arrays, a canonical offset array, and one working
+Plan creation may allocate bounded snapshots, sorted stop arrays, a canonical offset array, and one working
 brush. The frame path performs indexed loops over fixed arrays and mutates existing brush and stop
 objects. It does not use reflection, LINQ, structural parsing, replacement stop arrays, or a new
 brush per frame. Scheduler batching retains the existing one-invalidation-batch-per-tick behavior.
+Linear-light conversion uses one fixed shared 256-entry decode table and scalar encoding math.
+Finite geometry interpolation uses double intermediates so opposite finite float coordinates
+cannot overflow during an open-interval convex frame.
 
 ## Deliberate limitations
 
-- Cross-kind gradient geometry, `GlassBrush`, `NoBrush`, `null`, and custom/derived brushes use a
-  discrete fallback.
-- Color channels use the existing sRGB interpolation; linear-light or color-space selection is not
-  introduced here.
-- The Designer serializes known visual-state transition/easing metadata, but it does not live-
-  preview transitions and custom delegate easing remains code-first.
+- Populated cross-kind gradient geometry, null and custom/derived brushes retain their fallback.
+- The Designer transition editor persists closed `BrushColorSpace` and
+  `EnableExtendedBrushMorphing` metadata and round-trips known C# initializers. Default keys stay
+  absent. Unknown names, foreign enum types and wrong scalar kinds are rejected. Static Designer
+  preview does not schedule transitions; generated runtime applications apply the selected policy.
+- Custom delegate easing remains code-first.
 - The planner is platform-neutral and the Android scheduler integration is implemented. Full
   physical-device frame-pacing and rendering validation remains outstanding.
 

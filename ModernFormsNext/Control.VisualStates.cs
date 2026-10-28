@@ -211,7 +211,8 @@ public partial class Control
             sourceStyle,
             targetStyle,
             this,
-            continuesActiveTransition);
+            continuesActiveTransition,
+            transition!.BrushInterpolation.Clone());
         TimeSpan duration = transition!.Duration;
         Func<float, float> easing = transition.Easing;
         transitionStyle = runtime.AnimatedStyle;
@@ -507,7 +508,8 @@ public partial class Control
             ControlStyle source,
             ControlStyle target,
             Control control,
-            bool useCurrentTransform)
+            bool useCurrentTransform,
+            BrushInterpolationOptions brushInterpolation)
         {
             from = VisualSnapshot.Capture(source, control, useCurrentTransform);
             to = VisualSnapshot.Capture(target, control, useCurrentTransform: false);
@@ -523,9 +525,9 @@ public partial class Control
             // faces/effects retain the deterministic target-discrete behavior.
             interpolateTextMetrics = ReferenceEquals(from.Typeface, to.Typeface) && from.FontStyle == to.FontStyle &&
                 from.FontSize is > 0 and <= 4096 && to.FontSize is > 0 and <= 4096;
-            backgroundInterpolator = TryCreateBrushInterpolator(from.BackgroundBrush, to.BackgroundBrush);
-            foregroundInterpolator = TryCreateBrushInterpolator(from.ForegroundBrush, to.ForegroundBrush);
-            borderInterpolator = TryCreateBrushInterpolator(from.BorderBrush, to.BorderBrush);
+            backgroundInterpolator = TryCreateBrushInterpolator(from.BackgroundBrush, to.BackgroundBrush, brushInterpolation);
+            foregroundInterpolator = TryCreateBrushInterpolator(from.ForegroundBrush, to.ForegroundBrush, brushInterpolation);
+            borderInterpolator = TryCreateBrushInterpolator(from.BorderBrush, to.BorderBrush, brushInterpolation);
             Apply(0f, control);
         }
 
@@ -574,11 +576,12 @@ public partial class Control
             control.visualStateRotation = Lerp(from.Rotation, to.Rotation, progress);
         }
 
-        private static IAnimationInterpolator<Brush>? TryCreateBrushInterpolator(Brush? from, Brush? to)
+        private static IAnimationInterpolator<Brush>? TryCreateBrushInterpolator(Brush? from, Brush? to,
+            BrushInterpolationOptions options)
         {
             if (from is null || to is null)
                 return null;
-            return AnimationInterpolators.TryCreateBrushInterpolator(from, to, out IAnimationInterpolator<Brush>? interpolator)
+            return AnimationInterpolators.TryCreateBrushInterpolator(from, to, out IAnimationInterpolator<Brush>? interpolator, options)
                 ? interpolator
                 : null;
         }

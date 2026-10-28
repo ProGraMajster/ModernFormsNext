@@ -24,7 +24,7 @@ public static class BrushAnimationExtensions
     /// <see cref="SweepGradientBrush"/>. Because this helper preserves and mutates the identity of
     /// <paramref name="brush"/>, source and target must have the same concrete type and gradient
     /// stop count. Value-style transitions that can replace a brush reference use
-    /// <see cref="AnimationInterpolators.CreateBrushInterpolator"/> and additionally support
+    /// <see cref="AnimationInterpolators.CreateBrushInterpolator()"/> and additionally support
     /// normalized stop counts and solid-to-gradient transitions. Type and structure validation
     /// happens before the in-place animation is scheduled.
     /// </para>
@@ -32,7 +32,7 @@ public static class BrushAnimationExtensions
     /// This method intentionally mutates <paramref name="brush"/>. If it is stored in a dynamic
     /// resource, every subscribed control repaints as colors, offsets, geometry, opacity, or
     /// transform change. Use a control-local clone or
-    /// <see cref="AnimationInterpolators.CreateBrushInterpolator"/> when only one consumer should
+    /// <see cref="AnimationInterpolators.CreateBrushInterpolator()"/> when only one consumer should
     /// transition. Mutation and <see cref="Brush.Changed"/> occur on the UI thread on Windows and
     /// Android and do not request layout.
     /// </para>
@@ -47,18 +47,5 @@ public static class BrushAnimationExtensions
         string key = "Brush",
         Func<float, float>? easing = null,
         AnimationScheduler? scheduler = null)
-    {
-        ArgumentNullException.ThrowIfNull(brush);
-        ArgumentNullException.ThrowIfNull(target);
-        BrushAnimationPlan plan = BrushAnimationPlan.Create(brush, target, brush);
-        return (scheduler ?? AnimationScheduler.Default).Start(
-            brush,
-            key,
-            plan.Apply,
-            new AnimationOptions
-            {
-                Duration = duration,
-                Easing = easing ?? Easings.Linear
-            });
-    }
+        => BrushInterpolationExtensions.AnimateBrushCore(brush, target, duration, null, key, easing, scheduler);
 }

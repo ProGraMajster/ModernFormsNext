@@ -666,6 +666,17 @@ internal sealed class DesignerSurfaceRenderer
                 continue;
             }
 
+            if (propertyPath == VisualStateTransitionDesignValue.PropertyName)
+            {
+                // Validate and retain authored motion metadata without scheduling animations in
+                // a static preview. Generated runtime code installs the selected brush policy.
+                if (VisualStateTransitionDesignValue.TryRead(property.Value, out _, out var transitionError))
+                    appliedCount++;
+                else
+                    propertyErrors.Add($"{property.Key}: {transitionError}");
+                continue;
+            }
+
             if (!includeLayout && IsDesignerAuthoredLayoutProperty(propertyPath))
                 continue;
             if (propertyPath is DesignNodeRoleNames.RolePropertyName or DesignNodeRoleNames.DisplayNamePropertyName or DesignNodeRoleNames.DisplayTypePropertyName

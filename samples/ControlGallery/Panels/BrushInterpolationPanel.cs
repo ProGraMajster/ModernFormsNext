@@ -109,6 +109,28 @@ public sealed class BrushInterpolationPanel : BasePanel
             Multiline = true,
             Text = "Expected: color, alpha, stop structure and border paint move smoothly; releasing or leaving lands exactly on the authored state and the scheduler returns to idle."
         });
+
+        Controls.Add(new Label { Left = 24, Top = 534, Width = 720, Height = 44, Multiline = true,
+            Text = "Opt-in policy: hover the cards below. Compare encoded sRGB with linear-light RGB; the third card fades from no paint into glass. Authored brushes remain unchanged." });
+        // A controlled neutral background keeps the no-paint fade visible in either app theme.
+        var policyStage = Controls.Add(new Panel { Left = 24, Top = 580, Width = 720, Height = 180,
+            BackColor = new SKColor(211, 211, 211) });
+        for (int index = 0; index < 3; index++)
+        {
+            var card = policyStage.Controls.Add(new HoverPanel { Bounds = new Rectangle(index * 240, 10, 224, 120) });
+            card.Style.BackgroundBrush = index == 2 ? new NoBrush() : new SolidColorBrush(Color.Black);
+            card.StyleHover.BackgroundBrush = index == 2
+                ? new GlassBrush { Tint = Color.White, SecondaryTint = Color.White, ShowHighlight = false, ShowInnerBorder = false }
+                : new SolidColorBrush(Color.White);
+            var transition = new VisualStateTransition { Duration = TimeSpan.FromMilliseconds(1200), Easing = Easings.Linear,
+                BrushInterpolation = new BrushInterpolationOptions { EnableExtendedMorphing = true,
+                    ColorSpace = index == 1 ? ColorInterpolationSpace.LinearSrgb : ColorInterpolationSpace.Srgb } };
+            card.StyleTransitions.Add(VisualState.Normal, VisualState.Hover, transition);
+            card.StyleTransitions.Add(VisualState.Hover, VisualState.Normal, transition);
+            policyStage.Controls.Add(new Label { Left = card.Left, Top = 140, Width = 224, Height = 26,
+                BackColor = SKColors.Transparent, ForeColor = SKColors.Black,
+                Text = index == 0 ? "sRGB midpoint: 128" : index == 1 ? "Linear-light midpoint: 188" : "NoBrush ↔ Glass" });
+        }
     }
 
     private static LinearGradientBrush Linear(params (Color Color, float Offset)[] stops)

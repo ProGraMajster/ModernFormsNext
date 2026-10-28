@@ -4,6 +4,9 @@ using Xunit.Abstractions;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
+// Child processes still share desktop focus, input and visible pixels with other native hosts.
+// Use a nonparallel process collection so their checks cannot overlap another collection's windows.
+[Collection(WindowsNativeProcessCollection.Name)]
 public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
 {
     [Theory]
@@ -17,6 +20,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
     [InlineData("--layout-policy-immediate", "LAYOUT_POLICY:PASS:")]
     [InlineData("--visual-state-metrics", "VISUAL_STATE_METRICS:PASS:")]
     [InlineData("--visual-state-metrics-immediate", "VISUAL_STATE_METRICS:PASS:")]
+    [InlineData("--brush-morph", "BRUSH_MORPH:PASS:")]
+    [InlineData("--brush-morph-immediate", "BRUSH_MORPH:PASS:")]
     public async Task CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(string argument, string marker)
     {
         if (!OperatingSystem.IsWindows()) return;
@@ -53,6 +58,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
                 Assert.Contains("native-policy-immediate=True", report);
             if (argument == "--visual-state-metrics-immediate")
                 Assert.Contains("VISUAL_STATE_METRICS immediate=True", report);
+            if (argument == "--brush-morph-immediate")
+                Assert.Contains("BRUSH_MORPH immediate=True", report);
             if (argument == "--focus")
             {
                 Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:False:PASS", report);

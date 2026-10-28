@@ -30,28 +30,5 @@ public static class GradientStopAnimationExtensions
         string key = "GradientStop",
         Func<float, float>? easing = null,
         AnimationScheduler? scheduler = null)
-    {
-        ArgumentNullException.ThrowIfNull(stop);
-        ArgumentNullException.ThrowIfNull(target);
-        System.Drawing.Color fromColor = stop.PaintColor;
-        float fromOffset = stop.Offset;
-        System.Drawing.Color targetColor = target.PaintColor;
-        float targetOffset = target.Offset;
-        return (scheduler ?? AnimationScheduler.Default).Start(
-            stop,
-            key,
-            progress =>
-            {
-                stop.PaintColor = AnimationInterpolators.Color.Interpolate(fromColor, targetColor, progress);
-                stop.Offset = Math.Clamp(
-                    AnimationInterpolators.Float.Interpolate(fromOffset, targetOffset, progress),
-                    0f,
-                    1f);
-            },
-            new AnimationOptions
-            {
-                Duration = duration,
-                Easing = easing ?? Easings.Linear
-            });
-    }
+        => BrushInterpolationExtensions.AnimateGradientStopCore(stop, target, duration, ColorInterpolationSpace.Srgb, key, easing, scheduler);
 }

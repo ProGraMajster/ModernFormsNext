@@ -538,7 +538,10 @@ public sealed class CSharpDesignerGenerator
             }
             foreach (DesignVisualStateTransition transition in transitions)
             {
-                writer.WriteLine($"        {targetExpression}.StyleTransitions.Add(ModernFormsNext.Animations.VisualState.{transition.From}, ModernFormsNext.Animations.VisualState.{transition.To}, new ModernFormsNext.Animations.VisualStateTransition {{ Duration = System.TimeSpan.FromMilliseconds({transition.DurationMilliseconds.ToString("R", CultureInfo.InvariantCulture)}), Easing = ModernFormsNext.Animations.Easings.{transition.Easing} }});");
+                string brushPolicy = transition.BrushColorSpace == "Srgb" && !transition.EnableExtendedBrushMorphing
+                    ? string.Empty
+                    : $", BrushInterpolation = new ModernFormsNext.Animations.BrushInterpolationOptions {{ ColorSpace = ModernFormsNext.Animations.ColorInterpolationSpace.{transition.BrushColorSpace}, EnableExtendedMorphing = {(transition.EnableExtendedBrushMorphing ? "true" : "false")} }}";
+                writer.WriteLine($"        {targetExpression}.StyleTransitions.Add(ModernFormsNext.Animations.VisualState.{transition.From}, ModernFormsNext.Animations.VisualState.{transition.To}, new ModernFormsNext.Animations.VisualStateTransition {{ Duration = System.TimeSpan.FromMilliseconds({transition.DurationMilliseconds.ToString("R", CultureInfo.InvariantCulture)}), Easing = ModernFormsNext.Animations.Easings.{transition.Easing}{brushPolicy} }});");
             }
             return true;
         }

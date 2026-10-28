@@ -5,6 +5,7 @@ using IOPath = System.IO.Path;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
+[Collection(WindowsNativeProcessCollection.Name)]
 public sealed class WindowsNativePerformanceTests
 {
     [Theory]

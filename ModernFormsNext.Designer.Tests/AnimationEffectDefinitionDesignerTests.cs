@@ -4,13 +4,118 @@ using ModernFormsNext.CodeGeneration.CSharp;
 using ModernFormsNext.CodeGeneration.Reverse;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Services;
+using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using Xunit;
+using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Tests;
 
 public sealed class AnimationEffectDefinitionDesignerTests
 {
+    [Fact]
+    public void StaticPreviewValidatesBrushMetadataWithoutInstallingMotion()
+    {
+        var document = CreateDocument();
+        document.Controls[0].Properties[VisualStateTransitionDesignValue.PropertyName] =
+            VisualStateTransitionDesignValue.Create([new("Normal", "Hover", 1000, "Linear")
+                { BrushColorSpace = "LinearSrgb", EnableExtendedBrushMorphing = true }]);
+        using var session = new DesignerSession();
+        session.LoadDocument(document);
+        int active = ModernFormsNext.Animations.AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount;
+        var info = new SKImageInfo(800, 600, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var bitmap = new SKBitmap(info);
+        using var canvas = new SKCanvas(bitmap);
+        new DesignerSurfaceRenderer().Render(new PaintEventArgs(info, canvas, 1), session, 800, 600);
+        Assert.Contains(session.OutputLines, line => line.Contains("Runtime rendered button1", StringComparison.Ordinal)
+            && line.Contains("skipped 0", StringComparison.Ordinal));
+        Assert.Equal(active, ModernFormsNext.Animations.AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount);
+        Assert.DoesNotContain(session.OutputLines, line => line.Contains("StyleTransitions:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BrushTransitionPolicyRoundTripsThroughDocumentCodeAndEditor()
+    {
+        var document = CreateDocument();
+        var entry = new DesignVisualStateTransition("Normal", "Hover", 140, "Linear")
+            { BrushColorSpace = "LinearSrgb", EnableExtendedBrushMorphing = true };
+        document.Controls[0].Properties[VisualStateTransitionDesignValue.PropertyName] = VisualStateTransitionDesignValue.Create([entry]);
+        var serializer = DesignDocumentSerializer.Default;
+        var reopened = serializer.Deserialize(serializer.Serialize(document));
+        string code = new CSharpDesignerGenerator().Generate(reopened).Code;
+        AssertGeneratedCodeCompiles(code);
+        Assert.Contains("ColorInterpolationSpace.LinearSrgb", code, StringComparison.Ordinal);
+        Assert.Contains("EnableExtendedMorphing = true", code, StringComparison.Ordinal);
+        var parsed = new CSharpDesignerParser().Parse(code);
+        Assert.True(parsed.Success, string.Join(Environment.NewLine, parsed.Diagnostics.Select(item => item.Message)));
+        var value = parsed.Document!.Controls[0].Properties[VisualStateTransitionDesignValue.PropertyName];
+        Assert.True(VisualStateTransitionDesignValue.TryRead(value, out var transitions, out var error), error);
+        Assert.Equal(entry, Assert.Single(transitions));
+        var editor = new DesignerVisualStateTransitionEditorModel(value);
+        Assert.True(editor.TryUpdate(0, "Hover", "Pressed", 200, "CubicOut", out error), error);
+        Assert.Equal("LinearSrgb", editor.Entries[0].BrushColorSpace);
+        Assert.True(editor.Entries[0].EnableExtendedBrushMorphing);
+        Assert.True(editor.TryUpdateBrushPolicy(0, "Srgb", false, out error), error);
+        Assert.True(editor.TryCreateValue(out var updated, out error), error);
+        var stored = updated.ObjectProperties!["Item0"].ObjectProperties!;
+        Assert.DoesNotContain("BrushColorSpace", stored.Keys);
+        Assert.DoesNotContain("EnableExtendedBrushMorphing", stored.Keys);
+    }
+
+    [Theory]
+    [InlineData("space-number")] [InlineData("space-unknown")] [InlineData("space-foreign")]
+    [InlineData("space-string")] [InlineData("flag-number")] [InlineData("flag-string")]
+    [InlineData("flag-metadata")] [InlineData("unknown-key")]
+    public void BrushPolicyAdmissionRejectsUnsupportedSafeScalarRepresentations(string shape)
+    {
+        var value = VisualStateTransitionDesignValue.Create([new("Normal", "Hover", 140, "Linear")]);
+        var entry = new Dictionary<string, DesignPropertyValue>(value.ObjectProperties!["Item0"].ObjectProperties!);
+        string key = shape.StartsWith("space-", StringComparison.Ordinal) ? "BrushColorSpace" : "EnableExtendedBrushMorphing";
+        entry[key] = shape switch
+        {
+            "space-number" => DesignPropertyValue.FromInt32(1),
+            "space-unknown" => DesignPropertyValue.FromEnum("ModernFormsNext.Animations.ColorInterpolationSpace", "Unknown"),
+            "space-foreign" => DesignPropertyValue.FromEnum("Example.ColorInterpolationSpace", "LinearSrgb"),
+            "space-string" => DesignPropertyValue.FromString("LinearSrgb"),
+            "flag-number" => DesignPropertyValue.FromInt32(1),
+            "flag-string" => DesignPropertyValue.FromString("true"),
+            "flag-metadata" => new(DesignPropertyValueKind.Boolean, true, enumTypeName: "Example.Flag"),
+            "unknown-key" => DesignPropertyValue.FromBoolean(true),
+            _ => throw new ArgumentException("Unknown safe scalar test.")
+        };
+        if (shape == "unknown-key") entry["UnknownOption"] = DesignPropertyValue.FromBoolean(true);
+        var malformed = DesignPropertyValue.FromStructuredObject(VisualStateTransitionDesignValue.CollectionTypeName,
+            new Dictionary<string, DesignPropertyValue>
+            {
+                ["Count"] = DesignPropertyValue.FromInt32(1),
+                ["Item0"] = DesignPropertyValue.FromStructuredObject("ModernFormsNext.Animations.VisualStateTransition", entry)
+            });
+        Assert.False(VisualStateTransitionDesignValue.TryRead(malformed, out _, out var error));
+        Assert.False(string.IsNullOrWhiteSpace(error));
+        var document = CreateDocument();
+        document.Controls[0].Properties[VisualStateTransitionDesignValue.PropertyName] = malformed;
+        var generated = new CSharpDesignerGenerator().Generate(document);
+        Assert.DoesNotContain(".StyleTransitions.Add(", generated.Code, StringComparison.Ordinal);
+        Assert.False(new DesignerVisualStateTransitionEditorModel(malformed).TryCreateValue(out _, out _));
+    }
+
+    [Theory]
+    [InlineData("ColorInterpolationSpace.LinearSrgb", "true", true)]
+    [InlineData("Example.ColorInterpolationSpace.LinearSrgb", "true", false)]
+    [InlineData("ColorInterpolationSpace.Unknown", "true", false)]
+    [InlineData("ColorInterpolationSpace.LinearSrgb", "1", false)]
+    public void BrushPolicyReverseParserAcceptsOnlyKnownEnumAndBooleanLiterals(string space, string flag, bool accepted)
+    {
+        string code = new CSharpDesignerGenerator().Generate(CreateDocument()).Code;
+        int insertion = code.IndexOf("this.Controls.Add", StringComparison.Ordinal);
+        Assert.True(insertion >= 0);
+        code = code.Insert(insertion,
+            $"this.button1.StyleTransitions.Add(VisualState.Normal, VisualState.Hover, new VisualStateTransition {{ BrushInterpolation = new BrushInterpolationOptions {{ ColorSpace = {space}, EnableExtendedMorphing = {flag} }} }});\n        ");
+        var parsed = new CSharpDesignerParser().Parse(code);
+        Assert.NotNull(parsed.Document);
+        Assert.Equal(accepted, parsed.Document.Controls[0].Properties.ContainsKey(VisualStateTransitionDesignValue.PropertyName));
+    }
+
     [Fact]
     public void BuiltInEffectEasingAndTimeSpanRoundTripThroughGeneratedCode()
     {
