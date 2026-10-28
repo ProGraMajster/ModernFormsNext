@@ -400,7 +400,8 @@ public sealed class ThemeManager
             !scheduler.Policy.ShouldCompleteImmediately &&
             (!options.Transition.RespectReducedMotion || !environment.IsReducedMotionRequested);
         ThemeTransitionPlan? plan = transitionEnabled
-            ? ThemeTransitionPlan.Create(oldResources, targetResources, oldLegacy, targetLegacy)
+            ? ThemeTransitionPlan.Create(oldResources, targetResources, oldLegacy, targetLegacy,
+                options.Transition.BrushInterpolation)
             : null;
         if (plan?.HasAnimations != true)
             plan = null;

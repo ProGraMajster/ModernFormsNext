@@ -10,7 +10,8 @@ namespace ModernFormsNext.Animations;
 /// </summary>
 /// <remarks>
 /// Numeric and geometric values use component-wise linear interpolation. Colors interpolate alpha,
-/// red, green, and blue channels in their current sRGB byte representation. Matrix interpolation is
+/// red, green, and blue channels in their current sRGB byte representation by default; explicit
+/// factories additionally offer temporal linear-light RGB. Matrix interpolation is
 /// component-wise and is suitable for ordinary UI transitions; decomposition into rotation, scale,
 /// and translation is not performed.
 /// </remarks>
@@ -85,6 +86,25 @@ public static class AnimationInterpolators
             LerpChannel(from.G, to.G, progress),
             LerpChannel(from.B, to.B, progress)));
 
+    private static readonly IAnimationInterpolator<Color> linearSrgbColor = new LinearSrgbColorInterpolator();
+
+    /// <summary>Gets a stateless color interpolator for an explicitly selected RGB space.</summary>
+    /// <param name="colorSpace">Encoded sRGB or linear-light sRGB.</param>
+    /// <returns>A reusable, thread-safe interpolator. Alpha remains a separate linear channel.</returns>
+    /// <remarks>
+    /// RGB and alpha extrapolation are clamped to representable channels. This is temporal
+    /// interpolation; it does not change renderer compositing or spatial gradient interpolation.
+    /// The default <see cref="Color"/> interpolator retains encoded sRGB behavior.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The selected space is not defined.</exception>
+    public static IAnimationInterpolator<Color> CreateColorInterpolator(ColorInterpolationSpace colorSpace)
+        => colorSpace switch
+        {
+            ColorInterpolationSpace.Srgb => Color,
+            ColorInterpolationSpace.LinearSrgb => linearSrgbColor,
+            _ => throw new ArgumentOutOfRangeException(nameof(colorSpace), colorSpace, "The color interpolation space is not defined.")
+        };
+
     /// <summary>Gets the component-wise platform-neutral <see cref="Matrix3x2"/> interpolator.</summary>
     public static IAnimationInterpolator<Matrix3x2> Matrix3x2 { get; } =
         new DelegateInterpolator<Matrix3x2>(static (from, to, progress) => new Matrix3x2(
@@ -103,11 +123,19 @@ public static class AnimationInterpolators
     /// <remarks>
     /// The returned interpolator is not thread-safe and should not be shared between concurrent
     /// animations. It allocates its result once, then mutates its color and offset on the UI
-    /// thread. Use <see cref="GradientStopAnimationExtensions.AnimateTo"/> to mutate an existing
+    /// thread. Use <see cref="GradientStopAnimationExtensions"/> to animate an existing
     /// stop directly.
     /// </remarks>
     public static IAnimationInterpolator<GradientStop> CreateGradientStopInterpolator()
         => new ReusableGradientStopInterpolator();
+
+    /// <summary>Creates an animation-local gradient-stop interpolator with explicit temporal color space.</summary>
+    /// <param name="colorSpace">The color space captured for this animation.</param>
+    /// <returns>A stateful interpolator that reuses one observable stop on the UI thread.</returns>
+    /// <remarks>The offset remains clamped to 0..1. Authored stops are not changed.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The selected space is not defined.</exception>
+    public static IAnimationInterpolator<GradientStop> CreateGradientStopInterpolator(ColorInterpolationSpace colorSpace)
+        => new ReusableGradientStopInterpolator(CreateColorInterpolator(colorSpace));
 
     /// <summary>
     /// Creates an animation-local interpolator for compatible built-in brushes.
@@ -123,7 +151,7 @@ public static class AnimationInterpolators
     /// are incompatible. Source and target brushes are not mutated, which prevents a local
     /// transition from unexpectedly changing other consumers of a shared dynamic resource. At
     /// progress zero and one the exact source and target references are returned. Use
-    /// <see cref="BrushAnimationExtensions.AnimateTo"/> for intentional in-place resource
+    /// <see cref="BrushAnimationExtensions"/> for intentional in-place resource
     /// animation. Visual-state and theme transitions probe compatibility before using this
     /// interpolator and switch unsupported pairs discretely. Calling the returned interpolator
     /// directly with an unsupported pair throws <see cref="ArgumentException"/>.
@@ -131,14 +159,26 @@ public static class AnimationInterpolators
     public static IAnimationInterpolator<MfnBrush> CreateBrushInterpolator()
         => new ReusableBrushInterpolator();
 
+    /// <summary>Creates one animation-local brush interpolator with an explicit policy.</summary>
+    /// <param name="options">The non-null policy captured for this animation.</param>
+    /// <returns>A stateful interpolator for one source/target pair on the UI thread.</returns>
+    /// <remarks>Source and target remain borrowed; the working brush belongs to this animation.</remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="options"/> is null.</exception>
+    public static IAnimationInterpolator<MfnBrush> CreateBrushInterpolator(BrushInterpolationOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new ReusableBrushInterpolator(options.Clone());
+    }
+
     internal static bool TryCreateBrushInterpolator(
         MfnBrush from,
         MfnBrush to,
-        out IAnimationInterpolator<MfnBrush>? interpolator)
+        out IAnimationInterpolator<MfnBrush>? interpolator,
+        BrushInterpolationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
-        if (!BrushAnimationPlan.TryCreateLocal(from, to, out BrushAnimationPlan? plan))
+        if (!BrushAnimationPlan.TryCreateLocal(from, to, out BrushAnimationPlan? plan, options))
         {
             interpolator = null;
             return false;
@@ -166,6 +206,11 @@ public static class AnimationInterpolators
     private sealed class ReusableGradientStopInterpolator : IAnimationInterpolator<GradientStop>
     {
         private GradientStop? result;
+        private readonly IAnimationInterpolator<Color> colorInterpolator;
+
+        public ReusableGradientStopInterpolator() : this(Color) { }
+        public ReusableGradientStopInterpolator(IAnimationInterpolator<Color> colorInterpolator)
+            => this.colorInterpolator = colorInterpolator;
 
         public GradientStop Interpolate(GradientStop from, GradientStop to, float progress)
         {
@@ -175,7 +220,7 @@ public static class AnimationInterpolators
                 throw new ArgumentOutOfRangeException(nameof(progress), progress, "Interpolation progress must be finite.");
 
             result ??= new GradientStop(from.PaintColor, from.Offset);
-            result.PaintColor = Color.Interpolate(from.PaintColor, to.PaintColor, progress);
+            result.PaintColor = colorInterpolator.Interpolate(from.PaintColor, to.PaintColor, progress);
             result.Offset = Math.Clamp(Float.Interpolate(from.Offset, to.Offset, progress), 0f, 1f);
             return result;
         }
@@ -186,10 +231,13 @@ public static class AnimationInterpolators
         private BrushAnimationPlan? plan;
         private MfnBrush? fromBrush;
         private MfnBrush? toBrush;
+        private readonly BrushInterpolationOptions? options;
 
         public ReusableBrushInterpolator()
         {
         }
+
+        public ReusableBrushInterpolator(BrushInterpolationOptions options) => this.options = options;
 
         public ReusableBrushInterpolator(
             MfnBrush from,
@@ -210,7 +258,7 @@ public static class AnimationInterpolators
 
             if (plan is null)
             {
-                plan = BrushAnimationPlan.CreateLocal(from, to);
+                plan = BrushAnimationPlan.CreateLocal(from, to, options);
                 fromBrush = from;
                 toBrush = to;
             }

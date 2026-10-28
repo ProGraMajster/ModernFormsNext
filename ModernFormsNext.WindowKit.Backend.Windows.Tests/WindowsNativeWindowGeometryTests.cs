@@ -3,6 +3,7 @@ using Xunit;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
+[Collection(WindowsNativeProcessCollection.Name)]
 public sealed class WindowsNativeWindowGeometryTests
 {
     [Fact]

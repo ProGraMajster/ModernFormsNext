@@ -136,7 +136,8 @@ public sealed partial class DesignerRuntimeLayoutParityTests
         node.Properties["StyleHover.LetterSpacing"] = DesignPropertyValue.FromDouble(0.75);
         node.Properties["StyleHover.Border.Radius"] = DesignPropertyValue.FromInt32(14);
         node.Properties[VisualStateTransitionDesignValue.PropertyName] = VisualStateTransitionDesignValue.Create(
-            [new DesignVisualStateTransition("Normal", "Hover", 1000, "Linear")]);
+            [new DesignVisualStateTransition("Normal", "Hover", 1000, "Linear")
+                { BrushColorSpace = "LinearSrgb", EnableExtendedBrushMorphing = true }]);
         document.Controls.Add(node);
         int active = ModernFormsNext.Animations.AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount;
         DesignerRuntimeLayoutParityHarness.AssertParity("state-metric-static", document, document);

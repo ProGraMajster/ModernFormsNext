@@ -4,7 +4,7 @@ using Xunit.Abstractions;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
-[Collection(WindowsUiCollection.Name)]
+[Collection(WindowsNativeProcessCollection.Name)]
 public sealed class WindowsVirtualizationCertificationTests(ITestOutputHelper output)
 {
     [Fact]

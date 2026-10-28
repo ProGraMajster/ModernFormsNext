@@ -176,7 +176,20 @@ internal sealed class DesignerVisualStateTransitionEditorModel
         }
         if (!TryValidate(from, to, durationMilliseconds, easing, index, out error))
             return false;
-        entries[index] = new DesignVisualStateTransition(from, to, durationMilliseconds, easing);
+        entries[index] = entries[index] with
+            { From = from, To = to, DurationMilliseconds = durationMilliseconds, Easing = easing };
+        return true;
+    }
+
+    public bool TryUpdateBrushPolicy(int index, string colorSpace, bool extended, out string? error)
+    {
+        error = null;
+        if (index < 0 || index >= entries.Count || colorSpace is not ("Srgb" or "LinearSrgb"))
+        {
+            error = "Select a transition and a supported brush color space.";
+            return false;
+        }
+        entries[index] = entries[index] with { BrushColorSpace = colorSpace, EnableExtendedBrushMorphing = extended };
         return true;
     }
 

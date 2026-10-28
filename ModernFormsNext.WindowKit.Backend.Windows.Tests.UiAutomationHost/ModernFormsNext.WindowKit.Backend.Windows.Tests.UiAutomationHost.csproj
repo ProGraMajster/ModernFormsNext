@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\BrushMorphCertification.cs" Link="BrushMorphCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\LayoutPolicyCertification.cs" Link="LayoutPolicyCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\VisualStateMetricCertification.cs" Link="VisualStateMetricCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\ShadowTypographyCertification.cs" Link="ShadowTypographyCertification.cs" />

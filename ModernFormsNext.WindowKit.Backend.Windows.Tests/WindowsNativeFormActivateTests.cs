@@ -4,6 +4,7 @@ using Xunit.Abstractions;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
+[Collection(WindowsNativeProcessCollection.Name)]
 public sealed class WindowsNativeFormActivateTests(ITestOutputHelper output)
 {
     [Fact]

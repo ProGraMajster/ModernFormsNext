@@ -21,6 +21,8 @@ internal sealed class DesignerTransitionDialog : Form
     private ComboBox? toState;
     private NumericUpDown? visualDuration;
     private ComboBox? visualEasing;
+    private ComboBox? brushColorSpace;
+    private CheckBox? extendedBrushMorphing;
     private Button? addTransitionButton;
     private Button? removeButton;
     private Button? okButton;
@@ -197,6 +199,18 @@ internal sealed class DesignerTransitionDialog : Form
         Controls.Add(new Label { Left = 712, Top = 382, Width = 28, Height = 24, Text = "ms", Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
         Controls.Add(new Label { Left = 18, Top = 426, Width = 64, Height = 24, Text = "Easing", Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
         visualEasing = Controls.Add(CreateEasingEditor(82, 422, 188));
+        Controls.Add(new Label { Left = 282, Top = 426, Width = 96, Height = 24, Text = "Brush colors", Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
+        brushColorSpace = Controls.Add(new ComboBox
+        {
+            Left = 380, Top = 422, Width = 152, Height = 30,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        });
+        brushColorSpace.Items.AddRange(["Srgb", "LinearSrgb"]);
+        extendedBrushMorphing = Controls.Add(new CheckBox
+        {
+            Left = 546, Top = 422, Width = 200, Height = 30, Text = "Extended brush morphing",
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+        });
 
         var resetButton = Controls.Add(new Button
         {
@@ -378,7 +392,9 @@ internal sealed class DesignerTransitionDialog : Form
             SelectedText(toState!),
             (double)visualDuration!.Value,
             SelectedText(visualEasing!),
-            out string? error))
+            out string? error)
+            || !visualModel.TryUpdateBrushPolicy(loadedTransitionIndex, SelectedText(brushColorSpace!),
+                extendedBrushMorphing!.Checked, out error))
         {
             ShowError(error ?? "The selected transition is invalid.");
             return false;
@@ -401,6 +417,8 @@ internal sealed class DesignerTransitionDialog : Form
             SelectText(toState!, entry.To);
             visualDuration!.Value = ClampToDecimal(entry.DurationMilliseconds);
             SelectText(visualEasing!, entry.Easing);
+            SelectText(brushColorSpace!, entry.BrushColorSpace);
+            extendedBrushMorphing!.Checked = entry.EnableExtendedBrushMorphing;
         }
         else
         {
@@ -408,6 +426,8 @@ internal sealed class DesignerTransitionDialog : Form
             toState!.SelectedIndex = -1;
             visualDuration!.Value = 0m;
             visualEasing!.SelectedIndex = -1;
+            brushColorSpace!.SelectedIndex = -1;
+            extendedBrushMorphing!.Checked = false;
         }
         SetVisualEditorsEnabled(selected);
         loadingControls = false;
@@ -507,6 +527,8 @@ internal sealed class DesignerTransitionDialog : Form
         toState!.Enabled = enabled;
         visualDuration!.Enabled = enabled;
         visualEasing!.Enabled = enabled;
+        brushColorSpace!.Enabled = enabled;
+        extendedBrushMorphing!.Enabled = enabled;
         removeButton!.Enabled = enabled;
     }
 

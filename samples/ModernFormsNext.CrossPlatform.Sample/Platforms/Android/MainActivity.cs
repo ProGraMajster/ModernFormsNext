@@ -33,6 +33,17 @@ namespace ModernFormsNext.CrossPlatform.Sample;
     DataScheme = "modernformsnext-sample")]
 public sealed class MainActivity : ModernFormsNext.WindowKit.Backend.Android.Windowing.AndroidWindowActivity
 {
+    // Native frame qualification must not sample the system's Activity-entry crossfade.
+    // This flag observes the platform callback; it never changes system animation settings.
+    internal bool WindowEntryCompleted { get; private set; }
+
+    /// <inheritdoc/>
+    public override void OnEnterAnimationComplete()
+    {
+        base.OnEnterAnimationComplete();
+        WindowEntryCompleted = true;
+    }
+
     /// <inheritdoc/>
     protected override void OnStartApplication()
     {

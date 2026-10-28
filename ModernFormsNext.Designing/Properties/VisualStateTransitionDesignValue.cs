@@ -9,7 +9,15 @@ public sealed record DesignVisualStateTransition(
     string From,
     string To,
     double DurationMilliseconds,
-    string Easing);
+    string Easing)
+{
+    /// <summary>Gets the closed temporal brush color-space identifier: Srgb or LinearSrgb.</summary>
+    /// <remarks>The default preserves existing sRGB channel interpolation. This is data, not a type name.</remarks>
+    public string BrushColorSpace { get; init; } = "Srgb";
+
+    /// <summary>Gets whether compatible glass and no-paint brush transitions are enabled.</summary>
+    public bool EnableExtendedBrushMorphing { get; init; }
+}
 
 /// <summary>Encodes the ordered visual-state transition collection in one designer value.</summary>
 public static class VisualStateTransitionDesignValue
@@ -43,15 +51,20 @@ public static class VisualStateTransitionDesignValue
             if (!pairs.Add(item.From + "\0" + item.To))
                 throw new ArgumentException($"The {item.From} -> {item.To} transition is duplicated.", nameof(transitions));
 
-            properties[$"Item{index}"] = DesignPropertyValue.FromStructuredObject(
-                EntryTypeName,
-                new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
-                {
-                    ["DurationMilliseconds"] = DesignPropertyValue.FromDouble(item.DurationMilliseconds),
-                    ["Easing"] = DesignPropertyValue.FromString(item.Easing),
-                    ["From"] = DesignPropertyValue.FromEnum("ModernFormsNext.Animations.VisualState", item.From),
-                    ["To"] = DesignPropertyValue.FromEnum("ModernFormsNext.Animations.VisualState", item.To)
-                });
+            var entry = new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal)
+            {
+                ["DurationMilliseconds"] = DesignPropertyValue.FromDouble(item.DurationMilliseconds),
+                ["Easing"] = DesignPropertyValue.FromString(item.Easing),
+                ["From"] = DesignPropertyValue.FromEnum("ModernFormsNext.Animations.VisualState", item.From),
+                ["To"] = DesignPropertyValue.FromEnum("ModernFormsNext.Animations.VisualState", item.To)
+            };
+            // Defaults remain absent so existing documents retain their stable representation.
+            if (item.BrushColorSpace != "Srgb")
+                entry["BrushColorSpace"] = DesignPropertyValue.FromEnum(
+                    "ModernFormsNext.Animations.ColorInterpolationSpace", item.BrushColorSpace);
+            if (item.EnableExtendedBrushMorphing)
+                entry["EnableExtendedBrushMorphing"] = DesignPropertyValue.FromBoolean(true);
+            properties[$"Item{index}"] = DesignPropertyValue.FromStructuredObject(EntryTypeName, entry);
         }
 
         return DesignPropertyValue.FromStructuredObject(CollectionTypeName, properties);
@@ -98,7 +111,8 @@ public static class VisualStateTransitionDesignValue
                 || item.Kind != DesignPropertyValueKind.Object
                 || item.ObjectProperties is null
                 || !string.Equals(item.ObjectTypeName, EntryTypeName, StringComparison.Ordinal)
-                || item.ObjectProperties.Keys.Any(name => name is not ("From" or "To" or "DurationMilliseconds" or "Easing")))
+                || item.ObjectProperties.Keys.Any(name => name is not ("From" or "To" or "DurationMilliseconds" or "Easing"
+                    or "BrushColorSpace" or "EnableExtendedBrushMorphing")))
             {
                 error = $"StyleTransitions.Item{index} is missing or malformed.";
                 return false;
@@ -107,9 +121,10 @@ public static class VisualStateTransitionDesignValue
             if (!TryReadState(item.ObjectProperties, "From", out string from)
                 || !TryReadState(item.ObjectProperties, "To", out string to)
                 || !TryReadDuration(item.ObjectProperties, out double duration)
-                || !TryReadEasing(item.ObjectProperties, out string easing))
+                || !TryReadEasing(item.ObjectProperties, out string easing)
+                || !TryReadBrushPolicy(item.ObjectProperties, out string colorSpace, out bool extended))
             {
-                error = $"StyleTransitions.Item{index} contains an invalid state, duration, or easing.";
+                error = $"StyleTransitions.Item{index} contains an invalid state, duration, easing, or brush policy.";
                 return false;
             }
             if (!pairs.Add(from + "\0" + to))
@@ -117,7 +132,8 @@ public static class VisualStateTransitionDesignValue
                 error = $"StyleTransitions contains duplicate {from} -> {to} entries.";
                 return false;
             }
-            result.Add(new DesignVisualStateTransition(from, to, duration, easing));
+            result.Add(new DesignVisualStateTransition(from, to, duration, easing)
+                { BrushColorSpace = colorSpace, EnableExtendedBrushMorphing = extended });
         }
 
         transitions = result;
@@ -134,6 +150,32 @@ public static class VisualStateTransitionDesignValue
             throw new ArgumentOutOfRangeException(nameof(item), "Transition duration must be non-negative and finite.");
         if (!KnownEasingDesignValue.IsKnown(item.Easing))
             throw new ArgumentException("Transition easing must be a known built-in easing identifier.");
+        if (item.BrushColorSpace is not ("Srgb" or "LinearSrgb"))
+            throw new ArgumentException("Brush color space must be Srgb or LinearSrgb.");
+    }
+
+    private static bool TryReadBrushPolicy(IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        out string colorSpace, out bool extended)
+    {
+        colorSpace = "Srgb";
+        extended = false;
+        if (properties.TryGetValue("BrushColorSpace", out var space))
+        {
+            if (space.Kind != DesignPropertyValueKind.Enum || space.Value is not string member
+                || member is not ("Srgb" or "LinearSrgb")
+                || space.EnumTypeName != "ModernFormsNext.Animations.ColorInterpolationSpace"
+                || space.ObjectProperties is not null || space.ObjectTypeName is not null)
+                return false;
+            colorSpace = member;
+        }
+        if (properties.TryGetValue("EnableExtendedBrushMorphing", out var flag))
+        {
+            if (flag.Kind != DesignPropertyValueKind.Boolean || flag.Value is not bool enabled
+                || flag.EnumTypeName is not null || flag.ObjectProperties is not null || flag.ObjectTypeName is not null)
+                return false;
+            extended = enabled;
+        }
+        return true;
     }
 
     private static bool TryReadState(IReadOnlyDictionary<string, DesignPropertyValue> properties, string name, out string value)

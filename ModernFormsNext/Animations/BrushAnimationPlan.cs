@@ -14,23 +14,27 @@ namespace ModernFormsNext.Animations;
 /// </remarks>
 internal sealed class BrushAnimationPlan
 {
+    internal const int MaximumPlannedStops = 4096;
     private readonly MfnBrush source;
     private readonly MfnBrush target;
     private readonly BrushSnapshot from;
     private readonly BrushSnapshot to;
+    private readonly IAnimationInterpolator<Color> colorInterpolator;
 
     private BrushAnimationPlan(
         MfnBrush source,
         MfnBrush target,
         BrushSnapshot from,
         BrushSnapshot to,
-        MfnBrush destination)
+        MfnBrush destination,
+        ColorInterpolationSpace colorSpace)
     {
         this.source = source;
         this.target = target;
         this.from = from;
         this.to = to;
         Destination = destination;
+        colorInterpolator = AnimationInterpolators.CreateColorInterpolator(colorSpace);
     }
 
     public MfnBrush Destination { get; }
@@ -39,7 +43,8 @@ internal sealed class BrushAnimationPlan
     /// Creates an in-place plan for a destination whose concrete type and gradient structure are
     /// already stable.
     /// </summary>
-    public static BrushAnimationPlan Create(MfnBrush from, MfnBrush to, MfnBrush destination)
+    public static BrushAnimationPlan Create(MfnBrush from, MfnBrush to, MfnBrush destination,
+        BrushInterpolationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
@@ -52,9 +57,10 @@ internal sealed class BrushAnimationPlan
                 nameof(to));
         }
 
-        if (!TryCapture(from, out BrushSnapshot fromSnapshot) ||
-            !TryCapture(to, out BrushSnapshot toSnapshot) ||
-            !TryCapture(destination, out BrushSnapshot destinationSnapshot))
+        bool extended = options?.EnableExtendedMorphing == true;
+        if (!TryCapture(from, out BrushSnapshot fromSnapshot, extended) ||
+            !TryCapture(to, out BrushSnapshot toSnapshot, extended) ||
+            !TryCapture(destination, out BrushSnapshot destinationSnapshot, extended))
         {
             throw new NotSupportedException(
                 $"Brush animation does not support the concrete type '{from.GetType().FullName}'.");
@@ -70,7 +76,12 @@ internal sealed class BrushAnimationPlan
                 nameof(to));
         }
 
-        return new BrushAnimationPlan(from, to, fromSnapshot, toSnapshot, destination);
+        if (fromSnapshot is GlassSnapshot fromGlass && toSnapshot is GlassSnapshot toGlass &&
+            !MatchingGlassLayers(fromGlass, toGlass))
+            throw new ArgumentException("Glass animations require matching highlight and inner-border flags.", nameof(to));
+
+        return new BrushAnimationPlan(from, to, fromSnapshot, toSnapshot, destination,
+            options?.ColorSpace ?? ColorInterpolationSpace.Srgb);
     }
 
     /// <summary>
@@ -80,26 +91,29 @@ internal sealed class BrushAnimationPlan
     public static bool TryCreateLocal(
         MfnBrush from,
         MfnBrush to,
-        out BrushAnimationPlan? plan)
+        out BrushAnimationPlan? plan,
+        BrushInterpolationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(to);
 
         plan = null;
-        if (!TryCapture(from, out BrushSnapshot fromSnapshot) ||
-            !TryCapture(to, out BrushSnapshot toSnapshot) ||
-            !TryPrepareLocalSnapshots(ref fromSnapshot, ref toSnapshot))
+        bool extended = options?.EnableExtendedMorphing == true;
+        if (!TryCapture(from, out BrushSnapshot fromSnapshot, extended) ||
+            !TryCapture(to, out BrushSnapshot toSnapshot, extended) ||
+            !TryPrepareLocalSnapshots(ref fromSnapshot, ref toSnapshot, extended))
         {
             return false;
         }
 
         MfnBrush destination = CreateBrush(fromSnapshot);
-        plan = new BrushAnimationPlan(from, to, fromSnapshot, toSnapshot, destination);
+        plan = new BrushAnimationPlan(from, to, fromSnapshot, toSnapshot, destination,
+            options?.ColorSpace ?? ColorInterpolationSpace.Srgb);
         return true;
     }
 
-    public static BrushAnimationPlan CreateLocal(MfnBrush from, MfnBrush to)
-        => TryCreateLocal(from, to, out BrushAnimationPlan? plan)
+    public static BrushAnimationPlan CreateLocal(MfnBrush from, MfnBrush to, BrushInterpolationOptions? options = null)
+        => TryCreateLocal(from, to, out BrushAnimationPlan? plan, options)
             ? plan!
             : throw new ArgumentException(
                 $"Brush types '{from.GetType().FullName}' and '{to.GetType().FullName}' do not have a safe interpolation path.",
@@ -148,43 +162,50 @@ internal sealed class BrushAnimationPlan
             AnimationInterpolators.Float.Interpolate(from.Opacity, to.Opacity, progress),
             0f,
             1f);
-        Destination.Transform = AnimationInterpolators.Matrix3x2.Interpolate(
-            from.Transform,
-            to.Transform,
-            progress);
+        Destination.Transform = InterpolateTransform(from.Transform, to.Transform, progress);
 
         switch (from, to, Destination)
         {
             case (SolidSnapshot start, SolidSnapshot end, SolidColorBrush destination):
-                destination.PaintColor = AnimationInterpolators.Color.Interpolate(
+                destination.PaintColor = colorInterpolator.Interpolate(
                     start.Color,
                     end.Color,
                     progress);
                 break;
             case (LinearSnapshot start, LinearSnapshot end, LinearGradientBrush destination):
-                destination.Start = AnimationInterpolators.PointF.Interpolate(start.Start, end.Start, progress);
-                destination.End = AnimationInterpolators.PointF.Interpolate(start.End, end.End, progress);
+                destination.Start = InterpolatePoint(start.Start, end.Start, progress);
+                destination.End = InterpolatePoint(start.End, end.End, progress);
                 ApplyGradient(start, end, destination, progress);
                 break;
             case (RadialSnapshot start, RadialSnapshot end, RadialGradientBrush destination):
-                destination.CenterPoint = AnimationInterpolators.PointF.Interpolate(start.Center, end.Center, progress);
-                destination.GradientOrigin = AnimationInterpolators.PointF.Interpolate(start.Origin, end.Origin, progress);
+                destination.CenterPoint = InterpolatePoint(start.Center, end.Center, progress);
+                destination.GradientOrigin = InterpolatePoint(start.Origin, end.Origin, progress);
                 destination.Radius = Math.Max(
                     0f,
-                    AnimationInterpolators.Float.Interpolate(start.Radius, end.Radius, progress));
+                    InterpolateCoordinate(start.Radius, end.Radius, progress));
                 ApplyGradient(start, end, destination, progress);
                 break;
             case (SweepSnapshot start, SweepSnapshot end, SweepGradientBrush destination):
-                destination.CenterPoint = AnimationInterpolators.PointF.Interpolate(start.Center, end.Center, progress);
-                destination.StartAngle = AnimationInterpolators.Float.Interpolate(
+                destination.CenterPoint = InterpolatePoint(start.Center, end.Center, progress);
+                destination.StartAngle = InterpolateCoordinate(
                     start.StartAngle,
                     end.StartAngle,
                     progress);
-                destination.EndAngle = AnimationInterpolators.Float.Interpolate(
+                destination.EndAngle = InterpolateCoordinate(
                     start.EndAngle,
                     end.EndAngle,
                     progress);
                 ApplyGradient(start, end, destination, progress);
+                break;
+            case (GlassSnapshot start, GlassSnapshot end, GlassBrush destination):
+                destination.Tint = colorInterpolator.Interpolate(start.Tint, end.Tint, progress);
+                destination.SecondaryTint = colorInterpolator.Interpolate(start.SecondaryTint, end.SecondaryTint, progress);
+                destination.Highlight = colorInterpolator.Interpolate(start.Highlight, end.Highlight, progress);
+                destination.Border = colorInterpolator.Interpolate(start.Border, end.Border, progress);
+                destination.ShowHighlight = start.ShowHighlight;
+                destination.ShowInnerBorder = start.ShowInnerBorder;
+                break;
+            case (NoPaintSnapshot, NoPaintSnapshot, NoBrush):
                 break;
             default:
                 throw new InvalidOperationException("The brush animation plan no longer matches its destination.");
@@ -193,10 +214,28 @@ internal sealed class BrushAnimationPlan
 
     private static bool TryPrepareLocalSnapshots(
         ref BrushSnapshot from,
-        ref BrushSnapshot to)
+        ref BrushSnapshot to,
+        bool extended)
     {
+        // No-paint has no visible geometry to morph. Keep the painted endpoint's complete
+        // structure and fade its opacity, retaining authored references at both endpoints.
+        // Null is deliberately excluded: a control may resolve it to a fallback color.
+        bool fromNoPaint = IsNoPaint(from), toNoPaint = IsNoPaint(to);
+        if (extended && (fromNoPaint || toNoPaint))
+        {
+            if (fromNoPaint && toNoPaint)
+                from = to = new NoPaintSnapshot(0f, Matrix3x2.Identity);
+            else if (fromNoPaint)
+                from = WithOpacity(to, 0f);
+            else
+                to = WithOpacity(from, 0f);
+            return true;
+        }
+
         if (from.GetType() == to.GetType())
         {
+            if (from is GlassSnapshot fromGlass && to is GlassSnapshot toGlass)
+                return MatchingGlassLayers(fromGlass, toGlass);
             if (from is not GradientSnapshot fromGradient || to is not GradientSnapshot toGradient)
                 return true;
 
@@ -223,6 +262,36 @@ internal sealed class BrushAnimationPlan
         return false;
     }
 
+    private static bool MatchingGlassLayers(GlassSnapshot from, GlassSnapshot to)
+        => from.ShowHighlight == to.ShowHighlight && from.ShowInnerBorder == to.ShowInnerBorder;
+
+    // Open-interval brush frames are convex combinations. Computing the difference in Double
+    // avoids an infinite intermediate when two legal finite coordinates have opposite signs.
+    private static float InterpolateCoordinate(float from, float to, float progress)
+        => (float)(from + (((double)to - from) * progress));
+
+    private static PointF InterpolatePoint(PointF from, PointF to, float progress)
+        => new(InterpolateCoordinate(from.X, to.X, progress), InterpolateCoordinate(from.Y, to.Y, progress));
+
+    private static Matrix3x2 InterpolateTransform(Matrix3x2 from, Matrix3x2 to, float progress)
+        => new(InterpolateCoordinate(from.M11, to.M11, progress), InterpolateCoordinate(from.M12, to.M12, progress),
+            InterpolateCoordinate(from.M21, to.M21, progress), InterpolateCoordinate(from.M22, to.M22, progress),
+            InterpolateCoordinate(from.M31, to.M31, progress), InterpolateCoordinate(from.M32, to.M32, progress));
+
+    private static bool IsNoPaint(BrushSnapshot value)
+        => value is NoPaintSnapshot or GradientSnapshot { Stops.Length: 0 };
+
+    private static BrushSnapshot WithOpacity(BrushSnapshot snapshot, float opacity)
+        => snapshot switch
+        {
+            SolidSnapshot solid => solid with { Opacity = opacity },
+            LinearSnapshot linear => linear with { Opacity = opacity },
+            RadialSnapshot radial => radial with { Opacity = opacity },
+            SweepSnapshot sweep => sweep with { Opacity = opacity },
+            GlassSnapshot glass => glass with { Opacity = opacity },
+            _ => throw new InvalidOperationException("A no-paint endpoint needs a supported paint snapshot.")
+        };
+
     private static bool TryNormalizeGradientPair(
         ref BrushSnapshot from,
         ref BrushSnapshot to,
@@ -235,6 +304,9 @@ internal sealed class BrushAnimationPlan
         // An empty gradient means no paint. Treating it as transparent would change the authored
         // compositing contract, so only two equally empty gradients are compatible.
         if (fromGradient.Stops.Length == 0 || toGradient.Stops.Length == 0)
+            return false;
+
+        if (CountCanonicalOffsets(fromGradient.Stops, toGradient.Stops) > MaximumPlannedStops)
             return false;
 
         float[] canonicalOffsets = BuildCanonicalOffsets(
@@ -457,6 +529,12 @@ internal sealed class BrushAnimationPlan
                 EndAngle = sweep.EndAngle,
                 SpreadMode = sweep.SpreadMode
             },
+            GlassSnapshot glass => new GlassBrush
+            {
+                Tint = glass.Tint, SecondaryTint = glass.SecondaryTint, Highlight = glass.Highlight,
+                Border = glass.Border, ShowHighlight = glass.ShowHighlight, ShowInnerBorder = glass.ShowInnerBorder
+            },
+            NoPaintSnapshot => new NoBrush(),
             _ => throw new InvalidOperationException("Unknown brush snapshot type.")
         };
 
@@ -501,6 +579,16 @@ internal sealed class BrushAnimationPlan
                 sweepDestination.EndAngle = sweep.EndAngle;
                 ApplyGradientSnapshot(sweep, sweepDestination);
                 break;
+            case (GlassSnapshot glass, GlassBrush glassDestination):
+                glassDestination.Tint = glass.Tint;
+                glassDestination.SecondaryTint = glass.SecondaryTint;
+                glassDestination.Highlight = glass.Highlight;
+                glassDestination.Border = glass.Border;
+                glassDestination.ShowHighlight = glass.ShowHighlight;
+                glassDestination.ShowInnerBorder = glass.ShowInnerBorder;
+                break;
+            case (NoPaintSnapshot, NoBrush):
+                break;
             default:
                 throw new InvalidOperationException("The brush snapshot does not match its destination.");
         }
@@ -523,7 +611,7 @@ internal sealed class BrushAnimationPlan
         }
     }
 
-    private static void ApplyGradient(
+    private void ApplyGradient(
         GradientSnapshot from,
         GradientSnapshot to,
         GradientBrush destination,
@@ -540,7 +628,7 @@ internal sealed class BrushAnimationPlan
             StopSnapshot start = from.Stops[index];
             StopSnapshot end = to.Stops[index];
             GradientStop stop = destination.GradientStops[index];
-            stop.PaintColor = AnimationInterpolators.Color.Interpolate(start.Color, end.Color, progress);
+            stop.PaintColor = colorInterpolator.Interpolate(start.Color, end.Color, progress);
             stop.Offset = Math.Clamp(
                 AnimationInterpolators.Float.Interpolate(start.Offset, end.Offset, progress),
                 0f,
@@ -548,13 +636,14 @@ internal sealed class BrushAnimationPlan
         }
     }
 
-    private static bool TryCapture(MfnBrush brush, out BrushSnapshot snapshot)
+    private static bool TryCapture(MfnBrush brush, out BrushSnapshot snapshot, bool extended)
     {
         snapshot = brush switch
         {
             SolidColorBrush solid when solid.GetType() == typeof(SolidColorBrush) =>
                 new SolidSnapshot(solid.Opacity, solid.Transform, solid.PaintColor),
-            LinearGradientBrush linear when linear.GetType() == typeof(LinearGradientBrush) =>
+            LinearGradientBrush linear when linear.GetType() == typeof(LinearGradientBrush) &&
+                linear.GradientStops.Count <= MaximumPlannedStops =>
                 new LinearSnapshot(
                     linear.Opacity,
                     linear.Transform,
@@ -562,7 +651,8 @@ internal sealed class BrushAnimationPlan
                     linear.SpreadMode,
                     linear.Start,
                     linear.End),
-            RadialGradientBrush radial when radial.GetType() == typeof(RadialGradientBrush) =>
+            RadialGradientBrush radial when radial.GetType() == typeof(RadialGradientBrush) &&
+                radial.GradientStops.Count <= MaximumPlannedStops =>
                 new RadialSnapshot(
                     radial.Opacity,
                     radial.Transform,
@@ -571,7 +661,8 @@ internal sealed class BrushAnimationPlan
                     radial.CenterPoint,
                     radial.GradientOrigin,
                     radial.Radius),
-            SweepGradientBrush sweep when sweep.GetType() == typeof(SweepGradientBrush) =>
+            SweepGradientBrush sweep when sweep.GetType() == typeof(SweepGradientBrush) &&
+                sweep.GradientStops.Count <= MaximumPlannedStops =>
                 new SweepSnapshot(
                     sweep.Opacity,
                     sweep.Transform,
@@ -580,6 +671,10 @@ internal sealed class BrushAnimationPlan
                     sweep.CenterPoint,
                     sweep.StartAngle,
                     sweep.EndAngle),
+            GlassBrush glass when extended && glass.GetType() == typeof(GlassBrush) =>
+                new GlassSnapshot(glass.Opacity, glass.Transform, glass.Tint, glass.SecondaryTint,
+                    glass.Highlight, glass.Border, glass.ShowHighlight, glass.ShowInnerBorder),
+            NoBrush noPaint when extended => new NoPaintSnapshot(noPaint.Opacity, noPaint.Transform),
             _ => null!
         };
         return snapshot is not null;
@@ -612,6 +707,12 @@ internal sealed class BrushAnimationPlan
     private abstract record BrushSnapshot(float Opacity, Matrix3x2 Transform);
 
     private sealed record SolidSnapshot(float Opacity, Matrix3x2 Transform, Color Color)
+        : BrushSnapshot(Opacity, Transform);
+
+    private sealed record NoPaintSnapshot(float Opacity, Matrix3x2 Transform) : BrushSnapshot(Opacity, Transform);
+
+    private sealed record GlassSnapshot(float Opacity, Matrix3x2 Transform, Color Tint,
+        Color SecondaryTint, Color Highlight, Color Border, bool ShowHighlight, bool ShowInnerBorder)
         : BrushSnapshot(Opacity, Transform);
 
     private abstract record GradientSnapshot(

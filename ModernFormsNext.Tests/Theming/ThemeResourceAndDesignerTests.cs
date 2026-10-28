@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Drawing;
+using ModernFormsNext.Animations;
 using ModernFormsNext.Drawing;
 using Xunit;
 
@@ -8,6 +9,43 @@ namespace ModernFormsNext.Tests;
 [Collection(DefaultAnimationSchedulerCollection.Name)]
 public sealed class ThemeResourceAndDesignerTests
 {
+    [Fact]
+    public void ExtendedThemeWorkingBrushContinuesInvalidatingDynamicConsumers()
+    {
+        string token = "ExtendedBrush" + Guid.NewGuid().ToString("N");
+        string key = ThemeResourceKeys.Create(ThemeTokenCategory.Brush, token);
+        var original = Application.ThemeResourcesInternal.GetSnapshot();
+        using var harness = new ThemeManagerTestHarness(resources: Application.ThemeResourcesInternal);
+        using var control = new InvalidationProbeControl();
+        using var surface = new SkiaControlSurface(control);
+        var source = new ThemeDefinition("extended-resource.source", "Source");
+        source.Brushes[token] = new NoBrush();
+        var target = new ThemeDefinition("extended-resource.target", "Target");
+        target.Brushes[token] = new GlassBrush();
+        try
+        {
+            Assert.True(harness.Manager.Apply(source, Immediate()).Success);
+            control.SetResourceReference(nameof(Control.BackgroundBrush), key);
+            var options = new ThemeApplyOptions { Transition = new ThemeTransitionOptions
+            {
+                Enabled = true, Duration = TimeSpan.FromMilliseconds(100), Easing = ThemeEasing.Linear,
+                BrushInterpolation = new() { EnableExtendedMorphing = true }
+            } };
+            Assert.True(harness.Manager.Apply(target, options).Success);
+            harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(25));
+            var working = Assert.IsType<GlassBrush>(control.BackgroundBrush);
+            control.Reset();
+            harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(25));
+            Assert.Same(working, control.BackgroundBrush);
+            Assert.Equal(0.5f, working.Opacity);
+            Assert.True(control.Invalidations > 0);
+            harness.SchedulerHarness.AdvanceAndTick(TimeSpan.FromMilliseconds(50));
+            Assert.NotSame(working, control.BackgroundBrush);
+            Assert.Equal(1, Assert.IsType<GlassBrush>(control.BackgroundBrush).Opacity);
+        }
+        finally { RestoreThemeResources(original); }
+    }
+
     [Fact]
     public void ResourcePrecedenceIsControlThenApplicationThenTheme()
     {

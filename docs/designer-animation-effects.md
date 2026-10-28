@@ -96,6 +96,13 @@ Layout and visual-state transitions similarly emit `LayoutTransition` and
 generator. It does not evaluate factories, locals, arbitrary method calls, or user expressions;
 unsupported syntax produces diagnostics.
 
+Visual-state transition entries also expose `Brush colors` (`Srgb` or `LinearSrgb`) and
+`Extended brush morphing`. The document stores only optional closed enum/Boolean fields;
+generation emits a known `BrushInterpolationOptions` initializer, and reverse synchronization
+accepts only its known members and literals. Defaults stay absent in existing documents. Editing
+duration/easing preserves these options. Static preview validates the metadata without installing
+or scheduling motion; the generated runtime application applies the selected brush policy.
+
 The Visual Studio host passes the same source-discovered descriptors into save/generation and
 reverse import. The existing Designer, Designing, and CodeGeneration project references are already
 included in the VSIX; no application assembly is added to the extension process.

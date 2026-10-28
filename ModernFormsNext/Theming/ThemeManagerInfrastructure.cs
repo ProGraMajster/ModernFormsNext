@@ -189,7 +189,8 @@ internal sealed class ThemeTransitionPlan
         Dictionary<object, object?> currentResources,
         Dictionary<object, object?> targetResources,
         Dictionary<string, object> currentLegacy,
-        Dictionary<string, object> targetLegacy)
+        Dictionary<string, object> targetLegacy,
+        BrushInterpolationOptions? brushInterpolation = null)
     {
         var plan = new ThemeTransitionPlan(targetResources, targetLegacy);
         foreach ((object key, object? targetValue) in targetResources.ToArray())
@@ -209,7 +210,7 @@ internal sealed class ThemeTransitionPlan
                     plan.resourceNumbers.Add(new ResourceNumberTransition(key, from, to));
                     break;
                 case (MfnBrush from, MfnBrush to):
-                    TryAddBrush(plan, key, from, to, targetResources);
+                    TryAddBrush(plan, key, from, to, targetResources, brushInterpolation);
                     break;
             }
         }
@@ -259,9 +260,10 @@ internal sealed class ThemeTransitionPlan
         object key,
         MfnBrush from,
         MfnBrush to,
-        Dictionary<object, object?> targetResources)
+        Dictionary<object, object?> targetResources,
+        BrushInterpolationOptions? brushInterpolation)
     {
-        if (!BrushAnimationPlan.TryCreateLocal(from, to, out BrushAnimationPlan? brushPlan))
+        if (!BrushAnimationPlan.TryCreateLocal(from, to, out BrushAnimationPlan? brushPlan, brushInterpolation))
             return;
 
         // The exact source reference remains visible at progress zero. Intermediate frames reuse

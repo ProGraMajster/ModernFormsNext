@@ -34,6 +34,20 @@ public sealed class ThemeTransitionOptions
     private TimeSpan duration = TimeSpan.FromMilliseconds(250);
     private ThemeEasing easing = ThemeEasing.EaseInOut;
     private AnimationReplacementMode replacementMode = AnimationReplacementMode.Replace;
+    private BrushInterpolationOptions brushInterpolation = new();
+
+    /// <summary>Gets or sets the brush-only policy copied with this theme apply request.</summary>
+    /// <remarks>
+    /// Defaults preserve the original brush matrix and encoded sRGB. Opt-in settings affect
+    /// brush resources; ordinary theme colors keep their existing interpolation. The request
+    /// captures a detached copy, so later option changes cannot affect a running transition.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The value is null.</exception>
+    public BrushInterpolationOptions BrushInterpolation
+    {
+        get => brushInterpolation;
+        set => brushInterpolation = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     /// <summary>Gets or sets whether compatible values should animate.</summary>
     /// <remarks>
@@ -93,6 +107,7 @@ public sealed class ThemeTransitionOptions
             Enabled = Enabled,
             Duration = Duration,
             Easing = Easing,
+            BrushInterpolation = BrushInterpolation.Clone(),
             ReplacementMode = ReplacementMode,
             RespectReducedMotion = RespectReducedMotion
         };

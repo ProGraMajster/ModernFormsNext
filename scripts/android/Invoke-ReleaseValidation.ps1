@@ -16,7 +16,7 @@ param(
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [string]$SdkRoot,
     [ValidateRange(30, 1800)][int]$TimeoutSeconds = 180,
-    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics')][string]$Scenario = 'ReleaseMatrix'
+    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')][string]$Scenario = 'ReleaseMatrix'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,6 +38,7 @@ $runner = switch ($Scenario) {
     'ShadowTypography' { 'ShadowTypographyValidationInstrumentation' }
     'LayoutPolicy' { 'LayoutPolicyValidationInstrumentation' }
     'VisualStateMetrics' { 'VisualStateMetricsValidationInstrumentation' }
+    'BrushMorph' { 'BrushMorphValidationInstrumentation' }
     default { 'ReleaseValidationInstrumentation' }
 }
 
@@ -80,6 +81,7 @@ $facts = [ordered]@{
     ShadowTypographyRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ShadowTypographyValidationInstrumentation.cs')).Hash
     LayoutPolicyRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/LayoutPolicyValidationInstrumentation.cs')).Hash
     VisualStateMetricsRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/VisualStateMetricsValidationInstrumentation.cs')).Hash
+    BrushMorphRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/BrushMorphValidationInstrumentation.cs')).Hash
     ScriptSha256 = (Get-FileHash -LiteralPath $PSCommandPath).Hash
     Properties = [ordered]@{}
 }
@@ -143,9 +145,10 @@ try {
         'ShadowTypography' { 'ANDROID_SHADOW_TYPOGRAPHY_PASS' }
         'LayoutPolicy' { 'ANDROID_LAYOUT_POLICY_PASS' }
         'VisualStateMetrics' { 'ANDROID_VISUAL_STATE_METRICS_PASS' }
+        'BrushMorph' { 'ANDROID_BRUSH_MORPH_PASS' }
         default { 'ANDROID_RELEASE_MATRIX_PASS' }
     }
-    if ($Scenario -in @('PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics')) {
+    if ($Scenario -in @('PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')) {
         $nativeDirectory = Join-Path $destination 'native'
         New-Item -ItemType Directory -Path $nativeDirectory | Out-Null
         $pageArtifacts = if ($Scenario -eq 'PageNavigation') {
@@ -158,6 +161,8 @@ try {
             @('layout-policy-validation.txt', 'layout-policy-positive.png', 'layout-policy-zero.png', 'layout-policy-restored.png')
         } elseif ($Scenario -eq 'VisualStateMetrics') {
             @('visual-state-metrics-validation.txt', 'visual-state-metrics-source.png', 'visual-state-metrics-target.png', 'visual-state-metrics-restored.png')
+        } elseif ($Scenario -eq 'BrushMorph') {
+            @('brush-morph-validation.txt', 'brush-morph-source.png', 'brush-morph-middle.png', 'brush-morph-target.png', 'brush-morph-restored.png')
         } else {
             @('app-shell-validation.txt', 'app-shell-document.png', 'app-shell-recreated.png')
         }
@@ -172,7 +177,7 @@ try {
     }
     # Do not mistake numeric telemetry such as recorder_failures=0 for a failure marker.
     if ($instrumentationExit -ne 0 -or $result -notmatch $marker -or
-        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|INSTRUMENTATION_FAILED)') {
+        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|ANDROID_BRUSH_MORPH_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."
     }
 }

@@ -112,6 +112,24 @@ public sealed class AndroidToolingContractTests
         Assert.Contains("RegisterFrameCommitCallback", runner, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BrushMorphQualificationBindsItsRunnerFailureMarkerAndCommittedArtifacts()
+    {
+        var script = ReadScript("Invoke-ReleaseValidation.ps1");
+        var runner = File.ReadAllText(IOPath.Combine(SampleDirectory, "Platforms", "Android",
+            "BrushMorphValidationInstrumentation.cs"));
+        Assert.Contains("'BrushMorph' { 'BrushMorphValidationInstrumentation' }", script, StringComparison.Ordinal);
+        Assert.Contains("BrushMorphRunnerSourceSha256", script, StringComparison.Ordinal);
+        Assert.Contains("ANDROID_BRUSH_MORPH_FAIL", script, StringComparison.Ordinal);
+        Assert.Contains("RegisterFrameCommitCallback", runner, StringComparison.Ordinal);
+        foreach (var name in new[] { "brush-morph-validation.txt", "brush-morph-source.png", "brush-morph-middle.png",
+                     "brush-morph-target.png", "brush-morph-restored.png" })
+        {
+            Assert.Contains(name, script, StringComparison.Ordinal);
+            Assert.Contains(name, runner, StringComparison.Ordinal);
+        }
+    }
+
     private static string ReadScript(string name)
         => File.ReadAllText(IOPath.Combine(AndroidScriptsDirectory, name));
 
