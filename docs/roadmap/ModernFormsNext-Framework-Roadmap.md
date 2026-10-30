@@ -669,8 +669,8 @@ dependency-based bands:
   require type forwarding or a major-version migration and cannot be performed silently.
 - Theme/localization/page changes touch application lifetime and static state; tests need isolation
   and explicit reset APIs before broad parallel execution.
-- Reflection-based CLR property references need a trimming/source-generation strategy before AOT is
-  advertised.
+- Name-based resource references require preserved metadata; typed resource descriptors avoid that
+  reflection boundary. Whole-framework full trimming/NativeAOT remains a separate deployment claim.
 - Android physical-device pacing and profiling remain open even though shared animation callbacks
   use Choreographer and the lifecycle/subscription-aware provider observes motion preferences.
 - Virtualization, document rendering, and charts compete for cache/memory budgets. Introduce shared

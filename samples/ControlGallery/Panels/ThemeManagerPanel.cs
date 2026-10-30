@@ -10,6 +10,10 @@ namespace ControlGallery.Panels;
 /// </summary>
 public sealed class ThemeManagerPanel : BasePanel
 {
+    private static readonly ResourceProperty<Control, ModernFormsNext.Drawing.Brush?> BackgroundResource = new(
+        nameof(Control.BackgroundBrush), static control => control.BackgroundBrush,
+        static (control, value) => control.BackgroundBrush = value);
+    private readonly ResourceDictionary resourceOverrides = new();
     private const string CustomThemeJson = """
         {
           "schemaVersion": 1,
@@ -80,6 +84,7 @@ public sealed class ThemeManagerPanel : BasePanel
     /// <summary>Initializes the ThemeManager manual validation page.</summary>
     public ThemeManagerPanel()
     {
+        Resources.MergedDictionaries.Add(resourceOverrides);
         AutoScroll = true;
         originalAnimationsEnabled = scheduler.Policy.AnimationsEnabled;
         originalReducedMotion = scheduler.Policy.ReducedMotion;
@@ -126,6 +131,7 @@ public sealed class ThemeManagerPanel : BasePanel
         AddButton(24, 336, 176, "Inheritance cycle", ApplyInheritanceCycle);
         AddButton(208, 336, 176, "Refresh diagnostics", UpdateDiagnostics);
         AddButton(392, 336, 176, "Bad Brush JSON", LoadInvalidBrushJson);
+        AddButton(576, 336, 200, "Toggle merged override", ToggleMergedOverride);
 
         semanticLabel = Controls.Add(new Label
         {
@@ -200,7 +206,7 @@ public sealed class ThemeManagerPanel : BasePanel
             Height = 112
         });
         card.SetResourceReference(
-            nameof(Control.BackgroundBrush),
+            BackgroundResource,
             ThemeResourceKeys.Create(ThemeTokenCategory.Brush, tokenName));
         card.Controls.Add(new Label
         {
@@ -211,6 +217,15 @@ public sealed class ThemeManagerPanel : BasePanel
             Text = caption,
             BackColor = new SkiaSharp.SKColor(255, 255, 255, 220)
         });
+    }
+
+    private void ToggleMergedOverride()
+    {
+        string key = ThemeResourceKeys.Create(ThemeTokenCategory.Brush, "SurfaceBrush");
+        if (resourceOverrides.ContainsKey(key))
+            resourceOverrides.Remove(key);
+        else
+            resourceOverrides.SetFactory(key, static () => new ModernFormsNext.Drawing.SolidColorBrush(Color.CornflowerBlue));
     }
 
     private Button AddButton(int left, int top, int width, string text, Action action)

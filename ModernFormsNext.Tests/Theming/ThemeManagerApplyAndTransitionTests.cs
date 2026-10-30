@@ -11,6 +11,35 @@ namespace ModernFormsNext.Tests;
 public sealed class ThemeManagerApplyAndTransitionTests
 {
     [Fact]
+    public void SerializedThemePublishesCompleteMergedStateAndKeepsLocalOverride()
+    {
+        using var harness = new ThemeManagerTestHarness();
+        using var control = new Control();
+        control.Resources.MergedDictionaries.Add(harness.Resources);
+        string key = ResourceKey("Number");
+        var source = Theme("merged.serialized", Color.Blue);
+        source.Resources["Number"] = ThemeResourceValue.FromInteger(8);
+        var serializer = new ThemeJsonSerializer();
+        ThemeDefinition decoded = serializer.Deserialize(serializer.Serialize(source));
+        var property = new ResourceProperty<Control, int>(nameof(Control.Width),
+            static target => target.Width, static (target, value) => target.Width = value);
+        control.SetResourceReference(property, key);
+        bool observedAtomic = false;
+        control.Resources.ResourceChanged += (_, _) => observedAtomic =
+            harness.Resources.ContainsKey(key) && harness.Resources.ContainsKey(ThemeTokens.Colors.Background.ResourceKey);
+
+        Assert.True(harness.Manager.Apply(decoded, Immediate()).Success);
+        Assert.True(observedAtomic);
+        Assert.Equal(8, control.Width);
+        control.Resources.SetFactory(key, static () => 13);
+        decoded.Resources["Number"] = ThemeResourceValue.FromInteger(21);
+        Assert.True(harness.Manager.Apply(decoded, Immediate()).Success);
+        Assert.Equal(13, control.Width);
+        control.Resources.Remove(key);
+        Assert.Equal(21, control.Width);
+    }
+
+    [Fact]
     public async Task BrushPolicyIsCapturedWithoutChangingDirectThemeColorInterpolation()
     {
         using var harness = new ThemeManagerTestHarness();

@@ -52,9 +52,13 @@ weak registrations prevent a missed disposal from retaining a control.
 - Controls without local resources or references pay only two static `PropertyStore` keys, not per-
   instance dictionary fields.
 - Theme and localization systems can share one update mechanism and arbitrary value model.
-- The CLR-name API is compatible with the existing data-binding style but depends on reflection
-  metadata. A future source generator or property descriptor cache may optimize AOT/trimming without
-  changing resource lookup semantics.
+- The CLR-name API remains compatible and explicitly warns trim analysis about required metadata.
+  A typed `ResourceProperty<TControl, TValue>` descriptor supplies statically referenced ordinary
+  accessors to the same binding. It adds no property engine, expression compiler or global registry.
+- Dictionaries compose through a bounded ordered DAG with weak parents and existing hub propagation.
+  Local collection snapshots remain local; effective lookup includes merges. Factories execute once
+  eagerly before ordinary entry publication, retaining neither delegates nor disposal ownership.
+  See [deployment and composition contracts](../../dynamic-resources.md).
 - Direct property assignment does not automatically clear a reference; callers must use
   `ClearResourceReference`.
 - Updates run synchronously on the mutation thread, so live resources have UI-thread affinity.

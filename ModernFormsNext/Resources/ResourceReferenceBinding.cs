@@ -8,16 +8,17 @@ namespace ModernFormsNext;
 internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDisposable
 {
     private readonly WeakReference<Control> targetReference;
-    private readonly PropertyInfo property;
+    private readonly ResourcePropertyAccessor property;
     private readonly object? fallbackValue;
     private object? lastResolvedValue;
     private bool hasLastResolvedValue;
     private bool isUsingResource;
     private bool disposed;
+    private long revision;
 
     public ResourceReferenceBinding(
         Control target,
-        PropertyInfo property,
+        ResourcePropertyAccessor property,
         object resourceKey,
         object? fallbackValue)
     {
@@ -61,24 +62,34 @@ internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDispo
         if (disposed || !targetReference.TryGetTarget(out var target))
             return;
 
-        ApplyValue(target, Fallback, throwOnFailure: false);
+        // This path is used only after clearing/rejecting the reference. Detach before invoking
+        // the fallback setter so a nested resource mutation cannot reactivate the removed binding.
+        ResourceChangeHub.Unsubscribe(ResourceKey, this);
+        long current = ++revision;
+        ApplyValue(target, Fallback, throwOnFailure: false, current);
+        if (!IsCurrent(current))
+            return;
         isUsingResource = false;
         hasLastResolvedValue = false;
     }
 
-    public void OnResourceChanged(ResourceDictionary source, object key)
+    public bool OnResourceChanged(ResourceDictionary source, object key)
     {
         if (disposed)
-            return;
+            return false;
 
         if (!targetReference.TryGetTarget(out var target))
         {
             Dispose();
-            return;
+            return false;
         }
 
         if (target.IsResourceScopeInHierarchy(source))
+        {
             ApplyEffectiveValue(target, throwOnFailure: false);
+            return true;
+        }
+        return false;
     }
 
     public void Dispose()
@@ -87,17 +98,22 @@ internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDispo
             return;
 
         disposed = true;
+        revision++;
         ResourceChangeHub.Unsubscribe(ResourceKey, this);
     }
 
     private void ApplyEffectiveValue(Control target, bool throwOnFailure)
     {
+        long current = ++revision;
         if (target.TryFindResource(ResourceKey, out var value))
         {
             if (isUsingResource && hasLastResolvedValue && Equals(lastResolvedValue, value))
                 return;
 
-            if (ApplyValue(target, value, throwOnFailure))
+            bool applied = ApplyValue(target, value, throwOnFailure, current);
+            if (!IsCurrent(current))
+                return;
+            if (applied)
             {
                 lastResolvedValue = value;
                 hasLastResolvedValue = true;
@@ -105,7 +121,9 @@ internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDispo
             }
             else if (isUsingResource)
             {
-                ApplyValue(target, Fallback, throwOnFailure: false);
+                ApplyValue(target, Fallback, throwOnFailure: false, current);
+                if (!IsCurrent(current))
+                    return;
                 isUsingResource = false;
                 hasLastResolvedValue = false;
             }
@@ -116,12 +134,16 @@ internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDispo
         if (!isUsingResource)
             return;
 
-        ApplyValue(target, Fallback, throwOnFailure: false);
+        ApplyValue(target, Fallback, throwOnFailure: false, current);
+        if (!IsCurrent(current))
+            return;
         isUsingResource = false;
         hasLastResolvedValue = false;
     }
 
-    private bool ApplyValue(Control target, object? value, bool throwOnFailure)
+    private bool IsCurrent(long current) => !disposed && revision == current;
+
+    private bool ApplyValue(Control target, object? value, bool throwOnFailure, long current)
     {
         if (!CanAssign(property.PropertyType, value))
         {
@@ -144,7 +166,12 @@ internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDispo
 
         try
         {
-            if (Equals(property.GetValue(target), value))
+            object? existing = property.GetValue(target);
+            // Accessors and diagnostic handlers are application code. A nested update or replacement
+            // owns the property from that point; the older frame must not write or restore fallback.
+            if (!IsCurrent(current))
+                return false;
+            if (Equals(existing, value))
                 return true;
 
             property.SetValue(target, value);
@@ -152,6 +179,8 @@ internal sealed class ResourceReferenceBinding : IResourceChangeListener, IDispo
         }
         catch (Exception exception)
         {
+            if (!IsCurrent(current))
+                return false;
             var effectiveException = exception is TargetInvocationException { InnerException: not null }
                 ? exception.InnerException
                 : exception;

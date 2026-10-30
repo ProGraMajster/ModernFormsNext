@@ -22,22 +22,24 @@ namespace ModernFormsNext;
 /// Application.Resources["Button.Primary.Background"] = SKColors.DodgerBlue;
 /// </code>
 /// </example>
-public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnlyDictionary<object, object?>
+public sealed partial class ResourceDictionary : IDictionary<object, object?>, IReadOnlyDictionary<object, object?>
 {
     private readonly object syncRoot = new();
     private readonly Dictionary<object, object?> entries = [];
+    private long mutationVersion;
 
     /// <summary>
-    /// Occurs after a resource is added, replaced, removed, or cleared.
+    /// Occurs after an effective resource is added, replaced, removed, or cleared.
     /// </summary>
     /// <remarks>
     /// The event is raised on the thread that performed the mutation. Dynamic control references
     /// are updated before this event is raised.
+    /// Merged child changes are reported only when they change this dictionary's effective lookup.
     /// </remarks>
     public event EventHandler<ResourceChangedEventArgs>? ResourceChanged;
 
     /// <summary>
-    /// Gets or sets the value associated with the specified key.
+    /// Gets the effective value for a key, or sets its local override.
     /// </summary>
     /// <param name="key">The non-null resource key.</param>
     /// <returns>The value associated with <paramref name="key"/>.</returns>
@@ -47,34 +49,11 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     {
         get
         {
-            ArgumentNullException.ThrowIfNull(key);
-            lock (syncRoot)
-                return entries[key];
+            return TryGetValue(key, out object? value) ? value : throw new KeyNotFoundException();
         }
         set
         {
-            ArgumentNullException.ThrowIfNull(key);
-
-            object? oldValue;
-            ResourceChangeKind changeKind;
-            lock (syncRoot)
-            {
-                if (entries.TryGetValue(key, out oldValue))
-                {
-                    if (Equals(oldValue, value))
-                        return;
-
-                    entries[key] = value;
-                    changeKind = ResourceChangeKind.Replaced;
-                }
-                else
-                {
-                    entries.Add(key, value);
-                    changeKind = ResourceChangeKind.Added;
-                }
-            }
-
-            RaiseResourceChanged(key, oldValue, value, changeKind);
+            SetValue(key, value);
         }
     }
 
@@ -107,7 +86,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     IEnumerable<object?> IReadOnlyDictionary<object, object?>.Values => Values;
 
     /// <summary>
-    /// Gets the number of resources in the dictionary.
+    /// Gets the number of local resources, excluding merged dictionaries.
     /// </summary>
     public int Count
     {
@@ -124,7 +103,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     public bool IsReadOnly => false;
 
     /// <summary>
-    /// Adds a resource with the specified key.
+    /// Adds a local resource with the specified key, overriding any merged match.
     /// </summary>
     /// <param name="key">The non-null resource key.</param>
     /// <param name="value">The resource value, which may be <see langword="null"/>.</param>
@@ -134,7 +113,10 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     {
         ArgumentNullException.ThrowIfNull(key);
         lock (syncRoot)
+        {
             entries.Add(key, value);
+            mutationVersion++;
+        }
 
         RaiseResourceChanged(key, null, value, ResourceChangeKind.Added);
     }
@@ -146,7 +128,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     public void Add(KeyValuePair<object, object?> item) => Add(item.Key, item.Value);
 
     /// <summary>
-    /// Removes every resource from the dictionary.
+    /// Removes every local resource, retaining merged dictionaries and revealing their values.
     /// </summary>
     public void Clear()
     {
@@ -158,10 +140,11 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
 
             removed = entries.ToArray();
             entries.Clear();
+            mutationVersion++;
         }
 
-        foreach (var entry in removed)
-            RaiseResourceChanged(entry.Key, entry.Value, null, ResourceChangeKind.Cleared);
+        PublishChanges(removed.Select(static entry =>
+            new ResourceDictionaryChange(entry.Key, entry.Value, null, ResourceChangeKind.Cleared)));
     }
 
     /// <summary>
@@ -176,7 +159,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     }
 
     /// <summary>
-    /// Determines whether the dictionary contains the specified key.
+    /// Determines whether local or merged resources contain the specified key.
     /// </summary>
     /// <param name="key">The non-null resource key.</param>
     /// <returns><see langword="true"/> when the key exists; otherwise, <see langword="false"/>.</returns>
@@ -184,8 +167,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     public bool ContainsKey(object key)
     {
         ArgumentNullException.ThrowIfNull(key);
-        lock (syncRoot)
-            return entries.ContainsKey(key);
+        return TryGetValue(key, out _);
     }
 
     /// <summary>
@@ -216,7 +198,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     /// <summary>
-    /// Removes the resource with the specified key.
+    /// Removes the local resource with the specified key, revealing any merged match.
     /// </summary>
     /// <param name="key">The non-null resource key.</param>
     /// <returns><see langword="true"/> when a resource was removed; otherwise, <see langword="false"/>.</returns>
@@ -229,6 +211,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
         {
             if (!entries.Remove(key, out oldValue))
                 return false;
+            mutationVersion++;
         }
 
         RaiseResourceChanged(key, oldValue, null, ResourceChangeKind.Removed);
@@ -249,6 +232,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
                 return false;
 
             entries.Remove(item.Key);
+            mutationVersion++;
         }
 
         RaiseResourceChanged(item.Key, oldValue, null, ResourceChangeKind.Removed);
@@ -256,7 +240,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     }
 
     /// <summary>
-    /// Attempts to retrieve a resource value.
+    /// Attempts to retrieve a local resource or the highest-precedence merged match.
     /// </summary>
     /// <param name="key">The non-null resource key.</param>
     /// <param name="value">Receives the stored value when the method returns <see langword="true"/>.</param>
@@ -265,8 +249,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
     public bool TryGetValue(object key, out object? value)
     {
         ArgumentNullException.ThrowIfNull(key);
-        lock (syncRoot)
-            return entries.TryGetValue(key, out value);
+        return TryResolve(key, null, out value);
     }
 
     /// <summary>
@@ -303,6 +286,7 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
             entries.Clear();
             foreach ((object key, object? value) in replacement)
                 entries.Add(key, value);
+            mutationVersion++;
         }
 
         return changes.ToArray();
@@ -339,8 +323,37 @@ public sealed class ResourceDictionary : IDictionary<object, object?>, IReadOnly
         object? newValue,
         ResourceChangeKind changeKind)
     {
-        ResourceChangeHub.Notify(this, key);
-        ResourceChanged?.Invoke(this, new ResourceChangedEventArgs(key, oldValue, newValue, changeKind));
+        bool standalone;
+        lock (GraphSync)
+            standalone = (parents?.Count ?? 0) == 0 && (merged?.Count ?? 0) == 0;
+        if (standalone)
+        {
+            // Preserve the original allocation profile and event contract for flat dictionaries.
+            ResourceChangeHub.Notify(this, key);
+            ResourceChanged?.Invoke(this, new ResourceChangedEventArgs(key, oldValue, newValue, changeKind));
+            return;
+        }
+        var previous = new LookupOverride(this, changeKind != ResourceChangeKind.Added, oldValue, null);
+        PublishEffectiveChange(key, previous, changeKind);
+    }
+
+    private void SetValue(object key, object? value, long? expectedVersion = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        object? oldValue;
+        ResourceChangeKind kind;
+        lock (syncRoot)
+        {
+            if (expectedVersion is { } expected && expected != mutationVersion)
+                throw new InvalidOperationException("The resource dictionary changed during factory execution; the newer state was retained.");
+            bool existed = entries.TryGetValue(key, out oldValue);
+            if (existed && Equals(oldValue, value))
+                return;
+            entries[key] = value;
+            mutationVersion++;
+            kind = existed ? ResourceChangeKind.Replaced : ResourceChangeKind.Added;
+        }
+        RaiseResourceChanged(key, oldValue, value, kind);
     }
 }
 

@@ -8,6 +8,8 @@ namespace ModernFormsNext.Validation;
 /// <remarks>Uses only production controls, shaping, resources and the compositor. UI thread only.</remarks>
 internal sealed class ShadowTypographyCertification : IDisposable
 {
+    private static readonly ResourceProperty<Control, Shadow?> ElevationResource = new(nameof(Control.Shadow),
+        static control => control.Shadow, static (control, value) => control.Shadow = value);
     private readonly Action<string> output;
     private readonly Control.ControlCollection owner;
     private readonly Shadow low = new(Color.FromArgb(80, Color.Black), 3, offsetY: 2);
@@ -30,7 +32,7 @@ internal sealed class ShadowTypographyCertification : IDisposable
         Root.Resources["CardElevation"] = low;
         card = Root.Controls.Add(new Panel { Bounds = new(24, 24, 280, 176) });
         card.Style.Border.Radius = 12;
-        card.SetResourceReference(nameof(Control.Shadow), "CardElevation");
+        card.SetResourceReference(ElevationResource, "CardElevation");
         caption = card.Controls.Add(new Label
         {
             Bounds = new(16, 12, 248, 84), Text = "Shared typography\nZażółć · مرحبا · שלום", Multiline = true,
@@ -53,6 +55,7 @@ internal sealed class ShadowTypographyCertification : IDisposable
         Check(Root.FindForm() is not null && Root.Scaling > 0, "attached-production-window");
         Check(Root.Created && card.Created && caption.Created && action.Created && editor.Created,
             "created-production-controls");
+        ExerciseDynamicResources();
         Rectangle bounds = card.Bounds;
         caption.LineHeight = 1;
         caption.LetterSpacing = 0;
@@ -77,6 +80,45 @@ internal sealed class ShadowTypographyCertification : IDisposable
         PrepareAlternative(false);
         output($"SHADOW_TYPOGRAPHY assertions={assertions} scale={Root.Scaling} natural={natural} spaced={spaced}");
         status.Text = $"Shared checks: {assertions}\nDPI scale: {Root.Scaling:0.##}";
+    }
+
+    private void ExerciseDynamicResources()
+    {
+        const string key = "CardElevation";
+        var shared = new ResourceDictionary { [key] = low };
+        var overrides = new ResourceDictionary { [key] = high };
+        Root.Resources.MergedDictionaries.Add(shared);
+        Root.Resources.MergedDictionaries.Add(overrides);
+        Root.Resources.Remove(key);
+        Check(ReferenceEquals(card.Shadow, high), "resource-merged-last-wins");
+        shared[key] = high;
+        Check(ReferenceEquals(card.Shadow, high), "resource-hidden-change");
+        int calls = 0;
+        overrides.SetFactory(key, () => { calls++; return low; });
+        Check(calls == 1 && ReferenceEquals(card.Shadow, low), "resource-ui-factory-once");
+        Check(ReferenceEquals(overrides[key], low) && calls == 1, "resource-factory-cached-read");
+        Root.Resources[key] = high;
+        Check(ReferenceEquals(card.Shadow, high), "resource-local-wins");
+        Root.Resources.Remove(key);
+        Check(ReferenceEquals(card.Shadow, low), "resource-local-removal-reveals-merge");
+        Root.Resources.MergedDictionaries.Remove(overrides);
+        Check(ReferenceEquals(card.Shadow, high), "resource-merge-removal-reveals-earlier");
+        overrides[key] = low;
+        Check(ReferenceEquals(card.Shadow, high), "resource-removed-child-detached");
+        Root.Resources.MergedDictionaries.Clear();
+        Check(card.Shadow is null, "resource-typed-inherited-fallback");
+        int errors = 0;
+        void OnFailure(object? sender, ResourceReferenceErrorEventArgs args) => errors++;
+        card.ResourceReferenceFailed += OnFailure;
+        try
+        {
+            Root.Resources[key] = "representative incompatible text";
+            Check(errors == 1 && card.Shadow is null, "resource-safe-type-diagnostic");
+            Root.Resources.SetFactory(key, () => low);
+            Check(ReferenceEquals(card.Shadow, low), "resource-runtime-recovery");
+        }
+        finally { card.ResourceReferenceFailed -= OnFailure; }
+        output("DYNAMIC_RESOURCE:NATIVE:11:PASS:typed-merged-factory-replacement");
     }
 
     internal void PrepareAlternative(bool alternative)
