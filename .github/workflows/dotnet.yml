@@ -93,3 +93,18 @@ jobs:
       - name: Regression tests (including high DPI and native partial presentation)
         if: steps.changes.outputs.full != 'false'
         run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore -m:1 /p:UseSharedCompilation=false --logger "trx;LogFilePrefix=ci"
+
+      - name: DynamicResource JIT and trimmed deployment
+        if: steps.changes.outputs.full != 'false'
+        shell: pwsh
+        run: ./scripts/Test-DynamicResourcePublish.ps1 -OutputRoot artifacts/ci/dynamic-resource-publish
+
+      - name: Retain DynamicResource deployment diagnostics
+        if: always() && steps.changes.outputs.full != 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamic-resource-deployment-diagnostics
+          path: |
+            artifacts/ci/dynamic-resource-publish/*.log
+            artifacts/ci/dynamic-resource-publish/result.json
+          if-no-files-found: ignore

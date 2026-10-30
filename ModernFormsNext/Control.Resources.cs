@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ModernFormsNext.Layout;
 
@@ -58,6 +59,12 @@ public partial class Control
     /// <see cref="ClearResourceReference(string)"/> before taking manual ownership of its value.
     /// Resource updates for live controls must occur on the owning UI thread.
     /// </para>
+    /// <para>
+    /// This name-based overload requires the runtime control's public property getter and setter
+    /// metadata to be preserved. Trimmed applications should use the typed
+    /// <see cref="ResourceProperty{TControl, TValue}"/> overload instead; otherwise trim analysis
+    /// reports IL2026. No dynamic-code generation is used by either overload.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -76,6 +83,7 @@ public partial class Control
     /// Thrown when the initially resolved resource value is incompatible with the property type or
     /// the property setter rejects it.
     /// </exception>
+    [RequiresUnreferencedCode("CLR property names require preserved getter/setter metadata for public properties on the runtime control type. Use the ResourceProperty<TControl, TValue> overload for trimming/AOT.")]
     public void SetResourceReference(string propertyName, object resourceKey)
     {
         ArgumentNullException.ThrowIfNull(propertyName);
@@ -83,7 +91,37 @@ public partial class Control
         if (string.IsNullOrWhiteSpace(propertyName))
             throw new ArgumentException("A resource target property name cannot be empty.", nameof(propertyName));
 
-        PropertyInfo property = GetResourceProperty(GetType(), propertyName);
+        SetResourceReferenceCore(new ReflectedResourcePropertyAccessor(GetResourceProperty(GetType(), propertyName)), resourceKey);
+    }
+
+    /// <summary>Creates a dynamic resource reference using statically referenced CLR accessors.</summary>
+    /// <typeparam name="TControl">The descriptor's declaring control type.</typeparam>
+    /// <typeparam name="TValue">The exact property value type.</typeparam>
+    /// <param name="property">The reflection-free descriptor; inherited properties are supported.</param>
+    /// <param name="resourceKey">The non-null resource key.</param>
+    /// <remarks>
+    /// Uses the same scopes, fallback, weak lifetime and synchronous UI-thread setter rules as the
+    /// name-based overload. Use this overload in trimmed/AOT applications. Clearing by
+    /// <see cref="ResourceProperty{TControl, TValue}.Name"/> restores the original fallback.
+    /// Delegates are trusted application code and are never evaluated by Designer metadata readers.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The descriptor or key is null.</exception>
+    /// <exception cref="ArgumentException">This control is not assignable to <typeparamref name="TControl"/>.</exception>
+    /// <exception cref="InvalidOperationException">The initial value or an accessor is invalid.</exception>
+    public void SetResourceReference<TControl, TValue>(ResourceProperty<TControl, TValue> property, object resourceKey)
+        where TControl : Control
+    {
+        ArgumentNullException.ThrowIfNull(property);
+        ArgumentNullException.ThrowIfNull(resourceKey);
+        if (this is not TControl)
+            throw new ArgumentException($"Resource property '{property.Name}' requires control type '{typeof(TControl).FullName}'.", nameof(property));
+
+        SetResourceReferenceCore(property.Accessor, resourceKey);
+    }
+
+    private void SetResourceReferenceCore(ResourcePropertyAccessor property, object resourceKey)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed || Disposing, this);
         Dictionary<string, ResourceReferenceBinding> references = GetOrCreateResourceReferences();
 
         object? fallbackValue;
@@ -95,6 +133,11 @@ public partial class Control
         else
         {
             fallbackValue = property.GetValue(this);
+            if (IsDisposed || Disposing)
+                return;
+            // A getter may install a newer reference. Its choice wins over this older request.
+            if (references.ContainsKey(property.Name))
+                return;
         }
 
         var reference = new ResourceReferenceBinding(this, property, resourceKey, fallbackValue);
@@ -106,9 +149,15 @@ public partial class Control
         }
         catch
         {
-            references.Remove(property.Name);
-            reference.RestoreFallback();
-            reference.Dispose();
+            try
+            {
+                if (references.TryGetValue(property.Name, out var current) && ReferenceEquals(current, reference))
+                {
+                    references.Remove(property.Name);
+                    reference.RestoreFallback();
+                }
+            }
+            finally { reference.Dispose(); }
             throw;
         }
     }
@@ -131,10 +180,13 @@ public partial class Control
             return false;
         }
 
-        reference.RestoreFallback();
-        reference.Dispose();
-        if (references.Count == 0)
-            Properties.RemoveValue(s_resourceReferencesProperty);
+        try { reference.RestoreFallback(); }
+        finally
+        {
+            reference.Dispose();
+            if (references.Count == 0)
+                Properties.RemoveValue(s_resourceReferencesProperty);
+        }
 
         return true;
     }
@@ -215,6 +267,7 @@ public partial class Control
         }
     }
 
+    [RequiresUnreferencedCode("Runtime property names require preserved public property metadata. Use ResourceProperty<TControl, TValue> instead.")]
     private static PropertyInfo GetResourceProperty(Type controlType, string propertyName)
     {
         return ResourceProperties.GetOrAdd((controlType, propertyName), static key =>
@@ -226,14 +279,15 @@ public partial class Control
             if (property is null)
             {
                 throw new ArgumentException(
-                    $"Public property '{key.PropertyName}' was not found on control type '{key.Type.FullName}'.",
+                    $"Public property '{key.PropertyName}' was not found on control type '{key.Type.FullName}'. " +
+                    "In trimmed/AOT applications use ResourceProperty<TControl, TValue> or explicitly preserve the public getter/setter metadata.",
                     "propertyName");
             }
 
-            if (property.GetIndexParameters().Length != 0 || property.SetMethod?.IsPublic != true)
+            if (property.GetIndexParameters().Length != 0 || property.GetMethod is null || property.SetMethod?.IsPublic != true)
             {
                 throw new ArgumentException(
-                    $"Property '{key.Type.FullName}.{key.PropertyName}' must be a public writable non-indexed instance property.",
+                    $"Property '{key.Type.FullName}.{key.PropertyName}' must be a readable public writable non-indexed instance property.",
                     "propertyName");
             }
 

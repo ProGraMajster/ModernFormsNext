@@ -12,6 +12,9 @@ namespace ControlGallery.Panels;
 /// </summary>
 public sealed class PaintAndGradientsPanel : Panel
 {
+    private static readonly ResourceProperty<Control, Brush?> BackgroundResource = new(
+        nameof(Control.BackgroundBrush), static control => control.BackgroundBrush,
+        static (control, value) => control.BackgroundBrush = value);
     private const string DynamicBrushKey = "ControlGallery.Paint.Dynamic";
     private readonly LinearGradientBrush dynamicBrush;
     private readonly Panel dynamicCard;
@@ -52,7 +55,7 @@ public sealed class PaintAndGradientsPanel : Panel
         dynamicBrush = CreateDynamicGradient();
         Resources[DynamicBrushKey] = dynamicBrush;
         dynamicCard = AddCard(536, 248, "Dynamic resource", brush: null);
-        dynamicCard.SetResourceReference(nameof(Control.BackgroundBrush), DynamicBrushKey);
+        dynamicCard.SetResourceReference(BackgroundResource, DynamicBrushKey);
 
         var mutateButton = Controls.Add(new Button
         {

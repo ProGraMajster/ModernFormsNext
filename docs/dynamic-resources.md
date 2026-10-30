@@ -110,14 +110,108 @@ runs affected CLR property setters on the calling thread. Update resources used 
 the UI/dispatcher thread, for example with `Application.RunOnUIThread` when the caller starts on a
 worker thread.
 
+## Trimmed and AOT deployments
+
+For statically referenced accessors, reuse a typed descriptor. It delegates to the same binding,
+scopes, weak subscriptions, fallback and ordinary CLR setters as the original name-based API:
+
+```csharp
+static readonly ResourceProperty<Control, int> CardWidth = new(
+    nameof(Control.Width), static control => control.Width,
+    static (control, value) => control.Width = value);
+
+card.SetResourceReference(CardWidth, "Card.Width");
+```
+
+Base-control descriptors also work on derived controls. Getter/setter delegates are trusted
+application code: use the ordinary property so layout/rendering/validation stay authoritative.
+Descriptors are reusable, retain no target, and perform no reflection, expression compilation or
+dynamic-code generation. Clearing by `CardWidth.Name` restores the captured fallback. A getter,
+setter or diagnostic handler that starts a newer update owns the property; an older update cannot
+restore its fallback over that newer state. Disposing a control detaches its references.
+
+The original `SetResourceReference(string, object)` signature remains available for JIT callers.
+It is marked `RequiresUnreferencedCode`, producing actionable IL2026 guidance during trim analysis.
+Callers retaining it must preserve getter/setter metadata for the exact runtime control's public properties
+explicitly. A missing property reports that requirement at runtime. Merely using `nameof` does
+not preserve a reflected member. See Microsoft's [library trimming guidance](https://learn.microsoft.com/dotnet/core/deploying/trimming/prepare-libraries-for-trimming).
+The legacy JIT path retains support for a public writable property with a private getter. A
+write-only property cannot capture a fallback and is rejected before installing a reference.
+
+The repository's `scripts/validation/DynamicResourcePublish` consumer exercises the complete runtime
+assembly, typed inherited accessors, merged replacements, a factory, fallback and closed theme JSON.
+Run `pwsh ./scripts/Test-DynamicResourcePublish.ps1` for the sequential JIT, trimmed execution and
+negative diagnostic gates; logs and a result manifest are retained under `artifacts/`. CI runs this
+same script and retains its diagnostics separately from the normal test result.
+Publish it self-contained with `PublishTrimmed=true` and `TrimMode=link`, then run the emitted
+executable. Set `ResourceLegacyDiagnostic=true` for a separate negative publish that must report
+IL2026 at the name-based call. Keep all trim diagnostics; other framework paths still have independent
+reflection requirements. This resource contract does not declare whole-framework full-trim safety
+or Windows NativeAOT support. The supported Android deployment remains the existing Release
+profiled Mono AOT/partial SDK trimming configuration, qualified separately on native hosts.
+
+## Merged dictionaries
+
+```csharp
+var common = new ResourceDictionary { ["Card.Width"] = 240 };
+var pageOverrides = new ResourceDictionary { ["Card.Width"] = 280 };
+card.Resources.MergedDictionaries.Add(common);
+card.Resources.MergedDictionaries.Add(pageOverrides);
+// The last merged match wins; a local entry always wins, including an explicit null.
+card.Resources["Card.Width"] = 320;
+card.Resources.Remove("Card.Width"); // reveals pageOverrides again
+```
+
+Within each existing control/window/application/theme scope, lookup searches local entries first,
+then merged dictionaries from last to first, recursively. An explicit null stops lookup. Indexer
+reads, `TryGetValue` and `ContainsKey` use that effective lookup. `Count`, `Keys`, `Values`, entry
+enumeration, `Contains(KeyValuePair)`, `CopyTo` and mutations retain **local-only** semantics.
+`Clear()` removes local entries; `MergedDictionaries.Clear()` removes composition. Adding a local
+key already present in a merge is a valid override. Removing a merged-only key returns false.
+Enumeration never silently flattens another dictionary or transfers ownership.
+
+Composition is an ordered, bounded DAG: no direct duplicates, null children or cycles; at most 256
+distinct dictionaries and 64 dictionaries along any root-to-leaf path. Extending an already merged
+child checks every affected ancestor before committing. Shared diamond branches count once.
+Changes propagate through the existing weak resource hub and each target's current scope. Hidden
+effective values do not invoke setters or parent notifications. Merged removal/replacement reveals
+the next effective value. Parents are weakly referenced and detached on removal. Topology is committed
+before notification, and callbacks run outside locks. Observer failures are reported after other
+affected references/keys have been visited. Live composition changes require the owning UI thread.
+
+## Resource factories and ownership
+
+```csharp
+card.Resources.SetFactory("Card.Width", static () => 280);
+```
+
+`SetFactory` is deliberately eager: it invokes trusted application code once on the existing UI
+dispatcher, then stores the result as an ordinary local entry. Reads do not execute code. There is
+no retained delegate, automatic recreation, invalidation dependency or hidden retry. An explicit
+second `SetFactory` call evaluates again; replacement/removal/clear end that entry's cache lifetime.
+Null is a valid result. Creation exceptions propagate without changing the previous entry. A callback
+that changes the same dictionary causes the outer registration to fail instead of overwriting its
+newer state. Nested factories across dictionaries are limited to 32 calls. An observer exception
+after publication follows normal dictionary semantics: the value is already committed.
+
+The application owns and disposes every produced object, including a result created before a
+reentrant registration is rejected. The dictionary never disposes values on replacement, clear,
+merge removal or collection. Use factories to construct shared UI resources on the UI thread;
+do not start asynchronous work or mutate unrelated live controls from a factory.
+
+Factories and descriptors are **code-only**. Theme JSON remains the closed `ThemeDefinition` /
+`ThemeResourceValue` schema; its data values can be round-tripped and published through ThemeManager
+without serializing delegates, CLR type names or merged runtime graphs. `.mfdesign`, metadata
+discovery and preview do not execute factories or arbitrary getter/setter delegates. No new
+resource-file format or Designer resource browser is introduced by this feature.
+
 ## Current limits
 
 - Application/window/control keys and values remain arbitrary runtime objects. Theme JSON uses the
   stricter typed key and value allow-list documented in [theme JSON schema](theme-json-schema.md).
-- Property references use case-sensitive public CLR property names. Trimming/AOT metadata policy
-  must be settled before enabling aggressive member trimming for applications.
-- Merged dictionaries and resource factories remain future work. Theme inheritance resolves before
-  publication, while compatible theme values transition through the shared animation scheduler.
+- Name-based property references require preserved metadata; prefer typed descriptors for trimming.
+- Theme inheritance still resolves before atomic publication. Runtime dictionary composition is
+  separate from the theme JSON inheritance format; compatible transitions use the shared scheduler.
 - In-place updates are currently observed for the framework brush hierarchy only, not for every
   mutable resource object.
 - Resource values are applied directly. General-purpose implicit conversion is intentionally not

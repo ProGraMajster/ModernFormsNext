@@ -46,6 +46,12 @@ internal static class ResourceChangeHub
     }
 
     public static void Notify(ResourceDictionary source, object key)
+        => NotifyCore(source, null, key);
+
+    public static void Notify(IReadOnlyList<ResourceDictionary> sources, object key)
+        => NotifyCore(null, sources, key);
+
+    private static void NotifyCore(ResourceDictionary? source, IReadOnlyList<ResourceDictionary>? sources, object key)
     {
         IResourceChangeListener[] targets;
 
@@ -71,7 +77,28 @@ internal static class ResourceChangeHub
 
         // Applying a resource may run a user property setter. Never hold the registry lock while
         // invoking it, otherwise a setter that changes another resource could deadlock.
+        List<Exception>? failures = null;
         foreach (var target in targets)
-            target.OnResourceChanged(source, key);
+        {
+            try
+            {
+                if (source is not null)
+                    target.OnResourceChanged(source, key);
+                else
+                {
+                    // One binding can see multiple changed dictionaries in its control ancestry.
+                    // Resolve it once for this committed key change, including failure diagnostics.
+                    foreach (ResourceDictionary candidate in sources!)
+                        if (target.OnResourceChanged(candidate, key)) break;
+                }
+            }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
+        }
+        // One application diagnostic handler must not prevent the remaining weak listeners from
+        // observing a committed update. Report failures only after visiting the complete snapshot.
+        if (failures is { Count: 1 })
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is { Count: > 1 })
+            throw new AggregateException("One or more resource references rejected a committed update.", failures);
     }
 }

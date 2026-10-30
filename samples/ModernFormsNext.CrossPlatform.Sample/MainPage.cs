@@ -17,6 +17,9 @@ namespace ModernFormsNext.CrossPlatform.Sample;
 /// </remarks>
 public sealed partial class MainPage : Control
 {
+    private static readonly ResourceProperty<Control, ModernFormsNext.Drawing.Brush?> BackgroundResource = new(
+        nameof(Control.BackgroundBrush), static control => control.BackgroundBrush,
+        static (control, value) => control.BackgroundBrush = value);
     private readonly App app;
     private readonly ScrollableControl scrollArea;
     private readonly Label headerLabel;
@@ -173,8 +176,8 @@ public sealed partial class MainPage : Control
                 Easing = Easings.EaseOut
             }
         };
-        animationStage.SetResourceReference(nameof(Control.BackgroundBrush), "SurfaceGlow");
-        animationCard.SetResourceReference(nameof(Control.BackgroundBrush), "PrimaryGradient");
+        animationStage.SetResourceReference(BackgroundResource, "SurfaceGlow");
+        animationCard.SetResourceReference(BackgroundResource, "PrimaryGradient");
         animationCard.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
