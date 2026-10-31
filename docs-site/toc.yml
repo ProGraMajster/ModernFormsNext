@@ -64,6 +64,8 @@
     href: content/docs/styling.md
   - name: Dynamic resources
     href: content/docs/dynamic-resources.md
+  - name: Right-to-left layout
+    href: content/docs/right-to-left-layout.md
   - name: Themes
     href: content/docs/themes.md
   - name: Shadows and typography
@@ -84,6 +86,8 @@
   items:
   - name: Designer architecture
     href: content/docs/designer-architecture.md
+  - name: Preview resource policy
+    href: content/docs/designer-preview-resources.md
   - name: Page and shell authoring
     href: content/docs/designer-pages.md
   - name: Visual Studio host

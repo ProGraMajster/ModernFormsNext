@@ -32,6 +32,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 - [Markdown and document viewing](markdown.md)
 - [MarkdownEditor](markdown-editor.md)
 - [Tooltips](tooltips.md)
+- [Right-to-left Flow/Table layout](right-to-left-layout.md)
 
 ## Appearance, rendering, and animation
 
@@ -47,6 +48,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 ## Designer
 
 - [Designer architecture and document workflow](designer-architecture.md)
+- [Designer preview resource policy](designer-preview-resources.md) — configurable trusted-project limits and bounded lazy table previews.
 - [Visual Studio host](visual-studio-designer-host.md)
 - [Transactions and undo/redo](designer-transactions-and-undo.md)
 - [Copy, cut, paste, and duplicate](designer-copy-paste.md)

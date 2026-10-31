@@ -79,6 +79,7 @@ $facts = [ordered]@{
     PageCompositionRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/PageCompositionValidationInstrumentation.cs')).Hash
     AppShellRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/AppShellValidationInstrumentation.cs')).Hash
     ShadowTypographyRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ShadowTypographyValidationInstrumentation.cs')).Hash
+    RtlLayoutFixtureSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/RtlLayoutCertification.cs')).Hash
     LayoutPolicyRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/LayoutPolicyValidationInstrumentation.cs')).Hash
     VisualStateMetricsRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/VisualStateMetricsValidationInstrumentation.cs')).Hash
     BrushMorphRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/BrushMorphValidationInstrumentation.cs')).Hash
@@ -156,7 +157,8 @@ try {
         } elseif ($Scenario -eq 'PageComposition') {
             @('page-composition-validation.txt', 'page-composition-overlay.png', 'page-composition-recreated.png')
         } elseif ($Scenario -eq 'ShadowTypography') {
-            @('shadow-typography-validation.txt', 'shadow-typography-default.png', 'shadow-typography-alternative.png', 'shadow-typography-recreated.png')
+            @('shadow-typography-validation.txt', 'shadow-typography-default.png', 'shadow-typography-alternative.png', 'shadow-typography-recreated.png',
+              'rtl-layout-rtl.png', 'rtl-layout-ltr.png', 'rtl-layout-recreated.png')
         } elseif ($Scenario -eq 'LayoutPolicy') {
             @('layout-policy-validation.txt', 'layout-policy-positive.png', 'layout-policy-zero.png', 'layout-policy-restored.png')
         } elseif ($Scenario -eq 'VisualStateMetrics') {

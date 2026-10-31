@@ -41,7 +41,7 @@ internal sealed class DesignerSurfaceRenderer
             DesignerDpiCoordinateConverter.CombineWithPreviewScale(e.Scaling, view.Scale));
 
         e.Canvas.FillRectangle(new System.Drawing.Rectangle(0, 0, e.LogicalToDeviceUnits(width), e.LogicalToDeviceUnits(height)), DesignerColors.Workspace);
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
 
         DrawRoot(e, previewPaintArgs, state, formBounds, clientBounds, view);
 
@@ -159,6 +159,16 @@ internal sealed class DesignerSurfaceRenderer
         var bounds = DesignerDpiCoordinateConverter.LogicalToDevice(surfaceBounds, surfacePaintArgs.Scaling);
         var selected = ReferenceEquals(state.SelectedNode, node);
         var isProjectUserControl = state.IsProjectUserControlType(node.TypeName);
+
+        if (layout.PreviewDiagnostics.TryGetValue(node, out string? previewError))
+        {
+            LogRuntimeRenderFailure(state, node, previewError);
+            DrawPanel(previewPaintArgs, bounds);
+            DrawCenteredText(previewPaintArgs, $"{node.Name} (preview deferred)", bounds, new SKColor(32, 38, 46));
+            if (selected)
+                DesignerSelectionAdorner.Draw(surfacePaintArgs, bounds, DesignerLayoutProperties.GetResizeHandles(node));
+            return; // Lazy placeholder: no table grid, runtime creation or descendant painting.
+        }
 
         if (isProjectUserControl)
         {
@@ -361,11 +371,12 @@ internal sealed class DesignerSurfaceRenderer
 
         if (embeddedPreviewCache is null
             || embeddedPreviewToolboxVersion != state.ToolboxVersion
+            || !ReferenceEquals(embeddedPreviewCache.ResourcePolicy, state.PreviewResourcePolicy)
             || !string.Equals(embeddedPreviewProjectPath, projectPath, StringComparison.OrdinalIgnoreCase))
         {
             embeddedPreviewProjectPath = projectPath;
             embeddedPreviewToolboxVersion = state.ToolboxVersion;
-            embeddedPreviewCache = new DesignerEmbeddedPreviewCache(projectPath, state.ProjectUserControls);
+            embeddedPreviewCache = new DesignerEmbeddedPreviewCache(projectPath, state.ProjectUserControls, state.PreviewResourcePolicy);
             loggedEmbeddedPreviewMessages.Clear();
         }
 
@@ -543,13 +554,13 @@ internal sealed class DesignerSurfaceRenderer
 
         for (var column = 1; column < columns; column++)
         {
-            var x = bounds.Left + (bounds.Width * column / columns);
+            var x = bounds.Left + (int)((long)bounds.Width * column / columns);
             e.Canvas.DrawLine(x, bounds.Top, x, bounds.Bottom, paint);
         }
 
         for (var row = 1; row < rows; row++)
         {
-            var y = bounds.Top + (bounds.Height * row / rows);
+            var y = bounds.Top + (int)((long)bounds.Height * row / rows);
             e.Canvas.DrawLine(bounds.Left, y, bounds.Right, y, paint);
         }
     }
@@ -565,7 +576,8 @@ internal sealed class DesignerSurfaceRenderer
         if (DesignerPagePreview.IsPageContainer(node))
         {
             var size = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
-            using var pagePreview = DesignerPagePreview.TryCreate(node, size, out var pageError);
+            using var pagePreview = DesignerPagePreview.TryCreate(node, size, out var pageError,
+                resourcePolicy: state.PreviewResourcePolicy);
             if (pagePreview is null || !RuntimeControlPainter.TryPaint(surfacePaintArgs, pagePreview.Root, size,
                 deviceBounds, out _, out pageError))
             {
@@ -579,13 +591,24 @@ internal sealed class DesignerSurfaceRenderer
         try
         {
             if (ResolveFrameworkControlType(node.TypeName) is not { } controlType
-                || !typeof(Control).IsAssignableFrom(controlType)
-                || Activator.CreateInstance(controlType) is not Control control)
+                || !typeof(Control).IsAssignableFrom(controlType))
             {
                 LogRuntimeRenderFailure(state, node, $"Could not safely create framework control for type '{node.TypeName}'.");
                 DrawUnknown(previewPaintArgs, node, deviceBounds);
                 return;
             }
+
+            // A known framework subclass must obey table admission even if it uses a
+            // different metadata name and is painted through the individual-control path.
+            if (typeof(TableLayoutPanel).IsAssignableFrom(controlType)
+                && !DesignerTablePreviewAdmission.TryValidate([node], state.PreviewResourcePolicy, out string? tableError))
+            {
+                LogRuntimeRenderFailure(state, node, tableError!);
+                DrawUnknown(previewPaintArgs, node, deviceBounds);
+                return;
+            }
+            if (Activator.CreateInstance(controlType) is not Control control)
+                throw new InvalidOperationException("Framework preview control construction failed.");
 
             // Runtime previews own their temporary framework controls, including recycled rows
             // and cached paint resources. Retire them even when applying a value or painting fails.
@@ -647,7 +670,8 @@ internal sealed class DesignerSurfaceRenderer
     private static int ApplyNodeProperties(Control control, DesignControlNode node, List<string> propertyErrors)
         => ApplyPreviewProperties(control, node, propertyErrors, includeLayout: false);
 
-    internal static int ApplyPreviewProperties(Control control, DesignControlNode node, List<string> propertyErrors, bool includeLayout)
+    internal static int ApplyPreviewProperties(Control control, DesignControlNode node, List<string> propertyErrors, bool includeLayout,
+        bool ignoreUnknownProperties = false)
     {
         var appliedCount = 0;
 
@@ -685,6 +709,8 @@ internal sealed class DesignerSurfaceRenderer
             if (includeLayout && control is TabbedPage && propertyPath == "SelectedIndex")
                 continue;
             var rootProperty = control.GetType().GetProperty(propertyPath.Split('.')[0], BindingFlags.Instance | BindingFlags.Public);
+            if (ignoreUnknownProperties && rootProperty is null)
+                continue;
             if (rootProperty is not null && DesignerPagePropertyValidator.HideProperty(control.GetType(), rootProperty)
                 && propertyPath != "Text")
                 continue;

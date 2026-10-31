@@ -160,8 +160,13 @@ namespace ModernFormsNext
             // sufficient for flow/table layouts, especially on the same pass that adds or
             // removes children, because those bounds belong to the preceding arrangement.
             if (!layout_bounds.IsEmpty) {
-                canvas_size.Width = Math.Max (width, layout_bounds.Width + padding.Right - clientOrigin.X);
-                canvas_size.Height = Math.Max (height, layout_bounds.Height + padding.Bottom - clientOrigin.Y);
+                // Group layout extents are sizes, independent of the viewport origin. Include
+                // both physical padding edges exactly once; omitting the leading edge leaves
+                // the last few pixels unreachable for asymmetric padding and mirrored content.
+                canvas_size.Width = Math.Max(width, (int)Math.Clamp(
+                    (long)layout_bounds.Width + padding.Left + padding.Right, 0, int.MaxValue));
+                canvas_size.Height = Math.Max(height, (int)Math.Clamp(
+                    (long)layout_bounds.Height + padding.Top + padding.Bottom, 0, int.MaxValue));
                 return;
             }
 

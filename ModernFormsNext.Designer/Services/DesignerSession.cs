@@ -143,6 +143,27 @@ public sealed class DesignerSession : IDisposable
     /// </summary>
     public DesignDocument Document => Host.Document;
 
+    private DesignerPreviewResourcePolicy previewResourcePolicy = DesignerPreviewResourcePolicy.Default;
+
+    /// <summary>Gets or sets the host-owned immutable policy used by layout, painting and hit testing.</summary>
+    /// <remarks>
+    /// Set on the UI thread. Changing this setting invalidates presentation through SettingsChanged;
+    /// it does not edit the document, mark it dirty or change undo history. Documents cannot set it.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The policy is null.</exception>
+    public DesignerPreviewResourcePolicy PreviewResourcePolicy
+    {
+        get => previewResourcePolicy;
+        set
+        {
+            ThrowIfDisposed();
+            ArgumentNullException.ThrowIfNull(value);
+            if (ReferenceEquals(previewResourcePolicy, value)) return;
+            previewResourcePolicy = value;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     /// <summary>
     /// Gets the currently selected control node, or <see langword="null"/> when the form itself is selected.
     /// </summary>
@@ -742,7 +763,7 @@ public sealed class DesignerSession : IDisposable
         var sourceParent = FindParent(node);
         var sourcePageSelection = CapturePageSelection(sourceParent);
 
-        var layout = new DesignerLayoutEngine().Layout(Document);
+        var layout = new DesignerLayoutEngine().Layout(Document, PreviewResourcePolicy);
         var absoluteBounds = layout.GetEffectiveBounds(node);
         var parentBounds = target is not null && IsContainerNode(target)
             ? layout.GetEffectiveBounds(target)
@@ -842,7 +863,7 @@ public sealed class DesignerSession : IDisposable
             destinationParent = FindParent(exitNode);
         }
 
-        var layout = new DesignerLayoutEngine().Layout(Document);
+        var layout = new DesignerLayoutEngine().Layout(Document, PreviewResourcePolicy);
         var absoluteBounds = layout.GetEffectiveBounds(node);
         var destinationParentBounds = destinationParent is null
             ? new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height)
@@ -950,7 +971,7 @@ public sealed class DesignerSession : IDisposable
         if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
             return false;
 
-        var layout = new DesignerLayoutEngine().Layout(Document);
+        var layout = new DesignerLayoutEngine().Layout(Document, PreviewResourcePolicy);
         var targetParent = FindDeepestContainerAtPoint(Document.Controls, parentNode: null, layout, node, documentPoint, new DesignBounds(0, 0, Document.Size.Width, Document.Size.Height));
 
         if (ReferenceEquals(currentParent, targetParent))
@@ -1451,7 +1472,7 @@ public sealed class DesignerSession : IDisposable
         var snapshot = DesignerModelMutationSnapshot.CaptureDocumentLayout(Document);
         try
         {
-            new DesignerLayoutEngine().ResizeRoot(Document, size);
+            new DesignerLayoutEngine().ResizeRoot(Document, size, PreviewResourcePolicy);
         }
         finally
         {
@@ -1493,7 +1514,7 @@ public sealed class DesignerSession : IDisposable
                 Document.FormName = string.IsNullOrWhiteSpace(name) ? Document.FormName : name.Trim();
                 new DesignerLayoutEngine().ResizeRoot(
                     Document,
-                    new DesignSize(Math.Max(1, width), Math.Max(1, height)));
+                    new DesignSize(Math.Max(1, width), Math.Max(1, height)), PreviewResourcePolicy);
             }
             else
             {

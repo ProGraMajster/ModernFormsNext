@@ -19,6 +19,7 @@ internal sealed class DesignerEmbeddedPreviewCache
     private readonly Dictionary<string, string> documentPathsByType = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CachedPreviewSource> sourcesByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly DesignerLayoutEngine layoutEngine = new();
+    internal DesignerPreviewResourcePolicy ResourcePolicy { get; }
     private bool documentIndexBuilt;
 
     /// <summary>
@@ -28,14 +29,17 @@ internal sealed class DesignerEmbeddedPreviewCache
     /// <param name="projectUserControls">
     /// Source-discovered controls that may be associated with design documents.
     /// </param>
+    /// <param name="resourcePolicy">The host-owned immutable preview policy, or null for the default.</param>
     public DesignerEmbeddedPreviewCache(
         string? projectPath,
-        IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls)
+        IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls,
+        DesignerPreviewResourcePolicy? resourcePolicy = null)
     {
         ArgumentNullException.ThrowIfNull(projectUserControls);
 
         projectDirectory = DesignerProjectUserControlDiscovery.GetProjectDirectory(projectPath);
         this.projectUserControls = projectUserControls;
+        ResourcePolicy = resourcePolicy ?? DesignerPreviewResourcePolicy.Default;
     }
 
     /// <summary>
@@ -116,7 +120,7 @@ internal sealed class DesignerEmbeddedPreviewCache
             var document = Deserialize(source.Json);
             NormalizePreviewDocument(document);
             DesignerSpecialContainers.NormalizeDocument(document);
-            var layout = layoutEngine.Layout(document, normalizedSize);
+            var layout = layoutEngine.Layout(document, normalizedSize, ResourcePolicy);
             preview = new DesignerEmbeddedPreview(
                 control.FullName,
                 documentPath,

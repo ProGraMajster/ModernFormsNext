@@ -98,10 +98,19 @@ internal static class DesignerSpecialContainers
         => IsType(node, "TabPage");
 
     public static bool IsFlowLayoutPanel(DesignControlNode node)
-        => IsType(node, "FlowLayoutPanel");
+        => IsLayoutType(node, "FlowLayoutPanel");
 
     public static bool IsTableLayoutPanel(DesignControlNode node)
-        => IsType(node, "TableLayoutPanel");
+        => IsLayoutType(node, "TableLayoutPanel");
+
+    // Match the inert framework resolver's whitespace/global prefix normalization before
+    // selecting a layout path. All supported table spellings must reach resource admission.
+    private static bool IsLayoutType(DesignControlNode node, string shortTypeName)
+    {
+        string normalized = node.TypeName.Trim();
+        if (normalized.StartsWith("global::", StringComparison.Ordinal)) normalized = normalized[8..];
+        return normalized == shortTypeName || normalized.EndsWith("." + shortTypeName, StringComparison.Ordinal);
+    }
 
     public static string GetOutlineName(DesignControlNode node)
         => TryGetString(node, DesignNodeRoleNames.DisplayNamePropertyName, out var value) ? value : node.Name;

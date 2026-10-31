@@ -279,8 +279,10 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                         //    break;
                         //}
 
-                        // Ignore control chars and chars that were handled in WM_KEYDOWN.
-                        if (ToInt32(wParam) >= 32 && !_ignoreWmChar)
+                        // The canonical ControlAdapter handles translated Tab as focus navigation.
+                        // Keep it on the normal text transport (including Shift modifiers) while
+                        // ignoring other control characters and keys consumed during WM_KEYDOWN.
+                        if ((ToInt32(wParam) >= 32 || ToInt32(wParam) == 9) && !_ignoreWmChar)
                         {
                             var text = new string((char)ToInt32(wParam), 1);
 

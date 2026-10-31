@@ -32,6 +32,11 @@ public class FlowLayoutPanel : Panel, IExtenderProvider
     /// <summary>
     /// Gets or sets a value indicating which direction the control's children should be positioned.
     /// </summary>
+    /// <remarks>
+    /// The authored direction is relative to <see cref="Control.RightToLeft"/>. Ambient RTL
+    /// reverses horizontal flow or column wrapping without changing collection or TabIndex order.
+    /// Layout and scroll coordinates remain logical pixels on the owning UI thread.
+    /// </remarks>
     [DefaultValue (FlowDirection.LeftToRight)]
     [Localizable (true)]
     public FlowDirection FlowDirection {

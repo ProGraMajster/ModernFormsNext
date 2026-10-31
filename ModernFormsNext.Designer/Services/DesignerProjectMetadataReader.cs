@@ -223,7 +223,8 @@ internal static partial class DesignerProjectUserControlDiscovery
             diagnostics.Add($"'{property.ContainingType}.{property.Name}': TypeConverter code is not executed. Only the built-in primitive/enum editor is available.");
 
         DesignPropertyValue? defaultValue = null;
-        var defaultAttribute = Attribute(property, "System.ComponentModel.DefaultValueAttribute");
+        var defaultAttribute = Attribute(property, "System.ComponentModel.DefaultValueAttribute")
+            ?? Attribute(property, "System.ComponentModel.AmbientValueAttribute");
         if (defaultAttribute is not null)
         {
             var constant = Argument(defaultAttribute, 0);

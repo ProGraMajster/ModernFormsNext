@@ -33,6 +33,7 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         base.OnStart();
         using var result = new Bundle();
         ShadowTypographyCertification? fixture = null;
+        RtlLayoutCertification? rtl = null;
         MainActivity? activity = null;
         bool? keepScreenOn = null;
         bool success = false;
@@ -63,6 +64,21 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
             Wait(() => Ui(() => fixture.PaintCount > before), "native-resource-opacity-disabled-painted");
             using var alternativeFrame = Capture(activity, "shadow-typography-alternative.png");
             CheckChangedContent(fixture, defaultFrame, alternativeFrame);
+            rtl = Ui(() =>
+            {
+                fixture.Root.Visible = false;
+                var created = new RtlLayoutCertification(ModernFormsNext.Application.OpenForms.Single().Controls, Record);
+                created.Exercise();
+                return created;
+            });
+            Wait(() => Ui(() => rtl.PaintCount > 0), "native-rtl-layout-painted");
+            using var rtlFrame = Capture(activity, "rtl-layout-rtl.png");
+            before = Ui(() => rtl.PaintCount);
+            Ui(() => { rtl.PrepareDirection(false); return true; });
+            Wait(() => Ui(() => rtl.PaintCount > before), "native-ltr-layout-painted");
+            using var ltrFrame = Capture(activity, "rtl-layout-ltr.png");
+            CheckLayoutChangedContent(rtl, rtlFrame, ltrFrame);
+            Ui(() => { rtl.Root.Visible = false; fixture.Root.Visible = true; return true; });
             long generation = Ui(() => AndroidWindowKit.Current.GetWindowingDiagnostics().HostGeneration);
             var previous = activity;
             Ui(() => { activity.Recreate(); return true; });
@@ -75,6 +91,10 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
             Ui(() => { fixture.Exercise(); fixture.Root.Invalidate(); return true; });
             Wait(() => Ui(() => fixture.PaintCount > before), "native-retained-tree-repainted");
             using var recreatedFrame = Capture(activity, "shadow-typography-recreated.png");
+            before = Ui(() => rtl.PaintCount);
+            Ui(() => { fixture.Root.Visible = false; rtl.Root.Visible = true; rtl.Exercise(); return true; });
+            Wait(() => Ui(() => rtl.PaintCount > before), "native-retained-rtl-layout-painted");
+            using var rtlRecreatedFrame = Capture(activity, "rtl-layout-recreated.png");
             success = true;
         }
         catch (Exception error) { Record($"FAIL {error.GetType().Name}: {error.Message}; {error.StackTrace}"); }
@@ -82,6 +102,7 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         {
             try
             {
+                if (rtl is not null) Ui(() => { rtl.Dispose(); return true; });
                 if (fixture is not null) Ui(() => { fixture.Dispose(); return true; });
                 if (keepScreenOn == false && activity is not null)
                     Ui(() => { activity.Window!.ClearFlags(WindowManagerFlags.KeepScreenOn); return true; });
@@ -167,6 +188,22 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         int different = CountChangedPixels(before, after, bounds);
         Record($"NATIVE_CONTENT_PIXELS different={different} total={checked(bounds.Width * bounds.Height)} bounds={bounds}");
         Check(different > 0, "native-alternative-content-pixels-changed");
+    }
+
+    private void CheckLayoutChangedContent(RtlLayoutCertification fixture, global::Android.Graphics.Bitmap before,
+        global::Android.Graphics.Bitmap after)
+    {
+        Check(before.Width == after.Width && before.Height == after.Height, "rtl-native-frame-size-stable");
+        var bounds = Ui(() => fixture.FlowPixelBounds);
+        bounds.Intersect(new System.Drawing.Rectangle(0, 0, before.Width, before.Height));
+        Check(bounds.Width > 0 && bounds.Height > 0 && !bounds.Contains(0, 0), "rtl-native-flow-capture-bounds");
+        using var outside = before.Copy(global::Android.Graphics.Bitmap.Config.Argb8888!, true)
+            ?? throw new InvalidOperationException("RTL negative capture fixture unavailable.");
+        outside.SetPixel(0, 0, new global::Android.Graphics.Color(before.GetPixel(0, 0) ^ 0x00FFFFFF));
+        Check(CountChangedPixels(before, outside, bounds) == 0, "rtl-outside-flow-change-cannot-satisfy-layout");
+        int different = CountChangedPixels(before, after, bounds);
+        Record($"RTL_NATIVE_CONTENT_PIXELS different={different} bounds={bounds}");
+        Check(different > 0, "rtl-native-flow-content-pixels-changed");
     }
 
     private static int CountChangedPixels(global::Android.Graphics.Bitmap before,

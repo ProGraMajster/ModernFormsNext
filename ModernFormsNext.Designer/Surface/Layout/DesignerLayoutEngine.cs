@@ -7,17 +7,20 @@ namespace ModernFormsNext.Designer.Surface;
 
 internal sealed class DesignerLayoutEngine
 {
-    public DesignerLayoutResult Layout(DesignDocument document)
-        => Layout(document, document.Size);
+    public DesignerLayoutResult Layout(DesignDocument document, DesignerPreviewResourcePolicy? resourcePolicy = null)
+        => Layout(document, document.Size, resourcePolicy);
 
-    public DesignerLayoutResult Layout(DesignDocument document, DesignSize rootSize)
+    public DesignerLayoutResult Layout(DesignDocument document, DesignSize rootSize, DesignerPreviewResourcePolicy? resourcePolicy = null)
     {
+        var validation = new DesignDocumentValidator().ValidateStructure(document);
+        if (!validation.IsValid)
+            throw new ArgumentException(string.Join(" ", validation.Errors), nameof(document));
         using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerLayout);
         var normalizedRootSize = new DesignSize(Math.Max(1, rootSize.Width), Math.Max(1, rootSize.Height));
         var baseline = normalizedRootSize == document.Size
             ? null
-            : LayoutCore(document, document.Size, baseline: null);
-        var result = LayoutCore(document, normalizedRootSize, baseline);
+            : LayoutCore(document, document.Size, baseline: null, resourcePolicy ?? DesignerPreviewResourcePolicy.Default);
+        var result = LayoutCore(document, normalizedRootSize, baseline, resourcePolicy ?? DesignerPreviewResourcePolicy.Default);
         performance.Complete();
         return result;
     }
@@ -25,8 +28,12 @@ internal sealed class DesignerLayoutEngine
     private static DesignerLayoutResult LayoutCore(
         DesignDocument document,
         DesignSize rootSize,
-        DesignerLayoutResult? baseline)
+        DesignerLayoutResult? baseline,
+        DesignerPreviewResourcePolicy resourcePolicy)
     {
+        // This projection-wide budget also bounds the combined work of sibling tables.
+        // The fallback pass below only visits authored nodes and never materializes strips.
+        DesignerTablePreviewAdmission.TryValidate(document.Controls, resourcePolicy, out string? tableError);
         var bounds = new Dictionary<DesignControlNode, DesignBounds>();
         var documentBounds = new DesignBounds(0, 0, rootSize.Width, rootSize.Height);
         var documentContentBounds = document.RootKind == DesignRootKind.UserControl
@@ -36,18 +43,28 @@ internal sealed class DesignerLayoutEngine
         LayoutGenericChildren(document.Controls, documentBounds, documentContentBounds, document.Size, bounds, baseline);
         var visibleBounds = new Dictionary<DesignControlNode, DesignBounds>();
         var diagnostics = new Dictionary<DesignControlNode, string>();
-        CapturePages(document.Controls, bounds, visibleBounds, diagnostics);
+        CaptureRuntimeContainers(document.Controls, bounds, visibleBounds, diagnostics,
+            ResolveDirection(document.Properties, RightToLeft.No), resourcePolicy, tableError);
         return new DesignerLayoutResult(bounds, visibleBounds, diagnostics);
     }
 
-    private static void CapturePages(IEnumerable<DesignControlNode> nodes, IDictionary<DesignControlNode, DesignBounds> bounds,
-        IDictionary<DesignControlNode, DesignBounds> visibleBounds, IDictionary<DesignControlNode, string> diagnostics)
+    private static void CaptureRuntimeContainers(IEnumerable<DesignControlNode> nodes, IDictionary<DesignControlNode, DesignBounds> bounds,
+        IDictionary<DesignControlNode, DesignBounds> visibleBounds, IDictionary<DesignControlNode, string> diagnostics,
+        RightToLeft? inheritedDirection, DesignerPreviewResourcePolicy resourcePolicy, string? tableError)
     {
         foreach (var node in nodes)
         {
-            if (!DesignerPagePreview.IsPageContainer(node)) { CapturePages(node.Children, bounds, visibleBounds, diagnostics); continue; }
+            RightToLeft? direction = ResolveDirection(node.Properties, inheritedDirection);
+            if (!DesignerPagePreview.IsRuntimeLayoutContainer(node))
+            {
+                CaptureRuntimeContainers(node.Children, bounds, visibleBounds, diagnostics, direction, resourcePolicy, tableError);
+                continue;
+            }
             var area = bounds[node];
-            using var preview = DesignerPagePreview.TryCreate(node, new System.Drawing.Size(area.Width, area.Height), out var error);
+            string? error = tableError ?? "Invalid inherited RightToLeft selection.";
+            using var preview = tableError is null && direction is { } effective
+                ? DesignerPagePreview.TryCreate(node, new System.Drawing.Size(area.Width, area.Height), out error, effective, resourcePolicy)
+                : null;
             if (preview is null)
             {
                 diagnostics[node] = error!;
@@ -65,6 +82,16 @@ internal sealed class DesignerLayoutEngine
         }
     }
 
+    // Resolve authored data only. An explicit boundary can recover from an invalid ancestor;
+    // inherited invalid data produces a diagnostic instead of activating an arbitrary enum type.
+    private static RightToLeft? ResolveDirection(IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        RightToLeft? inheritedDirection)
+    {
+        if (!properties.TryGetValue(nameof(Control.RightToLeft), out var value)) return inheritedDirection;
+        if (!DesignerLayoutProperties.TryReadRightToLeft(value, out RightToLeft selection)) return null;
+        return selection == RightToLeft.Inherit ? inheritedDirection : selection;
+    }
+
     /// <summary>
     /// Applies a design-root resize while preserving the runtime Anchor result in persisted bounds.
     /// </summary>
@@ -73,7 +100,7 @@ internal sealed class DesignerLayoutEngine
     /// Calculate against the old root size first, then persist only non-docked bounds; docked
     /// controls retain their authored thickness and are recalculated by the runtime layout engine.
     /// </remarks>
-    public void ResizeRoot(DesignDocument document, DesignSize rootSize)
+    public void ResizeRoot(DesignDocument document, DesignSize rootSize, DesignerPreviewResourcePolicy? resourcePolicy = null)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -81,7 +108,7 @@ internal sealed class DesignerLayoutEngine
         if (document.Size == normalizedSize)
             return;
 
-        var layout = Layout(document, normalizedSize);
+        var layout = Layout(document, normalizedSize, resourcePolicy);
         PersistAnchoredBounds(document.Controls, parentBounds: default, parentNode: null, layout);
         document.Size = normalizedSize;
     }
@@ -144,18 +171,9 @@ internal sealed class DesignerLayoutEngine
             return;
         }
 
-        if (DesignerSpecialContainers.IsFlowLayoutPanel(container))
-        {
-            LayoutFlowLayoutPanel(container, contentBounds, bounds, baseline);
-            return;
-        }
-
-        if (DesignerSpecialContainers.IsTableLayoutPanel(container))
-        {
-            LayoutTableLayoutPanel(container, contentBounds, bounds, baseline);
-            return;
-        }
-
+        // Flow/Table bounds are captured once through the production engine below.
+        // The generic pass only seeds authored geometry: it never allocates strip arrays
+        // or scans empty cells, including for a deferred, very large table preview.
         if (container.Children.Count > 0)
             LayoutGenericChildren(
                 container.Children,
@@ -278,174 +296,6 @@ internal sealed class DesignerLayoutEngine
                 effectiveBounds,
                 baseline);
     }
-
-    private static void LayoutFlowLayoutPanel(
-        DesignControlNode panel,
-        DesignBounds bounds,
-        IDictionary<DesignControlNode, DesignBounds> effectiveBounds,
-        DesignerLayoutResult? baseline)
-    {
-        var direction = DesignerSpecialContainers.GetEnum(panel, DesignerSpecialContainers.FlowDirectionPropertyName, FlowDirection.LeftToRight);
-        var wrap = DesignerSpecialContainers.GetBoolean(panel, DesignerSpecialContainers.WrapContentsPropertyName, true);
-        var cursorX = 0;
-        var cursorY = 0;
-        var lineSize = 0;
-
-        foreach (var child in panel.Children)
-        {
-            if (!DesignerLayoutProperties.IsVisible(child))
-            {
-                SetEffectiveChildBounds(child, bounds, child.Bounds.X, child.Bounds.Y, child.Bounds.Width, child.Bounds.Height, effectiveBounds, baseline);
-                continue;
-            }
-
-            var constrained = DesignerLayoutProperties.ApplySizeConstraints(child, child.Bounds);
-            var margin = DesignerLayoutProperties.GetMargin(child);
-            var width = Math.Max(1, constrained.Width);
-            var height = Math.Max(1, constrained.Height);
-            var requiredWidth = width + margin.Horizontal;
-            var requiredHeight = height + margin.Vertical;
-
-            if (direction is FlowDirection.LeftToRight or FlowDirection.RightToLeft)
-            {
-                if (wrap && cursorX > 0 && cursorX + requiredWidth > bounds.Width)
-                {
-                    cursorX = 0;
-                    cursorY += lineSize;
-                    lineSize = 0;
-                }
-
-                var localX = direction == FlowDirection.LeftToRight
-                    ? cursorX + margin.Left
-                    : Math.Max(0, bounds.Width - cursorX - margin.Right - width);
-                SetEffectiveChildBounds(child, bounds, localX, cursorY + margin.Top, width, height, effectiveBounds, baseline);
-                cursorX += requiredWidth;
-                lineSize = Math.Max(lineSize, requiredHeight);
-            }
-            else
-            {
-                if (wrap && cursorY > 0 && cursorY + requiredHeight > bounds.Height)
-                {
-                    cursorY = 0;
-                    cursorX += lineSize;
-                    lineSize = 0;
-                }
-
-                var localY = direction == FlowDirection.TopDown
-                    ? cursorY + margin.Top
-                    : Math.Max(0, bounds.Height - cursorY - margin.Bottom - height);
-                SetEffectiveChildBounds(child, bounds, cursorX + margin.Left, localY, width, height, effectiveBounds, baseline);
-                cursorY += requiredHeight;
-                lineSize = Math.Max(lineSize, requiredWidth);
-            }
-        }
-    }
-
-    private static void LayoutTableLayoutPanel(
-        DesignControlNode panel,
-        DesignBounds bounds,
-        IDictionary<DesignControlNode, DesignBounds> effectiveBounds,
-        DesignerLayoutResult? baseline)
-    {
-        var columns = Math.Max(1, DesignerSpecialContainers.GetInt(panel, DesignerSpecialContainers.ColumnCountPropertyName, 2));
-        var rows = Math.Max(1, DesignerSpecialContainers.GetInt(panel, DesignerSpecialContainers.RowCountPropertyName, 2));
-        var columnWidths = new int[columns];
-        var rowHeights = new int[rows];
-        var childIndex = 0;
-
-        // The runtime's default TableLayoutStyle is AutoSize. Size each strip from the
-        // authored child plus Margin; unallocated space remains after the final auto strip.
-        foreach (var child in panel.Children.Where(DesignerLayoutProperties.IsVisible))
-        {
-            var column = Math.Clamp(
-                DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableColumnPropertyName, childIndex % columns),
-                0,
-                columns - 1);
-            var row = Math.Clamp(
-                DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableRowPropertyName, childIndex / columns),
-                0,
-                rows - 1);
-            var columnSpan = Math.Min(
-                Math.Max(1, DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableColumnSpanPropertyName, 1)),
-                columns - column);
-            var rowSpan = Math.Min(
-                Math.Max(1, DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableRowSpanPropertyName, 1)),
-                rows - row);
-            var constrained = DesignerLayoutProperties.ApplySizeConstraints(child, child.Bounds);
-            var margin = DesignerLayoutProperties.GetMargin(child);
-            var perColumn = Math.Max(1, (int)Math.Ceiling((constrained.Width + margin.Horizontal) / (double)columnSpan));
-            var perRow = Math.Max(1, (int)Math.Ceiling((constrained.Height + margin.Vertical) / (double)rowSpan));
-
-            for (var index = column; index < column + columnSpan; index++)
-                columnWidths[index] = Math.Max(columnWidths[index], perColumn);
-            for (var index = row; index < row + rowSpan; index++)
-                rowHeights[index] = Math.Max(rowHeights[index], perRow);
-            childIndex++;
-        }
-
-        childIndex = 0;
-
-        foreach (var child in panel.Children)
-        {
-            if (!DesignerLayoutProperties.IsVisible(child))
-            {
-                SetEffectiveChildBounds(child, bounds, child.Bounds.X, child.Bounds.Y, child.Bounds.Width, child.Bounds.Height, effectiveBounds, baseline);
-                childIndex++;
-                continue;
-            }
-
-            var column = DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableColumnPropertyName, childIndex % columns);
-            var row = DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableRowPropertyName, childIndex / columns);
-            var columnSpan = Math.Max(1, DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableColumnSpanPropertyName, 1));
-            var rowSpan = Math.Max(1, DesignerSpecialContainers.GetInt(child, DesignerSpecialContainers.TableRowSpanPropertyName, 1));
-
-            column = Math.Clamp(column, 0, columns - 1);
-            row = Math.Clamp(row, 0, rows - 1);
-            columnSpan = Math.Min(columnSpan, columns - column);
-            rowSpan = Math.Min(rowSpan, rows - row);
-
-            var cellX = columnWidths.Take(column).Sum();
-            var cellY = rowHeights.Take(row).Sum();
-            var cellWidth = columnWidths.Skip(column).Take(columnSpan).Sum();
-            var cellHeight = rowHeights.Skip(row).Take(rowSpan).Sum();
-            var margin = DesignerLayoutProperties.GetMargin(child);
-            var available = new DesignBounds(
-                cellX + margin.Left,
-                cellY + margin.Top,
-                Math.Max(0, cellWidth - margin.Horizontal),
-                Math.Max(0, cellHeight - margin.Vertical));
-            var constrained = DesignerLayoutProperties.ApplySizeConstraints(child, child.Bounds);
-            var anchor = GetUnifiedTableAnchor(child);
-            var stretchesHorizontally = (anchor & (AnchorStyles.Left | AnchorStyles.Right)) == (AnchorStyles.Left | AnchorStyles.Right);
-            var stretchesVertically = (anchor & (AnchorStyles.Top | AnchorStyles.Bottom)) == (AnchorStyles.Top | AnchorStyles.Bottom);
-            var width = stretchesHorizontally ? available.Width : Math.Min(constrained.Width, available.Width);
-            var height = stretchesVertically ? available.Height : Math.Min(constrained.Height, available.Height);
-            var localX = (anchor & AnchorStyles.Left) != 0
-                ? available.X
-                : (anchor & AnchorStyles.Right) != 0
-                    ? available.Right - width
-                    : available.X + ((available.Width - width) / 2);
-            var localY = (anchor & AnchorStyles.Top) != 0
-                ? available.Y
-                : (anchor & AnchorStyles.Bottom) != 0
-                    ? available.Bottom - height
-                    : available.Y + ((available.Height - height) / 2);
-
-            SetEffectiveChildBounds(child, bounds, localX, localY, width, height, effectiveBounds, baseline);
-            childIndex++;
-        }
-    }
-
-    private static AnchorStyles GetUnifiedTableAnchor(DesignControlNode child)
-        => DesignerLayoutProperties.GetDock(child) switch
-        {
-            DockStyle.Top => AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right,
-            DockStyle.Bottom => AnchorStyles.Left | AnchorStyles.Bottom | AnchorStyles.Right,
-            DockStyle.Left => AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Bottom,
-            DockStyle.Right => AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom,
-            DockStyle.Fill => AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom,
-            _ => DesignerLayoutProperties.GetAnchor(child)
-        };
 
     private static void SetEffectiveChildBounds(
         DesignControlNode child,

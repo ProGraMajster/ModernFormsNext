@@ -9,6 +9,24 @@ namespace ModernFormsNext.Designer.Surface;
 
 internal static class DesignerLayoutProperties
 {
+    // A new inherited enum must remain closed data in preview. Do not resolve the authored
+    // enum type or accept numeric/unknown selections as executable property instructions.
+    public static bool TryReadRightToLeft(DesignPropertyValue value, out RightToLeft selection)
+    {
+        selection = RightToLeft.Inherit;
+        string? typeName = value.EnumTypeName?.Trim();
+        if (typeName?.StartsWith("global::", StringComparison.Ordinal) == true) typeName = typeName[8..];
+        if (value.Kind != DesignPropertyValueKind.Enum || typeName != typeof(RightToLeft).FullName)
+            return false;
+        switch (value.Value)
+        {
+            case nameof(RightToLeft.No): selection = RightToLeft.No; return true;
+            case nameof(RightToLeft.Yes): selection = RightToLeft.Yes; return true;
+            case nameof(RightToLeft.Inherit): return true;
+            default: return false;
+        }
+    }
+
     public const string DockPropertyName = "Dock";
 
     public const string AnchorPropertyName = "Anchor";

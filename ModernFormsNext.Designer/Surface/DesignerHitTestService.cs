@@ -18,7 +18,7 @@ internal sealed class DesignerHitTestService
 
     public DesignerHitTestResult HitTestControl(DesignerSession state, DesignPoint documentPoint)
     {
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
         return HitTestControls(state, state.Document.Controls, parentNode: null, layout, documentClip, documentPoint)
@@ -27,7 +27,7 @@ internal sealed class DesignerHitTestService
 
     public DesignControlNode? HitTestSplitter(DesignerSession state, DesignPoint documentPoint)
     {
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
         return HitTestSplitters(state, state.Document.Controls, parentNode: null, layout, documentClip, documentPoint);
@@ -35,7 +35,7 @@ internal sealed class DesignerHitTestService
 
     public DesignControlNode? HitTestTabHeader(DesignerSession state, DesignPoint documentPoint, out int tabIndex)
     {
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var documentClip = new DesignBounds(0, 0, Math.Max(1, state.Document.Size.Width), Math.Max(1, state.Document.Size.Height));
 
         return HitTestTabHeaders(state, state.Document.Controls, parentNode: null, layout, documentClip, documentPoint, out tabIndex);
@@ -71,7 +71,7 @@ internal sealed class DesignerHitTestService
         }
 
         var view = coordinateMapper.GetView(state, surfaceWidth, surfaceHeight);
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var bounds = coordinateMapper.ToSurfaceBounds(layout.GetEffectiveBounds(selectedNode), view);
 
         foreach (var handle in GetHandlesInHitTestOrder())

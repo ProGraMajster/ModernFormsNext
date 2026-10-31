@@ -1040,13 +1040,14 @@ internal partial class TableLayout : LayoutEngine
         var top = displayRectF.Y;
         var currentCol = 0;
         var currentRow = 0;
-        var isContainerRTL = false;
-        var displayRect = Rectangle.Truncate (displayRectF);
-
-        if (containerInfo.Container is Control) {
-            var control = containerInfo.Container as Control;
-            //isContainerRTL = control.RightToLeft == RightToLeft.Yes;  TODO: RTL
+        var isContainerRTL = containerInfo.Container is Control { RightToLeft: RightToLeft.Yes };
+        if (isContainerRTL && containerInfo.Container is ScrollableControl { AutoScroll: true }) {
+            // Logical columns occupy the full positive content range. Mirroring around the
+            // viewport alone would strand overflowing cells left of scroll position zero.
+            displayRectF.Width = Math.Max(displayRectF.Width,
+                SumStrips(containerInfo.Columns, 0, containerInfo.Columns.Length));
         }
+        var displayRect = Rectangle.Truncate (displayRectF);
 
         var childrenInfo = containerInfo.ChildrenInfo;
         var startX = isContainerRTL ? displayRectF.Right : displayRectF.X;

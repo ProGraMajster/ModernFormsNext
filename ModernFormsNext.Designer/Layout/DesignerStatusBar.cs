@@ -33,7 +33,7 @@ internal sealed class DesignerStatusBar : Panel
     protected override void OnPaint(PaintEventArgs e)
     {
         var selection = state.SelectedNode is null ? state.Document.FormName : state.SelectedNode.Name;
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var selectedBounds = state.SelectedNode is null ? default : layout.GetEffectiveBounds(state.SelectedNode);
         var dock = state.SelectedNode is null ? DockStyle.None : DesignerLayoutProperties.GetDock(state.SelectedNode);
         var dockText = dock == DockStyle.None ? string.Empty : $" | Dock: {dock}";

@@ -1392,7 +1392,7 @@ internal sealed class DesignerPropertyGridState
                 var nextSize = name == "Width"
                     ? createSize(sizeValue, size.Height)
                     : createSize(size.Width, sizeValue);
-                new DesignerLayoutEngine().ResizeRoot(playgroundState.Document, nextSize);
+                new DesignerLayoutEngine().ResizeRoot(playgroundState.Document, nextSize, playgroundState.PreviewResourcePolicy);
                 return (true, null);
             }
         };

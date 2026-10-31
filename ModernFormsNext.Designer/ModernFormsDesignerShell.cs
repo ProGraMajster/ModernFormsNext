@@ -58,6 +58,7 @@ public sealed class ModernFormsDesignerShell : Panel
     {
         this.options = options ?? new ModernFormsDesignerOptions();
         Session = new DesignerSession(environment, this.options.InitialControlRenderMode, this.options.HistoryLimit);
+        Session.PreviewResourcePolicy = this.options.PreviewResourcePolicy;
 
         var files = new DesignerFileService(
             environment,

@@ -13,6 +13,11 @@ namespace ModernFormsNext;
 /// <summary>
 /// Represents a TableLayoutPanel control.
 /// </summary>
+/// <remarks>
+/// Effective <see cref="Control.RightToLeft"/> mirrors visual columns and horizontal cell
+/// alignment. Row/column indexes and spans remain logical; row order is unchanged. Padding
+/// remains a physical viewport inset. Mutate live layout on the owning UI thread.
+/// </remarks>
 [ProvideProperty ("ColumnSpan", typeof (Control))]
 [ProvideProperty ("RowSpan", typeof (Control))]
 [ProvideProperty ("Row", typeof (Control))]
