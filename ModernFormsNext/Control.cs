@@ -91,6 +91,7 @@ namespace ModernFormsNext
             // Store the old values for these properties
             var old_enabled = Enabled;
             var old_visible = Visible;
+            bool wasCreated = Created;
 
             Control? previousParent = parent;
             int assignmentVersion = unchecked(++parentAssignmentVersion);
@@ -156,15 +157,14 @@ namespace ModernFormsNext
                 if (old_visible != new_visible && !(!old_visible && new_visible && parent is null))
                     OnVisibleChanged (EventArgs.Empty);
 
-                //    if (Properties.GetObject (s_bindingManagerProperty) is null && Created) {
-                //        // We do not want to call our parent's BindingContext property here.
-                //        // We have no idea if us or any of our children are using data binding,
-                //        // and invoking the property would just create the binding manager, which
-                //        // we don't need.  We just blindly notify that the binding manager has
-                //        // changed, and if anyone cares, they will do the comparison at that time.
-                //        //
-                //        OnBindingContextChanged (EventArgs.Empty);
-                //    }
+                // An already-created detached/hidden control can acquire an inherited context
+                // here. Newly-created controls activate their own bindings in CreateControl;
+                // do not push their values twice or manufacture a second binding manager.
+                if (wasCreated && Created && !Properties.ContainsKey(s_bindingManagerProperty)) {
+                    OnBindingContextChanged(EventArgs.Empty);
+                    if (assignmentVersion != parentAssignmentVersion || GetAnyDisposingInHierarchy())
+                        return;
+                }
 
                 if (Parent is not null)
                     Parent.LayoutEngine.InitLayout (this, BoundsSpecified.All);
@@ -576,14 +576,26 @@ namespace ModernFormsNext
         internal void CreateControl ()
         {
             // Don't run this more than once
-            if (Created)
+            if (Created || IsDisposed || Disposing)
                 return;
 
+            int creationParentVersion = parentAssignmentVersion;
             SetState (States.Created, true);
 
+            // Binding deliberately waits for Created and an existing BindingContext. A context
+            // assigned during construction cannot activate those bindings until this boundary.
+            // Reuse the canonical association path without allocating an implicit context.
+            if (Properties.ContainsKey(s_bindingsProperty))
+                UpdateBindings();
+            if (IsDisposed || Disposing || creationParentVersion != parentAssignmentVersion)
+                return;
+
             // Create an array copy in case the collection changes
-            foreach (var child in Controls.GetAllControls ().ToArray ())
-                child.CreateControl ();
+            foreach (var child in Controls.GetAllControls ().ToArray ()) {
+                if (ReferenceEquals(child.Parent, this)) child.CreateControl ();
+                if (IsDisposed || Disposing || creationParentVersion != parentAssignmentVersion)
+                    return;
+            }
 
             OnCreateControl ();
         }

@@ -80,6 +80,7 @@ $facts = [ordered]@{
     AppShellRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/AppShellValidationInstrumentation.cs')).Hash
     ShadowTypographyRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ShadowTypographyValidationInstrumentation.cs')).Hash
     RtlLayoutFixtureSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/RtlLayoutCertification.cs')).Hash
+    BindingNavigatorFixtureSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/BindingNavigatorCertification.cs')).Hash
     LayoutPolicyRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/LayoutPolicyValidationInstrumentation.cs')).Hash
     VisualStateMetricsRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/VisualStateMetricsValidationInstrumentation.cs')).Hash
     BrushMorphRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/BrushMorphValidationInstrumentation.cs')).Hash
@@ -158,7 +159,8 @@ try {
             @('page-composition-validation.txt', 'page-composition-overlay.png', 'page-composition-recreated.png')
         } elseif ($Scenario -eq 'ShadowTypography') {
             @('shadow-typography-validation.txt', 'shadow-typography-default.png', 'shadow-typography-alternative.png', 'shadow-typography-recreated.png',
-              'rtl-layout-rtl.png', 'rtl-layout-ltr.png', 'rtl-layout-recreated.png')
+              'rtl-layout-rtl.png', 'rtl-layout-ltr.png', 'rtl-layout-recreated.png',
+              'binding-navigator-first.png', 'binding-navigator-second.png', 'binding-navigator-recreated.png')
         } elseif ($Scenario -eq 'LayoutPolicy') {
             @('layout-policy-validation.txt', 'layout-policy-positive.png', 'layout-policy-zero.png', 'layout-policy-restored.png')
         } elseif ($Scenario -eq 'VisualStateMetrics') {
@@ -178,6 +180,10 @@ try {
         }
     }
     # Do not mistake numeric telemetry such as recorder_failures=0 for a failure marker.
+    if ($Scenario -eq 'ShadowTypography' -and
+        ($result -notmatch 'BINDING_NAVIGATOR:PASS:' -or $result -notmatch 'BINDING_NAVIGATOR:RECREATED:PASS')) {
+        throw "BindingNavigator certification markers missing. Inspect $destination/instrumentation.log."
+    }
     if ($instrumentationExit -ne 0 -or $result -notmatch $marker -or
         $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|ANDROID_BRUSH_MORPH_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."

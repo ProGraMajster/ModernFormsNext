@@ -626,9 +626,13 @@ namespace ModernFormsNext
         public override ControlStyle Style { get; } = new ControlStyle (DefaultStyle);
 
         /// <inheritdoc/>
+        /// <remarks>Null values supplied by data binding or property descriptors are normalized to empty text.</remarks>
         public override string Text { 
             get => document.Text; 
             set {
+                // An empty binding currency has no current value. Keep the document's text
+                // invariant before accessibility, selection, composition or rendering uses it.
+                value ??= string.Empty;
                 using var accessibleChange = BeginAccessibleTextChange();
                 if (document.Text != value) {
                     document.Text = value;

@@ -14,6 +14,8 @@ formatter infrastructure.
 - `BindingSource` wraps list-like data sources and provides current-item navigation,
   change notifications, sorting, filtering, and list mutation APIs where the source
   supports them.
+- [`BindingNavigator`](binding-navigator.md) provides native navigation, position/count
+  and configurable editing actions using ordinary framework controls and commands.
 - `BindingContext`, `CurrencyManager`, and `PropertyManager` coordinate current item
   state for controls that share the same data source.
 
@@ -108,14 +110,24 @@ Use `Binding.NullValue` to choose what a null data-source value should display i
 bound component. Use `Binding.DataSourceNullValue` to choose the value written back to
 the data source when the formatted component value represents null.
 
+Bindings require an existing `BindingContext` and a created control. A context can be
+assigned to a containing control before building its child tree; the normal creation
+path activates preconfigured bindings when controls are shown. Already-created controls
+also re-associate inherited contexts when reparented. This uses the same binding managers
+and does not create a second currency model or an automatic context for an unbound tree.
+
+When an empty source has no current value, `TextBox.Text` normalizes the resulting
+null to empty text before updating its document, selection and accessibility state.
+The editor remains renderable and resumes displaying values when the source is populated.
+
 For nullable value types the default data-source null value is `null`. For non-nullable
 types the default follows the WinForms-style `DBNull.Value` behavior.
 
 ## Current Limitations
 
-- `BindingNavigator` is not compiled in 1.3.0 because the original WinForms version is
-  based on `ToolStrip`. It needs a ModernFormsNext-native navigation control instead of
-  a direct port.
+- `BindingNavigator` uses ModernFormsNext controls and the canonical command system.
+  Its source/command references are runtime-only; assign them after generated Designer
+  initialization. Save commits the local source edit and does not implement persistence.
 - The ModernFormsNext designer is separate from the data-binding runtime. WinForms-only designer
   serialization hooks remain out of scope for this binding layer.
 - Data binding is framework code and should be used from the UI thread, like the rest of

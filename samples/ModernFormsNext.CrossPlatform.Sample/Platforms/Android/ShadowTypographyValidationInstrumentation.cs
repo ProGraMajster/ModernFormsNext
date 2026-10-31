@@ -34,6 +34,7 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         using var result = new Bundle();
         ShadowTypographyCertification? fixture = null;
         RtlLayoutCertification? rtl = null;
+        BindingNavigatorCertification? navigator = null;
         MainActivity? activity = null;
         bool? keepScreenOn = null;
         bool success = false;
@@ -78,7 +79,21 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
             Wait(() => Ui(() => rtl.PaintCount > before), "native-ltr-layout-painted");
             using var ltrFrame = Capture(activity, "rtl-layout-ltr.png");
             CheckLayoutChangedContent(rtl, rtlFrame, ltrFrame);
-            Ui(() => { rtl.Root.Visible = false; fixture.Root.Visible = true; return true; });
+            navigator = Ui(() =>
+            {
+                rtl.Root.Visible = false;
+                var created = new BindingNavigatorCertification(ModernFormsNext.Application.OpenForms.Single().Controls, Record);
+                created.Exercise();
+                return created;
+            });
+            Wait(() => Ui(() => navigator.PaintCount > 0), "native-binding-navigator-painted");
+            using var navigatorFrame = Capture(activity, "binding-navigator-first.png");
+            before = Ui(() => navigator.PaintCount);
+            Ui(() => { navigator.PreparePosition(true); return true; });
+            Wait(() => Ui(() => navigator.PaintCount > before), "native-binding-navigator-current-update-painted");
+            using var navigatorChangedFrame = Capture(activity, "binding-navigator-second.png");
+            CheckNavigatorChangedContent(navigator, navigatorFrame, navigatorChangedFrame);
+            Ui(() => { navigator.Root.Visible = false; fixture.Root.Visible = true; return true; });
             long generation = Ui(() => AndroidWindowKit.Current.GetWindowingDiagnostics().HostGeneration);
             var previous = activity;
             Ui(() => { activity.Recreate(); return true; });
@@ -95,6 +110,10 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
             Ui(() => { fixture.Root.Visible = false; rtl.Root.Visible = true; rtl.Exercise(); return true; });
             Wait(() => Ui(() => rtl.PaintCount > before), "native-retained-rtl-layout-painted");
             using var rtlRecreatedFrame = Capture(activity, "rtl-layout-recreated.png");
+            before = Ui(() => navigator.PaintCount);
+            Ui(() => { rtl.Root.Visible = false; navigator.Root.Visible = true; navigator.CheckRetainedState(); return true; });
+            Wait(() => Ui(() => navigator.PaintCount > before), "native-retained-binding-navigator-painted");
+            using var navigatorRecreatedFrame = Capture(activity, "binding-navigator-recreated.png");
             success = true;
         }
         catch (Exception error) { Record($"FAIL {error.GetType().Name}: {error.Message}; {error.StackTrace}"); }
@@ -102,6 +121,7 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         {
             try
             {
+                if (navigator is not null) Ui(() => { navigator.Dispose(); return true; });
                 if (rtl is not null) Ui(() => { rtl.Dispose(); return true; });
                 if (fixture is not null) Ui(() => { fixture.Dispose(); return true; });
                 if (keepScreenOn == false && activity is not null)
@@ -204,6 +224,22 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         int different = CountChangedPixels(before, after, bounds);
         Record($"RTL_NATIVE_CONTENT_PIXELS different={different} bounds={bounds}");
         Check(different > 0, "rtl-native-flow-content-pixels-changed");
+    }
+
+    private void CheckNavigatorChangedContent(BindingNavigatorCertification fixture, global::Android.Graphics.Bitmap before,
+        global::Android.Graphics.Bitmap after)
+    {
+        Check(before.Width == after.Width && before.Height == after.Height, "navigator-native-frame-size-stable");
+        var bounds = Ui(() => fixture.ContentPixelBounds);
+        bounds.Intersect(new System.Drawing.Rectangle(0, 0, before.Width, before.Height));
+        Check(bounds.Width > 0 && bounds.Height > 0 && !bounds.Contains(0, 0), "navigator-native-bound-content-capture");
+        using var outside = before.Copy(global::Android.Graphics.Bitmap.Config.Argb8888!, true)
+            ?? throw new InvalidOperationException("Navigator negative capture fixture unavailable.");
+        outside.SetPixel(0, 0, new global::Android.Graphics.Color(before.GetPixel(0, 0) ^ 0x00FFFFFF));
+        Check(CountChangedPixels(before, outside, bounds) == 0, "navigator-outside-content-change-cannot-satisfy-binding");
+        int different = CountChangedPixels(before, after, bounds);
+        Record($"NAVIGATOR_NATIVE_CONTENT_PIXELS different={different} bounds={bounds}");
+        Check(different > 0, "navigator-native-bound-content-pixels-changed");
     }
 
     private static int CountChangedPixels(global::Android.Graphics.Bitmap before,
