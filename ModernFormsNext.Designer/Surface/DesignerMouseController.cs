@@ -457,7 +457,7 @@ internal sealed class DesignerMouseController
         if (state.Document.Size == nextSize)
             return;
 
-        layoutEngine.ResizeRoot(state.Document, nextSize);
+        layoutEngine.ResizeRoot(state.Document, nextSize, state.PreviewResourcePolicy);
         changedBounds = true;
     }
 
@@ -517,7 +517,7 @@ internal sealed class DesignerMouseController
         var splitterWidth = Math.Max(1, DesignerSpecialContainers.GetInt(activeNode, DesignerSpecialContainers.SplitterWidthPropertyName, 5));
         var panel1Minimum = Math.Max(0, DesignerSpecialContainers.GetInt(activeNode, "Panel1MinimumSize", 25));
         var panel2Minimum = Math.Max(0, DesignerSpecialContainers.GetInt(activeNode, "Panel2MinimumSize", 25));
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var bounds = layout.GetEffectiveBounds(activeNode);
         var available = orientation == Orientation.Horizontal ? bounds.Width : bounds.Height;
         var maximum = Math.Max(panel1Minimum, available - splitterWidth - panel2Minimum);
@@ -533,7 +533,7 @@ internal sealed class DesignerMouseController
 
     private int GetDefaultSplitterDistance(DesignControlNode splitContainer)
     {
-        var layout = layoutEngine.Layout(state.Document);
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var bounds = layout.GetEffectiveBounds(splitContainer);
         var orientation = DesignerSpecialContainers.GetEnum(
             splitContainer,

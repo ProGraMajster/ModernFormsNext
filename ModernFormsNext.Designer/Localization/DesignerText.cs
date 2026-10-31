@@ -14,6 +14,9 @@ public static class DesignerText
 {
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        ["TablePreviewStrips"] = "Table preview strips per axis",
+        ["TablePreviewCells"] = "Table preview cell budget",
+        ["TablePreviewLimitsHelp"] = "Trusted projects: 0 disables an ordinary limit. Safety limits always apply.",
         ["Toolbox"] = "Toolbox",
         ["DocumentOutline"] = "Document Outline",
         ["SolutionExplorer"] = "Solution Explorer",
@@ -67,6 +70,9 @@ public static class DesignerText
 
     private static readonly IReadOnlyDictionary<string, string> Polish = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        ["TablePreviewStrips"] = "Paski tabeli preview na oś",
+        ["TablePreviewCells"] = "Budżet komórek tabeli preview",
+        ["TablePreviewLimitsHelp"] = "Zaufane projekty: 0 wyłącza zwykły limit. Limity bezpieczeństwa nadal obowiązują.",
         ["Toolbox"] = "Przybornik",
         ["DocumentOutline"] = "Konspekt dokumentu",
         ["SolutionExplorer"] = "Eksplorator rozwiazan",

@@ -83,9 +83,10 @@ transition so no clock, timer, active window, or `Thread.Sleep` can affect the r
   `DesignBounds` intentionally cannot represent negative width or height. The focused
   `OversizedPaddingDoesNotProduceNegativeDesignerBounds` regression preserves the Designer safety
   contract; this case is not normalized into a false equality assertion.
-- Full FlowLayoutPanel/TableLayoutPanel style matrices, AutoSize combinations, spanning edge
-  cases, and right-to-left layout remain outside the fast foundation. In particular, complete RTL
-  parity remains tracked by issue #89.
+- Flow/Table RTL, mixed direction, asymmetric margins, spans, generated selections and device
+  edges extend the existing suite through the bounded production-tree adapter. See
+  [RTL contracts and limits](../right-to-left-layout.md). Arbitrary application AutoSize/layout
+  callbacks and exhaustive style matrices are outside the closed preview contract.
 - Visual editing of inherited Forms and UserControls remains tracked by issue #39. The parity
   harness should add inherited scenarios when that production path exists; it does not emulate the
   missing feature.

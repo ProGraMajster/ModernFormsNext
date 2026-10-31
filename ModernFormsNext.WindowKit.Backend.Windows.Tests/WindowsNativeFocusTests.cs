@@ -61,7 +61,11 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
             if (argument == "--brush-morph-immediate")
                 Assert.Contains("BRUSH_MORPH immediate=True", report);
             if (argument == "--shadow-typography")
+            {
                 Assert.Contains("DYNAMIC_RESOURCE:NATIVE:11:PASS:typed-merged-factory-replacement", report);
+                Assert.Contains("RTL_LAYOUT:PASS:", report);
+                Assert.Contains("RTL_LAYOUT:NATIVE_PAINT_TAB_SHIFT_TAB:PASS", report);
+            }
             if (argument == "--focus")
             {
                 Assert.Contains("FOCUS:HWND_TEXT_HANDOFF:False:PASS", report);

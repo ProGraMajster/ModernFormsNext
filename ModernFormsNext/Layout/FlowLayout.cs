@@ -62,6 +62,14 @@ internal partial class FlowLayout : LayoutEngine
         var containerProxy = CreateContainerProxy (container, flowDirection);
         containerProxy.DisplayRect = displayRect;
 
+        if (!measureOnly && container is ScrollableControl { AutoScroll: true }
+            && (flowDirection is FlowDirection.RightToLeft or FlowDirection.BottomUp
+                || container is Control { RightToLeft: RightToLeft.Yes })) {
+            // One bounded measuring pass supplies the physical content extent for reflection.
+            // Keep the viewport constraints unchanged so wrapping does not change with scrolling.
+            containerProxy.ReflectionSize = TryCalculatePreferredSize(container, displayRect, measureOnly: true);
+        }
+
         // refetch as it's now adjusted for Vertical.
         displayRect = containerProxy.DisplayRect;
 

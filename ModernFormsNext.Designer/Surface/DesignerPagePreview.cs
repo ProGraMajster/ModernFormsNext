@@ -7,6 +7,7 @@ using ModernFormsNext.Designing;
 namespace ModernFormsNext.Designer.Surface;
 
 // A short-lived adapter to the production Control tree, not a second page/layout model.
+// Flow/Table projections share this bounded adapter and their ordinary runtime engines.
 // It accepts only already-loaded framework types and authored data. No application assembly,
 // route factory, binding, converter, event handler or lifecycle binding is installed.
 internal sealed class DesignerPagePreview : IDisposable
@@ -16,20 +17,30 @@ internal sealed class DesignerPagePreview : IDisposable
     internal const int MaximumPropertyValues = 2048;
     internal const int MaximumPropertyTextLength = 64 * 1024;
     private readonly List<Control> owned = [];
+    private readonly HashSet<DesignControlNode> authoredPlaceholders = [];
     internal Dictionary<DesignControlNode, Control> Controls { get; } = [];
     internal Control Root { get; private set; } = null!;
 
     internal static bool IsPageContainer(DesignControlNode node)
         => DesignPageContainers.IsPage(node.TypeName) || DesignPageContainers.IsType(node.TypeName, "PageHost");
 
-    internal static DesignerPagePreview? TryCreate(DesignControlNode node, Size size, out string? error)
+    internal static bool IsRuntimeLayoutContainer(DesignControlNode node)
+        => IsPageContainer(node) || DesignerSpecialContainers.IsFlowLayoutPanel(node)
+            || DesignerSpecialContainers.IsTableLayoutPanel(node);
+
+    internal static DesignerPagePreview? TryCreate(DesignControlNode node, Size size, out string? error,
+        RightToLeft inheritedDirection = RightToLeft.No, DesignerPreviewResourcePolicy? resourcePolicy = null)
     {
         error = null;
         var document = new DesignDocument();
         document.Controls.Add(node); // Borrowed data; never normalized or modified.
         var validation = new DesignDocumentValidator().ValidateStructure(document);
         if (!validation.IsValid) { error = string.Join(" ", validation.Errors); return null; }
+        if (!DesignerTablePreviewAdmission.TryValidate(document.Controls,
+            resourcePolicy ?? DesignerPreviewResourcePolicy.Default, out error)) return null;
         var pending = new Stack<(DesignControlNode Node, int Depth)>();
+        bool allowAuthoredPlaceholders = DesignerSpecialContainers.IsFlowLayoutPanel(node)
+            || DesignerSpecialContainers.IsTableLayoutPanel(node);
         var values = new List<DesignPropertyValue?>();
         pending.Push((node, 0));
         int count = 0;
@@ -37,8 +48,13 @@ internal sealed class DesignerPagePreview : IDisposable
         {
             if (++count > MaximumNodes || item.Depth > MaximumDepth)
             { error = $"Page preview supports at most {MaximumNodes} authored nodes and depth {MaximumDepth}."; return null; }
+            if (item.Node.Properties.TryGetValue(nameof(Control.RightToLeft), out var direction)
+                && !DesignerLayoutProperties.TryReadRightToLeft(direction, out _))
+            { error = "Runtime layout preview requires a declared RightToLeft selection."; return null; }
             var type = DesignerSurfaceRenderer.ResolveFrameworkControlType(item.Node.TypeName);
-            if (type is null || type.IsAbstract || !typeof(Control).IsAssignableFrom(type) || type.GetConstructor(Type.EmptyTypes) is null)
+            bool authoredPlaceholder = type is null && allowAuthoredPlaceholders;
+            if (!authoredPlaceholder && (type is null || type.IsAbstract
+                || !typeof(Control).IsAssignableFrom(type) || type.GetConstructor(Type.EmptyTypes) is null))
             { error = $"Page preview requires a known framework control: {item.Node.TypeName}."; return null; }
             if (item.Node.Properties.Count > MaximumPropertyValues - values.Count)
             { error = "Page preview exceeds its property value budget."; return null; }
@@ -50,7 +66,7 @@ internal sealed class DesignerPagePreview : IDisposable
         var preview = new DesignerPagePreview();
         try
         {
-            var viewport = new PreviewViewport { Bounds = new Rectangle(Point.Empty, size) };
+            var viewport = new PreviewViewport { Bounds = new Rectangle(Point.Empty, size), RightToLeft = inheritedDirection };
             viewport.Site = new PreviewSite(viewport);
             preview.owned.Add(viewport);
             preview.Root = preview.Create(node);
@@ -73,8 +89,10 @@ internal sealed class DesignerPagePreview : IDisposable
     {
         Control? navigationRoot = DesignPageContainers.IsType(node.TypeName, "NavigationPage") && node.Children.Count == 1
             ? Create(node.Children[0]) : null;
+        Type? type = DesignerSurfaceRenderer.ResolveFrameworkControlType(node.TypeName);
         var control = existing ?? (navigationRoot is Page page ? new NavigationPage(page)
-            : (Control)Activator.CreateInstance(DesignerSurfaceRenderer.ResolveFrameworkControlType(node.TypeName)!)!);
+            : type is null ? new Control() : (Control)Activator.CreateInstance(type)!);
+        if (type is null) authoredPlaceholders.Add(node);
         if (existing is null) owned.Add(control);
         Controls.Add(node, control);
         control.Site = new PreviewSite(control);
@@ -96,7 +114,12 @@ internal sealed class DesignerPagePreview : IDisposable
         control.Bounds = new Rectangle(node.Bounds.X, node.Bounds.Y, node.Bounds.Width, node.Bounds.Height);
         if (!node.Properties.ContainsKey("Dock")) control.Dock = DockStyle.None;
         var errors = new List<string>();
-        DesignerSurfaceRenderer.ApplyPreviewProperties(control, node, errors, includeLayout: true);
+        bool authoredPlaceholder = authoredPlaceholders.Contains(node);
+        DesignerSurfaceRenderer.ApplyPreviewProperties(control, node, errors, includeLayout: true,
+            ignoreUnknownProperties: authoredPlaceholder);
+        // External measure/layout cannot run in metadata preview. Preserve its authored size
+        // with a closed Control placeholder; known base layout properties still validate normally.
+        if (authoredPlaceholder) control.AutoSize = false;
         if (errors.Count != 0) throw new InvalidOperationException(string.Join("; ", errors));
         foreach (var child in node.Children) Initialize(child);
     }

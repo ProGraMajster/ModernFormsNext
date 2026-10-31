@@ -14,6 +14,10 @@ public sealed class ModernFormsDesignerOptions
 {
     private readonly Dictionary<DesignerToolWindowId, DesignerToolWindowLayout> toolWindows = CreateDefaultToolWindows();
 
+    /// <summary>Gets or sets the immutable resource policy copied to a newly created Designer session.</summary>
+    /// <remarks>Configure before creating the shell. To change a running session, set DesignerSession.PreviewResourcePolicy.</remarks>
+    public DesignerPreviewResourcePolicy PreviewResourcePolicy { get; set; } = DesignerPreviewResourcePolicy.Default;
+
     /// <summary>
     /// Gets or sets a value indicating whether the designer command toolbar is visible.
     /// </summary>

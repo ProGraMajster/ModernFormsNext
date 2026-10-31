@@ -30,16 +30,13 @@ internal partial class FlowLayout
         private readonly IArrangedElement _container;
         private readonly bool _isContainerRTL;
         private Rectangle _displayRect;
+        private Rectangle _reflectionRect;
         private ElementProxy? _elementProxy;
 
         public ContainerProxy (IArrangedElement container)
         {
             _container = container;
-            _isContainerRTL = false;
-
-            // TODO: RTL
-            if (_container is Control)
-                _isContainerRTL = false;// ((Control)(_container)).RightToLeft == RightToLeft.Yes;
+            _isContainerRTL = container is Control { RightToLeft: RightToLeft.Yes };
         }
 
         public virtual Rectangle Bounds {
@@ -49,29 +46,9 @@ internal partial class FlowLayout
                     // Offset the X coordinate.
                     if (IsVertical)
                         // Offset the Y value here, since it is really the X value.
-                        value.Y = DisplayRect.Bottom - value.Bottom;
+                        value.Y = _reflectionRect.Top + _reflectionRect.Bottom - value.Bottom;
                     else
-                        value.X = DisplayRect.Right - value.Right;
-
-                    if (Container is FlowLayoutPanel flp) {
-                        // TODO: AutoScrollPosition
-                        //Point ptScroll = flp.AutoScrollPosition;
-                        //if (ptScroll != Point.Empty)
-                        //{
-                        //    Point pt = new Point(value.X, value.Y);
-                        //    if (IsVertical)
-                        //    {
-                        //        // Offset the Y value here, since it is really the X value.
-                        //        pt.Offset(0, ptScroll.X);
-                        //    }
-                        //    else
-                        //    {
-                        //        pt.Offset(ptScroll.X, 0);
-                        //    }
-
-                        //    value.Location = pt;
-                        //}
-                    }
+                        value.X = _reflectionRect.Left + _reflectionRect.Right - value.Right;
                 }
 
                 ElementProxy.Bounds = value;
@@ -92,7 +69,20 @@ internal partial class FlowLayout
                     // on the flipped rectangle as if our layout direction were LeftToRight/RightToLeft. In this case
                     // we can save some code bloat
                     _displayRect = LayoutUtils.FlipRectangleIf (IsVertical, value);
+                    _reflectionRect = _displayRect;
                 }
+            }
+        }
+
+        // Wrapping is constrained by DisplayRect, but an overflowing reverse layout must
+        // reflect across its whole content extent. Otherwise children land at negative,
+        // unreachable coordinates while the canonical scrollbar can only move positively.
+        public Size ReflectionSize {
+            set {
+                Size extent = LayoutUtils.FlipSizeIf(IsVertical, value);
+                _reflectionRect = DisplayRect;
+                _reflectionRect.Width = Math.Max(_reflectionRect.Width, extent.Width);
+                _reflectionRect.Height = Math.Max(_reflectionRect.Height, extent.Height);
             }
         }
 
@@ -125,15 +115,10 @@ internal partial class FlowLayout
         protected Rectangle RTLTranslateNoMarginSwap (Rectangle bounds)
         {
             var newBounds = bounds;
-            newBounds.X = DisplayRect.Right - bounds.X - bounds.Width + ElementProxy.Margin.Left - ElementProxy.Margin.Right;
-
-            // Mirroring subtracts bounds.X from DisplayRect.Right, cancelling the scroll
-            // origin shared by both. Restore that origin once, using the canonical offset
-            // already shared by pointer/touch scrolling; no public AutoScrollPosition is needed.
-            if (Container is ScrollableControl scrollable) {
-                var offset = scrollable.TouchScrollPosition;
-                newBounds.X -= IsVertical ? offset.Y : offset.X;
-            }
+            // Reflect around the complete padded, scrolled rectangle. Its origin already
+            // contains the canonical scroll offset; adding another translation would drift.
+            newBounds.X = _reflectionRect.Left + _reflectionRect.Right - bounds.Right
+                + ElementProxy.Margin.Left - ElementProxy.Margin.Right;
 
             return newBounds;
         }

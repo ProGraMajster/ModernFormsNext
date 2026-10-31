@@ -80,8 +80,9 @@ already exist.
   while idle, pauses over Android background lifecycle, and integrates Windows/experimental Android
   reduced-motion preferences. Android now has a lifecycle/subscription-aware settings observer and
   Choreographer source; physical-device frame-pacing/profile validation remains future work.
-- No localization catalog/provider, plural rules, missing-key diagnostics, dynamic culture change,
-  or verified end-to-end RTL layout behavior.
+- No localization catalog/provider, plural rules, missing-key diagnostics or dynamic culture change.
+  [Flow/Table RTL](../right-to-left-layout.md) has an explicit inherited layout contract; this does
+  not establish automatic culture integration, global bidi text parity or native chrome mirroring.
 - Lists and grids are retained collections; there is no shared item-container generator,
   virtualization/recycling, incremental loading, or observable items-source abstraction suitable
   for `CollectionView` and charts.

@@ -45,6 +45,7 @@ namespace ModernFormsNext
             this.window = window;
             renderSurface = Application.GetRenderingBackend().CreateSurface(window);
             adapter = new ControlAdapter (this);
+            adapter.RightToLeftChanged += (_, e) => OnRightToLeftChanged(e);
             geometrySize = Size;
             geometryLocation = Location;
             dpiScaling = Scaling;

@@ -135,6 +135,7 @@ namespace ModernFormsNext
                 if (previousParent is not null && value is null)
                     CancelOwnedControlAnimationsForSubtree();
                 RefreshInheritedLayoutTransitionForSubtree();
+                RefreshInheritedRightToLeftForSubtree();
                 if (assignmentVersion != parentAssignmentVersion || GetAnyDisposingInHierarchy())
                     return;
                 RefreshResourceBindingsForSubtree ();

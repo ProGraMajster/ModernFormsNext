@@ -92,8 +92,9 @@ The selected enabled header is a tab stop; other enabled headers remain availabl
 `FlowDirection` is explicitly `LeftToRight` or `RightToLeft` per container. RTL reverses the physical
 header controls in the ordinary positive-coordinate scroll row; collection, Home/End and Ctrl+Tab
 order remain logical. The same setting on a flyout chooses its leading edge independently. This local
-contract does not add global Control RTL inheritance or reverse authored text/child layouts; broader
-FlowLayout/TableLayout RTL behavior remains issue #89.
+contract does not rewrite authored text or local page edge choices. The separate inherited
+[Control.RightToLeft contract](right-to-left-layout.md) applies to nested Flow/Table layouts;
+page collection and header navigation order remain logical.
 
 ## Flyout ownership, modes and focus
 

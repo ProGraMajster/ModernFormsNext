@@ -12,7 +12,7 @@ namespace ModernFormsNext.Designing;
 /// falls back to standard <see cref="System.ComponentModel"/> attributes such as
 /// <see cref="BrowsableAttribute"/>, <see cref="CategoryAttribute"/>,
 /// <see cref="DescriptionAttribute"/>, <see cref="DisplayNameAttribute"/>,
-/// <see cref="DefaultValueAttribute"/>, <see cref="ReadOnlyAttribute"/>, and
+/// <see cref="DefaultValueAttribute"/>, <see cref="AmbientValueAttribute"/>, <see cref="ReadOnlyAttribute"/>, and
 /// <see cref="DesignerSerializationVisibilityAttribute"/>.
 /// </remarks>
 public sealed class DesignMetadataReader
@@ -200,6 +200,7 @@ public sealed class DesignMetadataReader
         var category = designable?.Category ?? ReadCategory(property);
         var description = designable?.Description ?? ReadDescription(property);
 
+        var ambient = defaultValue is null ? property.GetCustomAttribute<AmbientValueAttribute>(inherit: true) : null;
         return new DesignPropertyMetadata(
             property,
             displayName,
@@ -208,8 +209,8 @@ public sealed class DesignMetadataReader
             visibility,
             readOnly,
             serialize,
-            defaultValue is not null,
-            defaultValue?.Value);
+            defaultValue is not null || ambient is not null,
+            defaultValue is not null ? defaultValue.Value : ambient?.Value);
     }
 
     private static bool IsInspectableProperty(PropertyInfo property)
@@ -230,6 +231,7 @@ public sealed class DesignMetadataReader
         || property.GetCustomAttribute<DescriptionAttribute>(inherit: true) is not null
         || property.GetCustomAttribute<DisplayNameAttribute>(inherit: true) is not null
         || property.GetCustomAttribute<DefaultValueAttribute>(inherit: true) is not null
+        || property.GetCustomAttribute<AmbientValueAttribute>(inherit: true) is not null
         || property.GetCustomAttribute<ReadOnlyAttribute>(inherit: true) is not null
         || property.GetCustomAttribute<DesignerSerializationVisibilityAttribute>(inherit: true) is not null;
 
