@@ -26,11 +26,6 @@
 		<None Include="buildTransitive\ModernFormsNext.targets" Pack="true" PackagePath="buildTransitive\ModernFormsNext.targets" />
 	</ItemGroup>
 
-	<!-- BindingNavigator still depends on WinForms ToolStrip concepts and needs a ModernFormsNext-native port. -->
-	<ItemGroup>
-		<Compile Remove="DataBinding\BindingNavigator.cs" />
-	</ItemGroup>
-
 	<!-- External -->
 	<ItemGroup>
 		<PackageReference Include="Markdig" Version="1.3.2" />

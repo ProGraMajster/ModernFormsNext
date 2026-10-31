@@ -30,6 +30,7 @@ namespace ControlGallery
             tree.Items.Add ("CheckBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("CheckedListBox", ImageLoader.Get ("button.png"));
             tree.Items.Add ("ComboBox", ImageLoader.Get ("button.png"));
+            tree.Items.Add("BindingNavigator", ImageLoader.Get("button.png"));
             tree.Items.Add ("Dialogs", ImageLoader.Get ("button.png"));
             tree.Items.Add("DataGridView", ImageLoader.Get("button.png"));
             tree.Items.Add ("FileDialogs", ImageLoader.Get ("button.png"));
@@ -122,6 +123,8 @@ namespace ControlGallery
         private Panel? CreatePanel (string text)
         {
             switch (text) {
+                case "BindingNavigator":
+                    return new BindingNavigatorPanel();
                 case "Pages and navigation":
                     return new PageNavigationPanel();
                 case "Tabbed / Flyout pages":

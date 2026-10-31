@@ -36,6 +36,25 @@ internal static class ShadowTypographyScenario
                         if (!rtl.First.Selected) throw new InvalidOperationException("Native Shift+Tab did not return to the RTL first control.");
                         Console.WriteLine("RTL_LAYOUT:NATIVE_PAINT_TAB_SHIFT_TAB:PASS");
                     }
+                    using (var navigator = new BindingNavigatorCertification(form.Controls, Console.WriteLine))
+                    {
+                        navigator.Exercise();
+                        int before = navigator.PaintCount;
+                        if (!RedrawWindow(hwnd, 0, 0, 0x0001 | 0x0100) || navigator.PaintCount <= before)
+                            throw new InvalidOperationException("The actual HWND did not paint the navigator fixture.");
+                        navigator.Navigator.PositionTextBox.Select();
+                        navigator.Navigator.PositionTextBox.Text = "2";
+                        SendMessage(hwnd, 0x0100, 0x0D, 1);
+                        SendMessage(hwnd, 0x0101, 0x0D, unchecked((nint)0xC0000001));
+                        if (navigator.Position != 1) throw new InvalidOperationException("Native Enter did not commit navigator position.");
+                        navigator.PreparePosition(false);
+                        navigator.Navigator.PositionTextBox.Select();
+                        SendTab(hwnd, shift: false);
+                        if (!navigator.Navigator.MoveNextButton.Selected) throw new InvalidOperationException("Native Tab did not reach navigator Next.");
+                        SendTab(hwnd, shift: true);
+                        if (!navigator.Navigator.PositionTextBox.Selected) throw new InvalidOperationException("Native Shift+Tab did not restore the position editor.");
+                        Console.WriteLine("BINDING_NAVIGATOR:NATIVE_PAINT_ENTER_TAB_SHIFT_TAB:PASS");
+                    }
                     Console.WriteLine($"SHADOW_TYPOGRAPHY:NATIVE:{hwnd}");
                 }
                 catch (Exception error) { failure = error; }

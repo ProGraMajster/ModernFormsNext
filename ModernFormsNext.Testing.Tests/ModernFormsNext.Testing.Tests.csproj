@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext.Testing\ModernFormsNext.Testing.csproj" />
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\BindingNavigatorCertification.cs" Link="BindingNavigatorCertification.cs" />
   </ItemGroup>
 
 </Project>

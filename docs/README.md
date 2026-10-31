@@ -21,6 +21,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 - [Pages and stack navigation](pages-and-navigation.md) — lightweight hosted pages, canonical validation, retained history and scoped Back.
 - [Tabbed and flyout pages](page-composition.md) — retained tab selection, responsive flyout/detail, validated dismissal and local direction.
 - [Data binding](data-binding.md)
+- [BindingNavigator](binding-navigator.md)
 - [Shared item virtualization](virtualization.md) — reusable ItemsControl, opt-in ListView, indexed geometry and recycling.
 - [CollectionView](collection-view.md) — borrowed indexed sources, recyclable templates, logical selection and native accessibility.
 - [CarouselView and RefreshView](collection-utilities.md) — viewport pages, shared gesture ownership and command-driven refresh.

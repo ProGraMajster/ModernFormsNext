@@ -57,7 +57,9 @@ internal sealed class DesignerToolboxService
 
         items.Add(new DesignerToolboxItem(
             metadata.DisplayName,
-            type.Name,
+            // Controls in framework sub-namespaces need their exact data identity; a short
+            // name would resolve against ModernFormsNext and lose their inert preview/codegen.
+            type.Namespace == typeof(Control).Namespace ? type.Name : type.FullName!,
             NormalizeCategory(metadata.Category, type, isComponent: false),
             metadata.Description ?? $"Adds a {type.Name} control to the design surface.",
             IsComponent: false));

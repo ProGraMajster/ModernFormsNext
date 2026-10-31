@@ -36,6 +36,8 @@
     href: content/docs/app-shell-routing.md
   - name: Data binding
     href: content/docs/data-binding.md
+  - name: BindingNavigator
+    href: content/docs/binding-navigator.md
   - name: Item virtualization foundation
     href: content/docs/virtualization.md
   - name: CollectionView

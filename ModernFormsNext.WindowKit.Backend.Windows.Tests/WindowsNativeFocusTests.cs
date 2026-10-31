@@ -65,6 +65,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
                 Assert.Contains("DYNAMIC_RESOURCE:NATIVE:11:PASS:typed-merged-factory-replacement", report);
                 Assert.Contains("RTL_LAYOUT:PASS:", report);
                 Assert.Contains("RTL_LAYOUT:NATIVE_PAINT_TAB_SHIFT_TAB:PASS", report);
+                Assert.Contains("BINDING_NAVIGATOR:PASS:", report);
+                Assert.Contains("BINDING_NAVIGATOR:NATIVE_PAINT_ENTER_TAB_SHIFT_TAB:PASS", report);
             }
             if (argument == "--focus")
             {

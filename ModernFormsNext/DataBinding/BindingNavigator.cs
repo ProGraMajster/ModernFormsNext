@@ -1,915 +1,383 @@
-﻿using ModernFormsNext.Layout;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
-using System.Text;
-using System.Xml.Linq;
+using System.Runtime.ExceptionServices;
+using ModernFormsNext.Accessibility;
+using ModernFormsNext.Layout;
+using ModernFormsNext.WindowKit.Input;
 
-namespace ModernFormsNext.DataBinding
+namespace ModernFormsNext.DataBinding;
+
+/// <summary>Provides a framework-native navigation and editing bar for a borrowed BindingSource.</summary>
+/// <remarks>
+/// Use on the owning UI thread, including BindingSource notifications. All presentation children
+/// belong to the existing control tree; layout, RTL, focus, validation, themes and accessibility
+/// use the ordinary framework services. The source and application commands are never disposed.
+/// Default Save calls BindingSource.EndEdit, and Cancel calls BindingSource.CancelEdit; neither
+/// performs persistence or tracks an application dirty flag. Replace a button's Command to supply
+/// application policy, including its CanExecute and parameter. Local Enabled and Visible intent
+/// is retained. Sources/commands/owned children are runtime-only, not .mfdesign serialized objects.
+/// Cancel opts out of focus validation so an invalid draft can be discarded through the existing
+/// validation contract. Customize the owned children without disposing or reparenting them.
+/// </remarks>
+/// <example><code>
+/// var people = new BindingSource { DataSource = new BindingList&lt;Person&gt;() };
+/// var navigator = new BindingNavigator(people) { Dock = DockStyle.Top };
+/// var save = new DelegateCommand(() =&gt;
+/// {
+///     people.EndEdit();
+///     SavePeople(); // Application-owned persistence.
+/// }, () =&gt; people.Count &gt; 0);
+/// navigator.SaveButton.Command = save;
+/// people.ListChanged += (_, _) =&gt; save.RaiseCanExecuteChanged();
+/// // The application detaches its handlers/disposes its source with its own lifetime.
+/// form.Controls.Add(navigator);
+/// </code></example>
+[DefaultProperty(nameof(CountItemFormat)), DefaultEvent(nameof(BindingSourceChanged))]
+public partial class BindingNavigator : FlowLayoutPanel, ISupportInitialize
 {
-    [DefaultProperty(nameof(BindingSource))]
-    [DefaultEvent(nameof(RefreshItems))]
-    [Designer($"System.Windows.Forms.Design.BindingNavigatorDesigner, {Assemblies.SystemDesign}")]
-    [SRDescription(nameof(SR.DescriptionBindingNavigator))]
-    public class BindingNavigator : ToolStrip, ISupportInitialize
+    private readonly List<DelegateCommand> standardCommands = [];
+    private BindingSource? bindingSource;
+    private long revision;
+    private long sourceAssignmentVersion;
+    private int initializationDepth;
+    private bool retiring;
+    private string countItemFormat = "of {0}";
+
+    /// <summary>Creates a bar with standard navigation/edit actions and no bound source.</summary>
+    public BindingNavigator()
     {
-        private BindingSource? _bindingSource;
-
-        private ToolStripItem? _moveFirstItem;
-        private ToolStripItem? _movePreviousItem;
-        private ToolStripItem? _moveNextItem;
-        private ToolStripItem? _moveLastItem;
-        private ToolStripItem? _addNewItem;
-        private ToolStripItem? _deleteItem;
-        private ToolStripItem? _positionItem;
-        private ToolStripItem? _countItem;
-
-        private string _countItemFormat = SR.BindingNavigatorCountItemFormat;
-
-        private EventHandler? _onRefreshItems;
-
-        private bool _initializing;
-
-        private bool _addNewItemUserEnabled = true;
-        private bool _deleteItemUserEnabled = true;
-
-        /// <summary>
-        ///  Creates an empty BindingNavigator tool strip.
-        ///  Call AddStandardItems() to add standard tool strip items.
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        public BindingNavigator()
-            : this(addStandardItems: false)
+        SuspendLayout();
+        TabStop = false;
+        Dock = DockStyle.Top;
+        WrapContents = false;
+        AutoScroll = true;
+        Padding = new Padding(4);
+        AccessibleRole = AccessibleRole.ToolBar;
+        MoveFirstButton = AddAction("MoveFirst", "First", Operation.First);
+        MovePreviousButton = AddAction("MovePrevious", "Previous", Operation.Previous);
+        PositionTextBox = Controls.AddImplicitControl(new PositionEditor(this)
         {
+            Name = "Position", AccessibleName = "Position", Width = 60, Height = 30,
+            MaxLength = 32, Margin = new Padding(2)
+        });
+        CountLabel = Controls.AddImplicitControl(new Label
+        {
+            Name = "Count", AutoSize = true, MinimumSize = new Size(0, 30),
+            TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(2), TabStop = false
+        });
+        MoveNextButton = AddAction("MoveNext", "Next", Operation.Next);
+        MoveLastButton = AddAction("MoveLast", "Last", Operation.Last);
+        AddNewButton = AddAction("AddNew", "Add", Operation.Add);
+        DeleteButton = AddAction("Delete", "Delete", Operation.Delete);
+        SaveButton = AddAction("Save", "Save", Operation.Save);
+        CancelButton = AddAction("Cancel", "Cancel", Operation.Cancel);
+        PositionTextBox.Validated += PositionValidated;
+        ResumeLayout(true);
+        RefreshItems();
+    }
+
+    /// <summary>Creates a standard bar attached to a borrowed source, which may be null.</summary>
+    /// <param name="bindingSource">The source to navigate. Its lifetime remains with the caller.</param>
+    public BindingNavigator(BindingSource? bindingSource) : this() => BindingSource = bindingSource;
+
+    /// <summary>Gets or sets the borrowed source; null displays position/count zero and disables default actions.</summary>
+    /// <remarks>
+    /// Replacement detaches old notifications, refreshes presentation and then raises BindingSourceChanged.
+    /// Disposing the source detaches it. No source/list is copied, owned or persisted. Notifications
+    /// must arrive on the UI thread. After suppressed list notifications, call RefreshItems explicitly.
+    /// This reference is runtime-only; assign it after InitializeComponent for Designer-created bars.
+    /// </remarks>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public BindingSource? BindingSource
+    {
+        get => bindingSource;
+        set
+        {
+            VerifyAccess();
+            if (ReferenceEquals(bindingSource, value)) return;
+            UnwireSource();
+            bindingSource = value;
+            long assignment = ++sourceAssignmentVersion;
+            ++revision;
+            if (value is not null)
+            {
+                value.PositionChanged += SourceChanged;
+                value.CurrentChanged += SourceChanged;
+                value.ListChanged += SourceChanged;
+                value.DataSourceChanged += SourceChanged;
+                value.DataMemberChanged += SourceChanged;
+                value.Disposed += SourceDisposed;
+            }
+            RefreshItems();
+            if (!retiring && !IsDisposed && assignment == sourceAssignmentVersion && ReferenceEquals(bindingSource, value))
+                OnBindingSourceChanged(EventArgs.Empty);
         }
+    }
 
-        /// <summary>
-        ///  Creates a BindingNavigator strip containing standard items, bound to the specified BindingSource.
-        /// </summary>
-        public BindingNavigator(BindingSource? bindingSource)
-            : this(addStandardItems: true)
+    /// <summary>Occurs after source replacement and a successful presentation refresh.</summary>
+    /// <remarks>Raised synchronously on the UI thread. Reentrant replacement owns the newer state.</remarks>
+    public event EventHandler? BindingSourceChanged;
+
+    /// <summary>Gets or sets the localized literal count template; each {0} is replaced by the count.</summary>
+    /// <remarks>
+    /// Defaults to "of {0}". Only the exact {0} token is supported; alignment, format specifiers and
+    /// other brace expressions are rejected. This data-only replacement has bounded expansion and
+    /// is safe for inert Designer previews. Changes update text and ordinary child layout.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The template is null.</exception>
+    /// <exception cref="ArgumentException">A brace expression is not the exact {0} token.</exception>
+    [DefaultValue("of {0}"), Localizable(true)]
+    public string CountItemFormat
+    {
+        get => countItemFormat;
+        set
         {
-            BindingSource = bindingSource;
+            VerifyAccess();
+            ArgumentNullException.ThrowIfNull(value);
+            for (int index = 0; index < value.Length; index++)
+            {
+                if (value[index] == '{' && value.AsSpan(index).StartsWith("{0}")) { index += 2; continue; }
+                if (value[index] is '{' or '}')
+                    throw new ArgumentException("The count template supports literal text and the exact {0} token only.", nameof(value));
+            }
+            if (countItemFormat == value) return;
+            countItemFormat = value;
+            RefreshItems();
         }
+    }
 
-        /// <summary>
-        ///  Creates an empty BindingNavigator tool strip, and adds the strip to the specified container.
-        ///  Call AddStandardItems() to add standard tool strip items.
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        public BindingNavigator(IContainer container)
-            : this(addStandardItems: false)
+    /// <summary>Gets the owned First button. Its default command moves to position zero.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button MoveFirstButton { get; }
+    /// <summary>Gets the owned Previous button. Its default command moves back one item.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button MovePreviousButton { get; }
+    /// <summary>Gets the owned, one-based position editor. Enter commits, Escape restores; validation uses the normal editor lifecycle.</summary>
+    /// <remarks>Invalid text restores the current position. Integer input is clamped to the current non-empty list.</remarks>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public TextBox PositionTextBox { get; }
+    /// <summary>Gets the owned count label. Configure CountItemFormat to localize its automatic text.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Label CountLabel { get; }
+    /// <summary>Gets the owned Next button. Its default command advances one item.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button MoveNextButton { get; }
+    /// <summary>Gets the owned Last button. Its default command moves to the last item.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button MoveLastButton { get; }
+    /// <summary>Gets the owned Add button. Its default command calls BindingSource.AddNew when AllowNew is true.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button AddNewButton { get; }
+    /// <summary>Gets the owned Delete button. Its default command calls BindingSource.RemoveCurrent when AllowRemove is true.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button DeleteButton { get; }
+    /// <summary>Gets the owned Save button. Its default command calls EndEdit for an editable or addable source's current item, with no persistence.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button SaveButton { get; }
+    /// <summary>Gets the owned Cancel button. Its default command calls CancelEdit for an editable or addable source's current item.</summary>
+    [Browsable(false), DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Button CancelButton { get; }
+
+    /// <summary>Defers presentation changes until the matching final EndInit call.</summary>
+    /// <remarks>Calls may nest. Source ownership/subscriptions still change immediately.</remarks>
+    public void BeginInit() { VerifyAccess(); initializationDepth++; ++revision; }
+
+    /// <summary>Ends one initialization scope and refreshes after the outermost scope.</summary>
+    /// <exception cref="InvalidOperationException">There is no matching BeginInit call.</exception>
+    public void EndInit()
+    {
+        VerifyAccess();
+        if (initializationDepth == 0) throw new InvalidOperationException("EndInit requires a matching BeginInit.");
+        if (--initializationDepth == 0) RefreshItems();
+    }
+
+    /// <summary>Refreshes displayed currency and availability of the original standard commands.</summary>
+    /// <remarks>
+    /// UI thread only. Does not move currency or execute an edit action. Replacing a button's Command
+    /// gives the application control of that action's availability; its command notifications continue
+    /// through the canonical CommandSource. Local Enabled/Visible intent is never overwritten.
+    /// Observer errors propagate after remaining still-current standard items have been reconciled.
+    /// A source/action failure is never treated as success or retried.
+    /// </remarks>
+    public void RefreshItems()
+    {
+        VerifyAccess();
+        if (initializationDepth != 0) return;
+        long stamp = ++revision;
+        var source = bindingSource;
+        int count = source?.Count ?? 0;
+        if (!IsCurrent(stamp, source)) return;
+        int position = source?.Position ?? -1;
+        if (!IsCurrent(stamp, source)) return;
+        List<Exception>? failures = null;
+        Apply(() => PositionTextBox.SetCommandEnabled(count > 0), ref failures);
+        if (IsCurrent(stamp, source)) Apply(() => PositionTextBox.Text = (count == 0 ? 0 : position + 1).ToString(CultureInfo.CurrentCulture), ref failures);
+        if (IsCurrent(stamp, source)) Apply(() => CountLabel.Text = countItemFormat.Replace("{0}", count.ToString(CultureInfo.CurrentCulture), StringComparison.Ordinal), ref failures);
+        foreach (var command in standardCommands)
         {
-            ArgumentNullException.ThrowIfNull(container);
-
-            container.Add(this);
+            if (!IsCurrent(stamp, source)) break;
+            Apply(command.RaiseCanExecuteChanged, ref failures);
         }
+        ThrowFailures(failures);
+    }
 
-        /// <summary>
-        ///  Creates a BindingNavigator strip, optionally containing a set of standard tool strip items.
-        /// </summary>
-        public BindingNavigator(bool addStandardItems)
+    /// <summary>Raises BindingSourceChanged after the current source has been refreshed.</summary>
+    /// <param name="e">The event data.</param>
+    /// <remarks>Runs on the UI thread. Overrides must call base.</remarks>
+    protected virtual void OnBindingSourceChanged(EventArgs e) => BindingSourceChanged?.Invoke(this, e);
+
+    /// <inheritdoc/>
+    protected override Size DefaultSize => new(760, 42);
+
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        // The inherited finalizer must not enumerate children, touch focus or detach managed events.
+        if (!disposing) { base.Dispose(false); return; }
+        if (retiring) return;
+        retiring = true;
+        ++revision;
+        ++sourceAssignmentVersion;
+        List<Exception>? failures = null;
+        Apply(UnwireSource, ref failures);
+        bindingSource = null;
+        // A borrowed command may throw from event detachment. Finish the still-owned canonical
+        // tree before base cleanup so that one button cannot strand the position editor or IME.
+        foreach (var child in Controls.GetAllControls(true).ToArray())
         {
-            if (addStandardItems)
-            {
-                AddStandardItems();
-            }
+            if (ReferenceEquals(child.Parent, this)) Apply(child.Dispose, ref failures);
         }
+        Apply(() => base.Dispose(true), ref failures);
+        ThrowFailures(failures);
+    }
 
-        /// <summary>
-        ///  ISupportInitialize support. Disables updates to tool strip items during initialization.
-        /// </summary>
-        public void BeginInit()
+    private Button AddAction(string name, string text, Operation operation)
+    {
+        var command = new DelegateCommand(() => ExecuteOperation(operation), () => TryGetEligibleSource(operation, out _));
+        standardCommands.Add(command);
+        return Controls.AddImplicitControl(new Button
         {
-            _initializing = true;
+            Name = name, Text = text, Command = command, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 30),
+            CausesValidation = operation != Operation.Cancel,
+            Padding = new Padding(8, 2, 8, 2), Margin = new Padding(2)
+        });
+    }
+
+    private bool TryGetEligibleSource(Operation operation, out BindingSource? source)
+    {
+        source = bindingSource;
+        if (retiring || IsDisposed || Disposing || initializationDepth != 0 || source is null) return false;
+        GetFocusScope().VerifyAccess();
+        long stamp = revision;
+        int count = source.Count;
+        if (!IsCurrent(stamp, source)) return false;
+        int position = source.Position;
+        if (!IsCurrent(stamp, source)) return false;
+        bool current = count > 0 && position >= 0 && position < count;
+        bool eligible = operation switch
+        {
+            Operation.First => count > 0 && position != 0,
+            Operation.Previous => position > 0,
+            Operation.Next => count > 0 && position < count - 1,
+            Operation.Last => count > 0 && position != count - 1,
+            Operation.Add => source.AllowNew,
+            Operation.Delete => current && source.AllowRemove,
+            // Pending additions also need EndEdit/CancelEdit when existing rows are read-only.
+            Operation.Save or Operation.Cancel => current && (source.AllowEdit || source.AllowNew),
+            _ => false
+        };
+        return eligible && IsCurrent(stamp, source);
+    }
+
+    private void ExecuteOperation(Operation operation)
+    {
+        VerifyAccess();
+        if (!TryGetEligibleSource(operation, out var source)) return;
+        List<Exception>? failures = null;
+        Apply(() =>
+        {
+            switch (operation)
+            {
+                case Operation.First: source!.MoveFirst(); break;
+                case Operation.Previous: source!.MovePrevious(); break;
+                case Operation.Next: source!.MoveNext(); break;
+                case Operation.Last: source!.MoveLast(); break;
+                case Operation.Add: source!.AddNew(); break;
+                case Operation.Delete: source!.RemoveCurrent(); break;
+                case Operation.Save: source!.EndEdit(); break;
+                case Operation.Cancel: source!.CancelEdit(); break;
+            }
+        }, ref failures);
+        // A callback may replace the source/dispose the bar. Never apply an old snapshot afterwards.
+        if (!retiring && !IsDisposed && ReferenceEquals(bindingSource, source)) Apply(RefreshItems, ref failures);
+        ThrowFailures(failures);
+    }
+
+    private void CommitPosition()
+    {
+        VerifyAccess();
+        var source = bindingSource;
+        long stamp = revision;
+        string text = PositionTextBox.Text;
+        List<Exception>? failures = null;
+        if (source is not null && text.Length <= 32 && int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out int value))
+        {
+            int count = source.Count;
+            if (count > 0 && IsCurrent(stamp, source))
+                Apply(() => source.Position = Math.Clamp(value, 1, count) - 1, ref failures);
         }
+        if (!retiring && !IsDisposed && ReferenceEquals(bindingSource, source)) Apply(RefreshItems, ref failures);
+        ThrowFailures(failures);
+    }
 
-        /// <summary>
-        ///  ISupportInitialize support. Enables updates to tool strip items after initialization.
-        /// </summary>
-        public void EndInit()
+    private void PositionValidated(object? sender, EventArgs e) { if (!retiring && !IsDisposed) CommitPosition(); }
+    private void SourceChanged(object? sender, EventArgs e) { if (!retiring && !IsDisposed && ReferenceEquals(sender, bindingSource)) RefreshItems(); }
+    private void SourceDisposed(object? sender, EventArgs e) { if (!retiring && !IsDisposed && ReferenceEquals(sender, bindingSource)) BindingSource = null; }
+    private bool IsCurrent(long stamp, BindingSource? source) => !retiring && !IsDisposed && !Disposing && stamp == revision && ReferenceEquals(source, bindingSource);
+
+    private void UnwireSource()
+    {
+        if (bindingSource is not { } source) return;
+        source.PositionChanged -= SourceChanged;
+        source.CurrentChanged -= SourceChanged;
+        source.ListChanged -= SourceChanged;
+        source.DataSourceChanged -= SourceChanged;
+        source.DataMemberChanged -= SourceChanged;
+        source.Disposed -= SourceDisposed;
+    }
+
+    private void VerifyAccess()
+    {
+        ObjectDisposedException.ThrowIf(retiring || IsDisposed || Disposing, this);
+        GetFocusScope().VerifyAccess();
+    }
+
+    private static void Apply(Action action, ref List<Exception>? failures)
+    {
+        try { action(); }
+        catch (Exception failure) { (failures ??= []).Add(failure); }
+    }
+
+    private static void ThrowFailures(List<Exception>? failures)
+    {
+        if (failures is { Count: 1 }) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        if (failures is { Count: > 1 }) throw new AggregateException("Navigator action or presentation observers failed.", failures);
+    }
+
+    private enum Operation { First, Previous, Next, Last, Add, Delete, Save, Cancel }
+
+    private sealed class PositionEditor(BindingNavigator owner) : TextBox
+    {
+        protected override bool ProcessTextBoxKeyDown(KeyEventArgs e)
         {
-            _initializing = false;
-            RefreshItemsInternal();
-        }
-
-        /// <summary>
-        ///  Unhooks the BindingNavigator from the BindingSource.
-        /// </summary>
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
+            if (!owner.retiring && !owner.IsDisposed && !e.Control && !e.Alt && !document.HasComposition)
             {
-                BindingSource = null; // ...unwires from events of any prior BindingSource
+                if (e.KeyCode == Keys.Enter) { owner.CommitPosition(); return true; }
+                if (e.KeyCode == Keys.Escape) { owner.RefreshItems(); return true; }
             }
-
-            base.Dispose(disposing);
-        }
-
-        /// <summary>
-        ///  Adds standard set of tool strip items to a BindingNavigator tool strip, for basic
-        ///  navigation operations such as Move First, Move Next, Add New, etc.
-        ///
-        ///  This method is called by the Windows Form Designer when a new BindingNavigator is
-        ///  added to a Form. When creating a BindingNavigator programmatically, this method
-        ///  must be called explicitly.
-        ///
-        ///  Override this method in derived classes to define additional or alternative standard items.
-        ///  To ensure optimal design-time support for your derived class, make sure each item has a
-        ///  meaningful value in its Name property. At design time, this will be used to generate a unique
-        ///  name for the corresponding member variable. The item's Name property will then be updated
-        ///  to match the name given to the member variable.
-        ///
-        ///  Note: This method does NOT remove any previous items from the strip, or suspend
-        ///  layout while items are being added. Those are responsibilities of the caller.
-        /// </summary>
-        public virtual void AddStandardItems()
-        {
-            //
-            // Create items
-            //
-
-            MoveFirstItem = new ToolStripButton();
-            MovePreviousItem = new ToolStripButton();
-            MoveNextItem = new ToolStripButton();
-            MoveLastItem = new ToolStripButton();
-            PositionItem = new ToolStripTextBox();
-            CountItem = new ToolStripLabel();
-            AddNewItem = new ToolStripButton();
-            DeleteItem = new ToolStripButton();
-
-            ToolStripSeparator separator1 = new();
-            ToolStripSeparator separator2 = new();
-            ToolStripSeparator separator3 = new();
-
-            //
-            // Set up strings
-            //
-
-            // Default to lowercase for null name, because C# dev is more likely to create controls programmatically than
-            // vb dev.
-            char ch = string.IsNullOrEmpty(Name) || char.IsLower(Name[0]) ? 'b' : 'B';
-
-            MoveFirstItem.Name = $"{ch}indingNavigatorMoveFirstItem";
-            MovePreviousItem.Name = $"{ch}indingNavigatorMovePreviousItem";
-            MoveNextItem.Name = $"{ch}indingNavigatorMoveNextItem";
-            MoveLastItem.Name = $"{ch}indingNavigatorMoveLastItem";
-            PositionItem.Name = $"{ch}indingNavigatorPositionItem";
-            CountItem.Name = $"{ch}indingNavigatorCountItem";
-            AddNewItem.Name = $"{ch}indingNavigatorAddNewItem";
-            DeleteItem.Name = $"{ch}indingNavigatorDeleteItem";
-            separator1.Name = $"{ch}indingNavigatorSeparator1";
-            separator2.Name = $"{ch}indingNavigatorSeparator2";
-            separator3.Name = $"{ch}indingNavigatorSeparator3";
-
-            MoveFirstItem.Text = SR.BindingNavigatorMoveFirstItemText;
-            MovePreviousItem.Text = SR.BindingNavigatorMovePreviousItemText;
-            MoveNextItem.Text = SR.BindingNavigatorMoveNextItemText;
-            MoveLastItem.Text = SR.BindingNavigatorMoveLastItemText;
-            AddNewItem.Text = SR.BindingNavigatorAddNewItemText;
-            DeleteItem.Text = SR.BindingNavigatorDeleteItemText;
-
-            CountItem.ToolTipText = SR.BindingNavigatorCountItemTip;
-            PositionItem.ToolTipText = SR.BindingNavigatorPositionItemTip;
-            CountItem.AutoToolTip = false;
-            PositionItem.AutoToolTip = false;
-
-            PositionItem.AccessibleName = SR.BindingNavigatorPositionAccessibleName;
-
-            // Set up images
-
-            Bitmap moveFirstImage = ScaleHelper.GetIconResourceAsDefaultSizeBitmap(typeof(BindingNavigator), "BindingNavigator.MoveFirst");
-            Bitmap movePreviousImage = ScaleHelper.GetIconResourceAsDefaultSizeBitmap(typeof(BindingNavigator), "BindingNavigator.MovePrevious");
-            Bitmap moveNextImage = ScaleHelper.GetIconResourceAsDefaultSizeBitmap(typeof(BindingNavigator), "BindingNavigator.MoveNext");
-            Bitmap moveLastImage = ScaleHelper.GetIconResourceAsDefaultSizeBitmap(typeof(BindingNavigator), "BindingNavigator.MoveLast");
-            Bitmap addNewImage = ScaleHelper.GetIconResourceAsDefaultSizeBitmap(typeof(BindingNavigator), "BindingNavigator.AddNew");
-            Bitmap deleteImage = ScaleHelper.GetIconResourceAsDefaultSizeBitmap(typeof(BindingNavigator), "BindingNavigator.Delete");
-
-            MoveFirstItem.Image = moveFirstImage;
-            MovePreviousItem.Image = movePreviousImage;
-            MoveNextItem.Image = moveNextImage;
-            MoveLastItem.Image = moveLastImage;
-            AddNewItem.Image = addNewImage;
-            DeleteItem.Image = deleteImage;
-
-            MoveFirstItem.RightToLeftAutoMirrorImage = true;
-            MovePreviousItem.RightToLeftAutoMirrorImage = true;
-            MoveNextItem.RightToLeftAutoMirrorImage = true;
-            MoveLastItem.RightToLeftAutoMirrorImage = true;
-            AddNewItem.RightToLeftAutoMirrorImage = true;
-            DeleteItem.RightToLeftAutoMirrorImage = true;
-
-            MoveFirstItem.DisplayStyle = ToolStripItemDisplayStyle.Image;
-            MovePreviousItem.DisplayStyle = ToolStripItemDisplayStyle.Image;
-            MoveNextItem.DisplayStyle = ToolStripItemDisplayStyle.Image;
-            MoveLastItem.DisplayStyle = ToolStripItemDisplayStyle.Image;
-            AddNewItem.DisplayStyle = ToolStripItemDisplayStyle.Image;
-            DeleteItem.DisplayStyle = ToolStripItemDisplayStyle.Image;
-
-            //
-            // Set other random properties
-            //
-            PositionItem.AutoSize = false;
-            PositionItem.Width = 50;
-
-            //
-            // Add items to strip
-            //
-
-            Items.AddRange(
-                MoveFirstItem,
-                MovePreviousItem,
-                separator1,
-                PositionItem,
-                CountItem,
-                separator2,
-                MoveNextItem,
-                MoveLastItem,
-                separator3,
-                AddNewItem,
-                DeleteItem);
-        }
-
-        /// <summary>
-        ///  The BindingSource who's list we are currently navigating, or null.
-        /// </summary>
-        [DefaultValue(null)]
-        [SRCategory(nameof(SR.CatData))]
-        [SRDescription(nameof(SR.BindingNavigatorBindingSourcePropDescr))]
-        [TypeConverter(typeof(ReferenceConverter))]
-        public BindingSource? BindingSource
-        {
-            get
-            {
-                return _bindingSource;
-            }
-
-            set
-            {
-                WireUpBindingSource(ref _bindingSource, value);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that triggers the 'Move first' action, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorMoveFirstItemPropDescr))]
-        public ToolStripItem? MoveFirstItem
-        {
-            get
-            {
-                if (_moveFirstItem is not null && _moveFirstItem.IsDisposed)
-                {
-                    _moveFirstItem = null;
-                }
-
-                return _moveFirstItem;
-            }
-
-            set
-            {
-                WireUpButton(ref _moveFirstItem, value, OnMoveFirst);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that triggers the 'Move previous' action, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorMovePreviousItemPropDescr))]
-        public ToolStripItem? MovePreviousItem
-        {
-            get
-            {
-                if (_movePreviousItem is not null && _movePreviousItem.IsDisposed)
-                {
-                    _movePreviousItem = null;
-                }
-
-                return _movePreviousItem;
-            }
-
-            set
-            {
-                WireUpButton(ref _movePreviousItem, value, OnMovePrevious);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that triggers the 'Move next' action, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorMoveNextItemPropDescr))]
-        public ToolStripItem? MoveNextItem
-        {
-            get
-            {
-                if (_moveNextItem is not null && _moveNextItem.IsDisposed)
-                {
-                    _moveNextItem = null;
-                }
-
-                return _moveNextItem;
-            }
-
-            set
-            {
-                WireUpButton(ref _moveNextItem, value, OnMoveNext);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that triggers the 'Move last' action, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorMoveLastItemPropDescr))]
-        public ToolStripItem? MoveLastItem
-        {
-            get
-            {
-                if (_moveLastItem is not null && _moveLastItem.IsDisposed)
-                {
-                    _moveLastItem = null;
-                }
-
-                return _moveLastItem;
-            }
-
-            set
-            {
-                WireUpButton(ref _moveLastItem, value, OnMoveLast);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that triggers the 'Add new' action, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorAddNewItemPropDescr))]
-        public ToolStripItem? AddNewItem
-        {
-            get
-            {
-                if (_addNewItem is not null && _addNewItem.IsDisposed)
-                {
-                    _addNewItem = null;
-                }
-
-                return _addNewItem;
-            }
-
-            set
-            {
-                if (_addNewItem != value && value is not null)
-                {
-                    value.InternalEnabledChanged += OnAddNewItemEnabledChanged;
-                    _addNewItemUserEnabled = value.Enabled;
-                }
-
-                WireUpButton(ref _addNewItem, value, OnAddNew);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that triggers the 'Delete' action, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorDeleteItemPropDescr))]
-        public ToolStripItem? DeleteItem
-        {
-            get
-            {
-                if (_deleteItem is not null && _deleteItem.IsDisposed)
-                {
-                    _deleteItem = null;
-                }
-
-                return _deleteItem;
-            }
-
-            set
-            {
-                if (_deleteItem != value && value is not null)
-                {
-                    value.InternalEnabledChanged += OnDeleteItemEnabledChanged;
-                    _deleteItemUserEnabled = value.Enabled;
-                }
-
-                WireUpButton(ref _deleteItem, value, OnDelete);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that displays the current position, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorPositionItemPropDescr))]
-        public ToolStripItem? PositionItem
-        {
-            get
-            {
-                if (_positionItem is not null && _positionItem.IsDisposed)
-                {
-                    _positionItem = null;
-                }
-
-                return _positionItem;
-            }
-
-            set
-            {
-                WireUpTextBox(ref _positionItem, value, OnPositionKey, OnPositionLostFocus);
-            }
-        }
-
-        /// <summary>
-        ///  The ToolStripItem that displays the total number of items, or null.
-        /// </summary>
-        [TypeConverter(typeof(ReferenceConverter))]
-        [SRCategory(nameof(SR.CatItems))]
-        [SRDescription(nameof(SR.BindingNavigatorCountItemPropDescr))]
-        public ToolStripItem? CountItem
-        {
-            get
-            {
-                if (_countItem is not null && _countItem.IsDisposed)
-                {
-                    _countItem = null;
-                }
-
-                return _countItem;
-            }
-            set
-            {
-                WireUpLabel(ref _countItem, value);
-            }
-        }
-
-        /// <summary>
-        ///  Formatting to apply to count displayed in the CountItem tool strip item.
-        /// </summary>
-        [SRCategory(nameof(SR.CatAppearance))]
-        [SRDescription(nameof(SR.BindingNavigatorCountItemFormatPropDescr))]
-        public string CountItemFormat
-        {
-            get
-            {
-                return _countItemFormat;
-            }
-            set
-            {
-                if (_countItemFormat != value)
-                {
-                    _countItemFormat = value;
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Event raised when the state of the tool strip items needs to be
-        ///  refreshed to reflect the current state of the data.
-        /// </summary>
-        [SRCategory(nameof(SR.CatBehavior))]
-        [SRDescription(nameof(SR.BindingNavigatorRefreshItemsEventDescr))]
-        public event EventHandler? RefreshItems
-        {
-            add => _onRefreshItems += value;
-            remove => _onRefreshItems -= value;
-        }
-
-        /// <summary>
-        ///  Refreshes the state of the standard items to reflect the current state of the data.
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Advanced)]
-        protected virtual void RefreshItemsCore()
-        {
-            int count, position;
-            bool allowNew, allowRemove;
-
-            // Get state info from the binding source (if any)
-            if (_bindingSource is null)
-            {
-                count = 0;
-                position = 0;
-                allowNew = false;
-                allowRemove = false;
-            }
-            else
-            {
-                count = _bindingSource.Count;
-                position = _bindingSource.Position + 1;
-                allowNew = (_bindingSource as IBindingList).AllowNew;
-                allowRemove = (_bindingSource as IBindingList).AllowRemove;
-            }
-
-            // Enable or disable items (except when in design mode)
-            if (!DesignMode)
-            {
-                if (MoveFirstItem is not null)
-                {
-                    _moveFirstItem!.Enabled = (position > 1);
-                }
-
-                if (MovePreviousItem is not null)
-                {
-                    _movePreviousItem!.Enabled = (position > 1);
-                }
-
-                if (MoveNextItem is not null)
-                {
-                    _moveNextItem!.Enabled = (position < count);
-                }
-
-                if (MoveLastItem is not null)
-                {
-                    _moveLastItem!.Enabled = (position < count);
-                }
-
-                if (AddNewItem is not null)
-                {
-                    EventHandler handler = new(OnAddNewItemEnabledChanged);
-                    _addNewItem!.InternalEnabledChanged -= handler;
-                    _addNewItem.Enabled = (_addNewItemUserEnabled && allowNew);
-                    _addNewItem.InternalEnabledChanged += handler;
-                }
-
-                if (DeleteItem is not null)
-                {
-                    EventHandler handler = new(OnDeleteItemEnabledChanged);
-                    _deleteItem!.InternalEnabledChanged -= handler;
-                    _deleteItem.Enabled = (_deleteItemUserEnabled && allowRemove && count > 0);
-                    _deleteItem.InternalEnabledChanged += handler;
-                }
-
-                if (PositionItem is not null)
-                {
-                    _positionItem!.Enabled = (position > 0 && count > 0);
-                }
-
-                if (CountItem is not null)
-                {
-                    _countItem!.Enabled = (count > 0);
-                }
-            }
-
-            // Update current position indicator
-            _positionItem?.Text = position.ToString(CultureInfo.CurrentCulture);
-
-            // Update record count indicator
-            _countItem?.Text = DesignMode ? CountItemFormat : string.Format(CultureInfo.CurrentCulture, CountItemFormat, count);
-        }
-
-        /// <summary>
-        ///  Called when the state of the tool strip items needs to be refreshed to reflect the current state of the data.
-        ///  Calls <see cref="RefreshItemsCore"/> to refresh the state of the standard items, then raises the RefreshItems event.
-        /// </summary>
-        protected virtual void OnRefreshItems()
-        {
-            // Refresh all the standard items
-            RefreshItemsCore();
-
-            // Raise the public event
-            _onRefreshItems?.Invoke(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        ///  Triggers form validation. Used by the BindingNavigator's standard items when clicked. If a validation error occurs
-        ///  on the form, focus remains on the active control and the standard item does not perform its standard click action.
-        ///  Custom items may also use this method to trigger form validation and check for success before performing an action.
-        /// </summary>
-        public bool Validate()
-        {
-            return ValidateActiveControl(out _);
-        }
-
-        /// <summary>
-        ///  Accept new row position entered into PositionItem.
-        /// </summary>
-        private void AcceptNewPosition()
-        {
-            // If no position item or binding source, do nothing
-            if (_positionItem is null || _bindingSource is null)
-            {
-                return;
-            }
-
-            // Default to old position, in case new position turns out to be garbage
-            int newPosition = _bindingSource.Position;
-
-            try
-            {
-                // Read new position from item text (and subtract one!)
-                newPosition = Convert.ToInt32(_positionItem.Text, CultureInfo.CurrentCulture) - 1;
-            }
-            catch (FormatException)
-            {
-                // Ignore bad user input
-            }
-            catch (OverflowException)
-            {
-                // Ignore bad user input
-            }
-
-            // If user has managed to enter a valid number, that is not the same as the current position, try
-            // navigating to that position. Let the BindingSource validate the new position to keep it in range.
-            if (newPosition != _bindingSource.Position)
-            {
-                _bindingSource.Position = newPosition;
-            }
-
-            // Update state of all items to reflect final position. If the user entered a bad position,
-            // this will effectively reset the Position item back to showing the current position.
-            RefreshItemsInternal();
-        }
-
-        /// <summary>
-        ///  Cancel new row position entered into PositionItem.
-        /// </summary>
-        private void CancelNewPosition()
-        {
-            // Just refresh state of all items to reflect current position
-            // (causing position item's new value to get blasted away)
-            RefreshItemsInternal();
-        }
-
-        /// <summary>
-        ///  Navigates to first item in BindingSource's list when the MoveFirstItem is clicked.
-        /// </summary>
-        private void OnMoveFirst(object? sender, EventArgs e)
-        {
-            if (Validate())
-            {
-                if (_bindingSource is not null)
-                {
-                    _bindingSource.MoveFirst();
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Navigates to previous item in BindingSource's list when the MovePreviousItem is clicked.
-        /// </summary>
-        private void OnMovePrevious(object? sender, EventArgs e)
-        {
-            if (Validate())
-            {
-                if (_bindingSource is not null)
-                {
-                    _bindingSource.MovePrevious();
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Navigates to next item in BindingSource's list when the MoveNextItem is clicked.
-        /// </summary>
-        private void OnMoveNext(object? sender, EventArgs e)
-        {
-            if (Validate())
-            {
-                if (_bindingSource is not null)
-                {
-                    _bindingSource.MoveNext();
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Navigates to last item in BindingSource's list when the MoveLastItem is clicked.
-        /// </summary>
-        private void OnMoveLast(object? sender, EventArgs e)
-        {
-            if (Validate())
-            {
-                if (_bindingSource is not null)
-                {
-                    _bindingSource.MoveLast();
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Adds new item to BindingSource's list when the AddNewItem is clicked.
-        /// </summary>
-        private void OnAddNew(object? sender, EventArgs e)
-        {
-            if (Validate())
-            {
-                if (_bindingSource is not null)
-                {
-                    _bindingSource.AddNew();
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Deletes current item from BindingSource's list when the DeleteItem is clicked.
-        /// </summary>
-        private void OnDelete(object? sender, EventArgs e)
-        {
-            if (Validate())
-            {
-                if (_bindingSource is not null)
-                {
-                    _bindingSource.RemoveCurrent();
-                    RefreshItemsInternal();
-                }
-            }
-        }
-
-        /// <summary>
-        ///  Navigates to specific item in BindingSource's list when a value is entered into the PositionItem.
-        /// </summary>
-        private void OnPositionKey(object? sender, KeyEventArgs e)
-        {
-            switch (e.KeyCode)
-            {
-                case Keys.Enter:
-                    AcceptNewPosition();
-                    break;
-                case Keys.Escape:
-                    CancelNewPosition();
-                    break;
-            }
-        }
-
-        /// <summary>
-        ///  Navigates to specific item in BindingSource's list when a value is entered into the PositionItem.
-        /// </summary>
-        private void OnPositionLostFocus(object? sender, EventArgs e)
-        {
-            AcceptNewPosition();
-        }
-
-        /// <summary>
-        ///  Refresh tool strip items when something changes in the BindingSource.
-        /// </summary>
-        private void OnBindingSourceStateChanged(object? sender, EventArgs e)
-        {
-            RefreshItemsInternal();
-        }
-
-        /// <summary>
-        ///  Refresh tool strip items when the BindingSource is disposed.
-        /// </summary>
-        private void OnBindingSourceDisposed(object? sender, EventArgs e)
-        {
-            BindingSource = null;
-        }
-
-        /// <summary>
-        ///  Refresh tool strip items when something changes in the BindingSource's list.
-        /// </summary>
-        private void OnBindingSourceListChanged(object? sender, ListChangedEventArgs e)
-        {
-            RefreshItemsInternal();
-        }
-
-        /// <summary>
-        ///  Refresh the state of the items when the state of the data changes.
-        /// </summary>
-        private void RefreshItemsInternal()
-        {
-            // Block all updates during initialization
-            if (_initializing)
-            {
-                return;
-            }
-
-            // Call method that updates the items (overridable)
-            OnRefreshItems();
-        }
-
-        private void ResetCountItemFormat()
-        {
-            _countItemFormat = SR.BindingNavigatorCountItemFormat;
-        }
-
-        private bool ShouldSerializeCountItemFormat()
-        {
-            return _countItemFormat != SR.BindingNavigatorCountItemFormat;
-        }
-
-        private void OnAddNewItemEnabledChanged(object? sender, EventArgs e)
-        {
-            if (AddNewItem is not null)
-            {
-                _addNewItemUserEnabled = _addNewItem!.Enabled;
-            }
-        }
-
-        private void OnDeleteItemEnabledChanged(object? sender, EventArgs e)
-        {
-            if (DeleteItem is not null)
-            {
-                _deleteItemUserEnabled = _deleteItem!.Enabled;
-            }
-        }
-
-        /// <summary>
-        ///  Wire up some member variable to the specified button item, hooking events
-        ///  on the new button and unhooking them from the previous button, if required.
-        /// </summary>
-        private void WireUpButton(ref ToolStripItem? oldButton, ToolStripItem? newButton, EventHandler clickHandler)
-        {
-            if (oldButton == newButton)
-            {
-                return;
-            }
-
-            oldButton?.Click -= clickHandler;
-            newButton?.Click += clickHandler;
-            oldButton = newButton;
-            RefreshItemsInternal();
-        }
-
-        /// <summary>
-        ///  Wire up some member variable to the specified text box item, hooking events
-        ///  on the new text box and unhooking them from the previous text box, if required.
-        /// </summary>
-        private void WireUpTextBox(ref ToolStripItem? oldTextBox, ToolStripItem? newTextBox, KeyEventHandler keyUpHandler, EventHandler lostFocusHandler)
-        {
-            if (oldTextBox != newTextBox)
-            {
-                if (oldTextBox is ToolStripControlHost oldCtrl)
-                {
-                    oldCtrl.KeyUp -= keyUpHandler;
-                    oldCtrl.LostFocus -= lostFocusHandler;
-                }
-
-                if (newTextBox is ToolStripControlHost newCtrl)
-                {
-                    newCtrl.KeyUp += keyUpHandler;
-                    newCtrl.LostFocus += lostFocusHandler;
-                }
-
-                oldTextBox = newTextBox;
-                RefreshItemsInternal();
-            }
-        }
-
-        /// <summary>
-        ///  Wire up some member variable to the specified label item, hooking events
-        ///  on the new label and unhooking them from the previous label, if required.
-        /// </summary>
-        private void WireUpLabel(ref ToolStripItem? oldLabel, ToolStripItem? newLabel)
-        {
-            if (oldLabel != newLabel)
-            {
-                oldLabel = newLabel;
-                RefreshItemsInternal();
-            }
-        }
-
-        /// <summary>
-        ///  Wire up some member variable to the specified binding source, hooking events
-        ///  on the new binding source and unhooking them from the previous one, if required.
-        /// </summary>
-        private void WireUpBindingSource(ref BindingSource? oldBindingSource, BindingSource? newBindingSource)
-        {
-            if (oldBindingSource != newBindingSource)
-            {
-                if (oldBindingSource is not null)
-                {
-                    oldBindingSource.PositionChanged -= OnBindingSourceStateChanged;
-                    oldBindingSource.CurrentChanged -= OnBindingSourceStateChanged;
-                    oldBindingSource.CurrentItemChanged -= OnBindingSourceStateChanged;
-                    oldBindingSource.DataSourceChanged -= OnBindingSourceStateChanged;
-                    oldBindingSource.DataMemberChanged -= OnBindingSourceStateChanged;
-                    oldBindingSource.ListChanged -= OnBindingSourceListChanged;
-                    oldBindingSource.Disposed -= OnBindingSourceDisposed;
-                }
-
-                if (newBindingSource is not null)
-                {
-                    newBindingSource.PositionChanged += OnBindingSourceStateChanged;
-                    newBindingSource.CurrentChanged += OnBindingSourceStateChanged;
-                    newBindingSource.CurrentItemChanged += OnBindingSourceStateChanged;
-                    newBindingSource.DataSourceChanged += OnBindingSourceStateChanged;
-                    newBindingSource.DataMemberChanged += OnBindingSourceStateChanged;
-                    newBindingSource.ListChanged += OnBindingSourceListChanged;
-                    newBindingSource.Disposed += OnBindingSourceDisposed;
-                }
-
-                oldBindingSource = newBindingSource;
-                RefreshItemsInternal();
-            }
+            return base.ProcessTextBoxKeyDown(e);
         }
     }
 }
