@@ -12,6 +12,7 @@ internal sealed partial class HeadlessWindowImpl
     internal const int MaximumSnapshotPixels = 16_777_216;
     private object[] renderingSurfaces = [];
     private long snapshotBackingGeneration;
+    internal float SnapshotOpacity { get; set; } = 1;
 
     internal void ValidateSnapshotSize(int maximumPixels)
         => GetSnapshotSize(maximumPixels);
@@ -49,7 +50,7 @@ internal sealed partial class HeadlessWindowImpl
                 performance.Complete();
             }
             ObjectDisposedException.ThrowIf(IsDisposed, this);
-            return framebuffer.CopySnapshot(capturedScale);
+            return framebuffer.CopySnapshot(capturedScale, SnapshotOpacity);
         }
         finally
         {
@@ -115,7 +116,7 @@ internal sealed partial class HeadlessWindowImpl
                 dpi, PixelFormat.Bgra8888, () => locked = false);
         }
 
-        internal RenderedSnapshot CopySnapshot(double renderScale)
+        internal RenderedSnapshot CopySnapshot(double renderScale, float opacity)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             if (locked)
@@ -126,6 +127,11 @@ internal sealed partial class HeadlessWindowImpl
             // Copy each row explicitly so the detached format never exposes native row padding.
             for (int row = 0; row < bitmap.Height; row++)
                 Marshal.Copy(IntPtr.Add(bitmap.GetPixels(), row * bitmap.RowBytes), pixels, row * rowBytes, rowBytes);
+            // A headless popup models the same uniform native-window/view alpha after the
+            // production paint. BGRA is premultiplied, so all four channels scale together.
+            if (opacity < 1)
+                for (int index = 0; index < pixels.Length; index++)
+                    pixels[index] = (byte)MathF.Round(pixels[index] * opacity);
             return new RenderedSnapshot(bitmap.Width, bitmap.Height, renderScale, pixels);
         }
 

@@ -7,7 +7,7 @@ using ModernFormsNext.WindowKit.Backend.Windows.Win32.Input;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 {
-    internal class PopupImpl : WindowImpl, IPopupImpl
+    internal partial class PopupImpl : WindowImpl, IPopupImpl, IPopupPresentation
     {
         private readonly IWindowBaseImpl? _parent;
         private bool _dropShadowHint = true;
@@ -25,6 +25,9 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         {
             // Popups are always shown non-activated.
             UnmanagedMethods.ShowWindow(Handle.Handle, UnmanagedMethods.ShowWindowCommand.ShowNoActivate);
+
+            // Tooltips must also preserve focus held by an embedded native child of the owner.
+            if (passivePresentation) return;
 
             // We need to steal focus if it's held by a child window of our toplevel window
             var parent = _parent;
@@ -50,6 +53,7 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public override object? TryGetFeature(Type featureType)
         {
+            if (featureType == typeof(IPopupPresentation)) return Handle.Handle == IntPtr.Zero ? null : this;
             if (featureType != typeof(ITextInputMethod)) return base.TryGetFeature(featureType);
             if (_textInputDisposed || Handle.Handle == IntPtr.Zero) return null;
             WindowImpl? owner = _parent as WindowImpl;
@@ -145,6 +149,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                     goto default;
                 case UnmanagedMethods.WindowsMessage.WM_MOUSEACTIVATE:
                     return (IntPtr)UnmanagedMethods.MouseActivate.MA_NOACTIVATE;
+                case UnmanagedMethods.WindowsMessage.WM_NCHITTEST when passivePresentation:
+                    return (IntPtr)UnmanagedMethods.HitTestValues.HTTRANSPARENT;
                 default:
                     return base.WndProc(hWnd, msg, wParam, lParam);
             }

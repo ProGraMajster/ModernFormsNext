@@ -43,6 +43,7 @@ internal static partial class AndroidAccessibilityMapper
         29 => "android.widget.GridView",
         31 => "android.view.ViewGroup",
         33 => "android.widget.CalendarView",
+        34 => "android.widget.TextView",
         _ => "android.view.View"
     };
 

@@ -17,6 +17,7 @@ public class AndroidAccessibilityMapperTests
     [InlineData(AccessibleControlType.Pane, "android.view.ViewGroup")]
     [InlineData(AccessibleControlType.Group, "android.view.ViewGroup")]
     [InlineData(AccessibleControlType.Text, "android.widget.TextView")]
+    [InlineData(AccessibleControlType.ToolTip, "android.widget.TextView")]
     [InlineData(AccessibleControlType.Button, "android.widget.Button")]
     [InlineData(AccessibleControlType.CheckBox, "android.widget.CheckBox")]
     [InlineData(AccessibleControlType.RadioButton, "android.widget.RadioButton")]

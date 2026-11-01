@@ -46,6 +46,15 @@ public sealed class TestPopupHost : IDisposable, ITestInputTarget
     /// <summary>Gets whether the live popup is currently shown.</summary>
     public bool IsVisible => !IsClosed && Window.Visible && backend!.State.IsShown;
 
+    // Friend regression tests can remove an optional backend capability without replacing
+    // production ToolTip state or introducing a different popup/rendering implementation.
+    internal void SetPresentationSupport(bool supported)
+    {
+        VerifyInputAccess();
+        backend!.PresentationSupported = supported;
+        if (!supported) backend.State.SnapshotOpacity = 1;
+    }
+
     /// <summary>Gets the popup's current logical dimensions and render scale.</summary>
     public TestViewport Viewport
     {

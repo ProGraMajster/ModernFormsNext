@@ -228,6 +228,8 @@ internal interface IAndroidWindowHost
     void Present(AndroidWindowImpl window);
     void Hide(AndroidWindowImpl window);
     void Update(AndroidWindowImpl window);
+    // Native hosts can update composition/input without repeating geometry/layout each frame.
+    void UpdatePopupPresentation(AndroidWindowImpl window) => Update(window);
     void Activate(AndroidWindowImpl window);
     void Invalidate(AndroidWindowImpl window);
     void Clear();

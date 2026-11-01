@@ -165,5 +165,8 @@ public enum AccessibleControlType
     HeaderItem = 32,
 
     /// <summary>A calendar that displays and selects dates.</summary>
-    Calendar = 33
+    Calendar = 33,
+
+    /// <summary>A passive popup that explains an associated user-interface element.</summary>
+    ToolTip = 34
 }

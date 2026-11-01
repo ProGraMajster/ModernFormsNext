@@ -76,7 +76,8 @@ internal class AndroidWindowImpl(AndroidWindowingPlatform platform) : IWindowImp
         $"Android Activity windows do not support {operation}. See the Android window capability matrix.");
     public void SetInputRoot(IInputRoot inputRoot) { Verify(); InputRoot = inputRoot; }
     public object? TryGetFeature(Type featureType)
-        => featureType == typeof(INativeViewHostProvider) ? NativeViewHosts :
+        => featureType == typeof(IPopupPresentation) ? this as IPopupPresentation :
+            featureType == typeof(INativeViewHostProvider) ? NativeViewHosts :
             featureType == typeof(ModernFormsNext.WindowKit.Platform.Storage.IStorageProvider) ? (IsClosed ? null : Platform.StorageProvider) :
             featureType == typeof(ITextInputMethod) ? TextInput :
             featureType == typeof(IWindowInsetsProvider) || featureType == typeof(IWindowHostPolicy) ? this : null;

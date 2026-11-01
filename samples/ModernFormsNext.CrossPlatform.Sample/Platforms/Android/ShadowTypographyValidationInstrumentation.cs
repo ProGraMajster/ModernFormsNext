@@ -18,6 +18,7 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
 {
     private readonly StringBuilder report = new();
     private int assertions;
+    private string? artifactDirectory;
 
     /// <summary>Creates the explicitly selected native appearance runner.</summary>
     public ShadowTypographyValidationInstrumentation() { }
@@ -35,12 +36,22 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         ShadowTypographyCertification? fixture = null;
         RtlLayoutCertification? rtl = null;
         BindingNavigatorCertification? navigator = null;
+        ToolTipCertification? tooltips = null;
+        ToolTipOpacityProbe? opacityProbe = null;
+        ViewTreeObserver? tooltipObserver = null;
         MainActivity? activity = null;
         bool? keepScreenOn = null;
         bool success = false;
         try
         {
             _ = UiAutomation;
+            // Use the existing release-validation artifact-directory protocol. Each run owns
+            // a fresh directory, so a failed capture cannot pull a prior run's successful PNG.
+            artifactDirectory = System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath,
+                "release-validation", "shadow-typography-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(artifactDirectory);
+            Record("SHADOW_TYPOGRAPHY:EVIDENCE");
+            Record("ARTIFACT_DIRECTORY=" + artifactDirectory);
             using var launch = new Intent(TargetContext!, typeof(MainActivity));
             launch.AddFlags(ActivityFlags.NewTask);
             activity = (MainActivity)StartActivitySync(launch)!;
@@ -93,6 +104,62 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
             Wait(() => Ui(() => navigator.PaintCount > before), "native-binding-navigator-current-update-painted");
             using var navigatorChangedFrame = Capture(activity, "binding-navigator-second.png");
             CheckNavigatorChangedContent(navigator, navigatorFrame, navigatorChangedFrame);
+            tooltips = Ui(() =>
+            {
+                navigator.Root.Visible = false;
+                return new ToolTipCertification(ModernFormsNext.Application.OpenForms.Single(), Record);
+            });
+            using var tooltipSource = Capture(activity, "tooltip-source.png");
+            global::Android.Views.View? tooltipRoot = null;
+            bool immediate = Ui(() =>
+            {
+                tooltips.Editor.Select();
+                nint focus = activity.CurrentFocus?.Handle ?? 0;
+                tooltips.Begin();
+                var mainView = NativeValidationViews.Main(activity);
+                var popupView = NativeValidationViews.Find(activity.FindViewById<ViewGroup>(global::Android.Resource.Id.Content)!)
+                    .Single(view => view.Handle != mainView.Handle);
+                tooltipRoot = (global::Android.Views.View)popupView.Parent!;
+                opacityProbe = new ToolTipOpacityProbe(tooltipRoot);
+                tooltipObserver = tooltipRoot.ViewTreeObserver!;
+                tooltipObserver.AddOnPreDrawListener(opacityProbe);
+                bool settled = tooltips.Settled;
+                Check(Math.Abs(tooltipRoot.Alpha - (settled ? 1 : 0)) < .001f, "tooltip-native-initial-whole-view-alpha");
+                Check(!popupView.Focusable && !popupView.FocusableInTouchMode && !tooltipRoot.Focusable,
+                    "tooltip-native-passive-focus-flags");
+                Check((activity.CurrentFocus?.Handle ?? 0) == focus, "tooltip-native-focus-preserved");
+                return settled;
+            });
+            Record("TOOLTIP native-immediate=" + immediate);
+            if (!immediate)
+            {
+                // Sample the native property once at pre-draw, before handing the value to
+                // the instrumentation thread. Two separate UI reads can straddle completion.
+                Wait(() => Ui(() => !float.IsNaN(opacityProbe!.FirstPartialAlpha) || tooltips.Settled), "tooltip-native-transition-progress");
+                float alpha = Ui(() => opacityProbe!.FirstPartialAlpha);
+                Record($"TOOLTIP native-pre-draw-alpha={alpha} frames={Ui(() => opacityProbe!.Frames)}");
+                Check(alpha is > 0 and < 1, "tooltip-native-intermediate-whole-view-alpha");
+                Record("TOOLTIP native-middle-alpha=" + alpha);
+            }
+            Wait(() => Ui(() => tooltips.Settled), "tooltip-native-entrance-completed");
+            Ui(() =>
+            {
+                if (tooltipObserver!.IsAlive) tooltipObserver.RemoveOnPreDrawListener(opacityProbe);
+                opacityProbe!.Dispose();
+                opacityProbe = null;
+                tooltipObserver = null;
+                tooltips.VerifySettled();
+                Check(tooltipRoot!.Alpha == 1, "tooltip-native-opaque-endpoint");
+                return true;
+            });
+            using var tooltipShown = Capture(activity, "tooltip-shown.png");
+            CheckToolTipChangedContent(tooltips, tooltipSource, tooltipShown);
+            Ui(() => { tooltips.BeginExit(); return true; });
+            Wait(() => Ui(() => !tooltips.Popup.Visible && NativeValidationViews.Find(
+                activity.FindViewById<ViewGroup>(global::Android.Resource.Id.Content)!).Count() == 1), "tooltip-native-exit-detached");
+            using var tooltipHidden = Capture(activity, "tooltip-hidden.png");
+            CheckToolTipChangedContent(tooltips, tooltipShown, tooltipHidden);
+            Ui(() => { tooltips.ExercisePassiveMenu(); tooltips.Root.Visible = false; return true; });
             Ui(() => { navigator.Root.Visible = false; fixture.Root.Visible = true; return true; });
             long generation = Ui(() => AndroidWindowKit.Current.GetWindowingDiagnostics().HostGeneration);
             var previous = activity;
@@ -119,17 +186,29 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         catch (Exception error) { Record($"FAIL {error.GetType().Name}: {error.Message}; {error.StackTrace}"); }
         finally
         {
+            void Cleanup(Action action)
+            {
+                try { Ui(() => { action(); return true; }); }
+                catch (Exception error) { success = false; Record("FAIL cleanup " + error.GetType().Name); }
+            }
+            if (opacityProbe is not null) Cleanup(() =>
+            {
+                try { if (tooltipObserver?.IsAlive == true) tooltipObserver.RemoveOnPreDrawListener(opacityProbe); }
+                finally { opacityProbe.Dispose(); }
+            });
+            if (tooltips is not null) Cleanup(tooltips.Dispose);
+            if (navigator is not null) Cleanup(navigator.Dispose);
+            if (rtl is not null) Cleanup(rtl.Dispose);
+            if (fixture is not null) Cleanup(fixture.Dispose);
+            if (keepScreenOn == false && activity is not null)
+                Cleanup(() => activity.Window!.ClearFlags(WindowManagerFlags.KeepScreenOn));
+            Record($"ANDROID_SHADOW_TYPOGRAPHY_{(success ? "PASS" : "FAIL")} assertions={assertions}");
             try
             {
-                if (navigator is not null) Ui(() => { navigator.Dispose(); return true; });
-                if (rtl is not null) Ui(() => { rtl.Dispose(); return true; });
-                if (fixture is not null) Ui(() => { fixture.Dispose(); return true; });
-                if (keepScreenOn == false && activity is not null)
-                    Ui(() => { activity.Window!.ClearFlags(WindowManagerFlags.KeepScreenOn); return true; });
+                if (artifactDirectory is not null)
+                    File.WriteAllText(System.IO.Path.Combine(artifactDirectory, "shadow-typography-validation.txt"), report.ToString());
             }
-            catch (Exception error) { success = false; Record("FAIL cleanup " + error.GetType().Name); }
-            Record($"ANDROID_SHADOW_TYPOGRAPHY_{(success ? "PASS" : "FAIL")} assertions={assertions}");
-            File.WriteAllText(System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, "shadow-typography-validation.txt"), report.ToString());
+            catch (Exception error) { success = false; Record("FAIL artifact report " + error.GetType().Name); }
             result.PutString("stream", report.ToString());
             Finish(success ? Result.Ok : Result.Canceled, result);
         }
@@ -177,7 +256,7 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         var image = UiAutomation.TakeScreenshot() ?? throw new InvalidOperationException("Native screenshot unavailable.");
         try
         {
-            using var stream = File.Create(System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, name));
+            using var stream = File.Create(System.IO.Path.Combine(artifactDirectory!, name));
             Check(image.Compress(global::Android.Graphics.Bitmap.CompressFormat.Png!, 100, stream), "native-frame-" + name);
             return image;
         }
@@ -254,6 +333,22 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
         return different;
     }
 
+    private void CheckToolTipChangedContent(ToolTipCertification fixture, global::Android.Graphics.Bitmap before,
+        global::Android.Graphics.Bitmap after)
+    {
+        Check(before.Width == after.Width && before.Height == after.Height, "tooltip-native-frame-size-stable");
+        var bounds = Ui(() => fixture.PixelBounds);
+        bounds.Intersect(new System.Drawing.Rectangle(0, 0, before.Width, before.Height));
+        Check(bounds.Width > 4 && bounds.Height > 4 && !bounds.Contains(0, 0), "tooltip-native-owned-popup-capture");
+        using var outside = before.Copy(global::Android.Graphics.Bitmap.Config.Argb8888!, true)
+            ?? throw new InvalidOperationException("Tooltip negative capture fixture unavailable.");
+        outside.SetPixel(0, 0, new global::Android.Graphics.Color(before.GetPixel(0, 0) ^ 0x00FFFFFF));
+        Check(CountChangedPixels(before, outside, bounds) == 0, "tooltip-outside-popup-change-cannot-satisfy-presentation");
+        int different = CountChangedPixels(before, after, bounds);
+        Check(different > 0, "tooltip-native-popup-pixels-changed");
+        Record($"TOOLTIP_NATIVE_CONTENT_PIXELS different={different} bounds={bounds}");
+    }
+
     private void Wait(Func<bool> condition, string category)
     {
         var elapsed = Stopwatch.StartNew();
@@ -270,4 +365,20 @@ public sealed class ShadowTypographyValidationInstrumentation : Instrumentation
     }
 
     private void Record(string value) { report.AppendLine(value); global::Android.Util.Log.Info("MFN.Appearance", value); }
+
+    // A borrowed native pre-draw observation, not a renderer, timer or policy override. The
+    // endpoint screenshots still wait for frame commit through the existing capture helper.
+    private sealed class ToolTipOpacityProbe(global::Android.Views.View root) : Java.Lang.Object, ViewTreeObserver.IOnPreDrawListener
+    {
+        internal float FirstPartialAlpha { get; private set; } = float.NaN;
+        internal int Frames { get; private set; }
+        public bool OnPreDraw()
+        {
+            Frames++;
+            if (root.Handle == IntPtr.Zero || !root.IsAttachedToWindow) return true;
+            float alpha = root.Alpha;
+            if (float.IsNaN(FirstPartialAlpha) && alpha is > 0 and < 1) FirstPartialAlpha = alpha;
+            return true;
+        }
+    }
 }

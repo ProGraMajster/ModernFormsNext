@@ -8,6 +8,8 @@ original/final setting values are recorded and compared. This is synthetic nativ
 manual gesture, vendor-IME, TalkBack speech or GPU/scanout validation.
 SystemReducedMotion temporarily sets animator_duration_scale to zero, restoring the original
 value (including an absent setting) in finally. Other scenarios do not write device settings.
+ShadowTypography uses the existing ARTIFACT_DIRECTORY protocol with a fresh owned directory;
+missing current-run captures cannot be supplied by files left by a previous instrumentation run.
 #>
 [CmdletBinding()]
 param(
@@ -131,13 +133,22 @@ try {
         if ($timedOut) { throw 'Instrumentation timed out; only the selected sample process was stopped.' }
     } finally { $process.Dispose() }
     $result = Get-Content -LiteralPath (Join-Path $destination 'instrumentation.log') -Raw
+    $artifactDirectory = $null
     if ($Scenario -ne 'AccessibilityPhase4' -and $result -match '(?m)^ARTIFACT_DIRECTORY=(.+)\r?$') {
         $remote = $Matches[1].Trim()
         if (-not $remote.StartsWith("/storage/emulated/0/Android/data/$package/files/release-validation/", [StringComparison]::Ordinal)) {
             throw 'Runner returned an unexpected artifact directory.'
         }
+        if ($Scenario -eq 'ShadowTypography' -and
+            $remote -notmatch ('^/storage/emulated/0/Android/data/' + [regex]::Escape($package) + '/files/release-validation/shadow-typography-[0-9a-f]{32}$')) {
+            throw 'Appearance runner did not declare a unique bounded artifact directory.'
+        }
+        $artifactDirectory = $remote
         & $adb -s $DeviceId pull $remote (Join-Path $destination 'native') > (Join-Path $destination 'pull.log')
         if ($LASTEXITCODE -ne 0) { throw 'Native artifact retrieval failed.' }
+    }
+    if ($Scenario -eq 'ShadowTypography' -and $null -eq $artifactDirectory) {
+        throw 'Appearance runner must declare its current-run artifact directory; static files cannot qualify this run.'
     }
     $marker = switch ($Scenario) {
         'AccessibilityPhase4' { 'ANDROID_ACCESSIBILITY_PHASE4_PASS' }
@@ -152,7 +163,7 @@ try {
     }
     if ($Scenario -in @('PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')) {
         $nativeDirectory = Join-Path $destination 'native'
-        New-Item -ItemType Directory -Path $nativeDirectory | Out-Null
+        if (-not(Test-Path -LiteralPath $nativeDirectory)) { New-Item -ItemType Directory -Path $nativeDirectory | Out-Null }
         $pageArtifacts = if ($Scenario -eq 'PageNavigation') {
             @('page-navigation-validation.txt', 'page-navigation-details.png', 'page-navigation-recreated.png')
         } elseif ($Scenario -eq 'PageComposition') {
@@ -160,7 +171,8 @@ try {
         } elseif ($Scenario -eq 'ShadowTypography') {
             @('shadow-typography-validation.txt', 'shadow-typography-default.png', 'shadow-typography-alternative.png', 'shadow-typography-recreated.png',
               'rtl-layout-rtl.png', 'rtl-layout-ltr.png', 'rtl-layout-recreated.png',
-              'binding-navigator-first.png', 'binding-navigator-second.png', 'binding-navigator-recreated.png')
+              'binding-navigator-first.png', 'binding-navigator-second.png', 'binding-navigator-recreated.png',
+              'tooltip-source.png', 'tooltip-shown.png', 'tooltip-hidden.png')
         } elseif ($Scenario -eq 'LayoutPolicy') {
             @('layout-policy-validation.txt', 'layout-policy-positive.png', 'layout-policy-zero.png', 'layout-policy-restored.png')
         } elseif ($Scenario -eq 'VisualStateMetrics') {
@@ -171,6 +183,12 @@ try {
             @('app-shell-validation.txt', 'app-shell-document.png', 'app-shell-recreated.png')
         }
         foreach ($name in $pageArtifacts) {
+            if ($null -ne $artifactDirectory) {
+                if ($result -match $marker -and -not(Test-Path -LiteralPath (Join-Path $nativeDirectory $name))) {
+                    throw "Passing runner did not provide required current-run artifact: $name"
+                }
+                continue
+            }
             $remoteFile = "/sdcard/Android/data/$package/files/$name"
             & $adb -s $DeviceId shell test -f $remoteFile
             if ($LASTEXITCODE -eq 0) {

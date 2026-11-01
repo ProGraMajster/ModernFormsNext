@@ -25,7 +25,10 @@ namespace ModernFormsNext
             Closed += PopupClosed;
         }
 
-        private void ParentFormDeactivated(object? sender, System.EventArgs e) => Hide();
+        private void ParentFormDeactivated(object? sender, System.EventArgs e)
+        {
+            if (HideOnParentDeactivation) Hide();
+        }
 
         private void PopupClosed(object? sender, System.EventArgs e)
         {
@@ -38,6 +41,10 @@ namespace ModernFormsNext
         // focus/IME connection alive while retaining ordinary popup placement/dismissal.
         // Default false preserves the existing editable-popup handoff contract.
         internal bool RetainParentTextInput { get; init; }
+        // Closed framework presenters can retain their owner's focus and interactive-popup lease.
+        // Defaults preserve the existing menu/editor/suggestion contracts.
+        internal bool IsPassive { get; init; }
+        internal bool HideOnParentDeactivation { get; set; } = true;
         internal bool OwnsParentTextInput => ownsTextInput && !InputBindingsClosed;
         internal long TextInputOwnershipVersion => textInputOwnershipVersion;
 
@@ -100,6 +107,13 @@ namespace ModernFormsNext
 
             PopupImpl.PopupPositioner?.Update (ppp);
             if (InputBindingsClosed || parent_form.InputBindingsClosed) return;
+
+            if (IsPassive)
+            {
+                (window.TryGetFeature(typeof(IPopupPresentation)) as IPopupPresentation)?.SetPassive();
+                Show();
+                return;
+            }
 
             var previousPopup = Application.ActivePopupWindow;
             Application.ActivePopupWindow = this;
