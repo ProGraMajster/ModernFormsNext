@@ -95,14 +95,15 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         CancelEdit();
         state.SelectRow(row);
         state.BeginEditing();
+        if (!state.IsEditing) return;
 
-        if (TryBeginBooleanEdit(row, bounds))
+        if (row.Property?.IsMixed != true && TryBeginBooleanEdit(row, bounds))
             return;
 
-        if (TryBeginNumericEdit(row, bounds))
+        if (row.Property?.IsMixed != true && TryBeginNumericEdit(row, bounds))
             return;
 
-        if (TryBeginListComboEdit(row, bounds))
+        if (row.Property?.IsMixed != true && TryBeginListComboEdit(row, bounds))
             return;
 
         textEditor = new TextBox
@@ -111,7 +112,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             Top = bounds.Top,
             Width = bounds.Width,
             Height = bounds.Height,
-            Text = GetRowValueText(row)
+            Text = state.EditingText
         };
         textEditor.Style.Border.Width = 1;
         textEditor.Style.Border.Color = DesignerColors.Accent;
@@ -284,7 +285,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
             if (textEditor is not null)
             {
                 var editingEvent = state.EditingEvent;
-                state.UpdateEditingText(textEditor.Text);
+                state.UpdateEditingText(textEditor.Text, userInitiated: false);
                 committed = state.CommitEditing();
 
                 if (committed && editingEvent is not null && !string.IsNullOrWhiteSpace(textEditor.Text))
@@ -502,6 +503,8 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
     private void TextEditor_KeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.KeyCode is Keys.Back or Keys.Delete && textEditor is not null)
+            state.UpdateEditingText(textEditor.Text); // An explicit clear also counts when already empty.
         if (e.KeyCode == Keys.Enter)
         {
             EndEdit();
@@ -514,7 +517,6 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         }
         else if (replaceInitialTextSelectionOnInput && e.KeyCode is Keys.Back or Keys.Delete)
         {
-            textEditor?.SelectAll();
             replaceInitialTextSelectionOnInput = false;
             preserveInitialTextSelection = false;
         }
@@ -527,7 +529,9 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
         if (e.KeyChar >= 32 && e.KeyChar != 127)
         {
-            textEditor.SelectAll();
+            // BeginEdit/the initial mouse-up already established the selection. A native
+            // text transaction has captured it before raising KeyPress; changing it here
+            // would revoke that same edit as a reentrant external selection change.
             replaceInitialTextSelectionOnInput = false;
             preserveInitialTextSelection = false;
         }
@@ -617,7 +621,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         try
         {
             if (textEditor is not null)
-                state.UpdateEditingText(textEditor.Text);
+                state.UpdateEditingText(textEditor.Text, userInitiated: false);
             else if (comboEditor is not null)
                 state.UpdateEditingText(GetComboValueText());
             else

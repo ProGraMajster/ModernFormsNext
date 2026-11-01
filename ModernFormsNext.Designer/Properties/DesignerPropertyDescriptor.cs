@@ -50,10 +50,15 @@ internal sealed class DesignerPropertyDescriptor
 
     public Func<object?> GetValue { get; init; } = () => null;
 
+    // Mixed state is separate from the displayed string: authored text can equal that label.
+    public Func<bool> HasMixedValue { get; init; } = () => false;
+
+    public bool IsMixed => HasMixedValue();
+
     public Func<string, (bool Success, string? Error)> CommitText { get; init; } = _ => (false, "The property is read-only.");
 
     public string GetValueText()
-        => DesignerPropertyValueEditor.ToDisplayString(GetValue());
+        => IsMixed ? "(multiple values)" : DesignerPropertyValueEditor.ToDisplayString(GetValue());
 
     public bool TryCommit(string text, out string? error)
     {

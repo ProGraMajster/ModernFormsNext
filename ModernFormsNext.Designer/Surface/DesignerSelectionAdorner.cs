@@ -9,7 +9,7 @@ internal static class DesignerSelectionAdorner
     public static void Draw(PaintEventArgs e, System.Drawing.Rectangle bounds, bool showResizeHandle = true)
         => Draw(e, bounds, showResizeHandle ? DesignerHitTestService.GetHandles() : []);
 
-    public static void Draw(PaintEventArgs e, System.Drawing.Rectangle bounds, IEnumerable<DesignerResizeHandle> resizeHandles)
+    public static void Draw(PaintEventArgs e, System.Drawing.Rectangle bounds, IEnumerable<DesignerResizeHandle> resizeHandles, bool primaryGroupMember = false)
     {
         using var paint = new SKPaint
         {
@@ -20,6 +20,12 @@ internal static class DesignerSelectionAdorner
         };
 
         e.Canvas.DrawRect(bounds.ToSKRect(), paint);
+        if (primaryGroupMember)
+        {
+            paint.Style = SKPaintStyle.Fill;
+            int size = Math.Max(1, e.LogicalToDeviceUnits(5));
+            e.Canvas.DrawRect(bounds.Left, bounds.Top, size, size, paint);
+        }
         DrawResizeHandles(e, bounds, resizeHandles);
     }
 

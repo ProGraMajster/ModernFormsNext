@@ -72,6 +72,6 @@ internal sealed class DesignerSurface : Panel
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        renderer.Render(e, state, Width, Height);
+        renderer.Render(e, state, Width, Height, mouseController.MarqueeBounds);
     }
 }

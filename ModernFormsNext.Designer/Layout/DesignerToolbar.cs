@@ -18,6 +18,9 @@ internal sealed class DesignerToolbar : Panel
     private Button? copyButton;
     private Button? pasteButton;
     private Button? duplicateButton;
+    private Button? arrangeButton;
+    private readonly ContextMenu arrangeMenu = new();
+    private readonly List<(MenuItem Item, DesignerGroupArrangement Arrangement)> arrangeItems = [];
 
     public DesignerToolbar(DesignerCommandService commands, DesignerSession session, ModernFormsDesignerOptions options)
     {
@@ -68,6 +71,8 @@ internal sealed class DesignerToolbar : Panel
         x += 78;
         duplicateButton = AddButton("Duplicate", x, () => commands.Duplicate(), 92);
         x += 100;
+        arrangeButton = AddButton("Arrange", x, ShowArrangeMenu, 88);
+        x += 96;
         AddButton("AddPanel", x, commands.AddPanel, 100);
         x += 108;
         AddButton("AddButton", x, commands.AddButton, 105);
@@ -126,6 +131,8 @@ internal sealed class DesignerToolbar : Panel
             pasteButton.Enabled = commands.CanPaste;
         if (duplicateButton is not null)
             duplicateButton.Enabled = commands.CanDuplicate;
+        if (arrangeButton is not null)
+            arrangeButton.Enabled = session.SelectedNodes.Count >= 2;
 
         Invalidate();
     }
@@ -147,6 +154,31 @@ internal sealed class DesignerToolbar : Panel
         button.Style.Border.Color = new SKColor(82, 91, 102);
         button.Style.Border.Width = 1;
         button.Click += (_, _) => commands.ShowSettingsDialog(button.FindForm());
+    }
+
+    private void ShowArrangeMenu()
+    {
+        if (arrangeButton is null) return;
+        if (arrangeItems.Count == 0)
+        foreach (var arrangement in Enum.GetValues<DesignerGroupArrangement>())
+        {
+            var item = arrangeMenu.Items.Add(T(arrangement.ToString()), onClick: (_, _) => commands.Arrange(arrangement));
+            arrangeItems.Add((item, arrangement));
+        }
+        foreach (var (item, arrangement) in arrangeItems)
+        {
+            item.Text = T(arrangement.ToString());
+            item.Enabled = session.SelectedNodes.Count >= (arrangement is DesignerGroupArrangement.DistributeHorizontally
+                or DesignerGroupArrangement.DistributeVertically ? 3 : 2);
+        }
+        // ContextMenu consumes physical screen coordinates; the control owns the DPI boundary.
+        arrangeMenu.Show(arrangeButton, arrangeButton.PointToScreen(new Point(0, arrangeButton.ScaledHeight)));
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) arrangeMenu.Dispose();
+        base.Dispose(disposing);
     }
 
     private string T(string key) => DesignerText.Get(key, options.Language);

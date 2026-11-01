@@ -22,11 +22,14 @@ internal sealed class DesignerSurfaceRenderer
     private int embeddedPreviewToolboxVersion = -1;
     private string? embeddedPreviewProjectPath;
     private string? lastFrameDiagnostics;
+    private readonly HashSet<DesignControlNode> selectedNodes = new(ReferenceEqualityComparer.Instance);
 
-    public void Render(PaintEventArgs e, DesignerSession state, int width, int height)
+    public void Render(PaintEventArgs e, DesignerSession state, int width, int height, DesignBounds? marquee = null)
     {
         using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerRender);
         LogFrameDiagnostics(state, width, height);
+        selectedNodes.Clear();
+        selectedNodes.UnionWith(state.SelectedNodes);
 
         var view = coordinateMapper.GetView(state, width, height);
         var formBounds = DesignerDpiCoordinateConverter.LogicalToDevice(
@@ -59,6 +62,17 @@ internal sealed class DesignerSurfaceRenderer
             offsetX: 0,
             offsetY: 0,
             previewStack: new HashSet<string>(StringComparer.Ordinal));
+
+        if (marquee is { } rectangle)
+        {
+            var bounds = DesignerDpiCoordinateConverter.LogicalToDevice(coordinateMapper.ToSurfaceBounds(rectangle, view), e.Scaling);
+            using var paint = new SKPaint { Color = DesignerColors.Accent.WithAlpha(35), Style = SKPaintStyle.Fill };
+            e.Canvas.DrawRect(bounds.ToSKRect(), paint);
+            paint.Color = DesignerColors.Accent;
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = e.LogicalToDeviceUnits(1);
+            e.Canvas.DrawRect(bounds.ToSKRect(), paint);
+        }
 
         e.Canvas.Restore();
 
@@ -157,7 +171,7 @@ internal sealed class DesignerSurfaceRenderer
         var absolute = Offset(localAbsolute, offsetX, offsetY);
         var surfaceBounds = coordinateMapper.ToSurfaceBounds(absolute, view);
         var bounds = DesignerDpiCoordinateConverter.LogicalToDevice(surfaceBounds, surfacePaintArgs.Scaling);
-        var selected = ReferenceEquals(state.SelectedNode, node);
+        var selected = selectedNodes.Contains(node);
         var isProjectUserControl = state.IsProjectUserControlType(node.TypeName);
 
         if (layout.PreviewDiagnostics.TryGetValue(node, out string? previewError))
@@ -166,7 +180,7 @@ internal sealed class DesignerSurfaceRenderer
             DrawPanel(previewPaintArgs, bounds);
             DrawCenteredText(previewPaintArgs, $"{node.Name} (preview deferred)", bounds, new SKColor(32, 38, 46));
             if (selected)
-                DesignerSelectionAdorner.Draw(surfacePaintArgs, bounds, DesignerLayoutProperties.GetResizeHandles(node));
+                DrawSelection(surfacePaintArgs, state, node, bounds);
             return; // Lazy placeholder: no table grid, runtime creation or descendant painting.
         }
 
@@ -202,16 +216,16 @@ internal sealed class DesignerSurfaceRenderer
 
         var paintedPageTree = state.ControlRenderMode == DesignerControlRenderMode.Runtime
             && DesignerPagePreview.IsPageContainer(node) && !isProjectUserControl;
-        if (paintedPageTree && state.SelectedNode is { } selectedChild && !ReferenceEquals(selectedChild, node)
-            && layout.GetVisibleBounds(state.Document, selectedChild) is { Width: > 0, Height: > 0 })
+        if (paintedPageTree)
+        foreach (var selectedChild in state.SelectedNodes)
         {
+            if (ReferenceEquals(selectedChild, node) || layout.GetVisibleBounds(state.Document, selectedChild) is not { Width: > 0, Height: > 0 }) continue;
             for (var parent = state.FindParent(selectedChild); parent is not null; parent = state.FindParent(parent))
                 if (ReferenceEquals(parent, node))
                 {
                     var selectedBounds = coordinateMapper.ToSurfaceBounds(Offset(layout.GetEffectiveBounds(selectedChild), offsetX, offsetY), view);
-                    DesignerSelectionAdorner.Draw(surfacePaintArgs,
-                        DesignerDpiCoordinateConverter.LogicalToDevice(selectedBounds, surfacePaintArgs.Scaling),
-                        DesignerLayoutProperties.GetResizeHandles(selectedChild));
+                    DrawSelection(surfacePaintArgs, state, selectedChild,
+                        DesignerDpiCoordinateConverter.LogicalToDevice(selectedBounds, surfacePaintArgs.Scaling));
                     break;
                 }
         }
@@ -244,8 +258,14 @@ internal sealed class DesignerSurfaceRenderer
         }
 
         if (selected)
-            DesignerSelectionAdorner.Draw(surfacePaintArgs, bounds, DesignerLayoutProperties.GetResizeHandles(node));
+            DrawSelection(surfacePaintArgs, state, node, bounds);
     }
+
+    private static void DrawSelection(PaintEventArgs e, DesignerSession state, DesignControlNode node,
+        System.Drawing.Rectangle bounds)
+        => DesignerSelectionAdorner.Draw(e, bounds,
+            state.SelectedNodes.Count == 1 ? DesignerLayoutProperties.GetResizeHandles(node) : [],
+            state.SelectedNodes.Count > 1 && ReferenceEquals(state.SelectedNode, node));
 
     private bool TryDrawEmbeddedPreview(
         PaintEventArgs surfacePaintArgs,

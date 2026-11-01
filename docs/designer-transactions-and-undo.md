@@ -77,7 +77,7 @@ Interactive move, resize, root resize, and splitter gestures open one transactio
 apply live model values during pointer movement, then record the final changes and commit on pointer
 up. Repeated changes to the same typed target merge inside that transaction. Escape records the
 current live state and rolls it back, so a hundred pointer moves still produce either one undo unit
-or no unit after cancellation. Future snapping and multi-selection work can contribute more typed
+or no unit after cancellation. Group editing and future snapping contribute typed
 changes to the same gesture without changing that rule.
 
 ## History, dirty state, and save
@@ -143,5 +143,7 @@ selection alone.
 Inherited design remains tracked separately. The typed transaction boundary is ready for a future
 change validator to reject writes to base-owned/read-only nodes before `Apply`; this issue does not
 implement inherited controls. Detached Designer Copy/Cut/Paste/Duplicate reuses this boundary as
-documented in [Designer copy and paste](designer-copy-paste.md). Multi-selection, an operating-system
-clipboard contract, smart guides, and a general command framework remain separate features.
+documented in [Designer copy and paste](designer-copy-paste.md). [Multi-selection](designer-multi-selection.md)
+uses the same transaction layer; history retains immutable membership snapshots and primary,
+including nested rollback with an unchanged primary. An operating-system clipboard contract,
+smart guides and a general command framework remain separate features.

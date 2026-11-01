@@ -7,7 +7,7 @@ using System.Reflection;
 
 namespace ModernFormsNext.Designer.Properties;
 
-internal sealed class DesignerPropertyGridState
+internal sealed partial class DesignerPropertyGridState
 {
     private const int MinimumControlSize = 8;
 
@@ -49,8 +49,9 @@ internal sealed class DesignerPropertyGridState
         "Size"
     };
     private DesignDocument? lastDocument;
-    private DesignControlNode? lastSelectedNode;
+    private DesignerSelectionSnapshot lastSelection;
     private bool hasSelectionSnapshot;
+    private bool editingValueChanged;
 
     public DesignerPropertyGridState(DesignerSession playgroundState)
     {
@@ -84,7 +85,7 @@ internal sealed class DesignerPropertyGridState
 
     public DesignerSession Session => playgroundState;
 
-    public bool SupportsEvents => detachedPropertyProvider is null;
+    public bool SupportsEvents => detachedPropertyProvider is null && playgroundState.SelectedNodes.Count <= 1;
 
     public string HeaderType { get; private set; } = string.Empty;
 
@@ -183,7 +184,8 @@ internal sealed class DesignerPropertyGridState
         {
             EditingProperty = property;
             EditingEvent = null;
-            EditingText = property.GetValueText();
+            EditingText = property.IsMixed ? string.Empty : property.GetValueText();
+            editingValueChanged = false;
             IsEditing = true;
             Changed?.Invoke(this, EventArgs.Empty);
             return;
@@ -199,8 +201,9 @@ internal sealed class DesignerPropertyGridState
         }
     }
 
-    public void UpdateEditingText(string text)
+    public void UpdateEditingText(string text, bool userInitiated = true)
     {
+        if (IsEditing && userInitiated) editingValueChanged = true;
         if (!IsEditing || EditingText == text)
             return;
 
@@ -239,6 +242,12 @@ internal sealed class DesignerPropertyGridState
     {
         if (!IsEditing)
             return false;
+
+        if (EditingProperty is { IsMixed: true } && !editingValueChanged)
+        {
+            CancelEditing();
+            return true;
+        }
 
         var text = EditingText;
         var committed = CommitSelectedValue(text);
@@ -329,9 +338,8 @@ internal sealed class DesignerPropertyGridState
         }
 
         var document = playgroundState.Document;
-        var selectedNode = playgroundState.SelectedNode;
         var selectedObjectChanged = hasSelectionSnapshot
-            && (!ReferenceEquals(lastDocument, document) || !ReferenceEquals(lastSelectedNode, selectedNode));
+            && (!ReferenceEquals(lastDocument, document) || !lastSelection.Matches(playgroundState.Host.Selection));
         var selectedPropertyName = SelectedProperty?.Identity;
         var selectedEventName = SelectedEvent?.Name;
         var editingPropertyName = EditingProperty?.Identity;
@@ -340,10 +348,12 @@ internal sealed class DesignerPropertyGridState
         if (selectedObjectChanged && IsEditing)
             ClearEditingState();
 
-        HeaderName = playgroundState.SelectedNode?.Name ?? playgroundState.Document.FormName;
-        HeaderType = GetSelectedObjectTypeName();
+        HeaderName = playgroundState.SelectedNodes.Count > 1 ? $"{playgroundState.SelectedNodes.Count} controls"
+            : playgroundState.SelectedNode?.Name ?? playgroundState.Document.FormName;
+        HeaderType = playgroundState.SelectedNodes.Count > 1 ? "Multiple selection" : GetSelectedObjectTypeName();
         Properties = BuildPropertyDescriptors();
-        Events = BuildEventDescriptors();
+        Events = SupportsEvents ? BuildEventDescriptors() : [];
+        if (!SupportsEvents) Mode = DesignerPropertyGridMode.Properties;
         ApplyExpansionState(Properties);
         SelectedProperty = FindPropertyByIdentity(selectedPropertyName)
             ?? Properties.FirstOrDefault();
@@ -364,7 +374,7 @@ internal sealed class DesignerPropertyGridState
 
         RebuildRows();
         lastDocument = document;
-        lastSelectedNode = selectedNode;
+        lastSelection = DesignerSelectionSnapshot.Capture(playgroundState.Host.Selection);
         hasSelectionSnapshot = true;
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -406,6 +416,7 @@ internal sealed class DesignerPropertyGridState
         EditingSelectionEnd = -1;
         EditingCaretIndex = 0;
         IsEditing = false;
+        editingValueChanged = false;
     }
 
     private bool CommitSelectedProperty(string text)
@@ -442,25 +453,16 @@ internal sealed class DesignerPropertyGridState
             committed = SelectedProperty.TryCommit(text, out error);
             if (committed)
             {
-                var appearanceNode = playgroundState.SelectedNode;
-                Type? appearanceType = appearanceNode is not null ? playgroundState.ResolveControlType(appearanceNode)
-                    : playgroundState.Document.RootKind == DesignRootKind.UserControl ? typeof(UserControl) : null;
-                if (appearanceType is not null)
-                    committed = DesignerTypographyPropertyValidator.TryValidate(
-                        appearanceNode?.Properties ?? playgroundState.Document.Properties, appearanceType, out error);
+                IEnumerable<DesignControlNode?> targets = playgroundState.SelectedNodes.Count == 0
+                    ? new DesignControlNode?[] { null } : playgroundState.SelectedNodes.Cast<DesignControlNode?>();
+                foreach (var target in targets)
+                    if (!ValidateCommittedProperty(target, SelectedProperty.Identity, out error)) { committed = false; break; }
+                if (committed && playgroundState.SelectedNodes.Count > 1)
+                {
+                    var validation = new DesignDocumentValidator().ValidateStructure(playgroundState.Document);
+                    if (!validation.IsValid) { committed = false; error = string.Join(Environment.NewLine, validation.Errors); }
+                }
             }
-            if (committed && playgroundState.SelectedNode is { } node &&
-                playgroundState.ResolveControlType(node) is { } itemControlType &&
-                (itemControlType == typeof(ListView) || itemControlType == typeof(CollectionView) ||
-                 itemControlType == typeof(CarouselView) || itemControlType == typeof(RefreshView)))
-                committed = DesignerVirtualizationPropertyValidator.TryValidate(node, SelectedProperty.Identity, itemControlType, out error);
-            if (committed && playgroundState.SelectedNode is { } utilityNode &&
-                playgroundState.ResolveControlType(utilityNode) is { } utilityType &&
-                (utilityType == typeof(SearchBar) || utilityType == typeof(TimePicker)))
-                committed = DesignerSearchTimePropertyValidator.TryValidate(utilityNode, utilityType, out error);
-            if (committed && playgroundState.SelectedNode is { } pageNode &&
-                playgroundState.ResolveControlType(pageNode) is { } pageType && DesignerPagePropertyValidator.IsKnown(pageType))
-                committed = DesignerPagePropertyValidator.TryValidate(pageNode, pageType, out error);
         }
         catch
         {
@@ -593,6 +595,7 @@ internal sealed class DesignerPropertyGridState
 
     private IReadOnlyList<DesignerPropertyDescriptor> BuildPropertyDescriptors()
     {
+        if (playgroundState.SelectedNodes.Count > 1) return BuildSharedPropertyDescriptors();
         var node = playgroundState.SelectedNode;
         var descriptors = new List<DesignerPropertyDescriptor>();
 
@@ -835,10 +838,10 @@ internal sealed class DesignerPropertyGridState
         descriptors.Add(DesignerPropertyDescriptorFactory.CreateNodeBounds(node));
         descriptors.Add(DesignerPropertyDescriptorFactory.CreateNodeLocation(node));
         descriptors.Add(DesignerPropertyDescriptorFactory.CreateNodeSize(node));
-        descriptors.Add(Bounds("X", "X", "Horizontal position in logical pixels.", bounds => bounds.X, (bounds, value) => new DesignBounds(value, bounds.Y, bounds.Width, bounds.Height)));
-        descriptors.Add(Bounds("Y", "Y", "Vertical position in logical pixels.", bounds => bounds.Y, (bounds, value) => new DesignBounds(bounds.X, value, bounds.Width, bounds.Height)));
-        descriptors.Add(Bounds("Width", "Width", "Width in logical pixels.", bounds => bounds.Width, (bounds, value) => new DesignBounds(bounds.X, bounds.Y, value, bounds.Height), requirePositive: true));
-        descriptors.Add(Bounds("Height", "Height", "Height in logical pixels.", bounds => bounds.Height, (bounds, value) => new DesignBounds(bounds.X, bounds.Y, bounds.Width, value), requirePositive: true));
+        descriptors.Add(Bounds(node, "X", "X", "Horizontal position in logical pixels.", bounds => bounds.X, (bounds, value) => new DesignBounds(value, bounds.Y, bounds.Width, bounds.Height)));
+        descriptors.Add(Bounds(node, "Y", "Y", "Vertical position in logical pixels.", bounds => bounds.Y, (bounds, value) => new DesignBounds(bounds.X, value, bounds.Width, bounds.Height)));
+        descriptors.Add(Bounds(node, "Width", "Width", "Width in logical pixels.", bounds => bounds.Width, (bounds, value) => new DesignBounds(bounds.X, bounds.Y, value, bounds.Height), requirePositive: true));
+        descriptors.Add(Bounds(node, "Height", "Height", "Height in logical pixels.", bounds => bounds.Height, (bounds, value) => new DesignBounds(bounds.X, bounds.Y, bounds.Width, value), requirePositive: true));
 
         AddSpecialContainerDescriptors(descriptors, node);
 
@@ -1424,6 +1427,7 @@ internal sealed class DesignerPropertyGridState
         };
 
     private DesignerPropertyDescriptor Bounds(
+        DesignControlNode node,
         string name,
         string displayName,
         string description,
@@ -1437,7 +1441,7 @@ internal sealed class DesignerPropertyGridState
             Category = "Layout",
             Description = description,
             ValueType = typeof(int),
-            GetValue = () => getValue(playgroundState.SelectedNode!.Bounds),
+            GetValue = () => getValue(node.Bounds),
             CommitText = text =>
             {
                 if (!DesignerPropertyValueEditor.TryConvert(text, typeof(int), out var value, out var error))
@@ -1448,7 +1452,6 @@ internal sealed class DesignerPropertyGridState
                 if (requirePositive && intValue < MinimumControlSize)
                     return (false, $"The value must be at least {MinimumControlSize}.");
 
-                var node = playgroundState.SelectedNode!;
                 node.Bounds = createBounds(node.Bounds, intValue);
                 return (true, null);
             }

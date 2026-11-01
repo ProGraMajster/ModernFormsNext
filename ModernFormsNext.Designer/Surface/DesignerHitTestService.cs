@@ -48,6 +48,8 @@ internal sealed class DesignerHitTestService
         float surfaceX,
         float surfaceY)
     {
+        // Group resizing is explicit through the shared size commands, not one member's handles.
+        if (state.SelectedNodes.Count > 1) return DesignerResizeHandle.None;
         var selectedNode = state.SelectedNode;
 
         if (selectedNode is not null && !DesignerLayoutProperties.IsVisible(selectedNode))
@@ -90,6 +92,26 @@ internal sealed class DesignerHitTestService
         }
 
         return DesignerResizeHandle.None;
+    }
+
+    internal IReadOnlyList<DesignControlNode> HitTestMarquee(DesignerSession state, DesignBounds rectangle)
+    {
+        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
+        var result = new List<DesignControlNode>();
+        var pending = new Stack<DesignControlNode>(state.Document.Controls.Reverse());
+        while (pending.TryPop(out var node))
+        {
+            if (!DesignerLayoutProperties.IsVisible(node)) continue;
+            var visible = layout.GetVisibleBounds(state.Document, node);
+            if (visible.Width <= 0 || visible.Height <= 0) continue;
+            if (!DesignerSpecialContainers.IsSpecialGeneratedPart(node)
+                && visible.X >= rectangle.X && visible.Y >= rectangle.Y
+                && visible.Right <= rectangle.Right && visible.Bottom <= rectangle.Bottom) result.Add(node);
+            // Use the same active-tab and component boundaries as point hit testing/rendering.
+            if (state.IsProjectUserControlType(node.TypeName) || layout.PreviewDiagnostics.ContainsKey(node)) continue;
+            foreach (var child in GetHitTestChildren(node).Reverse()) pending.Push(child);
+        }
+        return result;
     }
 
     public static IEnumerable<DesignerResizeHandle> GetHandles()

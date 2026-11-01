@@ -86,6 +86,8 @@
     href: content/docs/composable-animations.md
 - name: Designer
   items:
+  - name: Designer multi-selection
+    href: content/docs/designer-multi-selection.md
   - name: Designer architecture
     href: content/docs/designer-architecture.md
   - name: Preview resource policy
