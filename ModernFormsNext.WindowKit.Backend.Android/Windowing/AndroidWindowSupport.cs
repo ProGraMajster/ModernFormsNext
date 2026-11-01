@@ -45,8 +45,25 @@ internal sealed class AndroidScreenImpl : IScreenImpl
     public Screen ScreenFromRect(PixelRect rect) => screens[0];
 }
 
-internal sealed class AndroidPopupImpl : AndroidWindowImpl, IPopupImpl, IPopupPositioner
+internal sealed class AndroidPopupImpl : AndroidWindowImpl, IPopupImpl, IPopupPositioner, IPopupPresentation
 {
+    internal bool PassivePresentation { get; private set; }
+    internal float PresentationOpacity { get; private set; } = 1;
+    void IPopupPresentation.SetPassive()
+    {
+        Verify();
+        PassivePresentation = true;
+        Platform.Host?.UpdatePopupPresentation(this);
+    }
+    bool IPopupPresentation.TrySetOpacity(float opacity)
+    {
+        if (!float.IsFinite(opacity) || opacity < 0 || opacity > 1) throw new ArgumentOutOfRangeException(nameof(opacity));
+        if (IsClosed) return false;
+        Verify();
+        PresentationOpacity = opacity;
+        Platform.Host?.UpdatePopupPresentation(this);
+        return true;
+    }
     internal AndroidPopupImpl(AndroidWindowingPlatform platform, AndroidWindowImpl owner) : base(platform)
         => SetParent(owner);
     internal override bool IsPopup => true;

@@ -164,14 +164,30 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
     void IAndroidWindowHost.Hide(AndroidWindowImpl window)
     {
         if (presentations.Remove(window, out var p)) p.Dispose();
-        if (Current) ActivateTop();
+        if (Current && window is not AndroidPopupImpl { PassivePresentation: true }) ActivateTop();
     }
     void IAndroidWindowHost.Update(AndroidWindowImpl window)
     {
         if (!presentations.TryGetValue(window, out var p)) return;
         p.Root.Enabled = p.View.Enabled = window.Enabled;
+        ApplyPopupPresentation(p);
         if (!window.IsPopup && window.Title is not null) activity.Title = window.Title;
         Layout(p);
+    }
+    void IAndroidWindowHost.UpdatePopupPresentation(AndroidWindowImpl window)
+    {
+        if (presentations.TryGetValue(window, out var p)) ApplyPopupPresentation(p);
+    }
+    private static void ApplyPopupPresentation(Presentation presentation)
+    {
+        if (presentation.Window is not AndroidPopupImpl popup) return;
+        presentation.Root.Alpha = popup.PresentationOpacity;
+        presentation.View.PassivePointerInput = popup.PassivePresentation;
+        if (popup.PassivePresentation)
+        {
+            presentation.View.Focusable = presentation.View.FocusableInTouchMode = false;
+            presentation.Root.Focusable = presentation.Root.Clickable = false;
+        }
     }
     void IAndroidWindowHost.Activate(AndroidWindowImpl window)
     {
@@ -302,6 +318,7 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
             Root.SetClipChildren(true);
             Root.AddView(View, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.MatchParent));
             NativeViews = new(Root, View, () => Current, () => host.started && host.resumed, () => Window.Enabled);
+            ApplyPopupPresentation(this);
             View.LayoutChange += Geometry;
         }
         internal void ObserveNativeFocus()

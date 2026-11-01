@@ -934,6 +934,7 @@ internal static class WindowsUiaControlTypeMapper
             31 => 50034,
             32 => 50035,
             33 => 50001,
+            34 => 50022,
             _ => 50025
         };
 
@@ -972,6 +973,7 @@ internal static class WindowsUiaControlTypeMapper
             31 => "Header",
             32 => "HeaderItem",
             33 => "Calendar",
+            34 => "ToolTip",
             _ => "Custom"
         };
 }

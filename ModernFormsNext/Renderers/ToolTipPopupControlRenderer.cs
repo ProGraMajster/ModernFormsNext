@@ -101,9 +101,9 @@ namespace ModernFormsNext.Renderers
         {
             var rect = bounds.ToSKRect();
             using var fill = new SKPaint { IsAntialias = true };
-            using var stroke = new SKPaint { Color = owner.IconForegroundColor, IsAntialias = true, IsStroke = true, StrokeWidth = 2 };
+            using var stroke = new SKPaint { Color = owner.PresentationIconForeground, IsAntialias = true, IsStroke = true, StrokeWidth = 2 };
             using var textFont = new SKFont(Theme.UIFontBold, bounds.Height * 0.72f);
-            using var textPaint = new SKPaint { Color = owner.IconForegroundColor, IsAntialias = true };
+            using var textPaint = new SKPaint { Color = owner.PresentationIconForeground, IsAntialias = true };
 
             switch (icon)
             {

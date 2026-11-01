@@ -93,6 +93,20 @@ namespace ControlGallery.Panels
                 Height = 34
             });
             ownerDrawToolTip.SetToolTip(ownerDrawButton, "Owner-drawn tooltip rendered with SkiaSharp.");
+
+            var animation = Controls.Add(new CheckBox { Text = "Translation", Checked = true, Bounds = new Rectangle(100, 150, 160, 30) });
+            var fading = Controls.Add(new CheckBox { Text = "Whole popup fading", Checked = true, Bounds = new Rectangle(280, 150, 200, 30) });
+            var inactive = Controls.Add(new CheckBox { Text = "Allow inactive owner", Bounds = new Rectangle(500, 150, 220, 30) });
+            animation.CheckedChanged += (_, _) => manualToolTip.UseAnimation = animation.Checked;
+            fading.CheckedChanged += (_, _) => manualToolTip.UseFading = fading.Checked;
+            inactive.CheckedChanged += (_, _) => manualToolTip.ShowAlways = inactive.Checked;
+            Controls.Add(new Label
+            {
+                Bounds = new Rectangle(100, 200, 610, 90), Multiline = true,
+                Text = "Click Show to compare independent effects. Entrance: 120 ms; exit: 80 ms. " +
+                    "Shared duration scale applies; reduced motion and detected high contrast settle immediately. " +
+                    "Tooltips preserve keyboard/IME focus and interactive popups."
+            });
         }
 
         public override void UnloadPanel()

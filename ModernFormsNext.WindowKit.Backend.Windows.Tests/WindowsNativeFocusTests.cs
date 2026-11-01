@@ -11,6 +11,7 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("--focus", "FOCUS:PASS")]
+    [InlineData("--tooltips", "TOOLTIP:PASS:HWND")]
     [InlineData("--native-view", "NATIVE_VIEW:PASS:")]
     [InlineData("--pages", "PAGE_NAVIGATION:PASS:")]
     [InlineData("--page-composition", "PAGE_COMPOSITION:PASS:")]
@@ -54,6 +55,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
             output.WriteLine(report);
             Assert.True(process.ExitCode == 0, $"Native focus host failed: {errors}\n{report}");
             Assert.Contains(marker, report);
+            if (argument == "--tooltips")
+                Assert.Contains("TOOLTIP:NATIVE_ALPHA_PIXELS_FOCUS_MENU:PASS", report);
             if (argument == "--layout-policy-immediate")
                 Assert.Contains("native-policy-immediate=True", report);
             if (argument == "--visual-state-metrics-immediate")

@@ -26,6 +26,8 @@ namespace ModernFormsNext.WindowKit.Backend.Android.Rendering;
 /// </remarks>
 public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.WindowKit.Platform.ITextInputMethod
 {
+    // Passive popup views must let the native parent dispatch to an underlying sibling.
+    internal bool PassivePointerInput { get; set; }
     private readonly AndroidSurfaceHostState state = new();
     private readonly Action<string>? diagnosticSink;
     private readonly bool detailedDiagnostics;
@@ -390,7 +392,7 @@ public sealed partial class AndroidSkiaHostView : SKCanvasView, ModernFormsNext.
     /// <inheritdoc/>
     public override bool OnTouchEvent(MotionEvent? motionEvent)
     {
-        if (motionEvent is null || disposed || state.LifecycleState != AndroidSurfaceLifecycleState.Resumed)
+        if (PassivePointerInput || motionEvent is null || disposed || state.LifecycleState != AndroidSurfaceLifecycleState.Resumed)
             return false;
 
         AndroidMotionEventPlan plan = AndroidMotionEventPlan.Create(

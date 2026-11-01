@@ -104,6 +104,10 @@ public sealed partial class AnimationScheduler : IDisposable
     /// </summary>
     public AnimationPolicy Policy { get; }
 
+    // Reuse the scheduler's monotonic source for component reshow history. Dispatcher timers
+    // and headless time already share this clock; a wall clock would bypass deterministic tests.
+    internal TimeSpan ClockTime => clock.CurrentTime;
+
     /// <summary>
     /// Starts a progress animation whose callback receives eased progress.
     /// </summary>

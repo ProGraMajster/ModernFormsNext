@@ -786,7 +786,7 @@ namespace ModernFormsNext
 
             // Native popups use ShowNoActivate, so a reused popup receives no Activated
             // callback. Reacquire its selected editor explicitly for every visible session.
-            if (this is PopupWindow) SetTextInputActive(true);
+            if (this is PopupWindow { IsPassive: false }) SetTextInputActive(true);
             if (backendClosed || !Visible || version != visibilityVersion) return;
 
             // Form startup positioning is prepared after Load, before committing visibility.

@@ -10,10 +10,11 @@ namespace ModernFormsNext.Testing;
 
 // Compose the existing headless state/framebuffer implementation, but expose IPopupImpl only.
 // PopupWindow therefore follows the same capability checks as a real backend popup.
-internal sealed class HeadlessPopupImpl : IPopupImpl
+internal sealed class HeadlessPopupImpl : IPopupImpl, IPopupPresentation
 {
     private TestPopupHost? testHost;
     private bool disposing;
+    internal bool PresentationSupported { get; set; } = true;
 
     internal HeadlessPopupImpl(IWindowBaseImpl parent)
     {
@@ -62,7 +63,16 @@ internal sealed class HeadlessPopupImpl : IPopupImpl
             ? popup : throw new ArgumentException("A headless popup requires the production PopupWindow root.", nameof(inputRoot));
     }
 
-    public object? TryGetFeature(Type featureType) => State.TryGetFeature(featureType);
+    public object? TryGetFeature(Type featureType) => featureType == typeof(IPopupPresentation)
+        ? PresentationSupported && !State.IsDisposed ? this : null : State.TryGetFeature(featureType);
+    void IPopupPresentation.SetPassive() { }
+    bool IPopupPresentation.TrySetOpacity(float opacity)
+    {
+        if (!float.IsFinite(opacity) || opacity < 0 || opacity > 1) throw new ArgumentOutOfRangeException(nameof(opacity));
+        if (State.IsDisposed) return false;
+        State.SnapshotOpacity = PresentationSupported ? opacity : 1;
+        return PresentationSupported;
+    }
     public Point PointToClient(PixelPoint point) => State.PointToClient(point);
     public PixelPoint PointToScreen(Point point) => State.PointToScreen(point);
     public void SetCursor(ICursorImpl? cursor) => State.SetCursor(cursor);

@@ -1,5 +1,6 @@
 using System.Drawing;
 using ModernFormsNext.Renderers;
+using ModernFormsNext.Accessibility;
 
 namespace ModernFormsNext
 {
@@ -9,6 +10,8 @@ namespace ModernFormsNext
         {
             SetControlBehavior(ControlBehaviors.Selectable, false);
             SetControlBehavior(ControlBehaviors.ReceivesMouseEvents, false);
+            TabStop = false;
+            AccessibleRole = AccessibleRole.ToolTip;
             Padding = new Padding(ToolTip.DefaultHorizontalPadding, ToolTip.DefaultVerticalPadding, ToolTip.DefaultHorizontalPadding, ToolTip.DefaultVerticalPadding);
         }
 
@@ -33,6 +36,16 @@ namespace ModernFormsNext
 
         public ToolTip? OwnerToolTip { get; private set; }
 
+        internal bool PresentationVisible { get; private set; }
+
+        internal void SetPresentationVisible(bool visible)
+        {
+            if (PresentationVisible == visible) return;
+            PresentationVisible = visible;
+            // Announce a useful completed tooltip, never every opacity/translation frame.
+            NotifyAccessibilityClients(visible ? AccessibleEvents.Show : AccessibleEvents.Hide);
+        }
+
         public override ControlStyle Style { get; } = new ControlStyle(DefaultStyle);
 
         public void Configure(
@@ -55,16 +68,40 @@ namespace ModernFormsNext
             ApplyOwnerStyle(owner);
 
             Invalidate();
+            AccessibleName = string.IsNullOrEmpty(title) ? text : title + ". " + text;
         }
 
         public void ApplyOwnerStyle(ToolTip owner)
         {
             Padding = owner.Padding;
-            Style.BackgroundColor = owner.BackColor;
-            Style.ForegroundColor = owner.ForeColor;
+            Style.BackgroundColor = owner.PresentationBackColor;
+            Style.ForegroundColor = owner.PresentationForeColor;
             Style.Border.Width = owner.BorderWidth;
             Style.Border.Radius = owner.EffectiveBorderRadius;
-            Style.Border.Color = owner.BorderColor;
+            Style.Border.Color = owner.PresentationBorderColor;
+        }
+
+        protected override AccessibleObject CreateAccessibilityInstance() => new ToolTipAccessibleObject(this);
+
+        protected override void Dispose(bool disposing)
+        {
+            // A retained retired peer/control must not keep the component, owner form or
+            // manual anchor alive. Finalization never touches managed presentation state.
+            if (disposing)
+            {
+                OwnerToolTip = null;
+                AssociatedControl = null;
+                AssociatedWindow = null;
+                TextToDisplay = TitleToDisplay = string.Empty;
+            }
+            base.Dispose(disposing);
+        }
+
+        private sealed class ToolTipAccessibleObject(ToolTipPopupControl owner) : ControlAccessibleObject(owner)
+        {
+            public override AccessibleControlType ControlType => AccessibleControlType.ToolTip;
+            public override AccessibleStates State => Owner is ToolTipPopupControl { PresentationVisible: true }
+                ? base.State : base.State | AccessibleStates.Invisible;
         }
 
         protected override void OnPaint(PaintEventArgs e)

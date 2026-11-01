@@ -16,13 +16,21 @@ namespace ModernFormsNext
     /// and displays a platform-neutral <see cref="PopupWindow"/> rendered with SkiaSharp.
     /// </para>
     /// <para>
-    /// The implementation intentionally does not use native WinForms tooltip windows, HWNDs, or
-    /// platform-specific tooltip APIs. This keeps the component usable by current Windows and
-    /// Android-oriented backends while preserving the familiar source-level usage pattern.
+    /// The implementation uses existing backend popup windows, not native WinForms tooltip
+    /// controls. Windows and Android provide uniform popup opacity; an external backend without
+    /// this optional capability displays an opaque tooltip while retaining shared translation.
     /// </para>
     /// <para>
-    /// Tooltip callbacks are raised on the UI thread because the component uses the
-    /// ModernFormsNext <see cref="Timer"/>, which is dispatcher-backed.
+    /// Use and dispose the component on its controls' UI thread. Delay and auto-pop callbacks
+    /// use the existing dispatcher-backed <see cref="Timer"/>; visual transitions use the shared
+    /// animation scheduler. The caller owns the component, which borrows its controls and form.
+    /// Disposal removes associations, cancels transitions and closes its owned popup.
+    /// </para>
+    /// <para>
+    /// Entrance is nominally 120 milliseconds and exit 80 milliseconds, scaled by the shared
+    /// animation policy. Reduced motion, disabled animations, zero duration scale or detected
+    /// high contrast completes presentation immediately. Tooltips never lease keyboard/IME
+    /// focus or replace an interactive popup. See <see cref="ShowAlways"/> for owner eligibility.
     /// </para>
     /// </remarks>
     /// <example>
@@ -36,7 +44,7 @@ namespace ModernFormsNext
     [DefaultEvent(nameof(Popup))]
     [Category("Components")]
     [Description("Displays short explanatory text for ModernFormsNext controls.")]
-    public class ToolTip : Component, IExtenderProvider
+    public partial class ToolTip : Component, IExtenderProvider
     {
         /// <summary>
         /// The default automatic delay, in milliseconds.
@@ -102,7 +110,6 @@ namespace ModernFormsNext
         private ToolTipInfo? pendingInfo;
         private Control? displayedControl;
         private Point pendingScreenLocation;
-        private DateTime lastHiddenUtc = DateTime.MinValue;
         private PopupWindow? popup;
         private Form? popupParentForm;
         private ToolTipPopupControl? popupControl;
@@ -175,13 +182,14 @@ namespace ModernFormsNext
             get => active;
             set
             {
+                VerifyPresentationAccess();
                 if (active == value)
                     return;
 
                 active = value;
 
                 if (!active)
-                    HideCurrentToolTip();
+                    HideCurrentToolTip(immediate: true);
             }
         }
 
@@ -603,14 +611,25 @@ namespace ModernFormsNext
         /// Gets or sets whether tooltips should appear even when the parent window is inactive.
         /// </summary>
         /// <remarks>
-        /// The value is stored for compatibility. Current ModernFormsNext popup windows hide when
-        /// their owning form deactivates, so backends may not be able to honor this value fully.
+        /// False requires an active visible owning form. True permits a visible inactive desktop
+        /// owner, including desktop process deactivation, without activating it. Known process
+        /// background, suspension, loss of all hosts, exit, or owner/anchor retirement hides
+        /// immediately. Android popups cannot outlive their Activity. Unknown lifecycle support
+        /// falls back to actual owner visibility/activation; external backends must support
+        /// nonactivating native popups to preserve native focus. Set on the owning UI thread.
         /// </remarks>
         [DefaultValue(false)]
         public bool ShowAlways
         {
             get => showAlways;
-            set => showAlways = value;
+            set
+            {
+                VerifyPresentationAccess();
+                showAlways = value;
+                if (popup is not null) popup.HideOnParentDeactivation = !value;
+                if (!value && popupParentForm is { IsActive: false }) HideCurrentToolTip(immediate: true);
+                if (!value && pendingForm is { IsActive: false }) ClearPending();
+            }
         }
 
         /// <summary>
@@ -803,28 +822,35 @@ namespace ModernFormsNext
         /// Gets or sets whether tooltip animation is requested.
         /// </summary>
         /// <remarks>
-        /// The value is stored for Windows Forms API compatibility. Current ModernFormsNext
-        /// tooltip popups do not run native show animations.
+        /// True translates content by at most six logical pixels during a nominal 120-millisecond
+        /// entrance and 80-millisecond exit using the shared scheduler and its duration scale.
+        /// False disables translation independently from <see cref="UseFading"/>. Reduced motion
+        /// and detected high contrast settle immediately. Changing this value settles a visible
+        /// entrance or completes an exit. This affects rendering, not control layout or focus.
+        /// Set on the owning UI thread.
         /// </remarks>
         [DefaultValue(true)]
         public bool UseAnimation
         {
             get => useAnimation;
-            set => useAnimation = value;
+            set { VerifyPresentationAccess(); if (useAnimation != value) { useAnimation = value; SettlePresentation(); } }
         }
 
         /// <summary>
         /// Gets or sets whether tooltip fading is requested.
         /// </summary>
         /// <remarks>
-        /// The value is stored for Windows Forms API compatibility. Current ModernFormsNext
-        /// tooltip popups do not run native fade animations.
+        /// True requests whole-popup opacity during the same bounded transition as
+        /// <see cref="UseAnimation"/>, including the popup background. First-party Windows and
+        /// Android backends support it; missing/refused optional support retains opaque
+        /// presentation. False disables fading independently from translation. Reduced motion
+        /// and detected high contrast settle immediately. Set on the owning UI thread.
         /// </remarks>
         [DefaultValue(true)]
         public bool UseFading
         {
             get => useFading;
-            set => useFading = value;
+            set { VerifyPresentationAccess(); if (useFading != value) { useFading = value; SettlePresentation(); } }
         }
 
         /// <summary>
@@ -857,6 +883,15 @@ namespace ModernFormsNext
         public void Hide(Control control)
         {
             ArgumentNullException.ThrowIfNull(control);
+            VerifyPresentationAccess();
+
+            // Popup runs before displayedControl is assigned. Hide for that same anchor is
+            // still a newer dismissal request; hiding an unrelated control remains a no-op.
+            if (ReferenceEquals(popupCallbackAnchor, control))
+            {
+                ++requestVersion;
+                popupCallbackAnchor = null;
+            }
 
             if (pendingControl == control)
                 ClearPending();
@@ -870,12 +905,13 @@ namespace ModernFormsNext
         /// </summary>
         public void RemoveAll()
         {
+            VerifyPresentationAccess();
             foreach (var control in tools.Keys.ToArray())
                 Detach(control);
 
             tools.Clear();
             ClearPending();
-            HideCurrentToolTip();
+            HideCurrentToolTip(immediate: true);
         }
 
         /// <summary>
@@ -887,6 +923,7 @@ namespace ModernFormsNext
         public void SetToolTip(Control control, string? caption)
         {
             ArgumentNullException.ThrowIfNull(control);
+            VerifyPresentationAccess();
 
             if (string.IsNullOrEmpty(caption))
             {
@@ -897,7 +934,7 @@ namespace ModernFormsNext
                     ClearPending();
 
                 if (displayedControl == control)
-                    HideCurrentToolTip();
+                    HideCurrentToolTip(immediate: true);
 
                 return;
             }
@@ -906,6 +943,7 @@ namespace ModernFormsNext
                 Attach(control);
 
             tools[control] = new ToolTipInfo(caption, ToolTipDisplayMode.Automatic);
+            if (pendingControl == control) pendingInfo = tools[control];
         }
 
         /// <summary>
@@ -973,6 +1011,8 @@ namespace ModernFormsNext
         {
             ArgumentNullException.ThrowIfNull(control);
             ArgumentOutOfRangeException.ThrowIfNegative(duration);
+            VerifyPresentationAccess();
+            control.GetFocusScope().VerifyAccess();
 
             var screenPoint = control.PointToScreen(new Point(x, y));
             var info = new ToolTipInfo(text, ToolTipDisplayMode.Absolute) { ScreenLocation = screenPoint };
@@ -988,7 +1028,7 @@ namespace ModernFormsNext
 
         internal SKTypeface EffectiveTextTypeface => TextFont?.ToTypeface() ?? Theme.UIFont;
 
-        internal SKColor EffectiveTitleForeColor => TitleForeColor ?? ForeColor;
+        internal SKColor EffectiveTitleForeColor => highContrast ? PresentationForeColor : TitleForeColor ?? ForeColor;
 
         internal int EffectiveTitleFontSize
             => TitleFont is null ? Theme.FontSize : Math.Max(1, (int)Math.Round(TitleFont.SizeInPoints));
@@ -1001,6 +1041,7 @@ namespace ModernFormsNext
 
         internal SKColor ResolveIconBackColor(ToolTipIcon icon)
         {
+            if (highContrast) return PresentationForeColor;
             if (IconColor is { } color)
                 return color;
 
@@ -1036,28 +1077,8 @@ namespace ModernFormsNext
         /// <param name="disposing"><see langword="true"/> to release managed resources.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
-            {
-                RemoveAll();
-
-                delayTimer.Tick -= DelayTimer_Tick;
-                delayTimer.Dispose();
-
-                autoPopTimer.Tick -= AutoPopTimer_Tick;
-                autoPopTimer.Dispose();
-
-                popupControl?.Dispose();
-                popupControl = null;
-
-                popup?.Close();
-                popup = null;
-                popupParentForm = null;
-
-                onPopup = null;
-                onDraw = null;
-            }
-
-            base.Dispose(disposing);
+            if (!disposing) { base.Dispose(false); return; }
+            DisposePresentation();
         }
 
         private static int ClampDelayMultiplier(int value, int multiplier)
@@ -1091,6 +1112,8 @@ namespace ModernFormsNext
             control.MouseLeave += Control_MouseLeave;
             control.MouseDown += Control_MouseDown;
             control.Disposed += Control_Disposed;
+            control.ParentChanged += AnchorPresentationChanged;
+            control.VisibleChanged += AnchorPresentationChanged;
         }
 
         private void Detach(Control control)
@@ -1100,6 +1123,8 @@ namespace ModernFormsNext
             control.MouseLeave -= Control_MouseLeave;
             control.MouseDown -= Control_MouseDown;
             control.Disposed -= Control_Disposed;
+            control.ParentChanged -= AnchorPresentationChanged;
+            control.VisibleChanged -= AnchorPresentationChanged;
         }
 
         private void Control_Disposed(object? sender, EventArgs e)
@@ -1114,7 +1139,7 @@ namespace ModernFormsNext
                 ClearPending();
 
             if (displayedControl == control)
-                HideCurrentToolTip();
+                HideCurrentToolTip(immediate: true);
         }
 
         private void Control_MouseDown(object? sender, MouseEventArgs e)
@@ -1154,15 +1179,23 @@ namespace ModernFormsNext
 
         private void BeginAutomaticShow(Control control, MouseEventArgs e)
         {
-            if (!active || !tools.TryGetValue(control, out var info) || string.IsNullOrEmpty(info.Caption))
+            if (presentationDisposed || presentationRetiring || !active || !tools.TryGetValue(control, out var info) || string.IsNullOrEmpty(info.Caption))
                 return;
+
+            var form = control.FindForm();
+            if (form is null || !CanPresent(control, form)) return;
+            long request = ++requestVersion;
+            ClearPending();
 
             pendingControl = control;
             pendingInfo = info;
             pendingScreenLocation = control.PointToScreen(e.Location);
 
-            var useReshowDelay = displayedControl is not null
-                || DateTime.UtcNow - lastHiddenUtc <= TimeSpan.FromMilliseconds(Math.Max(InitialDelay, 1));
+            ObservePendingForm(form);
+            ObservePresentationServices();
+            if (!IsCurrentRequest(request)) return;
+            var useReshowDelay = displayedControl is not null ||
+                lastHiddenAt is { } hidden && Animations.AnimationScheduler.Default.ClockTime - hidden <= TimeSpan.FromMilliseconds(Math.Max(InitialDelay, 1));
             var delay = useReshowDelay ? ReshowDelay : InitialDelay;
 
             delayTimer.Stop();
@@ -1194,17 +1227,22 @@ namespace ModernFormsNext
             if (pendingControl is null || pendingInfo is null)
                 return;
 
+            var control = pendingControl;
+            var info = pendingInfo;
             var location = pendingScreenLocation;
             location.Offset(PointerOffsetX, PointerOffsetY);
-            ShowToolTip(pendingControl, pendingInfo, location, AutoPopDelay, throwIfNoForm: false);
-            ClearPending(stopDelayTimer: false);
+            ClearPending();
+            ShowToolTip(control, info, location, AutoPopDelay, throwIfNoForm: false);
         }
 
         private void ShowToolTip(Control associatedControl, ToolTipInfo info, Point screenLocation, int duration, bool throwIfNoForm)
         {
+            VerifyPresentationAccess();
+            long request = ++requestVersion;
+            ClearPending();
             if (!Active || string.IsNullOrEmpty(info.Caption))
             {
-                HideCurrentToolTip();
+                HideCurrentToolTip(immediate: true);
                 return;
             }
 
@@ -1218,51 +1256,43 @@ namespace ModernFormsNext
                 return;
             }
 
+            if (!CanPresent(associatedControl, form)) return;
+
             var text = ProcessText(info.Caption);
             var title = ProcessText(ToolTipTitle);
-            var proposedSize = MeasureToolTip(text, title, ToolTipIcon);
+            var proposedSize = MeasureToolTipForControl(text, title, ToolTipIcon, associatedControl);
             var popupEventArgs = new PopupEventArgs(form, associatedControl, IsBalloon, proposedSize);
 
             // Popup is intentionally raised before the popup window is configured so handlers can
             // cancel display or reserve a custom owner-drawn size, matching the WinForms event order.
-            OnPopup(popupEventArgs);
+            popupCallbackAnchor = associatedControl;
+            try { OnPopup(popupEventArgs); }
+            finally
+            {
+                if (IsCurrentRequest(request)) popupCallbackAnchor = null;
+            }
 
-            if (popupEventArgs.Cancel)
+            if (popupEventArgs.Cancel || !IsCurrentRequest(request) || !CanPresent(associatedControl, form))
                 return;
 
             var size = ClampSize(popupEventArgs.ToolTipSize);
-            EnsurePopup(form);
-
-            popupControl!.Configure(this, form, associatedControl, text, title, ToolTipIcon, size);
-            popup!.Size = size;
-            popup.Show(screenLocation);
-
-            // Tooltips are passive. PopupWindow normally marks itself as the active popup so menu
-            // code can close it on outside clicks; clear that marker so a tooltip does not replace
-            // an open menu or combo drop-down as the application's active interactive popup.
-            if (Application.ActivePopupWindow == popup)
-                Application.ActivePopupWindow = null;
-
-            displayedControl = associatedControl;
-
-            StartAutoPopTimer(duration);
+            PresentToolTip(request, associatedControl, form, text, title, size, screenLocation, duration);
         }
 
-        private void EnsurePopup(Form form)
+        private bool EnsurePopup(Form form, long request)
         {
-            if (popup is not null && popupParentForm == form)
-                return;
+            if (popup is { InputBindingsClosed: false } && popupParentForm == form)
+                return true;
 
-            popup?.Close();
-            popup = new PopupWindow(form);
+            ClosePresentationPopup();
+            if (!IsCurrentRequest(request)) return false;
+            popup = new PopupWindow(form) { IsPassive = true, HideOnParentDeactivation = !ShowAlways };
             popupParentForm = form;
-
-            popupControl ??= new ToolTipPopupControl();
-
-            if (popupControl.Parent is not null)
-                popupControl.Parent.Controls.Remove(popupControl);
-
+            popup.VisibleChanged += PopupPresentationVisibilityChanged;
+            popup.Closed += PopupPresentationClosed;
+            popupControl = new ToolTipPopupControl();
             popup.Controls.Add(popupControl);
+            return IsCurrentRequest(request);
         }
 
         private void StartAutoPopTimer(int duration)
@@ -1283,21 +1313,11 @@ namespace ModernFormsNext
 
             pendingControl = null;
             pendingInfo = null;
+            ObservePendingForm(null);
+            ReleasePresentationServicesIfIdle();
         }
 
-        private void HideCurrentToolTip()
-        {
-            ClearPending();
-            autoPopTimer.Stop();
-
-            if (popup?.Visible == true)
-                popup.Hide();
-
-            if (displayedControl is not null)
-                lastHiddenUtc = DateTime.UtcNow;
-
-            displayedControl = null;
-        }
+        private void HideCurrentToolTip(bool immediate = false) => RetirePresentation(immediate);
 
         private void ApplyVisibleLayoutAndStyle()
         {
@@ -1319,41 +1339,60 @@ namespace ModernFormsNext
                 return;
 
             popupControl.ApplyOwnerStyle(this);
+            if (popup is not null)
+                popup.Style.BackgroundColor = popupControl.CurrentStyle.GetBackgroundColor();
             popupControl.Invalidate();
         }
 
         private Size MeasureToolTip(string text, string title, ToolTipIcon icon)
+            => MeasureToolTipForControl(text, title, icon, popupControl);
+
+        private Size MeasureToolTipForControl(string text, string title, ToolTipIcon icon, Control? scaleSource)
         {
+            double scale = scaleSource?.Scaling ?? 1;
+            int Device(int value) => scaleSource?.LogicalToDeviceUnits(value) ?? value;
+            int Logical(int value) => Math.Max(1, (int)Math.Ceiling(value / scale));
             var contentWidth = 0;
-            var textBlockHeight = 0;
-            var paddingWidth = Padding.Horizontal + (BorderWidth * 2);
-            var paddingHeight = Padding.Vertical + (BorderWidth * 2);
-            var iconWidth = icon == ToolTipIcon.None ? 0 : IconSize + IconSpacing;
-            var iconHeight = icon == ToolTipIcon.None ? 0 : IconSize;
-            var maxTextWidth = Math.Max(1, MaximumWidth - paddingWidth - iconWidth);
+            var paddingWidth = Device(Padding.Left) + Device(Padding.Right) + Device(BorderWidth) * 2;
+            var paddingHeight = Device(Padding.Top) + Device(Padding.Bottom) + Device(BorderWidth) * 2;
+            var iconWidth = icon == ToolTipIcon.None ? 0 : Device(IconSize) + Device(IconSpacing);
+            var iconHeight = icon == ToolTipIcon.None ? 0 : Device(IconSize);
+            var maxTextWidth = Math.Max(1, (int)Math.Floor(MaximumWidth * scale) - paddingWidth - iconWidth);
             var maxTextSize = new Size(maxTextWidth, int.MaxValue);
+            int titleFontSize = Math.Max(1, Device(EffectiveTitleFontSize));
+            int textFontSize = Math.Max(1, Device(EffectiveTextFontSize));
 
             if (!string.IsNullOrWhiteSpace(title))
             {
-                var titleSize = TextMeasurer.MeasureText(title, EffectiveTitleTypeface, EffectiveTitleFontSize, maxTextSize, EffectiveTitleFontStyle);
+                var titleSize = TextMeasurer.MeasureText(title, EffectiveTitleTypeface, titleFontSize, maxTextSize, EffectiveTitleFontStyle);
                 contentWidth = Math.Max(contentWidth, (int)Math.Ceiling(titleSize.Width));
-                textBlockHeight += Math.Max(MinimumTextLineHeight, (int)Math.Ceiling(titleSize.Height));
             }
 
             if (!string.IsNullOrWhiteSpace(text))
             {
-                var textSize = TextMeasurer.MeasureText(text, EffectiveTextTypeface, EffectiveTextFontSize, maxTextSize, EffectiveTextFontStyle);
+                var textSize = TextMeasurer.MeasureText(text, EffectiveTextTypeface, textFontSize, maxTextSize, EffectiveTextFontStyle);
                 contentWidth = Math.Max(contentWidth, (int)Math.Ceiling(textSize.Width));
-                if (textBlockHeight > 0)
-                    textBlockHeight += TitleSpacing;
-
-                textBlockHeight += Math.Max(MinimumTextLineHeight, (int)Math.Ceiling(textSize.Height));
             }
 
-            var measuredWidth = contentWidth + iconWidth + paddingWidth;
-            var measuredHeight = Math.Max(textBlockHeight, iconHeight) + paddingHeight;
-            var width = Math.Min(MaximumWidth, Math.Max(MinimumSize.Width, measuredWidth));
-            var height = Math.Max(MinimumSize.Height, measuredHeight);
+            var width = Math.Min(MaximumWidth, Math.Max(MinimumSize.Width, Logical(contentWidth + iconWidth + paddingWidth)));
+            // Painting rounds font/padding to device pixels. Measuring at logical font size and
+            // scaling the result can wrap an extra line at fractional DPI. Shape at the actual
+            // device font size, then reflow at the final bounded width before choosing height.
+            var actualTextSize = new Size(Math.Max(1, (int)Math.Floor(width * scale) - paddingWidth - iconWidth), int.MaxValue);
+            var textBlockHeight = 0;
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                var titleSize = TextMeasurer.MeasureText(title, EffectiveTitleTypeface, titleFontSize, actualTextSize, EffectiveTitleFontStyle);
+                textBlockHeight = Math.Max(Device(MinimumTextLineHeight), (int)Math.Ceiling(titleSize.Height));
+            }
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                if (textBlockHeight > 0)
+                    textBlockHeight += Device(TitleSpacing);
+                var textSize = TextMeasurer.MeasureText(text, EffectiveTextTypeface, textFontSize, actualTextSize, EffectiveTextFontStyle);
+                textBlockHeight += Math.Max(Device(MinimumTextLineHeight), (int)Math.Ceiling(textSize.Height));
+            }
+            var height = Math.Max(MinimumSize.Height, Logical(Math.Max(textBlockHeight, iconHeight) + paddingHeight));
 
             return new Size(Math.Max(1, width), Math.Max(1, height));
         }
