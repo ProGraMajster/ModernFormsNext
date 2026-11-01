@@ -1,6 +1,6 @@
 # Designer copy, cut, paste, and duplicate
 
-The ModernFormsNext Designer supports detached, in-session editing of one selected control subtree.
+The ModernFormsNext Designer supports detached, in-session editing of selected control subtrees.
 Copy, Cut, Paste, and Duplicate operate on the design model and reuse the same typed transaction
 manager as all other authored Designer changes. They do not introduce a second mutation or undo
 system.
@@ -14,7 +14,7 @@ system.
 | Paste | `Ctrl+V` | Validates and inserts a new subtree. | Exactly one undo unit. |
 | Duplicate | `Ctrl+D` | Creates and inserts a detached copy next to the selected node. | Exactly one undo unit; the clipboard is unchanged. |
 
-Undo and redo restore the tree, selected node, dirty state, generated-code input, Document Outline,
+Undo and redo restore the tree, ordered selection and primary, dirty state, generated-code input, Document Outline,
 Property Grid, and Designer surface through the normal transaction notifications. Copy remains
 available only for an attached control node. The Form or UserControl design root and generated
 `SplitContainer` panel nodes cannot be copied as independent child controls.
@@ -26,7 +26,7 @@ semantics instead of mutating the selected Designer control.
 ## Private versioned payload
 
 The internal clipboard stores deterministic JSON with format identifier `ModernFormsNext.Designer`
-and version `1`. The payload contains only persisted design data:
+and version `1` for a single root or `2` for an ordered forest. The payload contains only persisted design data:
 
 - the root control and ordered descendant tree;
 - type and control names, bounds, and member visibility;
@@ -50,7 +50,8 @@ The payload is a tree only: it has no object IDs, back-references, or parent lin
 self-cycle cannot be expressed. Duplicate legacy control names are accepted as detached data and
 are remapped to distinct document-wide names before insertion. Arrays, assembly-qualified type
 names, constructed generic type text, and non-canonical collection/value representations are not
-part of clipboard version 1.
+part of either clipboard version. Forest roots share the node, property, text and depth admission
+budgets; they never receive independent budgets. Mixed root/version representations are rejected.
 
 The clipboard belongs to one `DesignerSession`. It therefore works between documents open in the
 same session and remains valid after the source document is closed, but it is not persisted into
@@ -83,6 +84,12 @@ Absolute, non-docked roots receive a 16-logical-pixel offset. Docked controls ke
 because runtime layout owns their final position. `FlowLayoutPanel` and tab containers preserve
 sequence without an artificial coordinate offset. `TableLayoutPanel` assigns the next available
 cell and resets copied row/column spans to one while retaining the rest of the subtree data.
+For a group, table spans are retained and roots use automatic placement through the production
+layout engine after bounded preview admission. A free-layout group receives one common 16-pixel
+offset only when every root is non-docked; otherwise none is offset. Copies from different source
+parents use document coordinates to retain their relative positions. Copy normalizes selected
+ancestors/descendants once and orders roots by outline. Paste selects the new roots with the last
+as primary; group duplicate keeps source parents and inserts after each parent's last selected root.
 Padding, Margin, minimum/maximum sizes, gradients, geometry, interaction effects, layout
 transitions, tab pages, children, event bindings, and supported structured collections are deep
 copied with no shared mutable Designer value graph.
@@ -99,8 +106,8 @@ after insertion rolls the one transaction back, and Duplicate never changes the 
 
 ## Current boundaries
 
-- Selection remains single-control; multi-selection and group editing are tracked separately in
-  [#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35).
+- See [multi-selection and group editing](designer-multi-selection.md) for modifier selection,
+  group movement, arrangement, shared properties and complete selection history.
 - The operating-system/runtime clipboard contract is separate work tracked in
   [#57](https://github.com/ProGraMajster/ModernFormsNext/issues/57).
 - Non-visual components cannot be pasted into a component tray because the tray is not implemented.

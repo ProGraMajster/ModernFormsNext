@@ -94,6 +94,8 @@ internal sealed class DesignerCommandService : IDisposable
 
     public bool Duplicate() => state.DuplicateSelectedNode();
 
+    public bool Arrange(DesignerGroupArrangement arrangement) => state.ArrangeSelectedNodes(arrangement);
+
     public bool CanCut => state.CanCutSelectedNode;
 
     public bool CanCopy => state.CanCopySelectedNode;

@@ -11,6 +11,7 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("--focus", "FOCUS:PASS")]
+    [InlineData("--designer-groups", "DESIGNER_GROUPS:PASS:HWND")]
     [InlineData("--tooltips", "TOOLTIP:PASS:HWND")]
     [InlineData("--native-view", "NATIVE_VIEW:PASS:")]
     [InlineData("--pages", "PAGE_NAVIGATION:PASS:")]

@@ -8,7 +8,7 @@ namespace ModernFormsNext.Designer.History;
 /// </summary>
 /// <remarks>
 /// This is not a serialized document snapshot. Ordinary Property Grid edits capture one root or
-/// node plus, only for collection editors, its immediate child references. Root resize is the
+/// selected nodes plus, only for collection editors, their immediate child references. Root resize is the
 /// deliberate complex-operation exception: it captures direct state for every existing node
 /// because the production layout engine persists Anchor-derived bounds throughout the tree.
 /// </remarks>
@@ -33,10 +33,10 @@ internal sealed class DesignerModelMutationSnapshot
         if (includeDescendantState)
             return CaptureDocumentLayout(session.Document);
 
-        return session.SelectedNode is { } node
+        return session.SelectedNodes.Count > 0
             ? new DesignerModelMutationSnapshot(
                 root: null,
-                [NodeSnapshot.Capture(node, includeImmediateChildren)])
+                session.SelectedNodes.Select(node => NodeSnapshot.Capture(node, includeImmediateChildren)).ToArray())
             : new DesignerModelMutationSnapshot(
                 RootSnapshot.Capture(session.Document, includeImmediateChildren),
                 []);
@@ -47,6 +47,9 @@ internal sealed class DesignerModelMutationSnapshot
         ArgumentNullException.ThrowIfNull(node);
         return new DesignerModelMutationSnapshot(root: null, [NodeSnapshot.Capture(node, includeChildren: false)]);
     }
+
+    internal static DesignerModelMutationSnapshot CaptureNodes(IReadOnlyList<DesignControlNode> nodes)
+        => new(root: null, nodes.Select(node => NodeSnapshot.Capture(node, includeChildren: false)).ToArray());
 
     public static DesignerModelMutationSnapshot CaptureDocumentLayout(DesignDocument document)
     {

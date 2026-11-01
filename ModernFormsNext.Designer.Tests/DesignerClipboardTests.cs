@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
 using ModernFormsNext;
 using ModernFormsNext.CodeGeneration.CSharp;
 using ModernFormsNext.CodeGeneration.Reverse;
@@ -732,15 +733,30 @@ public sealed class DesignerClipboardTests
     public void MalformedGeometryRepresentationIsRejectedBeforeDocumentMutation()
     {
         using var session = CreateSession(CreateDocument(out var button));
-        button.Properties["Data"] = Structured("ModernFormsNext.Drawing.PathGeometry", ("FigureCount", 1));
+        button.Properties["Data"] = DesignerPropertyValueEditor.ToDesignPropertyValue(new PathGeometry(), typeof(Geometry));
         session.SelectNode(button);
         Assert.True(session.CopySelectedNode());
-        session.Clipboard.SetContent(session.Clipboard.Content!.Replace(
-            "\"properties\":{\"FigureCount\":{\"kind\":\"int32\",\"int32Value\":1}}",
-            "\"properties\":null",
-            StringComparison.Ordinal));
+        // Construct malformed input independently of the encoder's own export admission.
+        var data = JsonNode.Parse(session.Clipboard.Content!)!;
+        data["root"]!["properties"]!["Data"]!["properties"] = null;
+        session.Clipboard.SetContent(data.ToJsonString());
 
         Assert.False(session.PasteCopiedNode());
+        Assert.Single(session.Document.Controls);
+        Assert.False(session.Transactions.CanUndo);
+    }
+
+    [Fact]
+    public void MalformedGeometryIsRejectedBeforeClipboardPublication()
+    {
+        using var session = CreateSession(CreateDocument(out var button));
+        session.SelectNode(button);
+        Assert.True(session.CopySelectedNode());
+        var retainedClipboard = session.Clipboard.Content;
+        button.Properties["Data"] = Structured("ModernFormsNext.Drawing.PathGeometry", ("FigureCount", 1));
+
+        Assert.False(session.CopySelectedNode());
+        Assert.Equal(retainedClipboard, session.Clipboard.Content);
         Assert.Single(session.Document.Controls);
         Assert.False(session.Transactions.CanUndo);
     }

@@ -15,11 +15,17 @@ internal sealed class DesignerClipboardPayload
     public const string CurrentFormat = "ModernFormsNext.Designer";
     public const int CurrentVersion = 1;
 
+    public const int ForestVersion = 2;
+
     public string? Format { get; set; }
 
     public int? Version { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DesignerClipboardNode? Root { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<DesignerClipboardNode>? Roots { get; set; }
 }
 
 internal sealed class DesignerClipboardNode

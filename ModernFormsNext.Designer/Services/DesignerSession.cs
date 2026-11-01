@@ -18,7 +18,7 @@ namespace ModernFormsNext.Designer.Services;
 /// adapters all observe the same session instance instead of maintaining their own copies of
 /// document state.
 /// </remarks>
-public sealed class DesignerSession : IDisposable
+public sealed partial class DesignerSession : IDisposable
 {
     private readonly List<string> outputLines = [];
     private readonly List<DesignerOpenDocument> openDocuments = [];
@@ -168,6 +168,13 @@ public sealed class DesignerSession : IDisposable
     /// Gets the currently selected control node, or <see langword="null"/> when the form itself is selected.
     /// </summary>
     public DesignControlNode? SelectedNode => Host.Selection.SelectedNode;
+
+    /// <summary>Gets the immutable, ordered snapshot of selected controls; empty selects the root.</summary>
+    /// <remarks>
+    /// <see cref="SelectedNode"/> remains the primary member. Nodes are borrowed from the active
+    /// document. Read and change Designer state on the session's owning UI thread.
+    /// </remarks>
+    public IReadOnlyList<DesignControlNode> SelectedNodes => Host.Selection.SelectedNodes;
 
     /// <summary>
     /// Gets the last known pointer position in document coordinates.
@@ -705,6 +712,11 @@ public sealed class DesignerSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
         ThrowIfDisposed();
+        if (SelectedNodes.Count > 1 && SelectedNodes.Contains(node))
+        {
+            if (target is not null && !TryFindNode(target, out _, out _)) return false;
+            return ReparentSelectedNodes(target is null || IsContainerNode(target) ? target : FindParent(target));
+        }
 
         if (ReferenceEquals(node, target))
             return false;
@@ -832,6 +844,7 @@ public sealed class DesignerSession : IDisposable
     public bool MoveSelectedNodeOutOfContainer()
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Count > 1) return MoveSelectedGroupOut();
         if (SelectedNode is null)
         {
             Log("No control is selected to move.");
@@ -909,6 +922,7 @@ public sealed class DesignerSession : IDisposable
     /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
     public bool MoveSelectedNodeToNextContainer()
     {
+        if (SelectedNodes.Count > 1) return MoveSelectedGroupToNextContainer();
         if (SelectedNode is null)
         {
             Log("No control is selected to move.");
@@ -1058,23 +1072,26 @@ public sealed class DesignerSession : IDisposable
     }
 
     /// <summary>
-    /// Deletes the currently selected control node when a control is selected.
+    /// Deletes selected controls as one undoable operation when controls are selected.
     /// </summary>
+    /// <remarks>Selected descendants of another selected control are removed with that ancestor once.</remarks>
     /// <returns><see langword="true"/> when a control was deleted; otherwise, <see langword="false"/>.</returns>
     public bool DeleteSelectedNode()
-        => SelectedNode is not null && DeleteNode(SelectedNode);
+        => SelectedNodes.Count > 1 ? DeleteSelectedGroup() : SelectedNode is not null && DeleteNode(SelectedNode);
 
     /// <summary>
-    /// Copies the currently selected control node into the designer clipboard.
+    /// Copies the selected control subtrees into the designer clipboard.
     /// </summary>
     /// <remarks>
     /// Copy stores a detached, versioned data payload. It does not mutate the document, change the
-    /// dirty state, create history, or retain the selected live control tree.
+    /// dirty state, create history, or retain the selected live control tree. Selected descendants
+    /// of another selected control are included with that ancestor once; roots use outline order.
     /// </remarks>
     /// <returns><see langword="true"/> when a control was copied; otherwise, <see langword="false"/>.</returns>
     public bool CopySelectedNode()
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Count > 1) return CopySelectedGroup();
         if (!TryGetClipboardSource(out var source, out var error))
         {
             Log(error!);
@@ -1093,7 +1110,7 @@ public sealed class DesignerSession : IDisposable
     }
 
     /// <summary>
-    /// Cuts the currently selected control subtree into the Designer clipboard.
+    /// Cuts the selected control subtrees into the Designer clipboard.
     /// </summary>
     /// <remarks>
     /// The detached payload is prepared before the model changes. Removing the subtree and updating
@@ -1103,6 +1120,7 @@ public sealed class DesignerSession : IDisposable
     public bool CutSelectedNode()
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Count > 1) return CutSelectedGroup();
         if (!TryGetClipboardSource(out var source, out var error))
         {
             Log(error!);
@@ -1134,12 +1152,13 @@ public sealed class DesignerSession : IDisposable
     }
 
     /// <summary>
-    /// Duplicates the currently selected control node as a sibling with a unique name.
+    /// Duplicates the selected control roots as siblings with document-wide unique names.
     /// </summary>
     /// <returns><see langword="true"/> when a control was duplicated; otherwise, <see langword="false"/>.</returns>
     public bool DuplicateSelectedNode()
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Count > 1) return DuplicateSelectedGroup();
         if (!TryGetClipboardSource(out var source, out var error))
         {
             Log(error!);
@@ -1169,17 +1188,20 @@ public sealed class DesignerSession : IDisposable
     }
 
     /// <summary>
-    /// Pastes the last copied control node into the active document.
+    /// Pastes the last copied control forest into the active document as one undoable operation.
     /// </summary>
     /// <returns><see langword="true"/> when a control was pasted; otherwise, <see langword="false"/>.</returns>
     public bool PasteCopiedNode()
     {
         ThrowIfDisposed();
-        if (!DesignerClipboardSerializer.TryDeserialize(clipboard.Content, out var clone, out var error))
+        if (!DesignerClipboardSerializer.TryDeserializeSelection(clipboard.Content, out var clones, out var error))
         {
             Log(error!);
             return false;
         }
+
+        if (clones!.Count > 1) return PasteGroup(clones);
+        var clone = clones[0];
 
         if (!TryResolvePasteTarget(clone!, out var target, out error)
             || !TryPrepareInsertion(clone!, target, out error))
@@ -1197,14 +1219,16 @@ public sealed class DesignerSession : IDisposable
         return true;
     }
 
-    internal bool CanCopySelectedNode => CanUseSelectedNodeAsClipboardSource();
+    internal bool CanCopySelectedNode => SelectedNodes.Count > 1
+        ? !disposed && TryGetSelectedRoots(out _, out _) : CanUseSelectedNodeAsClipboardSource();
 
-    internal bool CanCutSelectedNode => CanUseSelectedNodeAsClipboardSource();
+    internal bool CanCutSelectedNode => CanCopySelectedNode;
 
     internal bool CanDuplicateSelectedNode
     {
         get
         {
+            if (SelectedNodes.Count > 1) return !disposed && TryPrepareGroupDuplicates(out _, out _);
             if (!CanUseSelectedNodeAsClipboardSource()
                 || SelectedNode is not { } source
                 || !TryFindNodeWithParent(source, Document.Controls, parent: null, out var parent, out var collection, out var index)
@@ -1222,20 +1246,22 @@ public sealed class DesignerSession : IDisposable
         get
         {
             if (disposed
-                || !DesignerClipboardSerializer.TryDeserialize(clipboard.Content, out var node, out _)
-                || !TryResolvePasteTarget(node!, out var target, out _))
+                || !DesignerClipboardSerializer.TryDeserializeSelection(clipboard.Content, out var nodes, out _)
+                || !TryResolvePasteTarget(nodes![0], out var target, out _))
             {
                 return false;
             }
 
-            return CanInsertNode(node!, target, out _)
-                && DesignerControlReferenceGuard.CanReferenceTree(Document, node!, CurrentProjectPath, out _);
+            if (nodes.Count > 1) return TryPrepareGroupInsertion(nodes, target, out _);
+            return CanInsertNode(nodes[0], target, out _)
+                && DesignerControlReferenceGuard.CanReferenceTree(Document, nodes[0], CurrentProjectPath, out _);
         }
     }
 
     private bool MoveSelectedNodeWithinCurrentContainer(int delta)
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Count > 1) return ReorderSelectedGroup(delta);
         if (SelectedNode is null)
         {
             Log("No control is selected to move.");
@@ -1882,13 +1908,14 @@ public sealed class DesignerSession : IDisposable
         DesignerLayoutResult layout,
         DesignControlNode draggedNode,
         DesignPoint point,
-        DesignBounds clip)
+        DesignBounds clip,
+        IReadOnlySet<DesignControlNode>? excluded = null)
     {
         foreach (var index in GetFrontToBackIndices(nodes.Count, parentNode))
         {
             var node = nodes[index];
 
-            if (ReferenceEquals(node, draggedNode) || ContainsDescendant(draggedNode, node))
+            if (excluded?.Contains(node) == true || ReferenceEquals(node, draggedNode) || ContainsDescendant(draggedNode, node))
                 continue;
 
             var visible = Intersect(layout.GetVisibleBounds(Document, node), clip);
@@ -1898,7 +1925,7 @@ public sealed class DesignerSession : IDisposable
 
             if (!IsProjectUserControlType(node.TypeName))
             {
-                var childResult = FindDeepestContainerAtPoint(node.Children, node, layout, draggedNode, point, visible);
+                var childResult = FindDeepestContainerAtPoint(node.Children, node, layout, draggedNode, point, visible, excluded);
 
                 if (childResult is not null)
                     return childResult;

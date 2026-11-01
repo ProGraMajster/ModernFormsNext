@@ -20,8 +20,8 @@ internal sealed class DesignerUndoUnit
     public DesignerUndoUnit(
         string description,
         IReadOnlyList<IDesignerChange> sourceChanges,
-        DesignControlNode? selectionBefore,
-        DesignControlNode? selectionAfter,
+        DesignerSelectionSnapshot selectionBefore,
+        DesignerSelectionSnapshot selectionAfter,
         long beforeRevision,
         long afterRevision)
     {
@@ -35,9 +35,9 @@ internal sealed class DesignerUndoUnit
 
     public string Description { get; }
 
-    public DesignControlNode? SelectionBefore { get; }
+    public DesignerSelectionSnapshot SelectionBefore { get; }
 
-    public DesignControlNode? SelectionAfter { get; }
+    public DesignerSelectionSnapshot SelectionAfter { get; }
 
     public long BeforeRevision { get; }
 
@@ -132,8 +132,8 @@ internal sealed class DesignerHistory
     public void Commit(
         string description,
         IReadOnlyList<IDesignerChange> changes,
-        DesignControlNode? selectionBefore,
-        DesignControlNode? selectionAfter)
+        DesignerSelectionSnapshot selectionBefore,
+        DesignerSelectionSnapshot selectionAfter)
     {
         ReleaseAll(redoUnits);
         redoUnits.Clear();

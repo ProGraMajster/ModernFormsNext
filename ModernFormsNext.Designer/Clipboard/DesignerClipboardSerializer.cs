@@ -5,9 +5,9 @@ using ModernFormsNext.Designing;
 namespace ModernFormsNext.Designer.Clipboard;
 
 /// <summary>
-/// Converts a single control subtree to and from the private Designer clipboard format.
+/// Converts bounded control subtrees to and from the private data-only Designer clipboard format.
 /// </summary>
-internal static class DesignerClipboardSerializer
+internal static partial class DesignerClipboardSerializer
 {
     internal const int MaximumContentLength = DesignDocumentSerializer.MaximumContentLength;
     internal const int MaximumNodeCount = DesignDocumentValidator.MaximumNodeCount;
@@ -18,75 +18,20 @@ internal static class DesignerClipboardSerializer
     public static bool TrySerialize(DesignControlNode node, out string? content, out string? error)
     {
         ArgumentNullException.ThrowIfNull(node);
-
-        try
-        {
-            var remainingNodes = MaximumNodeCount;
-            var payload = new DesignerClipboardPayload
-            {
-                Format = DesignerClipboardPayload.CurrentFormat,
-                Version = DesignerClipboardPayload.CurrentVersion,
-                Root = ToClipboardNode(node, depth: 0, ref remainingNodes)
-            };
-            content = JsonSerializer.Serialize(payload, Options);
-            if (content.Length > MaximumContentLength)
-                throw new InvalidOperationException("The selected Designer subtree is too large for the internal clipboard.");
-
-            error = null;
-            return true;
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or NotSupportedException
-            or JsonException)
-        {
-            content = null;
-            error = $"Cannot copy the selected control: {exception.Message}";
-            return false;
-        }
+        return TrySerializeSelection([node], out content, out error);
     }
 
     public static bool TryDeserialize(string? content, out DesignControlNode? node, out string? error)
     {
         node = null;
-
-        if (string.IsNullOrWhiteSpace(content))
+        if (!TryDeserializeSelection(content, out var nodes, out error)) return false;
+        if (nodes!.Count != 1)
         {
-            error = "The Designer clipboard is empty.";
+            error = "The clipboard contains multiple controls; paste the complete selection.";
             return false;
         }
-
-        if (content.Length > MaximumContentLength)
-        {
-            error = "The Designer clipboard payload exceeds the supported size limit.";
-            return false;
-        }
-
-        try
-        {
-            var payload = JsonSerializer.Deserialize<DesignerClipboardPayload>(content, Options)
-                ?? throw new JsonException("The Designer clipboard did not contain a payload.");
-
-            if (!string.Equals(payload.Format, DesignerClipboardPayload.CurrentFormat, StringComparison.Ordinal))
-                throw new JsonException($"Unsupported Designer clipboard format '{payload.Format}'.");
-            if (payload.Version != DesignerClipboardPayload.CurrentVersion)
-                throw new JsonException($"Unsupported Designer clipboard version '{payload.Version}'.");
-            if (payload.Root is null)
-                throw new JsonException("The Designer clipboard payload does not contain a control subtree.");
-
-            var remainingNodes = MaximumNodeCount;
-            node = FromClipboardNode(payload.Root, depth: 0, ref remainingNodes);
-            error = null;
-            return true;
-        }
-        catch (Exception exception) when (exception is ArgumentException
-            or InvalidOperationException
-            or NotSupportedException
-            or JsonException)
-        {
-            error = $"Cannot paste the Designer clipboard payload: {exception.Message}";
-            return false;
-        }
+        node = nodes[0];
+        return true;
     }
 
     private static DesignerClipboardNode ToClipboardNode(

@@ -292,14 +292,13 @@ overwriting the `.mfdesign` document.
 ## Current Designer limitations
 
 - Designer-wide atomic transactions and undo/redo history are implemented by
-  [#33](https://github.com/ProGraMajster/ModernFormsNext/issues/33). Multi-selection/group editing
-  ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)) and the complete
+  [#33](https://github.com/ProGraMajster/ModernFormsNext/issues/33), including
+  [multi-selection/group editing](designer-multi-selection.md). The complete
   smart-guide/equal-spacing/baseline workflow
   ([#36](https://github.com/ProGraMajster/ModernFormsNext/issues/36)) remain separate work.
-- Detached, versioned Copy/Cut/Paste/Duplicate supports a safe in-session single-control workflow,
+- Detached, versioned Copy/Cut/Paste/Duplicate supports a safe in-session control-forest workflow,
   including documents open in the same Designer session, and participates atomically in Designer
-  history. See [Designer copy and paste](designer-copy-paste.md). Multi-selection
-  ([#35](https://github.com/ProGraMajster/ModernFormsNext/issues/35)) and an operating-system
+  history. See [Designer copy and paste](designer-copy-paste.md). An operating-system
   clipboard contract ([#57](https://github.com/ProGraMajster/ModernFormsNext/issues/57)) remain
   separate work.
 - The Events view persists bindings and can generate a handler method. Default-event double-click,

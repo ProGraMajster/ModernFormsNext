@@ -1,6 +1,8 @@
 using System.Drawing;
 using ModernFormsNext;
 
+if (args.Contains("--designer-groups", StringComparer.Ordinal)) { Environment.ExitCode = DesignerGroupScenario.Run(); return; }
+
 if (args.Contains("--tooltips", StringComparer.Ordinal)) { Environment.ExitCode = ToolTipScenario.Run(); return; }
 
 if (args.Contains("--brush-morph", StringComparer.Ordinal)) { Environment.ExitCode = BrushMorphScenario.Run(); return; }

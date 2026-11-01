@@ -26,8 +26,15 @@ internal sealed class DesignerMouseController
     private float startRootScale = 1f;
     private DesignerTransaction? activeTransaction;
     private DesignerModelMutationSnapshot? operationSnapshot;
+    private DesignerSelectionSnapshot operationSelection;
+    private IReadOnlyList<(DesignControlNode Node, DesignBounds Bounds)>? groupStart;
+    private IReadOnlyList<DesignControlNode> marqueeBefore = [];
+    private DesignControlNode? marqueePrimary;
+    private bool additiveMarquee;
+    private DesignDocument? marqueeDocument;
+    internal DesignBounds? MarqueeBounds { get; private set; }
 
-    internal bool HasActiveOperation => activeTransaction is not null;
+    internal bool HasActiveOperation => activeTransaction is not null || operation == DesignerMouseOperation.Selecting;
 
     public DesignerMouseController(DesignerSession state)
     {
@@ -46,15 +53,16 @@ internal sealed class DesignerMouseController
         CancelOrClearExistingOperation(surface, "NewMouseDown");
 
         var surfacePoint = ToSurfacePoint(surface, e);
+        bool selectionModifier = e.Control && !e.AltGraph || e.Shift;
         var handle = hitTestService.HitTestResizeHandle(state, surface.Width, surface.Height, surfacePoint.X, surfacePoint.Y);
 
-        if (handle != DesignerResizeHandle.None && state.SelectedNode is { } selectedNode)
+        if (!selectionModifier && handle != DesignerResizeHandle.None && state.SelectedNode is { } selectedNode)
         {
             BeginOperation(surface, selectedNode, DesignerMouseOperation.Resizing, handle, GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y));
             return;
         }
 
-        if (handle != DesignerResizeHandle.None
+        if (!selectionModifier && handle != DesignerResizeHandle.None
             && state.SelectedNode is null
             && state.Document.RootKind == DesignRootKind.UserControl)
         {
@@ -64,12 +72,12 @@ internal sealed class DesignerMouseController
 
         if (!TryGetDocumentPoint(surface, surfacePoint.X, surfacePoint.Y, out var point))
         {
-            state.SelectForm();
+            if (!selectionModifier) state.SelectForm();
             ClearOperation(surface);
             return;
         }
 
-        if (hitTestService.HitTestTabHeader(state, point, out var tabIndex) is { } tabControl)
+        if (!selectionModifier && hitTestService.HitTestTabHeader(state, point, out var tabIndex) is { } tabControl)
         {
             using var transaction = state.Transactions.Begin($"Change selected tab on {tabControl.Name}");
             var snapshot = DesignerModelMutationSnapshot.CaptureNode(tabControl);
@@ -88,7 +96,7 @@ internal sealed class DesignerMouseController
             return;
         }
 
-        if (hitTestService.HitTestSplitter(state, point) is { } splitContainer)
+        if (!selectionModifier && hitTestService.HitTestSplitter(state, point) is { } splitContainer)
         {
             state.SelectNode(splitContainer);
             BeginOperation(surface, splitContainer, DesignerMouseOperation.MovingSplitter, DesignerResizeHandle.None, point);
@@ -103,12 +111,26 @@ internal sealed class DesignerMouseController
 
         if (hit.Node is null)
         {
-            state.SelectForm();
-            ClearOperation(surface);
+            operation = DesignerMouseOperation.Selecting;
+            startDocumentPoint = point;
+            additiveMarquee = e.Control && !e.AltGraph || e.Shift;
+            marqueeBefore = state.SelectedNodes;
+            marqueePrimary = state.SelectedNode;
+            marqueeDocument = state.Document;
+            MarqueeBounds = new DesignBounds(point.X, point.Y, 0, 0);
+            surface.Capture = true;
             return;
         }
 
-        state.SelectNode(hit.Node);
+        state.SelectNodeFromPointer(hit.Node, e.Control && !e.AltGraph, e.Shift);
+        if (e.Control && !e.AltGraph || e.Shift) return;
+
+        if (state.SelectedNodes.Count > 1)
+        {
+            if (!state.TryGetManualSelectedRoots(out var roots, out var error)) { state.Log(error!); return; }
+            BeginOperation(surface, hit.Node, DesignerMouseOperation.Dragging, DesignerResizeHandle.None, point, roots);
+            return;
+        }
 
         if (DesignerLayoutProperties.IsDocked(hit.Node))
         {
@@ -129,6 +151,14 @@ internal sealed class DesignerMouseController
         else
             state.SetPointerPosition(null);
 
+        if (operation == DesignerMouseOperation.Selecting)
+        {
+            UpdateMarquee(GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y));
+            return;
+        }
+
+        if (CancelIfSelectionReplaced(surface)) return;
+
         if (operation is not (DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter)
             || activeNode is null && !resizingRoot)
             return;
@@ -148,7 +178,7 @@ internal sealed class DesignerMouseController
             var deltaY = currentPoint.Y - startDocumentPoint.Y;
 
             if (operation == DesignerMouseOperation.Dragging)
-                UpdateDrag(deltaX, deltaY);
+                UpdateDrag((long)currentPoint.X - startDocumentPoint.X, (long)currentPoint.Y - startDocumentPoint.Y);
             else if (operation == DesignerMouseOperation.Resizing)
                 UpdateResize(deltaX, deltaY);
             else
@@ -171,6 +201,24 @@ internal sealed class DesignerMouseController
 
         try
         {
+            if (operation == DesignerMouseOperation.Selecting)
+            {
+                if (!ReferenceEquals(marqueeDocument, state.Document)) { ClearOperation(surface); return; }
+                var surfacePoint = ToSurfacePoint(surface, e);
+                UpdateMarquee(GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y));
+                var nodes = MarqueeBounds is { Width: > 0, Height: > 0 } rectangle
+                    ? hitTestService.HitTestMarquee(state, rectangle) : [];
+                var attached = new HashSet<DesignControlNode>(state.EnumerateNodes().Select(item => item.Node), ReferenceEqualityComparer.Instance);
+                var before = additiveMarquee ? marqueeBefore.Where(attached.Contains).ToArray() : [];
+                var primary = nodes.LastOrDefault() ?? (additiveMarquee && marqueePrimary is not null && attached.Contains(marqueePrimary) ? marqueePrimary : null);
+                // Release capture before publication; a reentrant selection remains newer.
+                ClearOperation(surface);
+                // Existing and enclosed members overlap. Admit each identity once so a valid
+                // document-sized union does not consume the bounded input budget twice.
+                state.Host.Selection.SelectNodes(before.Concat(nodes).Distinct<DesignControlNode>(ReferenceEqualityComparer.Instance), primary);
+                return;
+            }
+            if (CancelIfSelectionReplaced(surface)) return;
             if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter
                 && (activeNode is not null || resizingRoot)
                 && changedBounds)
@@ -194,7 +242,8 @@ internal sealed class DesignerMouseController
                     // Record live bounds first. Reparenting is a nested transaction whose own node
                     // snapshot starts from those final drag bounds.
                     RecordOperationChanges();
-                    state.ReparentNodeAtDocumentPoint(node, currentPoint);
+                    if (groupStart is not null) state.ReparentSelectedNodesAtDocumentPoint(currentPoint);
+                    else state.ReparentNodeAtDocumentPoint(node, currentPoint);
                 }
                 else
                 {
@@ -230,7 +279,8 @@ internal sealed class DesignerMouseController
         DesignControlNode node,
         DesignerMouseOperation nextOperation,
         DesignerResizeHandle handle,
-        DesignPoint documentPoint)
+        DesignPoint documentPoint,
+        IReadOnlyList<DesignControlNode>? groupNodes = null)
     {
         CancelOrClearExistingOperation(surface, "NewPointerOperation");
         operation = nextOperation;
@@ -241,7 +291,11 @@ internal sealed class DesignerMouseController
         startSplitterDistance = 0;
         changedBounds = false;
         resizingRoot = false;
-        operationSnapshot = DesignerModelMutationSnapshot.CaptureNode(node);
+        // Freeze gesture targets before Begin/Log observers can replace selection or mutate data.
+        groupStart = groupNodes?.Select(member => (member, member.Bounds)).ToArray();
+        operationSnapshot = groupNodes is null ? DesignerModelMutationSnapshot.CaptureNode(node)
+            : DesignerModelMutationSnapshot.CaptureNodes(groupNodes);
+        operationSelection = DesignerSelectionSnapshot.Capture(state.Host.Selection);
         activeTransaction = state.Transactions.Begin(nextOperation switch
         {
             DesignerMouseOperation.Dragging => $"Move {node.Name}",
@@ -271,6 +325,7 @@ internal sealed class DesignerMouseController
         changedBounds = false;
         resizingRoot = true;
         operationSnapshot = DesignerModelMutationSnapshot.CaptureDocumentLayout(state.Document);
+        operationSelection = DesignerSelectionSnapshot.Capture(state.Host.Selection);
         activeTransaction = state.Transactions.Begin($"Resize {state.Document.FormName}");
         surface.Capture = true;
         state.Log($"GESTURE_BEGIN id={state.Transactions.CurrentTransactionId} Operation=RootResize " +
@@ -295,6 +350,12 @@ internal sealed class DesignerMouseController
                 operation = DesignerMouseOperation.None;
                 resizeHandle = DesignerResizeHandle.None;
                 activeNode = null;
+                groupStart = null;
+                operationSelection = default;
+                MarqueeBounds = null;
+                marqueeBefore = [];
+                marqueePrimary = null;
+                marqueeDocument = null;
                 changedBounds = false;
                 resizingRoot = false;
                 startRootSurfacePoint = default;
@@ -307,10 +368,18 @@ internal sealed class DesignerMouseController
 
     public bool CancelOperation(Control surface, string reason = "Explicit")
     {
+        if (operation == DesignerMouseOperation.Selecting)
+        {
+            ClearOperation(surface);
+            return true; // Selection was not published while the marquee was in flight.
+        }
         if (activeTransaction is null)
             return false;
 
         var transactionId = state.Transactions.CurrentTransactionId;
+        var expectedSelection = operationSelection;
+        bool retainNewerSelection = !expectedSelection.Matches(state.Host.Selection);
+        var newerSelection = DesignerSelectionSnapshot.Capture(state.Host.Selection);
         var before = DescribeCurrentBounds();
         state.Log($"GESTURE_CANCEL id={transactionId} Reason={reason} Before={before} {DescribeTransactionState()}");
         try
@@ -325,11 +394,28 @@ internal sealed class DesignerMouseController
         {
             if (!state.Transactions.HasActiveTransaction)
             {
-                activeTransaction = null;
-                operationSnapshot = null;
-                ClearOperation(surface);
+                try
+                {
+                    // Rollback restores the transaction's original selection. Restore an external
+                    // replacement only if no rollback observer has already published something newer.
+                    if (retainNewerSelection && expectedSelection.Matches(state.Host.Selection))
+                        newerSelection.Restore(state.Host.Selection);
+                }
+                finally
+                {
+                    activeTransaction = null;
+                    operationSnapshot = null;
+                    ClearOperation(surface);
+                }
             }
         }
+    }
+
+    private bool CancelIfSelectionReplaced(Control surface)
+    {
+        if (activeTransaction is null || operationSelection.Matches(state.Host.Selection)) return false;
+        CancelOperation(surface, "SelectionReplaced");
+        return true;
     }
 
     private void RecordOperationChanges()
@@ -376,18 +462,32 @@ internal sealed class DesignerMouseController
             $"{state.Transactions.CurrentTransactionId?.ToString() ?? "<none>"} " +
             $"ReplayMode={state.Transactions.ReplayMode}";
 
-    private void UpdateDrag(int deltaX, int deltaY)
+    private void UpdateDrag(long deltaX, long deltaY)
     {
         if (activeNode is null)
             return;
 
-        var nextBounds = new DesignBounds(
-            startBounds.X + deltaX,
-            startBounds.Y + deltaY,
-            startBounds.Width,
-            startBounds.Height);
+        var starts = groupStart ?? new[] { (activeNode, startBounds) };
+        var next = new List<(DesignControlNode Node, DesignBounds Bounds)>(starts.Count);
+        foreach (var (node, bounds) in starts)
+        {
+            long x = bounds.X + deltaX, y = bounds.Y + deltaY;
+            if (x < int.MinValue || y < int.MinValue || x + bounds.Width > int.MaxValue || y + bounds.Height > int.MaxValue) return;
+            next.Add((node, new DesignBounds((int)x, (int)y, bounds.Width, bounds.Height)));
+        }
+        foreach (var (node, bounds) in next)
+        {
+            if (node.Bounds == bounds) continue;
+            node.Bounds = bounds;
+            changedBounds = true;
+        }
+    }
 
-        CommitBounds(nextBounds);
+    private void UpdateMarquee(DesignPoint point)
+    {
+        int x = Math.Clamp(point.X, 0, state.Document.Size.Width), y = Math.Clamp(point.Y, 0, state.Document.Size.Height);
+        int left = Math.Min(startDocumentPoint.X, x), top = Math.Min(startDocumentPoint.Y, y);
+        MarqueeBounds = new DesignBounds(left, top, Math.Max(startDocumentPoint.X, x) - left, Math.Max(startDocumentPoint.Y, y) - top);
     }
 
     private void UpdateResize(int deltaX, int deltaY)

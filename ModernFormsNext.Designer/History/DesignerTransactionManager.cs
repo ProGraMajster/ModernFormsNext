@@ -20,7 +20,7 @@ public sealed class DesignerTransactionManager
     private readonly List<TransactionFrame> frames = [];
     private readonly List<IDesignerChange> pendingChanges = [];
     private long nextTransactionId = 1;
-    private DesignControlNode? outerSelectionBefore;
+    private DesignerSelectionSnapshot outerSelectionBefore;
     private DesignerHistoryReplayMode mode;
 
     internal DesignerTransactionManager(DesignerSession session)
@@ -133,12 +133,13 @@ public sealed class DesignerTransactionManager
         if (isOutermost)
         {
             pendingChanges.Clear();
-            outerSelectionBefore = session.SelectedNode;
+            outerSelectionBefore = DesignerSelectionSnapshot.Capture(session.Host.Selection);
             mode = DesignerHistoryReplayMode.Recording;
         }
 
         var id = nextTransactionId++;
-        frames.Add(new TransactionFrame(id, description.Trim(), pendingChanges.Count, session.SelectedNode));
+        frames.Add(new TransactionFrame(id, description.Trim(), pendingChanges.Count,
+            DesignerSelectionSnapshot.Capture(session.Host.Selection)));
         if (isOutermost)
         {
             try
@@ -151,7 +152,7 @@ public sealed class DesignerTransactionManager
                 // returning its scope, restore the manager to its exact pre-transaction state.
                 frames.RemoveAt(frames.Count - 1);
                 pendingChanges.Clear();
-                outerSelectionBefore = null;
+                outerSelectionBefore = default;
                 mode = DesignerHistoryReplayMode.Idle;
                 throw;
             }
@@ -181,7 +182,7 @@ public sealed class DesignerTransactionManager
             unit.Revert();
             history.CompleteUndo(unit);
             session.SynchronizeCommittedModelState();
-            session.Host.Selection.Select(unit.SelectionBefore);
+            unit.SelectionBefore.Restore(session.Host.Selection);
 
             // Keep replay suppression active while observers refresh derived Designer state.
             session.NotifyCommittedModelState($"Undo {unit.Description}");
@@ -217,7 +218,7 @@ public sealed class DesignerTransactionManager
             unit.Apply();
             history.CompleteRedo(unit);
             session.SynchronizeCommittedModelState();
-            session.Host.Selection.Select(unit.SelectionAfter);
+            unit.SelectionAfter.Restore(session.Host.Selection);
 
             session.NotifyCommittedModelState($"Redo {unit.Description}");
             RedoPerformed?.Invoke(this, new DesignerHistoryEventArgs(unit.Description, DesignerHistoryReplayMode.Redoing));
@@ -316,7 +317,7 @@ public sealed class DesignerTransactionManager
         if (pendingChanges.Count == 0)
         {
             pendingChanges.Clear();
-            outerSelectionBefore = null;
+            outerSelectionBefore = default;
             HistoryChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -327,8 +328,8 @@ public sealed class DesignerTransactionManager
             frame.Description,
             committedChanges,
             outerSelectionBefore,
-            session.SelectedNode);
-        outerSelectionBefore = null;
+            DesignerSelectionSnapshot.Capture(session.Host.Selection));
+        outerSelectionBefore = default;
 
         session.NotifyCommittedModelState(frame.Description);
         TransactionCommitted?.Invoke(this, new DesignerHistoryEventArgs(frame.Description, DesignerHistoryReplayMode.Recording));
@@ -340,7 +341,7 @@ public sealed class DesignerTransactionManager
         EnsureAccess();
         var frame = GetCurrentFrame(transactionId);
         var hadChanges = pendingChanges.Count > frame.StartChangeIndex;
-        var selectionChanged = !ReferenceEquals(session.SelectedNode, frame.SelectionBefore);
+        var selectionChanged = !frame.SelectionBefore.Matches(session.Host.Selection);
         mode = DesignerHistoryReplayMode.RollingBack;
 
         try
@@ -378,7 +379,7 @@ public sealed class DesignerTransactionManager
         if (frames.Count == 0)
         {
             pendingChanges.Clear();
-            outerSelectionBefore = null;
+            outerSelectionBefore = default;
         }
 
         var historyChangedRaised = false;
@@ -387,7 +388,7 @@ public sealed class DesignerTransactionManager
             // The transaction is already fully reverted and removed before selection observers
             // run. An observer exception can therefore propagate without leaving a stale frame or
             // making a subsequent rollback apply the same changes twice.
-            session.Host.Selection.Select(frame.SelectionBefore);
+            frame.SelectionBefore.Restore(session.Host.Selection);
 
             if (hadChanges || selectionChanged)
             {
@@ -517,5 +518,5 @@ public sealed class DesignerTransactionManager
         long Id,
         string Description,
         int StartChangeIndex,
-        DesignControlNode? SelectionBefore);
+        DesignerSelectionSnapshot SelectionBefore);
 }

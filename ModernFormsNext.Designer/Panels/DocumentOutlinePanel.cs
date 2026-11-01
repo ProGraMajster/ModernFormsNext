@@ -54,7 +54,7 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
         deleteMenuItem = contextMenu.Items.Add(deleteText, onClick: (_, _) =>
         {
             if (contextNode is not null)
-                state.DeleteNode(contextNode);
+                state.DeleteSelectedNode();
         });
         ContextMenu = contextMenu;
 
@@ -138,7 +138,7 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
 
             if (row.Node is null)
                 state.SelectForm();
-            else
+            else if (!state.SelectedNodes.Contains(row.Node))
                 state.SelectNode(row.Node);
 
             dragNode = null;
@@ -152,7 +152,8 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
             return;
         }
 
-        state.SelectNode(row.Node);
+        state.SelectNodeFromPointer(row.Node, e.Control && !e.AltGraph, e.Shift);
+        if (e.Control && !e.AltGraph || e.Shift) { dragNode = null; return; }
         dragNode = DesignerSpecialContainers.IsSpecialGeneratedPart(row.Node) ? null : row.Node;
         dragStartY = logicalPoint.Y;
         dropIndex = -1;
@@ -343,11 +344,13 @@ internal sealed class DocumentOutlinePanel : DesignerPanelBase
     {
         var selected = row.Node is null
             ? state.SelectedNode is null
-            : ReferenceEquals(row.Node, state.SelectedNode);
+            : state.SelectedNodes.Contains(row.Node);
         var indent = GetIndent(row);
 
         if (selected)
             e.Canvas.FillRectangle(6, y, Math.Max(1, Width - 12), RowHeight, DesignerColors.Selection);
+        if (state.SelectedNodes.Count > 1 && ReferenceEquals(row.Node, state.SelectedNode))
+            e.Canvas.FillRectangle(6, y + 3, 3, RowHeight - 6, DesignerColors.Accent);
 
         if (isDragging && index == dropIndex)
             e.Canvas.DrawRectangle(6, y, Math.Max(1, Width - 12), RowHeight, new SKColor(0, 122, 204));
