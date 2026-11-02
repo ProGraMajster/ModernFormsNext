@@ -27,12 +27,16 @@ internal sealed class DesignerMouseController
     private DesignerTransaction? activeTransaction;
     private DesignerModelMutationSnapshot? operationSnapshot;
     private DesignerSelectionSnapshot operationSelection;
+    private ulong operationChangeGeneration;
     private IReadOnlyList<(DesignControlNode Node, DesignBounds Bounds)>? groupStart;
     private IReadOnlyList<DesignControlNode> marqueeBefore = [];
     private DesignControlNode? marqueePrimary;
     private bool additiveMarquee;
+    private DesignerSnappingContext? snapping;
     private DesignDocument? marqueeDocument;
     internal DesignBounds? MarqueeBounds { get; private set; }
+    internal IReadOnlyList<DesignerSnapGuide> Guides => snapping?.Guides ?? Array.Empty<DesignerSnapGuide>();
+    internal void InvalidateGuides() => snapping?.Invalidate();
 
     internal bool HasActiveOperation => activeTransaction is not null || operation == DesignerMouseOperation.Selecting;
 
@@ -157,7 +161,7 @@ internal sealed class DesignerMouseController
             return;
         }
 
-        if (CancelIfSelectionReplaced(surface)) return;
+        if (CancelIfGestureReplaced(surface)) return;
 
         if (operation is not (DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter)
             || activeNode is null && !resizingRoot)
@@ -174,15 +178,22 @@ internal sealed class DesignerMouseController
             }
 
             var currentPoint = GetDocumentPointUnbounded(surface, surfacePoint.X, surfacePoint.Y);
-            var deltaX = currentPoint.X - startDocumentPoint.X;
-            var deltaY = currentPoint.Y - startDocumentPoint.Y;
-
             if (operation == DesignerMouseOperation.Dragging)
-                UpdateDrag((long)currentPoint.X - startDocumentPoint.X, (long)currentPoint.Y - startDocumentPoint.Y);
+            {
+                long rawX = (long)currentPoint.X - startDocumentPoint.X, rawY = (long)currentPoint.Y - startDocumentPoint.Y;
+                var snapped = snapping?.Move(rawX, rawY, coordinateMapper.GetView(state, surface.Width, surface.Height).Scale,
+                    e.Alt && !e.AltGraph) ?? (rawX, rawY);
+                if (!UpdateDrag(snapped.Item1, snapped.Item2))
+                {
+                    snapping?.ClearGuides();
+                    UpdateDrag(rawX, rawY);
+                }
+            }
             else if (operation == DesignerMouseOperation.Resizing)
-                UpdateResize(deltaX, deltaY);
+                UpdateResize((long)currentPoint.X - startDocumentPoint.X, (long)currentPoint.Y - startDocumentPoint.Y,
+                    coordinateMapper.GetView(state, surface.Width, surface.Height).Scale, e.Alt && !e.AltGraph);
             else
-                UpdateSplitterDistance(deltaX, deltaY);
+                UpdateSplitterDistance(currentPoint.X - startDocumentPoint.X, currentPoint.Y - startDocumentPoint.Y);
         }
         catch
         {
@@ -218,7 +229,7 @@ internal sealed class DesignerMouseController
                 state.Host.Selection.SelectNodes(before.Concat(nodes).Distinct<DesignControlNode>(ReferenceEqualityComparer.Instance), primary);
                 return;
             }
-            if (CancelIfSelectionReplaced(surface)) return;
+            if (CancelIfGestureReplaced(surface)) return;
             if (operation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing or DesignerMouseOperation.MovingSplitter
                 && (activeNode is not null || resizingRoot)
                 && changedBounds)
@@ -296,6 +307,18 @@ internal sealed class DesignerMouseController
         operationSnapshot = groupNodes is null ? DesignerModelMutationSnapshot.CaptureNode(node)
             : DesignerModelMutationSnapshot.CaptureNodes(groupNodes);
         operationSelection = DesignerSelectionSnapshot.Capture(state.Host.Selection);
+        snapping = nextOperation is DesignerMouseOperation.Dragging or DesignerMouseOperation.Resizing
+            ? DesignerSnappingContext.Create(state, groupNodes ?? new[] { node }) : null;
+        if (nextOperation == DesignerMouseOperation.Resizing && !DesignerLayoutProperties.IsDocked(node))
+        {
+            var effective = snapping?.StartBounds ?? DesignerSnapBounds.From(layoutEngine.Layout(state.Document,
+                state.PreviewResourcePolicy).GetEffectiveBounds(node));
+            // Resize handles are painted at production effective bounds, including size constraints.
+            // The transaction snapshot still retains the original authored values for cancellation.
+            if (effective.Width is > 0 and <= int.MaxValue && effective.Height is > 0 and <= int.MaxValue)
+                startBounds = new(node.Bounds.X, node.Bounds.Y, (int)effective.Width, (int)effective.Height);
+        }
+        operationChangeGeneration = state.Transactions.RecordedChangeGeneration;
         activeTransaction = state.Transactions.Begin(nextOperation switch
         {
             DesignerMouseOperation.Dragging => $"Move {node.Name}",
@@ -326,6 +349,7 @@ internal sealed class DesignerMouseController
         resizingRoot = true;
         operationSnapshot = DesignerModelMutationSnapshot.CaptureDocumentLayout(state.Document);
         operationSelection = DesignerSelectionSnapshot.Capture(state.Host.Selection);
+        operationChangeGeneration = state.Transactions.RecordedChangeGeneration;
         activeTransaction = state.Transactions.Begin($"Resize {state.Document.FormName}");
         surface.Capture = true;
         state.Log($"GESTURE_BEGIN id={state.Transactions.CurrentTransactionId} Operation=RootResize " +
@@ -351,6 +375,7 @@ internal sealed class DesignerMouseController
                 resizeHandle = DesignerResizeHandle.None;
                 activeNode = null;
                 groupStart = null;
+                snapping = null;
                 operationSelection = default;
                 MarqueeBounds = null;
                 marqueeBefore = [];
@@ -411,10 +436,14 @@ internal sealed class DesignerMouseController
         }
     }
 
-    private bool CancelIfSelectionReplaced(Control surface)
+    private bool CancelIfGestureReplaced(Control surface)
     {
-        if (activeTransaction is null || operationSelection.Matches(state.Host.Selection)) return false;
-        CancelOperation(surface, "SelectionReplaced");
+        if (activeTransaction is null) return false;
+        bool sameSelection = operationSelection.Matches(state.Host.Selection);
+        if (sameSelection && operationChangeGeneration == state.Transactions.RecordedChangeGeneration) return false;
+        // Nested edits join this gesture's transaction. Roll the complete unit back before any
+        // further direct pointer write can reuse bounds from the previous parent or model state.
+        CancelOperation(surface, sameSelection ? "ModelChangedDuringGesture" : "SelectionReplaced");
         return true;
     }
 
@@ -462,17 +491,17 @@ internal sealed class DesignerMouseController
             $"{state.Transactions.CurrentTransactionId?.ToString() ?? "<none>"} " +
             $"ReplayMode={state.Transactions.ReplayMode}";
 
-    private void UpdateDrag(long deltaX, long deltaY)
+    private bool UpdateDrag(long deltaX, long deltaY)
     {
         if (activeNode is null)
-            return;
+            return false;
 
         var starts = groupStart ?? new[] { (activeNode, startBounds) };
         var next = new List<(DesignControlNode Node, DesignBounds Bounds)>(starts.Count);
         foreach (var (node, bounds) in starts)
         {
             long x = bounds.X + deltaX, y = bounds.Y + deltaY;
-            if (x < int.MinValue || y < int.MinValue || x + bounds.Width > int.MaxValue || y + bounds.Height > int.MaxValue) return;
+            if (x < int.MinValue || y < int.MinValue || x + bounds.Width > int.MaxValue || y + bounds.Height > int.MaxValue) return false;
             next.Add((node, new DesignBounds((int)x, (int)y, bounds.Width, bounds.Height)));
         }
         foreach (var (node, bounds) in next)
@@ -481,6 +510,7 @@ internal sealed class DesignerMouseController
             node.Bounds = bounds;
             changedBounds = true;
         }
+        return true;
     }
 
     private void UpdateMarquee(DesignPoint point)
@@ -490,21 +520,20 @@ internal sealed class DesignerMouseController
         MarqueeBounds = new DesignBounds(left, top, Math.Max(startDocumentPoint.X, x) - left, Math.Max(startDocumentPoint.Y, y) - top);
     }
 
-    private void UpdateResize(int deltaX, int deltaY)
+    private void UpdateResize(long deltaX, long deltaY, float zoom, bool bypass)
     {
         if (activeNode is null || resizeHandle == DesignerResizeHandle.None)
             return;
 
         if (DesignerLayoutProperties.IsDocked(activeNode))
         {
-            UpdateDockedResize(deltaX, deltaY);
+            if (deltaX is >= int.MinValue and <= int.MaxValue && deltaY is >= int.MinValue and <= int.MaxValue)
+                UpdateDockedResize((int)deltaX, (int)deltaY);
             return;
         }
 
-        var left = startBounds.X;
-        var top = startBounds.Y;
-        var right = startBounds.X + startBounds.Width;
-        var bottom = startBounds.Y + startBounds.Height;
+        long left = startBounds.X, top = startBounds.Y;
+        long right = (long)startBounds.X + startBounds.Width, bottom = (long)startBounds.Y + startBounds.Height;
         var movesLeft = resizeHandle is DesignerResizeHandle.TopLeft or DesignerResizeHandle.Left or DesignerResizeHandle.BottomLeft;
         var movesRight = resizeHandle is DesignerResizeHandle.TopRight or DesignerResizeHandle.Right or DesignerResizeHandle.BottomRight;
         var movesTop = resizeHandle is DesignerResizeHandle.TopLeft or DesignerResizeHandle.Top or DesignerResizeHandle.TopRight;
@@ -536,9 +565,26 @@ internal sealed class DesignerMouseController
                 bottom = top + MinimumControlSize;
         }
 
-        var nextBounds = new DesignBounds(left, top, right - left, bottom - top);
-
+        if (!TryResizeBounds(left, top, right, bottom, out var raw)) { snapping?.ClearGuides(); return; }
+        var constrained = DesignerLayoutProperties.ApplySizeConstraints(activeNode, raw);
+        left = movesLeft ? (long)startBounds.X + startBounds.Width - constrained.Width : constrained.X;
+        top = movesTop ? (long)startBounds.Y + startBounds.Height - constrained.Height : constrained.Y;
+        if (!TryResizeBounds(left, top, left + constrained.Width, top + constrained.Height, out raw))
+        { snapping?.ClearGuides(); return; }
+        var nextBounds = snapping?.Resize(raw, startBounds, resizeHandle, zoom, bypass) ?? raw;
+        if (DesignerLayoutProperties.ApplySizeConstraints(activeNode, nextBounds) != nextBounds)
+        { snapping?.ClearGuides(); nextBounds = raw; }
         CommitBounds(nextBounds);
+    }
+
+    private static bool TryResizeBounds(long left, long top, long right, long bottom, out DesignBounds bounds)
+    {
+        bounds = default;
+        if (left < int.MinValue || top < int.MinValue || right > int.MaxValue || bottom > int.MaxValue
+            || right - left is < MinimumControlSize or > int.MaxValue || bottom - top is < MinimumControlSize or > int.MaxValue)
+            return false;
+        bounds = new((int)left, (int)top, (int)(right - left), (int)(bottom - top));
+        return true;
     }
 
     private void UpdateRootResize(int deltaX, int deltaY)

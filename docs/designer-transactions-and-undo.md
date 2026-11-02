@@ -145,5 +145,7 @@ change validator to reject writes to base-owned/read-only nodes before `Apply`; 
 implement inherited controls. Detached Designer Copy/Cut/Paste/Duplicate reuses this boundary as
 documented in [Designer copy and paste](designer-copy-paste.md). [Multi-selection](designer-multi-selection.md)
 uses the same transaction layer; history retains immutable membership snapshots and primary,
-including nested rollback with an unchanged primary. An operating-system clipboard contract,
-smart guides and a general command framework remain separate features.
+including nested rollback with an unchanged primary. [Smart guides](designer-smart-guides.md)
+reuse the pointer transaction without recording overlays or preferences. A nested typed edit
+retires and rolls back the stale gesture before further pointer geometry is written. An
+operating-system clipboard contract and a general command framework remain separate features.

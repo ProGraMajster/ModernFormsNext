@@ -76,4 +76,6 @@ single-control event editing is unchanged. Event navigation improvements belong 
 
 See [copy and paste](designer-copy-paste.md), [transactions](designer-transactions-and-undo.md) and
 [preview resource policy](designer-preview-resources.md) for persistence, ownership and budgets.
+Group pointer movement uses one common offset with [smart guides](designer-smart-guides.md);
+mixed-parent groups align in their common editable container without changing relative positions.
 This feature does not add runtime multi-selection to controls or imply an Android Designer.

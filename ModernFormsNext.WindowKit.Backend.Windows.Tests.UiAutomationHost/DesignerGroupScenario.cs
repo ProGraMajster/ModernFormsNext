@@ -15,7 +15,7 @@ using ModernFormsNext.WindowKit.Threading;
 // Extends the existing native certification host. Synchronous messages target only this HWND;
 // thread-local keyboard state is restored. This is backend/routed-input evidence, not SendInput
 // or a claim of human Visual Studio acceptance. No project code is loaded by the fixture.
-internal static class DesignerGroupScenario
+internal static partial class DesignerGroupScenario
 {
     internal static int Run()
     {
@@ -252,6 +252,7 @@ internal static class DesignerGroupScenario
         foreach (int key in new[] { 0x10, 0x11, 0x12, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x5B, 0x5C }) state[key] = 0;
         if (modifiers.HasFlag(Keys.Control)) state[0x11] = state[0xA2] = 0x80;
         if (modifiers.HasFlag(Keys.Shift)) state[0x10] = state[0xA0] = 0x80;
+        if (modifiers.HasFlag(Keys.Alt)) state[0x12] = state[0xA4] = 0x80;
         try { Require(SetKeyboardState(state), "Cannot set UI-thread keyboard state."); action(); }
         finally { Require(SetKeyboardState(original), "Cannot restore UI-thread keyboard state."); }
     }

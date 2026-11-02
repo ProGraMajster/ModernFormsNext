@@ -88,6 +88,8 @@
   items:
   - name: Designer multi-selection
     href: content/docs/designer-multi-selection.md
+  - name: Smart guides and grid
+    href: content/docs/designer-smart-guides.md
   - name: Designer architecture
     href: content/docs/designer-architecture.md
   - name: Preview resource policy

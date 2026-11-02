@@ -24,7 +24,8 @@ internal sealed class DesignerSurfaceRenderer
     private string? lastFrameDiagnostics;
     private readonly HashSet<DesignControlNode> selectedNodes = new(ReferenceEqualityComparer.Instance);
 
-    public void Render(PaintEventArgs e, DesignerSession state, int width, int height, DesignBounds? marquee = null)
+    public void Render(PaintEventArgs e, DesignerSession state, int width, int height, DesignBounds? marquee = null,
+        IReadOnlyList<DesignerSnapGuide>? guides = null)
     {
         using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerRender);
         LogFrameDiagnostics(state, width, height);
@@ -62,6 +63,8 @@ internal sealed class DesignerSurfaceRenderer
             offsetX: 0,
             offsetY: 0,
             previewStack: new HashSet<string>(StringComparer.Ordinal));
+
+        if (guides is { Count: > 0 }) DesignerGuidePainter.Draw(e, view, guides);
 
         if (marquee is { } rectangle)
         {
@@ -109,7 +112,7 @@ internal sealed class DesignerSurfaceRenderer
         {
             surfacePaintArgs.Canvas.FillRectangle(clientBounds, new SKColor(245, 245, 245));
             surfacePaintArgs.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), surfacePaintArgs.LogicalToDeviceUnits(1));
-            DrawGrid(previewPaintArgs, clientBounds);
+            DesignerGridPainter.Draw(surfacePaintArgs, clientBounds, view, state.SnappingOptions);
             return;
         }
 
@@ -118,7 +121,7 @@ internal sealed class DesignerSurfaceRenderer
             new SKColor(218, 232, 246));
         surfacePaintArgs.Canvas.FillRectangle(clientBounds, new SKColor(245, 245, 245));
         surfacePaintArgs.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), surfacePaintArgs.LogicalToDeviceUnits(1));
-        DrawGrid(previewPaintArgs, clientBounds);
+        DesignerGridPainter.Draw(surfacePaintArgs, clientBounds, view, state.SnappingOptions);
         surfacePaintArgs.Canvas.DrawText(
             state.Document.FormName,
             Theme.UIFont,
@@ -132,25 +135,6 @@ internal sealed class DesignerSurfaceRenderer
             ContentAlignment.MiddleLeft,
             maxLines: 1,
             ellipsis: true);
-    }
-
-    private static void DrawGrid(PaintEventArgs e, System.Drawing.Rectangle bounds)
-    {
-        using var paint = new SKPaint
-        {
-            Color = new SKColor(225, 225, 225),
-            StrokeWidth = 1,
-            IsAntialias = false
-        };
-
-        // Grid intervals are document units, so they use the composed preview+DPI scale.
-        var step = Math.Max(1, e.LogicalToDeviceUnits(8));
-
-        for (var x = bounds.Left + step; x < bounds.Right; x += step)
-        {
-            for (var y = bounds.Top + step; y < bounds.Bottom; y += step)
-                e.Canvas.DrawPoint(x, y, paint);
-        }
     }
 
     private void DrawNode(

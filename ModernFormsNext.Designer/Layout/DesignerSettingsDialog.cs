@@ -33,6 +33,10 @@ internal sealed class DesignerSettingsDialog : Form
     private readonly CheckBox autoSave;
     private readonly NumericUpDown tablePreviewStrips;
     private readonly NumericUpDown tablePreviewCells;
+    private readonly CheckBox snappingEnabled;
+    private readonly CheckBox showGrid;
+    private readonly CheckBox snapToGrid;
+    private readonly NumericUpDown gridSize;
     private readonly Dictionary<DesignerToolWindowId, DockRow> dockRows = [];
 
     public DesignerSettingsDialog(ModernFormsDesignerOptions options, DesignerSession session)
@@ -42,7 +46,7 @@ internal sealed class DesignerSettingsDialog : Form
 
         Text = T("DesignerSettings");
         Name = "DesignerSettingsDialog";
-        Size = new Size(820, 560);
+        Size = new Size(820, 598);
         StartPosition = FormStartPosition.CenterParent;
 
         Controls.Add(CreateLabel(T("Rendering"), 24, 48, 160));
@@ -75,24 +79,37 @@ internal sealed class DesignerSettingsDialog : Form
         showDocumentOutlineToolbar = Controls.Add(CreateCheckBox(T("ShowDocumentOutlineToolbar"), 224, 120, options.ShowDocumentOutlineToolbar));
         showDocumentOutlineSearch = Controls.Add(CreateCheckBox(T("ShowDocumentOutlineSearch"), 424, 120, options.ShowDocumentOutlineSearch));
 
-        Controls.Add(CreateLabel(T("TablePreviewStrips"), 24, 420, 210));
-        tablePreviewStrips = Controls.Add(new NumericUpDown { Name = "TablePreviewStrips", Left = 244, Top = 416,
+        snappingEnabled = Controls.Add(CreateCheckBox(T("SnappingEnabled"), 24, 158, session.SnappingOptions.Enabled));
+        snappingEnabled.Name = "SnappingEnabled";
+        snappingEnabled.Width = 180;
+        showGrid = Controls.Add(CreateCheckBox(T("ShowDesignGrid"), 224, 158, session.SnappingOptions.ShowGrid));
+        showGrid.Name = "ShowDesignGrid";
+        showGrid.Width = 180;
+        snapToGrid = Controls.Add(CreateCheckBox(T("SnapToDesignGrid"), 424, 158, session.SnappingOptions.SnapToGrid));
+        snapToGrid.Name = "SnapToDesignGrid";
+        snapToGrid.Width = 170;
+        Controls.Add(CreateLabel(T("DesignGridSize"), 604, 160, 84));
+        gridSize = Controls.Add(new NumericUpDown { Name = "DesignGridSize", Left = 696, Top = 154,
+            Width = 70, Height = 28, Minimum = 1, Maximum = 4096, Value = session.SnappingOptions.GridSize });
+
+        Controls.Add(CreateLabel(T("TablePreviewStrips"), 24, 458, 210));
+        tablePreviewStrips = Controls.Add(new NumericUpDown { Name = "TablePreviewStrips", Left = 244, Top = 454,
             Width = 90, Height = 28, Minimum = 0, Maximum = DesignerPreviewResourcePolicy.HardMaximumTableStrips,
             Value = Math.Min(session.PreviewResourcePolicy.MaximumTableStrips, DesignerPreviewResourcePolicy.HardMaximumTableStrips) });
-        Controls.Add(CreateLabel(T("TablePreviewCells"), 384, 420, 210));
-        tablePreviewCells = Controls.Add(new NumericUpDown { Name = "TablePreviewCells", Left = 604, Top = 416,
+        Controls.Add(CreateLabel(T("TablePreviewCells"), 384, 458, 210));
+        tablePreviewCells = Controls.Add(new NumericUpDown { Name = "TablePreviewCells", Left = 604, Top = 454,
             Width = 90, Height = 28, Minimum = 0, Maximum = DesignerPreviewResourcePolicy.HardMaximumTableCells,
             Value = Math.Min(session.PreviewResourcePolicy.MaximumTableCells, DesignerPreviewResourcePolicy.HardMaximumTableCells) });
-        Controls.Add(CreateLabel(T("TablePreviewLimitsHelp"), 24, 450, 730));
+        Controls.Add(CreateLabel(T("TablePreviewLimitsHelp"), 24, 488, 730));
 
-        Controls.Add(CreateLabel(T("ToolWindows"), 24, 164, 180));
-        Controls.Add(CreateHeaderLabel(T("Panel"), 24, 196, 170));
-        Controls.Add(CreateHeaderLabel(T("Side"), 204, 196, 130));
-        Controls.Add(CreateHeaderLabel(T("Mode"), 344, 196, 130));
-        Controls.Add(CreateHeaderLabel(T("Size"), 484, 196, 90));
-        Controls.Add(CreateHeaderLabel(T("Order"), 584, 196, 90));
+        Controls.Add(CreateLabel(T("ToolWindows"), 24, 202, 180));
+        Controls.Add(CreateHeaderLabel(T("Panel"), 24, 234, 170));
+        Controls.Add(CreateHeaderLabel(T("Side"), 204, 234, 130));
+        Controls.Add(CreateHeaderLabel(T("Mode"), 344, 234, 130));
+        Controls.Add(CreateHeaderLabel(T("Size"), 484, 234, 90));
+        Controls.Add(CreateHeaderLabel(T("Order"), 584, 234, 90));
 
-        var rowTop = 226;
+        var rowTop = 264;
         foreach (var id in ToolWindowNameKeys.Keys)
         {
             var row = CreateDockRow(id, rowTop);
@@ -103,7 +120,7 @@ internal sealed class DesignerSettingsDialog : Form
         var ok = Controls.Add(new Button
         {
             Left = 586,
-            Top = 484,
+            Top = 522,
             Width = 84,
             Height = 30,
             Text = T("Ok"),
@@ -113,7 +130,7 @@ internal sealed class DesignerSettingsDialog : Form
         var cancel = Controls.Add(new Button
         {
             Left = 678,
-            Top = 484,
+            Top = 522,
             Width = 84,
             Height = 30,
             Text = T("Cancel"),
@@ -233,6 +250,12 @@ internal sealed class DesignerSettingsDialog : Form
         options.ShowDocumentOutlineSearch = showDocumentOutlineSearch.Checked;
         options.AutoSaveEnabled = autoSave.Checked;
         options.AutoGenerateDesignerCodeOnSave = autoGenerate.Checked;
+        options.SnappingOptions = new DesignerSnappingOptions
+        {
+            Enabled = snappingEnabled.Checked, ShowGrid = showGrid.Checked,
+            SnapToGrid = snapToGrid.Checked, GridSize = (int)gridSize.Value
+        };
+        session.SnappingOptions = options.SnappingOptions;
         options.PreviewResourcePolicy = new DesignerPreviewResourcePolicy
         {
             MaximumTableStrips = (int)tablePreviewStrips.Value,

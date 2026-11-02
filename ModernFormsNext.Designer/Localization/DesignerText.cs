@@ -15,6 +15,10 @@ public static class DesignerText
     private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["TablePreviewStrips"] = "Table preview strips per axis",
+        ["SnappingEnabled"] = "Smart snapping (Alt bypass)",
+        ["ShowDesignGrid"] = "Show design grid",
+        ["SnapToDesignGrid"] = "Snap to grid",
+        ["DesignGridSize"] = "Grid size",
         ["TablePreviewCells"] = "Table preview cell budget",
         ["TablePreviewLimitsHelp"] = "Trusted projects: 0 disables an ordinary limit. Safety limits always apply.",
         ["Toolbox"] = "Toolbox",
@@ -81,6 +85,10 @@ public static class DesignerText
     private static readonly IReadOnlyDictionary<string, string> Polish = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["TablePreviewStrips"] = "Paski tabeli preview na oś",
+        ["SnappingEnabled"] = "Przyciąganie (Alt pomija)",
+        ["ShowDesignGrid"] = "Pokaż siatkę",
+        ["SnapToDesignGrid"] = "Przyciągaj do siatki",
+        ["DesignGridSize"] = "Krok siatki",
         ["TablePreviewCells"] = "Budżet komórek tabeli preview",
         ["TablePreviewLimitsHelp"] = "Zaufane projekty: 0 wyłącza zwykły limit. Limity bezpieczeństwa nadal obowiązują.",
         ["Toolbox"] = "Przybornik",

@@ -144,6 +144,27 @@ public sealed partial class DesignerSession : IDisposable
     public DesignDocument Document => Host.Document;
 
     private DesignerPreviewResourcePolicy previewResourcePolicy = DesignerPreviewResourcePolicy.Default;
+    private DesignerSnappingOptions snappingOptions = DesignerSnappingOptions.Default;
+
+    /// <summary>Gets or sets immutable host preferences for transient guides and the design grid.</summary>
+    /// <remarks>
+    /// Replace on the owning UI thread. SettingsChanged requests presentation refresh; this does
+    /// not mutate the document, mark it dirty, generate code or create an undo unit. Documents
+    /// cannot supply these preferences. An in-flight gesture discards stale guide targets.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">The options are null.</exception>
+    public DesignerSnappingOptions SnappingOptions
+    {
+        get => snappingOptions;
+        set
+        {
+            ThrowIfDisposed();
+            ArgumentNullException.ThrowIfNull(value);
+            if (ReferenceEquals(snappingOptions, value)) return;
+            snappingOptions = value;
+            SettingsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Gets or sets the host-owned immutable policy used by layout, painting and hit testing.</summary>
     /// <remarks>
