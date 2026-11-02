@@ -94,9 +94,10 @@ internal sealed class DesignerHitTestService
         return DesignerResizeHandle.None;
     }
 
-    internal IReadOnlyList<DesignControlNode> HitTestMarquee(DesignerSession state, DesignBounds rectangle)
+    internal IReadOnlyList<DesignControlNode> HitTestMarquee(DesignerSession state, DesignBounds rectangle,
+        DesignerLayoutResult? existingLayout = null)
     {
-        var layout = layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
+        var layout = existingLayout ?? layoutEngine.Layout(state.Document, state.PreviewResourcePolicy);
         var result = new List<DesignControlNode>();
         var pending = new Stack<DesignControlNode>(state.Document.Controls.Reverse());
         while (pending.TryPop(out var node))

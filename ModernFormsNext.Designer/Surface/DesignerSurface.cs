@@ -17,14 +17,18 @@ internal sealed class DesignerSurface : Panel
         this.state = state;
         renderer = new DesignerSurfaceRenderer();
         mouseController = new DesignerMouseController(state);
+        // Panel is normally not selectable. The design surface owns keyboard gestures such
+        // as Escape, so admit it to the existing focus scope rather than intercepting keys
+        // through a separate host or global keyboard path.
+        SetControlBehavior(ControlBehaviors.Selectable, true);
         TabStop = true;
         Style.BackgroundColor = DesignerColors.Workspace;
         Style.Border.Width = 1;
         Style.Border.Color = DesignerColors.PanelBorder;
 
         state.SelectionChanged += (_, _) => Invalidate();
-        state.DocumentChanged += (_, _) => Invalidate();
-        state.SettingsChanged += (_, _) => Invalidate();
+        state.DocumentChanged += (_, _) => { mouseController.InvalidateGuides(); Invalidate(); };
+        state.SettingsChanged += (_, _) => { mouseController.InvalidateGuides(); Invalidate(); };
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
@@ -72,6 +76,6 @@ internal sealed class DesignerSurface : Panel
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        renderer.Render(e, state, Width, Height, mouseController.MarqueeBounds);
+        renderer.Render(e, state, Width, Height, mouseController.MarqueeBounds, mouseController.Guides);
     }
 }

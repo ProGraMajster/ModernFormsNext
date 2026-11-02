@@ -57,8 +57,10 @@ public sealed class ModernFormsDesignerShell : Panel
         IDesignerHostEnvironment? environment = null)
     {
         this.options = options ?? new ModernFormsDesignerOptions();
+        ArgumentNullException.ThrowIfNull(this.options.SnappingOptions);
         Session = new DesignerSession(environment, this.options.InitialControlRenderMode, this.options.HistoryLimit);
         Session.PreviewResourcePolicy = this.options.PreviewResourcePolicy;
+        Session.SnappingOptions = this.options.SnappingOptions;
 
         var files = new DesignerFileService(
             environment,

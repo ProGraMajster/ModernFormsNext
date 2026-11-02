@@ -80,6 +80,10 @@ public sealed class DesignerTransactionManager
 
     internal long? CurrentTransactionId => frames.Count == 0 ? null : frames[^1].Id;
 
+    // Gesture controllers keep direct live geometry until mouse-up. A nested typed edit must
+    // retire those original coordinates even if it merges with an earlier pending change.
+    internal ulong RecordedChangeGeneration { get; private set; }
+
     /// <summary>
     /// Gets the current recording or replay mode.
     /// </summary>
@@ -470,6 +474,8 @@ public sealed class DesignerTransactionManager
     {
         if (change.IsEmpty)
             return;
+
+        RecordedChangeGeneration = unchecked(RecordedChangeGeneration + 1);
 
         var mergeFloor = frames[^1].StartChangeIndex;
         if (pendingChanges.Count > mergeFloor && pendingChanges[^1].TryMerge(change))

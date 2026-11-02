@@ -18,6 +18,10 @@ public sealed class ModernFormsDesignerOptions
     /// <remarks>Configure before creating the shell. To change a running session, set DesignerSession.PreviewResourcePolicy.</remarks>
     public DesignerPreviewResourcePolicy PreviewResourcePolicy { get; set; } = DesignerPreviewResourcePolicy.Default;
 
+    /// <summary>Gets or sets the immutable guide and grid preferences copied to a newly created session.</summary>
+    /// <remarks>Configure before shell construction; replace DesignerSession.SnappingOptions to update a running session.</remarks>
+    public DesignerSnappingOptions SnappingOptions { get; set; } = DesignerSnappingOptions.Default;
+
     /// <summary>
     /// Gets or sets a value indicating whether the designer command toolbar is visible.
     /// </summary>

@@ -293,9 +293,10 @@ overwriting the `.mfdesign` document.
 
 - Designer-wide atomic transactions and undo/redo history are implemented by
   [#33](https://github.com/ProGraMajster/ModernFormsNext/issues/33), including
-  [multi-selection/group editing](designer-multi-selection.md). The complete
-  smart-guide/equal-spacing/baseline workflow
-  ([#36](https://github.com/ProGraMajster/ModernFormsNext/issues/36)) remain separate work.
+  [multi-selection/group editing](designer-multi-selection.md). Moving and resizing manually
+  positioned controls also support [smart guides and a configurable grid](designer-smart-guides.md),
+  including equal spacing and applicable single-line Label/Button baselines. Managed layouts
+  retain placement ownership; unsupported text rendering has no baseline guide.
 - Detached, versioned Copy/Cut/Paste/Duplicate supports a safe in-session control-forest workflow,
   including documents open in the same Designer session, and participates atomically in Designer
   history. See [Designer copy and paste](designer-copy-paste.md). An operating-system
