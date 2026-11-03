@@ -137,7 +137,7 @@ public sealed class CSharpDesignerGenerator
             writer.WriteLine();
 
         foreach (var control in controls)
-            WriteControlInitialization(writer, control, controlExpressions[control], validation, options);
+            WriteControlInitialization(writer, control, controlExpressions[control], className, validation, options);
 
         foreach (var control in controls)
             WriteControlEvents(writer, control, controlExpressions[control]);
@@ -158,6 +158,12 @@ public sealed class CSharpDesignerGenerator
 
         foreach (var property in document.Properties)
         {
+            if (property.Key == Drawing.ProjectAssetPath.ImageProperty)
+            {
+                validation.AddError("A project image must target a supported child control.");
+                continue;
+            }
+
             if (GeneratedRootProperties.Contains(property.Key)
                 || document.RootKind == DesignRootKind.Form && string.Equals(property.Key, "Text", StringComparison.Ordinal))
                 continue;
@@ -307,6 +313,7 @@ public sealed class CSharpDesignerGenerator
         CodeWriter writer,
         DesignControlNode control,
         string controlExpression,
+        string className,
         DesignDocumentValidationResult validation,
         CSharpDesignerGenerationOptions options)
     {
@@ -318,6 +325,21 @@ public sealed class CSharpDesignerGenerator
 
         foreach (var property in control.Properties)
         {
+            if (property.Key == Drawing.ProjectAssetPath.ImageProperty)
+            {
+                if (!Drawing.ProjectAssetPath.IsImageControl(control.TypeName)
+                    || control.Properties.ContainsKey("ImageLocation")
+                    || property.Value is not { Kind: DesignPropertyValueKind.String, Value: string id }
+                    || !Drawing.ProjectAssetPath.IsValidId(id))
+                {
+                    validation.AddError($"'{control.Name}' must use a valid project image identifier on a supported control without ImageLocation.");
+                    continue;
+                }
+
+                writer.WriteLine($"        global::ModernFormsNext.Drawing.ProjectAssets.ApplyImage({controlExpression}, {CSharpLiteralWriter.WriteStringLiteral(id)}, typeof({className}).Assembly);");
+                continue;
+            }
+
             if (GeneratedControlProperties.Contains(property.Key) || DesignerOnlyProperties.Contains(property.Key))
                 continue;
 

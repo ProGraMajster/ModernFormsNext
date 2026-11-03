@@ -13,4 +13,21 @@
       <DependentUpon Condition="'%(DependentUpon)' == '' and Exists('$([System.IO.Path]::ChangeExtension(&quot;%(FullPath)&quot;, &quot;.cs&quot;))')">%(Filename).cs</DependentUpon>
     </None>
   </ItemGroup>
+  <!-- The reserved folders are enabled explicitly so existing projects keep their own item rules. -->
+  <ItemGroup Condition="'$(ModernFormsNextUseProjectAssets)' == 'true'">
+    <Compile Remove="Assets/Embedded/**/*;Assets/Content/**/*" />
+    <None Remove="Assets/Embedded/**/*;Assets/Content/**/*" />
+    <EmbeddedResource Remove="Assets/Embedded/**/*;Assets/Content/**/*" />
+    <Content Remove="Assets/Embedded/**/*;Assets/Content/**/*" />
+    <EmbeddedResource Include="Assets/Embedded/**/*" Exclude="Assets/Embedded/**/.import-*.tmp">
+      <LogicalName>Assets/Embedded/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)</LogicalName>
+      <WithCulture>false</WithCulture>
+      <Type>Non-Resx</Type>
+    </EmbeddedResource>
+    <Content Include="Assets/Content/**/*" Exclude="Assets/Content/**/.import-*.tmp">
+      <TargetPath>Assets/Content/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

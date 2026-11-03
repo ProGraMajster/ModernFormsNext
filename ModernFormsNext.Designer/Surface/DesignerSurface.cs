@@ -96,4 +96,11 @@ internal sealed class DesignerSurface : Panel
         base.OnPaint(e);
         renderer.Render(e, state, Width, Height, mouseController.MarqueeBounds, mouseController.Guides);
     }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            renderer.Dispose();
+        base.Dispose(disposing);
+    }
 }

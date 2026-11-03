@@ -250,6 +250,30 @@ public sealed class CSharpDesignerParser
 
     private void ProcessInvocation(InvocationExpressionSyntax invocation, DesignDocument document)
     {
+        if (invocation.Expression is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "ApplyImage" } call
+            && call.Expression.WithoutTrivia().ToString() == "global::ModernFormsNext.Drawing.ProjectAssets")
+        {
+            var arguments = invocation.ArgumentList.Arguments;
+            if (arguments.Count == 3 && arguments.All(argument => argument.NameColon is null && argument.RefKindKeyword.RawKind == 0)
+                && syntaxReader.GetObjectReferenceName(arguments[0].Expression) is { } controlName
+                && nodes.TryGetValue(controlName, out var control)
+                && Drawing.ProjectAssetPath.IsImageControl(control.TypeName)
+                && arguments[1].Expression is LiteralExpressionSyntax literal && literal.IsKind(SyntaxKind.StringLiteralExpression)
+                && Drawing.ProjectAssetPath.IsValidId(literal.Token.ValueText)
+                && arguments[2].Expression is MemberAccessExpressionSyntax
+                {
+                    Expression: TypeOfExpressionSyntax { Type: IdentifierNameSyntax owner },
+                    Name.Identifier.ValueText: "Assembly"
+                }
+                && owner.Identifier.ValueText == document.ClassName
+                && control.Properties.TryAdd(Drawing.ProjectAssetPath.ImageProperty,
+                    DesignPropertyValue.FromString(literal.Token.ValueText)))
+                return;
+
+            AddUnsupported(invocation, "Expected a portable project image and the declaring type's assembly.");
+            return;
+        }
+
         if (TryProcessInteractionEffectAdd(invocation, document) || TryProcessVisualStateTransitionAdd(invocation, document))
             return;
 

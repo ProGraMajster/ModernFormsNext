@@ -7,6 +7,28 @@ namespace ModernFormsNext.Tests;
 public class DocumentImageCacheTests
 {
     [Fact]
+    public void DesignerSuppressionBlocksInitialAndRetriedImageLoads()
+    {
+        var loads = 0;
+        using var cache = new DocumentImageCache(
+            (_, _) =>
+            {
+                loads++;
+                return Task.FromResult<SKBitmap?>(null);
+            },
+            action => action(),
+            () => { })
+        { SuppressLoading = true };
+        var document = new Document(new DocumentBlock[] { new ImageBlock("sample.png", "Sample") });
+
+        cache.SetDocument(document);
+        cache.ReloadPendingAndFailed(document);
+
+        Assert.Equal(0, loads);
+        Assert.Null(cache.GetResource("sample.png"));
+    }
+
+    [Fact]
     public async Task DuplicateImageBlockSourceStartsOneLoadRequest()
     {
         var loads = 0;
