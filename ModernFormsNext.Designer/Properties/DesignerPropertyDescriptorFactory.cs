@@ -1,4 +1,5 @@
 using ModernFormsNext.Designing;
+using ModernFormsNext.Designer.Services;
 using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Properties;
@@ -256,7 +257,8 @@ internal static class DesignerPropertyDescriptorFactory
             return true;
         }
 
-        if (type == typeof(SKBitmap) && string.Equals(name, "Image", StringComparison.Ordinal))
+        if (type == typeof(SKBitmap) && string.Equals(name, "Image", StringComparison.Ordinal)
+            && ModernFormsNext.Drawing.ProjectAssetPath.IsImageControl(node.TypeName))
         {
             descriptor = CreateStoredImageDescriptor(node, displayName, category, description, canEdit, isAdvanced);
             return true;
@@ -1282,23 +1284,30 @@ internal static class DesignerPropertyDescriptorFactory
             Path = "Image",
             DisplayName = displayName,
             Category = category,
-            Description = description + " The designer stores this as ImageLocation so the .mfdesign file remains text-based.",
+            Description = description + " Select a portable project image in the asset browser.",
             ValueType = typeof(string),
             IsReadOnly = !canEdit,
             IsAdvanced = isAdvanced,
             HasDialogEditor = canEdit,
             DialogEditor = canEdit ? DesignerPropertyDialogEditors.ImageLocation(node) : null,
-            GetValue = () => GetStoredValue(node, "ImageLocation", typeof(string), fallbackValue: null),
+            GetValue = () => GetStoredValue(node, DesignerProjectAssets.ImageProperty, typeof(string),
+                fallbackValue: GetStoredValue(node, "ImageLocation", typeof(string), fallbackValue: null)),
             CommitText = text =>
             {
                 if (!canEdit)
                     return (false, "This image property is read-only.");
 
-                if (string.IsNullOrWhiteSpace(text))
-                    node.Properties["ImageLocation"] = DesignPropertyValue.FromNull();
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    var id = text.Trim();
+                    if (!ModernFormsNext.Drawing.ProjectAssetPath.IsValidId(id) || !DesignerProjectAssets.IsImage(id))
+                        return (false, "Choose a portable project image in the asset browser.");
+                    node.Properties[DesignerProjectAssets.ImageProperty] = DesignPropertyValue.FromString(id);
+                }
                 else
-                    node.Properties["ImageLocation"] = DesignPropertyValue.FromString(text.Trim());
+                    node.Properties.Remove(DesignerProjectAssets.ImageProperty);
 
+                node.Properties.Remove("ImageLocation");
                 return (true, null);
             }
         };

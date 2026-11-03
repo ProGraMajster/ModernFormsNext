@@ -1,4 +1,5 @@
 using ModernFormsNext.Designing;
+using ModernFormsNext.Designer.Services;
 using SkiaSharp;
 using MfnBrush = ModernFormsNext.Drawing.Brush;
 using MfnFont = ModernFormsNext.Font;
@@ -128,16 +129,18 @@ internal static class DesignerPropertyDialogEditors
     public static Func<DesignerPropertyDialogContext, Task<bool>> ImageLocation(DesignControlNode node)
         => async context =>
         {
-            var currentPath = GetStoredString(node, "ImageLocation");
-            var dialog = new DesignerImagePickerDialog(context.Session.CurrentDocumentPath, currentPath);
+            var currentId = GetStoredString(node, DesignerProjectAssets.ImageProperty);
+            using var dialog = new DesignerImagePickerDialog(context.Session.CurrentProjectPath,
+                context.Session.CurrentDocumentPath, currentId);
 
             if (await dialog.ShowDialog(context.Owner) != DialogResult.OK
-                || string.IsNullOrWhiteSpace(dialog.SelectedImagePath))
+                || dialog.SelectedId is not { } assetId)
             {
                 return false;
             }
 
-            node.Properties["ImageLocation"] = DesignPropertyValue.FromString(dialog.SelectedImagePath);
+            node.Properties.Remove("ImageLocation");
+            node.Properties[DesignerProjectAssets.ImageProperty] = DesignPropertyValue.FromString(assetId);
             return true;
         };
 

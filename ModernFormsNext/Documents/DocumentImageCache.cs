@@ -28,6 +28,10 @@ internal sealed class DocumentImageCache : IDisposable
     private bool disposed;
     private int version;
 
+    // Detached Designer viewers render text and image placeholders without
+    // starting the document's ordinary local, inline or network image loads.
+    internal bool SuppressLoading { get; set; }
+
     public DocumentImageCache(Action resourceChanged, Func<DocumentImageLoadLimits>? getLimits = null)
         : this(DefaultLoadImageAsync, Application.RunOnUIThread, resourceChanged, getLimits ?? (() => DocumentImageLoadLimits.Default))
     {
@@ -481,6 +485,9 @@ internal sealed class DocumentImageCache : IDisposable
 
     private void StartResource(string source, int resourceVersion, CancellationToken cancellationToken)
     {
+        if (SuppressLoading)
+            return;
+
         var resource = new DocumentImageResource(source)
         {
             State = DocumentImageResourceState.Loading

@@ -307,6 +307,8 @@ overwriting the `.mfdesign` document.
   diagnostics. It retains user methods on unbind/Undo and does not execute project code.
   Conditional classes, methods outside the paired file and unsupported delegate signatures
   require source editing. See [Designer events and navigation](designer-events.md).
+- [Designer project assets](designer-project-assets.md) uses portable IDs shared
+  by the design document, preview, generated C# and runtime.
 - Project resources and inherited-control design remain incomplete
   ([#38](https://github.com/ProGraMajster/ModernFormsNext/issues/38),
   [#39](https://github.com/ProGraMajster/ModernFormsNext/issues/39)).

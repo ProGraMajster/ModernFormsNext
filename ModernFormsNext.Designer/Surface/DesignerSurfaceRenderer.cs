@@ -9,7 +9,7 @@ using System.Reflection;
 
 namespace ModernFormsNext.Designer.Surface;
 
-internal sealed class DesignerSurfaceRenderer
+internal sealed class DesignerSurfaceRenderer : IDisposable
 {
     private readonly DesignerCoordinateMapper coordinateMapper = new();
     private readonly DesignerLayoutEngine layoutEngine = new();
@@ -23,9 +23,49 @@ internal sealed class DesignerSurfaceRenderer
     private string? embeddedPreviewProjectPath;
     private string? lastFrameDiagnostics;
     private readonly HashSet<DesignControlNode> selectedNodes = new(ReferenceEqualityComparer.Instance);
+    private DesignerImagePreviewFrame? imageFrame;
+    private DesignerImagePreviewFrame? retainedImageFrame;
+    private bool disposed;
 
     public void Render(PaintEventArgs e, DesignerSession state, int width, int height, DesignBounds? marquee = null,
         IReadOnlyList<DesignerSnapGuide>? guides = null)
+    {
+        if (disposed)
+            return;
+
+        var outerFrame = imageFrame;
+        var previousFrame = outerFrame is null ? retainedImageFrame : null;
+        if (outerFrame is null)
+            retainedImageFrame = null;
+        var frame = new DesignerImagePreviewFrame(state.CurrentProjectPath, state.CurrentDocumentPath, previousFrame);
+        imageFrame = frame;
+        try
+        {
+            RenderCore(e, state, width, height, marquee, guides);
+            if (outerFrame is null && !disposed)
+            {
+                frame.Complete();
+                retainedImageFrame = frame;
+            }
+        }
+        finally
+        {
+            imageFrame = outerFrame;
+            previousFrame?.Dispose();
+            if (!ReferenceEquals(frame, retainedImageFrame))
+                frame.Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        retainedImageFrame?.Dispose();
+        retainedImageFrame = null;
+    }
+
+    private void RenderCore(PaintEventArgs e, DesignerSession state, int width, int height, DesignBounds? marquee,
+        IReadOnlyList<DesignerSnapGuide>? guides)
     {
         using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerRender);
         LogFrameDiagnostics(state, width, height);
@@ -581,7 +621,8 @@ internal sealed class DesignerSurfaceRenderer
         {
             var size = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
             using var pagePreview = DesignerPagePreview.TryCreate(node, size, out var pageError,
-                resourcePolicy: state.PreviewResourcePolicy);
+                resourcePolicy: state.PreviewResourcePolicy, imageFrame: imageFrame,
+                assetDiagnostic: (child, message) => LogRuntimePropertyFailure(state, child, message));
             if (pagePreview is null || !RuntimeControlPainter.TryPaint(surfacePaintArgs, pagePreview.Root, size,
                 deviceBounds, out _, out pageError))
             {
@@ -622,7 +663,7 @@ internal sealed class DesignerSurfaceRenderer
             var logicalSize = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
             control.Bounds = new System.Drawing.Rectangle(System.Drawing.Point.Empty, logicalSize);
             var propertyErrors = new List<string>();
-            var appliedPropertyCount = ApplyNodeProperties(control, node, propertyErrors);
+            var appliedPropertyCount = ApplyPreviewProperties(control, node, propertyErrors, includeLayout: false, imageFrame: imageFrame);
             ApplyDesignTimePreviewState(control, node);
 
             surfacePaintArgs.Canvas.Save();
@@ -671,17 +712,44 @@ internal sealed class DesignerSurfaceRenderer
             ?? frameworkAssembly.GetType($"ModernFormsNext.{normalized}", throwOnError: false);
     }
 
-    private static int ApplyNodeProperties(Control control, DesignControlNode node, List<string> propertyErrors)
-        => ApplyPreviewProperties(control, node, propertyErrors, includeLayout: false);
-
     internal static int ApplyPreviewProperties(Control control, DesignControlNode node, List<string> propertyErrors, bool includeLayout,
-        bool ignoreUnknownProperties = false)
+        bool ignoreUnknownProperties = false, DesignerImagePreviewFrame? imageFrame = null,
+        Action<string>? assetDiagnostic = null)
     {
         var appliedCount = 0;
+        if (control is DocumentViewer documentViewer)
+            documentViewer.SuppressDesignTimeImageLoading();
+        else if (control is MarkdownEditor markdownEditor)
+            markdownEditor.PreviewViewer.SuppressDesignTimeImageLoading();
 
         foreach (var property in node.Properties)
         {
             var propertyPath = NormalizeRuntimePropertyPath(property.Key);
+
+            if (propertyPath == DesignerProjectAssets.ImageProperty)
+            {
+                // Layout and baseline projections do not load assets. Only the
+                // painting projection receives a frame with an I/O budget.
+                if (imageFrame is null)
+                    continue;
+                string? error = ModernFormsNext.Drawing.ProjectAssets.SupportsImage(control)
+                    ? imageFrame.Apply(control, property.Value)
+                    : "A project image must target a supported control.";
+                if (error is null)
+                    appliedCount++;
+                else if (assetDiagnostic is not null)
+                    assetDiagnostic(error);
+                else
+                    propertyErrors.Add(error);
+                continue;
+            }
+
+            if (control is PictureBox && propertyPath == nameof(PictureBox.ImageLocation) && assetDiagnostic is not null)
+            {
+                if (property.Value.Kind != DesignPropertyValueKind.Null)
+                    assetDiagnostic(LegacyImagePreviewDiagnostic);
+                continue;
+            }
 
             if (propertyPath == LayoutTransitionDesignValue.PropertyName)
             {
@@ -940,9 +1008,22 @@ internal sealed class DesignerSurfaceRenderer
         return ApplyProperty(current, parts[^1], value, out error);
     }
 
+    private const string LegacyImagePreviewDiagnostic =
+        "ImageLocation is available at runtime only. Select a project asset to preview an image.";
+
     private static bool ApplyProperty(object target, string name, DesignPropertyValue value, out string? error)
     {
         error = null;
+        // The runtime setter starts I/O even on detached controls. Enforce the
+        // boundary here so both direct and nested preview assignments are covered.
+        if (target is PictureBox && name == nameof(PictureBox.ImageLocation))
+        {
+            if (value.Kind == DesignPropertyValueKind.Null)
+                return true;
+            error = LegacyImagePreviewDiagnostic;
+            return false;
+        }
+
         var property = target.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
 
         if (property is null || property.SetMethod is null || !property.SetMethod.IsPublic)

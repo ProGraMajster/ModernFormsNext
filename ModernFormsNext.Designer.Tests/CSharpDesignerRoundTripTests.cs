@@ -7,6 +7,40 @@ namespace ModernFormsNext.Designer.Tests;
 
 public sealed class CSharpDesignerRoundTripTests
 {
+    [Theory]
+    [InlineData("Assets/Embedded/Brand/logo.png", "ModernFormsNext.PictureBox")]
+    [InlineData("Assets/Content/logo.png", "ModernFormsNext.Button")]
+    public void PortablePictureAssetSurvivesJsonAndCSharpRoundTrip(string id, string typeName)
+    {
+        var document = CreateDocument();
+        var picture = Assert.Single(document.Controls);
+        picture.TypeName = typeName;
+        picture.Properties.Add("ProjectImageAsset", DesignPropertyValue.FromString(id));
+        var serializer = DesignDocumentSerializer.Default;
+        var service = new CSharpDesignerRoundTripService();
+
+        var generated = service.Generate(serializer.Deserialize(serializer.Serialize(document)));
+        Assert.True(generated.Succeeded, string.Join(Environment.NewLine, generated.Validation.Errors));
+        Assert.Contains($".ApplyImage(this.button1, \"{id}\", typeof(MainForm).Assembly)", generated.Code);
+        var parsed = service.ParseDesignerCode(generated.Code);
+        Assert.True(parsed.Success, string.Join(Environment.NewLine, parsed.Diagnostics.Select(diagnostic => diagnostic.Message)));
+        Assert.Equal(id, Assert.Single(parsed.Document!.Controls).Properties["ProjectImageAsset"].Value);
+    }
+
+    [Fact]
+    public void AssetCodeGenerationRejectsNonportableIdentifiers()
+    {
+        var document = CreateDocument();
+        var picture = Assert.Single(document.Controls);
+        picture.TypeName = "ModernFormsNext.PictureBox";
+        picture.Properties.Add("ProjectImageAsset", DesignPropertyValue.FromString("logo.png"));
+
+        var generated = new CSharpDesignerGenerator().Generate(document);
+
+        Assert.False(generated.Succeeded);
+        Assert.Empty(generated.Code);
+    }
+
     [Fact]
     public void FormGeneratorUsesClientSizeAndNeverEmitsOuterSize()
     {

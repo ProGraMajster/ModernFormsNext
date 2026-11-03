@@ -12,6 +12,75 @@ namespace ModernFormsNext.Designer.Tests;
 
 public sealed class DesignerPreviewResourcePolicyTests
 {
+    [Fact]
+    public void ImportedImagePreviewsAfterRelocationAndReportsARename()
+    {
+        const string id = "Assets/Embedded/sample.png";
+        var temp = Directory.CreateTempSubdirectory("mfn-assets-");
+        var project = Directory.CreateDirectory(System.IO.Path.Combine(temp.FullName, "project")).FullName;
+        var relocated = System.IO.Path.Combine(temp.FullName, "relocated");
+        var source = System.IO.Path.Combine(temp.FullName, "sample.png");
+        var asset = System.IO.Path.Combine(relocated, id);
+        var renamed = System.IO.Path.Combine(relocated, "Assets", "Embedded", "renamed.png");
+        try
+        {
+            using var bitmap = new SKBitmap(2, 3);
+            bitmap.Erase(SKColors.CornflowerBlue);
+            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(source, png.ToArray());
+            Assert.Equal(id, DesignerProjectAssets.Import(project, source, embedded: true));
+            Assert.Throws<IOException>(() => { DesignerProjectAssets.Import(project, source, embedded: true); });
+            Directory.Move(project, relocated);
+            Assert.Equal(id, Assert.Single(DesignerProjectAssets.Browse(relocated, out bool truncated)));
+            Assert.False(truncated);
+
+            using var frame = new DesignerImagePreviewFrame(relocated, documentPath: null);
+            using var picture = new PictureBox();
+            var value = DesignPropertyValue.FromString(id);
+            Assert.Null(frame.Apply(picture, value));
+            Assert.Equal(SKColors.CornflowerBlue, picture.Image!.GetPixel(0, 0));
+            using var secondFrame = new DesignerImagePreviewFrame(relocated, documentPath: null, previous: frame);
+            using var secondPicture = new PictureBox();
+            Assert.Null(secondFrame.Apply(secondPicture, value));
+            Assert.Same(picture.Image, secondPicture.Image);
+            secondFrame.Complete();
+            File.Move(asset, renamed);
+            using var nextFrame = new DesignerImagePreviewFrame(relocated, documentPath: null, previous: secondFrame);
+            Assert.Contains("unavailable", nextFrame.Apply(picture, value));
+        }
+        finally
+        {
+            File.Delete(source);
+            var actualRoot = Directory.Exists(relocated) ? relocated : project;
+            var embedded = System.IO.Path.Combine(actualRoot, "Assets", "Embedded");
+            File.Delete(System.IO.Path.Combine(embedded, "sample.png"));
+            File.Delete(System.IO.Path.Combine(embedded, "renamed.png"));
+            if (Directory.Exists(embedded)) Directory.Delete(embedded);
+            var assets = System.IO.Path.Combine(actualRoot, "Assets");
+            if (Directory.Exists(assets)) Directory.Delete(assets);
+            Directory.Delete(actualRoot);
+            temp.Delete();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreviewDoesNotInvokeTheRuntimeImageLocationSetter(bool includeLayout)
+    {
+        using var picture = new PictureBox();
+        var node = new DesignControlNode { Name = "picture", TypeName = typeof(PictureBox).FullName! };
+        node.Properties[nameof(PictureBox.ImageLocation)] = DesignPropertyValue.FromString("sample.png");
+        node.Properties[nameof(Control.Text)] = DesignPropertyValue.FromString("Sample");
+        var errors = new List<string>();
+
+        Assert.Equal(1, DesignerSurfaceRenderer.ApplyPreviewProperties(picture, node, errors, includeLayout));
+
+        Assert.Null(picture.ImageLocation);
+        Assert.Equal("Sample", picture.Text);
+        Assert.Contains("ImageLocation is available at runtime only", Assert.Single(errors));
+    }
+
     private static readonly DesignerPreviewResourcePolicy OrdinaryLimitsDisabled = new()
     { MaximumTableStrips = 0, MaximumTableCells = 0 };
 

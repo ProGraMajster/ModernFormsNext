@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\ModernFormsNext\Drawing\ProjectAssetPath.cs" Link="Shared\ProjectAssetPath.cs" />
     <ProjectReference Include="..\ModernFormsNext.Designing\ModernFormsNext.Designing.csproj" />
   </ItemGroup>
 

@@ -58,6 +58,8 @@ public partial class DocumentViewer : ScrollControl
     private MfnDocument document = MfnDocument.Empty;
     private DocumentStyle documentStyle = new();
     private readonly DocumentImageLoadOptions imageLoadOptions = new();
+
+    internal void SuppressDesignTimeImageLoading() => imageCache.SuppressLoading = true;
     private readonly DocumentImageCache imageCache;
     private readonly DocumentSelection selection = new();
     private readonly DocumentLinkInteractionState linkInteraction = new();

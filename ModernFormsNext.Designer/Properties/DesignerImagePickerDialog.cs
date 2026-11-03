@@ -1,157 +1,156 @@
+using ModernFormsNext.Designer.Localization;
+using ModernFormsNext.Designer.Services;
+using SkiaSharp;
+
 namespace ModernFormsNext.Designer.Properties;
 
 internal sealed class DesignerImagePickerDialog : Form
 {
-    private static readonly string[] ImageExtensions =
-    [
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".bmp",
-        ".gif",
-        ".webp"
-    ];
+    private readonly ListBox assets;
+    private readonly Label status;
+    private readonly PictureBox preview;
+    private readonly Button select;
+    private readonly string? root;
+    private IReadOnlyList<string> ids = [];
+    private SKBitmap? bitmap;
 
-    private readonly List<string> imagePaths = [];
-    private readonly ListBox imageList;
-    private readonly TextBox selectedPath;
-    private readonly string? projectDirectory;
-
-    public DesignerImagePickerDialog(string? designDocumentPath, string? currentPath)
+    public DesignerImagePickerDialog(string? projectPath, string? documentPath, string? currentId)
     {
-        Text = "Select Image";
+        Text = T("ProjectAssets");
         Name = "DesignerImagePickerDialog";
-        Size = new System.Drawing.Size(620, 420);
+        Size = new System.Drawing.Size(660, 420);
         StartPosition = FormStartPosition.CenterParent;
-
-        projectDirectory = GetProjectDirectory(designDocumentPath);
-
-        Controls.Add(new Label
+        string? rootError = null;
+        try
         {
-            Left = 16,
-            Top = 14,
-            Width = 560,
-            Height = 22,
-            Text = projectDirectory is null
-                ? "Project images"
-                : $"Project images: {projectDirectory}"
+            root = DesignerProjectAssets.GetRoot(projectPath, documentPath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            rootError = exception.Message;
+        }
+
+        assets = Controls.Add(new ListBox { Left = 16, Top = 16, Width = 370, Height = 254 });
+        preview = Controls.Add(new PictureBox
+        {
+            Left = 400, Top = 16, Width = 224, Height = 254, SizeMode = PictureBoxSizeMode.Zoom
         });
-
-        imageList = Controls.Add(new ListBox
+        status = Controls.Add(new Label { Left = 16, Top = 276, Width = 608, Height = 24 });
+        var embedded = Controls.Add(new CheckBox
         {
-            Left = 16,
-            Top = 44,
-            Width = 570,
-            Height = 230
+            Left = 16, Top = 308, Width = 220, Height = 28, Text = T("EmbedAsset"), Checked = true
         });
-
-        Controls.Add(new Label
+        var import = Controls.Add(new Button
         {
-            Left = 16,
-            Top = 286,
-            Width = 90,
-            Height = 22,
-            Text = "Selected"
+            Left = 240, Top = 308, Width = 122, Height = 28, Text = T("ImportAsset"), Enabled = root is not null
         });
+        select = Controls.Add(new Button { Left = 422, Top = 308, Width = 94, Height = 28, Text = T("Ok") });
+        var cancel = Controls.Add(new Button { Left = 530, Top = 308, Width = 94, Height = 28, Text = T("Cancel") });
 
-        selectedPath = Controls.Add(new TextBox
+        assets.SelectedIndexChanged += (_, _) => UpdatePreview();
+        import.Click += async (_, _) => await ImportAsync(embedded.Checked);
+        select.Click += (_, _) =>
         {
-            Left = 110,
-            Top = 282,
-            Width = 360,
-            Height = 26,
-            Text = currentPath ?? string.Empty
-        });
-
-        var browse = Controls.Add(new Button
-        {
-            Left = 482,
-            Top = 282,
-            Width = 104,
-            Height = 26,
-            Text = "Browse..."
-        });
-
-        var ok = Controls.Add(new Button
-        {
-            Left = 398,
-            Top = 330,
-            Width = 88,
-            Height = 30,
-            Text = "OK"
-        });
-
-        var cancel = Controls.Add(new Button
-        {
-            Left = 498,
-            Top = 330,
-            Width = 88,
-            Height = 30,
-            Text = "Cancel"
-        });
-
-        LoadProjectImages();
-
-        imageList.SelectedIndexChanged += (_, _) =>
-        {
-            if (imageList.SelectedIndex >= 0 && imageList.SelectedIndex < imagePaths.Count)
-                selectedPath.Text = imagePaths[imageList.SelectedIndex];
-        };
-        browse.Click += async (_, _) => await BrowseForImage();
-        ok.Click += (_, _) =>
-        {
-            SelectedImagePath = selectedPath.Text.Trim();
+            if (!select.Enabled || assets.SelectedIndex < 0)
+                return;
+            SelectedId = ids[assets.SelectedIndex];
             DialogResult = DialogResult.OK;
         };
         cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
+        Reload(currentId);
+        if (rootError is not null)
+            status.Text = rootError;
     }
 
-    public string? SelectedImagePath { get; private set; }
+    public string? SelectedId { get; private set; }
 
-    private void LoadProjectImages()
+    private void Reload(string? currentId)
     {
-        imagePaths.Clear();
-        imageList.Items.Clear();
-
-        if (projectDirectory is null || !Directory.Exists(projectDirectory))
+        ids = [];
+        assets.Items.Clear();
+        UpdatePreview();
+        if (root is null)
         {
-            imageList.Items.Add("No project directory was found.");
+            status.Text = T("NoProjectPath");
             return;
         }
 
-        foreach (var path in Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories)
-                     .Where(path => ImageExtensions.Contains(IOPath.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                     .Take(500))
+        try
         {
-            imagePaths.Add(path);
-            imageList.Items.Add(IOPath.GetRelativePath(projectDirectory, path));
+            ids = DesignerProjectAssets.Browse(root, out bool truncated);
+            foreach (var id in ids)
+                assets.Items.Add(id);
+            for (int index = 0; index < ids.Count; index++)
+            {
+                if (ids[index] != currentId)
+                    continue;
+                assets.SelectedIndex = index;
+                return;
+            }
+
+            status.Text = currentId is not null ? T("AssetMissing")
+                : truncated ? T("AssetScanLimit") : T("AssetChoose");
         }
-
-        if (imagePaths.Count == 0)
-            imageList.Items.Add("No image files were found in the project.");
-    }
-
-    private async Task BrowseForImage()
-    {
-        var dialog = new OpenFileDialog
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            Title = "Select Image",
-            InitialDirectory = projectDirectory
-        };
-        dialog.AddFilter("Image files", "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp");
-        dialog.AddFilter("All files", "*.*");
-
-        if (await dialog.ShowDialog(this) == DialogResult.OK && dialog.FileName is { } fileName)
-            selectedPath.Text = fileName;
+            status.Text = exception.Message;
+        }
     }
 
-    private static string? GetProjectDirectory(string? designDocumentPath)
+    private void UpdatePreview()
     {
-        if (string.IsNullOrWhiteSpace(designDocumentPath))
-            return null;
+        preview.Image = null;
+        bitmap?.Dispose();
+        bitmap = null;
+        select.Enabled = false;
+        if (root is null || assets.SelectedIndex < 0 || assets.SelectedIndex >= ids.Count)
+            return;
 
-        var directory = IOPath.GetDirectoryName(designDocumentPath);
-        return string.IsNullOrWhiteSpace(directory) ? null : directory;
+        var id = ids[assets.SelectedIndex];
+        try
+        {
+            bitmap = DesignerProjectAssets.ReadImage(root, id);
+            preview.Image = bitmap;
+            status.Text = id;
+            select.Enabled = true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            status.Text = exception.Message;
+        }
+    }
+
+    private async Task ImportAsync(bool embedded)
+    {
+        if (root is null)
+            return;
+
+        var picker = new OpenFileDialog { Title = T("ImportAsset"), InitialDirectory = root };
+        picker.AddFilter(T("AssetImages"), "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.ico");
+        picker.AddFilter(T("AssetFiles"), "*.*");
+        if (await picker.ShowDialog(this) != DialogResult.OK || picker.FileName is not { } source)
+            return;
+
+        try
+        {
+            Reload(DesignerProjectAssets.Import(root, source, embedded));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            status.Text = exception.Message;
+        }
+    }
+
+    private static string T(string key) => DesignerText.Get(key, DesignerLanguage.Auto);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            preview.Image = null;
+            bitmap?.Dispose();
+            bitmap = null;
+        }
+        base.Dispose(disposing);
     }
 }

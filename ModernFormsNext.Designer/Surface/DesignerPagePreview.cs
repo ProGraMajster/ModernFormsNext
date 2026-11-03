@@ -29,7 +29,8 @@ internal sealed class DesignerPagePreview : IDisposable
             || DesignerSpecialContainers.IsTableLayoutPanel(node);
 
     internal static DesignerPagePreview? TryCreate(DesignControlNode node, Size size, out string? error,
-        RightToLeft inheritedDirection = RightToLeft.No, DesignerPreviewResourcePolicy? resourcePolicy = null)
+        RightToLeft inheritedDirection = RightToLeft.No, DesignerPreviewResourcePolicy? resourcePolicy = null,
+        DesignerImagePreviewFrame? imageFrame = null, Action<DesignControlNode, string>? assetDiagnostic = null)
     {
         error = null;
         var document = new DesignDocument();
@@ -70,7 +71,7 @@ internal sealed class DesignerPagePreview : IDisposable
             viewport.Site = new PreviewSite(viewport);
             preview.owned.Add(viewport);
             preview.Root = preview.Create(node);
-            preview.Initialize(node);
+            preview.Initialize(node, imageFrame, assetDiagnostic);
             preview.Root.Bounds = new Rectangle(Point.Empty, size);
             viewport.Controls.Add(preview.Root);
             preview.Attach(node);
@@ -107,7 +108,8 @@ internal sealed class DesignerPagePreview : IDisposable
         return control;
     }
 
-    private void Initialize(DesignControlNode node)
+    private void Initialize(DesignControlNode node, DesignerImagePreviewFrame? imageFrame,
+        Action<DesignControlNode, string>? assetDiagnostic)
     {
         var control = Controls[node];
         control.Name = node.Name;
@@ -116,12 +118,13 @@ internal sealed class DesignerPagePreview : IDisposable
         var errors = new List<string>();
         bool authoredPlaceholder = authoredPlaceholders.Contains(node);
         DesignerSurfaceRenderer.ApplyPreviewProperties(control, node, errors, includeLayout: true,
-            ignoreUnknownProperties: authoredPlaceholder);
+            ignoreUnknownProperties: authoredPlaceholder, imageFrame: imageFrame,
+            assetDiagnostic: message => assetDiagnostic?.Invoke(node, message));
         // External measure/layout cannot run in metadata preview. Preserve its authored size
         // with a closed Control placeholder; known base layout properties still validate normally.
         if (authoredPlaceholder) control.AutoSize = false;
         if (errors.Count != 0) throw new InvalidOperationException(string.Join("; ", errors));
-        foreach (var child in node.Children) Initialize(child);
+        foreach (var child in node.Children) Initialize(child, imageFrame, assetDiagnostic);
     }
 
     private void Attach(DesignControlNode node)

@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Drawing;
-using System.Reflection;
 using ModernFormsNext.Accessibility;
 using ModernFormsNext.CodeGeneration.CSharp;
 using ModernFormsNext.CodeGeneration.Reverse;
@@ -86,10 +85,9 @@ public sealed class AccessibilityDesignerTests
         using var preview = Assert.IsAssignableFrom<Control>(Activator.CreateInstance(typeof(Control).Assembly.GetType($"ModernFormsNext.{type}")!));
         preview.Bounds = new Rectangle(0, 0, 240, 90);
         var errors = new List<string>();
-        // Exercise the same private conversion/application seam used by the production renderer;
+        // Exercise the same conversion/application seam used by the production renderer;
         // do not duplicate its enum/string mapping in a test-side preview implementation.
-        var apply = typeof(DesignerSurfaceRenderer).GetMethod("ApplyNodeProperties", BindingFlags.NonPublic | BindingFlags.Static)!;
-        apply.Invoke(null, [preview, node, errors]);
+        DesignerSurfaceRenderer.ApplyPreviewProperties(preview, node, errors, includeLayout: false);
         Assert.Empty(errors);
         Assert.Equal(semanticType, preview.AccessibleControlType);
         Assert.Equal("Open details", preview.AccessibilityObject.Name);
