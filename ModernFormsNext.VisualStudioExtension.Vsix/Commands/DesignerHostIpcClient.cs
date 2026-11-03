@@ -253,12 +253,21 @@ internal static class DesignerHostIpcClient
         }
     }
 
+    internal static DesignerCodeRequest? PollCodeRequest(string pipeName, string documentPath, TimeSpan timeout)
+    {
+        var response = TrySendEncodedCommandForResponse(pipeName, "CODE_POLL", documentPath, null, timeout);
+        return DesignerCodeRequest.TryDecode(response, out var request) ? request : null;
+    }
+
+    internal static bool SendCodeReply(string pipeName, string documentPath, string response, TimeSpan timeout)
+        => string.Equals(TrySendEncodedCommandForResponse(pipeName, "CODE_REPLY", documentPath, response, timeout), "OK", StringComparison.Ordinal);
+
     private static string? ReadResponse(StreamReader reader, TimeSpan timeout)
         => ThreadHelper.JoinableTaskFactory.Run(() => ReadResponseAsync(reader, timeout));
 
     private static async Task<string?> ReadResponseAsync(StreamReader reader, TimeSpan timeout)
     {
-        var responseTask = reader.ReadLineAsync();
+        var responseTask = DesignerCodeRequest.ReadBoundedLineAsync(reader);
         var completed = await Task.WhenAny(responseTask, Task.Delay(timeout));
         if (completed == responseTask)
             return await responseTask;

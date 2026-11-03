@@ -90,6 +90,7 @@ public sealed class VisualStudioDesignerHostForm : Form
         DesignerHostDiagnosticLog.Write("IPC_SERVER_CREATE_BEGIN");
         if (!string.IsNullOrWhiteSpace(arguments.PipeName))
         {
+            environment.CodeRequests = new DesignerCodeRequestBroker();
             ipcServer = new DesignerHostIpcServer(
                 arguments.PipeName,
                 InvokeIpcCommandAsync);
@@ -193,6 +194,7 @@ public sealed class VisualStudioDesignerHostForm : Form
 
     private void HandleClosed(object? sender, EventArgs e)
     {
+        environment.CodeRequests?.Dispose();
         ipcServer?.Dispose();
 
         if (ownerProcess is not null)
@@ -289,6 +291,13 @@ public sealed class VisualStudioDesignerHostForm : Form
     {
         switch (command.Kind)
         {
+            case DesignerHostIpcCommandKind.CodePoll:
+                return string.Equals(command.DesignDocumentPath, shell.Session.CurrentDocumentPath, StringComparison.OrdinalIgnoreCase)
+                    ? environment.CodeRequests?.Poll(command.DesignDocumentPath) ?? "CODE_NONE" : "ERROR";
+            case DesignerHostIpcCommandKind.CodeReply:
+                return string.Equals(command.DesignDocumentPath, shell.Session.CurrentDocumentPath, StringComparison.OrdinalIgnoreCase)
+                    && command.ProjectPath is not null && environment.CodeRequests?.Complete(command.ProjectPath, command.DesignDocumentPath) == true
+                    ? "OK" : "ERROR";
             case DesignerHostIpcCommandKind.Open:
                 OpenDesignDocument(command.DesignDocumentPath, command.ProjectPath);
                 return "OK";

@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Globalization;
 using System.Text;
+using ModernFormsNext.VisualStudioExtension;
 
 namespace ModernFormsNext.VisualStudioDesignerHost;
 
@@ -54,7 +55,7 @@ internal sealed class DesignerHostIpcServer : IDisposable
                     PipeDirection.InOut,
                     maxNumberOfServerInstances: 1,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
                 if (Interlocked.Exchange(ref readyLogged, 1) == 0)
                     DesignerHostDiagnosticLog.Write($"IPC_READY PipeName={pipeName}");
@@ -62,7 +63,7 @@ internal sealed class DesignerHostIpcServer : IDisposable
                 await pipe.WaitForConnectionAsync(cancellation.Token);
 
                 using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
-                var line = await reader.ReadLineAsync(cancellation.Token);
+                var line = await DesignerCodeRequest.ReadBoundedLineAsync(reader).WaitAsync(cancellation.Token);
 
                 using var writer = new StreamWriter(pipe, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
                 if (DesignerHostIpcCommand.TryParse(line, out var command))
@@ -172,6 +173,8 @@ internal sealed class DesignerHostIpcCommand
             case DesignerHostIpcCommandKind.DiscardRecovery:
             case DesignerHostIpcCommandKind.Shutdown:
             case DesignerHostIpcCommandKind.Open:
+            case DesignerHostIpcCommandKind.CodePoll:
+            case DesignerHostIpcCommandKind.CodeReply:
                 if (string.IsNullOrWhiteSpace(designDocumentPath))
                     return false;
                 break;
@@ -213,6 +216,8 @@ internal sealed class DesignerHostIpcCommand
 
     private static bool TryParseKind(string value, out DesignerHostIpcCommandKind kind)
     {
+        if (value == "CODE_POLL") { kind = DesignerHostIpcCommandKind.CodePoll; return true; }
+        if (value == "CODE_REPLY") { kind = DesignerHostIpcCommandKind.CodeReply; return true; }
         if (string.Equals(value, "OPEN", StringComparison.Ordinal))
         {
             kind = DesignerHostIpcCommandKind.Open;
@@ -299,5 +304,7 @@ internal enum DesignerHostIpcCommandKind
     Resize,
     Show,
     Hide,
-    Focus
+    Focus,
+    CodePoll,
+    CodeReply
 }

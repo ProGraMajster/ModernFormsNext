@@ -13,6 +13,7 @@ internal sealed record DesignerProjectUserControlInfo(
     public string? DisplayName { get; init; }
     public string Category { get; init; } = "My Project";
     public string? Description { get; init; }
+    public string? DefaultEventName { get; init; }
     public bool VisibleInToolbox { get; init; } = true;
     public string FrameworkBaseTypeName { get; init; } = "ModernFormsNext.UserControl";
     public IReadOnlyList<DesignerCustomProperty> Properties { get; init; } = [];
@@ -215,21 +216,26 @@ internal static partial class DesignerProjectUserControlDiscovery
 
     internal static IEnumerable<string> EnumerateProjectFiles(
         string projectDirectory,
-        string searchPattern)
+        string searchPattern,
+        int maximumEntries = int.MaxValue)
     {
         var pendingDirectories = new Stack<string>();
         pendingDirectories.Push(projectDirectory);
+        var entries = 0;
 
         while (pendingDirectories.Count > 0)
         {
             var directory = pendingDirectories.Pop();
-            string[] files;
-            string[] childDirectories;
+            IEnumerable<string> files;
+            IEnumerable<string> childDirectories;
 
             try
             {
-                files = Directory.GetFiles(directory, searchPattern, SearchOption.TopDirectoryOnly);
-                childDirectories = Directory.GetDirectories(directory, "*", SearchOption.TopDirectoryOnly);
+                // Do not follow directory links back into a project or out into another tree.
+                var options = new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint,
+                    IgnoreInaccessible = true, RecurseSubdirectories = false };
+                files = Directory.EnumerateFiles(directory, searchPattern, options);
+                childDirectories = Directory.EnumerateDirectories(directory, "*", options);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -237,10 +243,14 @@ internal static partial class DesignerProjectUserControlDiscovery
             }
 
             foreach (var file in files)
+            {
+                if (++entries > maximumEntries) throw new InvalidDataException("Project enumeration exceeds the event analysis safety budget.");
                 yield return file;
+            }
 
             foreach (var childDirectory in childDirectories)
             {
+                if (++entries > maximumEntries) throw new InvalidDataException("Project enumeration exceeds the event analysis safety budget.");
                 if (!IsExcludedProjectArtifact(childDirectory, projectDirectory))
                     pendingDirectories.Push(childDirectory);
             }

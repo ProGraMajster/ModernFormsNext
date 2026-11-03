@@ -14,6 +14,14 @@ internal sealed class DesignerEventDescriptor
 
     public string? SafeParameters { get; init; }
 
+    public bool CanBind { get; init; } = true;
+
+    internal string Parameters => SafeParameters ?? Services.DesignerFileService.WriteEventHandlerParameters(HandlerType);
+
+    internal string? Diagnostic { get; set; }
+
+    internal Func<bool> IsCurrentTarget { get; init; } = () => true;
+
     public Func<string?> GetHandlerName { get; init; } = () => null;
 
     public Func<string?, (bool Success, string? Error)> CommitHandlerName { get; init; } = _ => (false, "The event cannot be edited.");

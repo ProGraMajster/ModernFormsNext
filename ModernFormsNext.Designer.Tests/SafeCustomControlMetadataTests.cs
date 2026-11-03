@@ -34,7 +34,7 @@ public sealed class SafeCustomControlMetadataTests
                 [DefaultValue(7), Category("Data")]
                 public virtual int Count { get => throw new Exception("getter"); set => throw new Exception("setter"); }
             }
-            [Exploding, DesignableControl("Safe Widget", Category = "Widgets")]
+            [Exploding, DefaultEvent("Changed"), DesignableControl("Safe Widget", Category = "Widgets")]
             public class Widget : BaseWidget
             {
                 static Widget() => throw new Exception("static initializer");
@@ -67,6 +67,7 @@ public sealed class SafeCustomControlMetadataTests
             var catalog = DesignerProjectUserControlDiscovery.DiscoverCatalog(project.ProjectPath);
             var control = Assert.Single(catalog.Controls);
             Assert.Equal("Widgets.Widget", control.FullName);
+            Assert.Equal("Changed", control.DefaultEventName);
             Assert.Equal("Safe Widget", control.DisplayName);
             Assert.Equal("Widgets", control.Category);
             Assert.Equal(7, control.Properties.Single(p => p.Name == "Count").DefaultValue!.Value);
@@ -84,6 +85,7 @@ public sealed class SafeCustomControlMetadataTests
             var node = session.AddControl("Widgets.Widget");
             session.SelectNode(node);
             var grid = new DesignerPropertyGridState(session);
+            Assert.Equal("Changed", grid.SelectDefaultEvent()!.Name);
             Assert.Equal("hello", grid.Properties.Single(p => p.Name == "CaptionText").GetValueText());
             Assert.True(grid.Properties.Single(p => p.Name == "Count").TryCommit("42", out _));
             Assert.False(grid.Events.Single(e => e.Name == "Unsupported").TryCommit("OnUnsupported", out _));

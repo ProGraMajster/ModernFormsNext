@@ -12,6 +12,8 @@ internal sealed class DesignerSurface : Panel
 
     internal DesignerMouseController MouseController => mouseController;
 
+    internal event EventHandler? DefaultEventRequested;
+
     public DesignerSurface(DesignerSession state)
     {
         this.state = state;
@@ -64,6 +66,22 @@ internal sealed class DesignerSurface : Panel
         base.OnMouseMove(e);
         mouseController.HandleMouseMove(this, e);
         Invalidate();
+    }
+
+    protected override void OnDoubleClick(MouseEventArgs e)
+    {
+        base.OnDoubleClick(e);
+        if (IsDisposed || Disposing) return;
+        if (e.Button != MouseButtons.Left || e.Control || e.Shift || e.Alt || state.SelectedNodes.Count > 1) return;
+        var point = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
+        var mapper = new DesignerCoordinateMapper();
+        if (!mapper.TryMapToDocument(state, Width, Height, point.X, point.Y, out var documentPoint)) return;
+        var hit = new DesignerHitTestService(mapper).HitTestControl(state, documentPoint);
+        if (!ReferenceEquals(hit.Node, state.SelectedNode)) return;
+        // Resolve the canonical pointer transaction before requesting a code edit. A double click
+        // must not leave a drag/capture open across an asynchronous editor request.
+        mouseController.CancelOperation(this, "DefaultEvent");
+        DefaultEventRequested?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)

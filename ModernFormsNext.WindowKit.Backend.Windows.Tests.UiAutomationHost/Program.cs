@@ -3,6 +3,7 @@ using ModernFormsNext;
 
 if (args.Contains("--designer-groups", StringComparer.Ordinal)) { Environment.ExitCode = DesignerGroupScenario.Run(); return; }
 if (args.Contains("--designer-guides", StringComparer.Ordinal)) { Environment.ExitCode = DesignerGroupScenario.RunGuides(); return; }
+if (args.Contains("--designer-events", StringComparer.Ordinal)) { Environment.ExitCode = DesignerGroupScenario.RunEvents(); return; }
 
 if (args.Contains("--tooltips", StringComparer.Ordinal)) { Environment.ExitCode = ToolTipScenario.Run(); return; }
 
