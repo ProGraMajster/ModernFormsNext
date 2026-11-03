@@ -120,7 +120,7 @@ internal sealed partial class DesignerPropertyGridState
 
     public string DescriptionText
         => Mode == DesignerPropertyGridMode.Events
-            ? SelectedEvent?.Description ?? "Select an event to see its description."
+            ? SelectedEvent?.Diagnostic ?? SelectedEvent?.Description ?? "Select an event to see its description."
             : SelectedProperty?.Description ?? "Select a property to see its description.";
 
     public void SetMode(DesignerPropertyGridMode mode)
@@ -144,6 +144,32 @@ internal sealed partial class DesignerPropertyGridState
         SortMode = sortMode;
         RebuildRows();
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal DesignerEventDescriptor? SelectDefaultEvent()
+    {
+        if (!SupportsEvents) return null;
+        var custom = GetSelectedCustomMetadata(playgroundState.SelectedNode);
+        var type = playgroundState.SelectedNode is { } node
+            ? playgroundState.ResolveControlType(custom?.FrameworkBaseTypeName ?? node.TypeName)
+            : playgroundState.GetRootControlType();
+        var name = custom?.DefaultEventName;
+        for (var current = type; name is null && current is not null; current = current.BaseType)
+            name = current.GetCustomAttributesData().FirstOrDefault(a => a.AttributeType == typeof(DefaultEventAttribute))
+                ?.ConstructorArguments.FirstOrDefault().Value as string;
+        // Older framework controls predate DefaultEvent metadata. This is a Designer fallback
+        // policy over trusted framework types; project attributes are read as detached symbol data.
+        name ??= type is not null && typeof(Form).IsAssignableFrom(type) ? "Load"
+            : type is not null && typeof(TextBox).IsAssignableFrom(type) ? "TextChanged"
+            : type is not null && (typeof(CheckBox).IsAssignableFrom(type) || typeof(RadioButton).IsAssignableFrom(type)) ? "CheckedChanged"
+            : type is not null && (typeof(ComboBox).IsAssignableFrom(type) || typeof(ListBox).IsAssignableFrom(type)) ? "SelectedIndexChanged"
+            : type is not null && typeof(NumericUpDown).IsAssignableFrom(type) ? "ValueChanged" : "Click";
+        var descriptor = Events.FirstOrDefault(e => e.Name == name && e.CanBind);
+        if (descriptor is null)
+        { playgroundState.Log("No supported default event is available for this selection. Choose an event in Properties."); return null; }
+        SetMode(DesignerPropertyGridMode.Events);
+        SelectRow(new DesignerPropertyGridRow(descriptor));
+        return descriptor;
     }
 
     public void ToggleExpansion(DesignerPropertyDescriptor property)
@@ -1319,7 +1345,10 @@ internal sealed partial class DesignerPropertyGridState
         Type? handlerType,
         string? safeParameters = null,
         bool canBind = true)
-        => new()
+    {
+        var ownerDocument = playgroundState.Document;
+        var owner = playgroundState.SelectedNode;
+        return new()
         {
             Name = name,
             DisplayName = displayName,
@@ -1327,6 +1356,10 @@ internal sealed partial class DesignerPropertyGridState
             Description = description,
             HandlerType = handlerType,
             SafeParameters = safeParameters,
+            CanBind = canBind,
+            IsCurrentTarget = () => ReferenceEquals(ownerDocument, playgroundState.Document)
+                && ReferenceEquals(owner, playgroundState.SelectedNode) && playgroundState.SelectedNodes.Count <= 1
+                && ReferenceEquals(bindings, owner?.Events ?? ownerDocument.Events),
             GetHandlerName = () => bindings.TryGetValue(name, out var handlerName) ? handlerName : null,
             CommitHandlerName = handlerName =>
             {
@@ -1339,6 +1372,7 @@ internal sealed partial class DesignerPropertyGridState
                 return (true, null);
             }
         };
+    }
 
     private DesignerProjectUserControlInfo? GetSelectedCustomMetadata(DesignControlNode? node)
         => playgroundState.GetCustomControlMetadata(node?.TypeName
@@ -1346,7 +1380,7 @@ internal sealed partial class DesignerPropertyGridState
                 ? playgroundState.Document.ClassName
                 : playgroundState.Document.Namespace + "." + playgroundState.Document.ClassName));
 
-    private static string CreateDefaultEventHandlerName(string objectName, string eventName)
+    internal static string CreateDefaultEventHandlerName(string objectName, string eventName)
     {
         var baseName = $"{SanitizeIdentifierPart(objectName)}_{SanitizeIdentifierPart(eventName)}";
         return DesignDocumentValidator.IsValidCSharpIdentifier(baseName)

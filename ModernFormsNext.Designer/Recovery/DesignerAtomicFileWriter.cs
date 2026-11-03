@@ -15,7 +15,8 @@ internal static class DesignerAtomicFileWriter
     internal static void WriteUtf8(
         string destinationPath,
         string content,
-        IDesignerAtomicFileCommitter committer)
+        IDesignerAtomicFileCommitter committer,
+        bool emitBom = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
         ArgumentNullException.ThrowIfNull(content);
@@ -41,6 +42,7 @@ internal static class DesignerAtomicFileWriter
                 bufferSize: 81920,
                 FileOptions.SequentialScan | FileOptions.WriteThrough))
             {
+                if (emitBom) stream.Write(Encoding.UTF8.Preamble);
                 stream.Write(bytes);
                 // Flush the file contents before making the completed temporary file visible as
                 // the destination. A commit failure leaves the previous destination untouched.

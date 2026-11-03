@@ -6,13 +6,14 @@ namespace ModernFormsNext.Designer.Services;
 
 internal static partial class DesignerProjectUserControlDiscovery
 {
-    private static IReadOnlyList<string> ReadReferencePaths(string? projectPath, string directory, List<string> diagnostics)
+    private static IReadOnlyList<string> ReadReferencePaths(string? projectPath, string directory, List<string> diagnostics,
+        int sourceEnumerationBudget = int.MaxValue)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             var projectFiles = File.Exists(projectPath) && string.Equals(IOPath.GetExtension(projectPath), ".csproj", StringComparison.OrdinalIgnoreCase)
-                ? new[] { projectPath! } : Directory.GetFiles(directory, "*.csproj");
+                ? new[] { projectPath! } : Directory.EnumerateFiles(directory, "*.csproj").Take(2).ToArray();
             if (projectFiles.Length != 1)
             {
                 if (projectFiles.Length > 1) diagnostics.Add("Multiple project files share this directory. Open the Designer with an explicit project path to resolve references.");
@@ -39,7 +40,7 @@ internal static partial class DesignerProjectUserControlDiscovery
                 if (element.Name.LocalName == "ProjectReference" && include is not null)
                 {
                     var path = ResolveLiteralPath(include, directory, configuration, framework, diagnostics);
-                    if (path is not null) AddProjectOutput(path, configuration, framework, result, diagnostics);
+                    if (path is not null) AddProjectOutput(path, configuration, framework, result, diagnostics, sourceEnumerationBudget);
                 }
                 else if (hint is not null)
                 {
@@ -55,7 +56,10 @@ internal static partial class DesignerProjectUserControlDiscovery
             {
                 if (File.GetLastWriteTimeUtc(projectFile) > File.GetLastWriteTimeUtc(assetsPath))
                     diagnostics.Add("Package assets are older than the project. Restore/rebuild, then Refresh Toolbox to update reference metadata.");
-                using var assets = JsonDocument.Parse(File.ReadAllText(assetsPath));
+                using var assetsStream = new FileStream(assetsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                if (assetsStream.Length > 16 * 1024 * 1024)
+                    throw new InvalidDataException("Package metadata exceeds the 16 MiB inspection budget; use a smaller project context or edit handlers in code.");
+                using var assets = JsonDocument.Parse(assetsStream, new JsonDocumentOptions { MaxDepth = 64 });
                 var root = assets.RootElement;
                 if (root.TryGetProperty("targets", out var targets)
                     && root.TryGetProperty("libraries", out var libraries)
@@ -128,7 +132,7 @@ internal static partial class DesignerProjectUserControlDiscovery
     }
 
     private static void AddProjectOutput(string projectPath, string configuration, string? consumerFramework,
-        HashSet<string> result, List<string> diagnostics)
+        HashSet<string> result, List<string> diagnostics, int sourceEnumerationBudget)
     {
         if (!File.Exists(projectPath))
         {
@@ -158,7 +162,7 @@ internal static partial class DesignerProjectUserControlDiscovery
         var path = IOPath.Combine(outputDirectory, assemblyName + ".dll");
         AddReference(path, result, diagnostics);
         if (File.Exists(path) && (File.GetLastWriteTimeUtc(projectPath) > File.GetLastWriteTimeUtc(path)
-            || EnumerateProjectFiles(directory, "*.cs").Any(source => File.GetLastWriteTimeUtc(source) > File.GetLastWriteTimeUtc(path))))
+            || EnumerateProjectFiles(directory, "*.cs", sourceEnumerationBudget).Any(source => File.GetLastWriteTimeUtc(source) > File.GetLastWriteTimeUtc(path))))
             diagnostics.Add($"Stale build '{path}': project/source is newer. Rebuild the referenced project and Refresh Toolbox; displayed binary metadata may be outdated.");
     }
 }

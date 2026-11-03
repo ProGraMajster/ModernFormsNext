@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.VisualStudio.Shell;
 using ModernFormsNext.VisualStudioExtension.Commands;
 using Timer = System.Windows.Forms.Timer;
 
@@ -36,6 +37,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private int focusCommandInFlight;
     private int saveInFlight;
     private int documentStateGeneration;
+    private int codeRequestInFlight;
+    internal VisualStudioCodeDocumentService? CodeDocuments { get; set; }
 
     public event EventHandler<DesignerDocumentDirtyChangedEventArgs>? DocumentDirtyChanged;
 
@@ -81,6 +84,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
 
     public bool TryOpenDocument(string path)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         var candidateDocumentPath = Path.GetFullPath(path);
         var candidateProjectPath = FindNearestProjectPath(candidateDocumentPath);
 
@@ -198,6 +202,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
 
     protected override void OnHandleCreated(EventArgs e)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         base.OnHandleCreated(e);
 
         if (TryReattachOwnedHost())
@@ -340,6 +345,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
 
     private void HandleReadinessTick(object sender, EventArgs e)
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         if (ownedProcess is null || HasExited(ownedProcess))
         {
             readinessTimer.Stop();
@@ -476,6 +482,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
 
     private bool TryReattachOwnedHost()
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         if (ownedProcess is null
             || HasExited(ownedProcess)
             || childWindowHandle == IntPtr.Zero)
@@ -510,10 +517,14 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     }
 
     private void HandleDocumentStateTick(object sender, EventArgs e)
-        => QueueDocumentDirtyStateRefresh();
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        QueueDocumentDirtyStateRefresh();
+    }
 
     private void QueueDocumentDirtyStateRefresh()
     {
+        ThreadHelper.ThrowIfNotOnUIThread();
         if (disposing
             || ownedProcess is null
             || HasExited(ownedProcess)
@@ -530,6 +541,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             var queryProjectPath = projectPath;
             var succeeded = false;
             var isDirty = false;
+            DesignerCodeRequest? codeRequest = null;
             try
             {
                 DesignerEditorDiagnosticLog.Write(
@@ -546,6 +558,14 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
                         queryProjectPath,
                         DirtyQueryTimeout,
                         out isDirty);
+                    // Reserve before dequeueing a host request. A second timer callback may run
+                    // before the first posted UI callback executes; it must not consume work that
+                    // would then be dropped behind the first code edit.
+                    if (succeeded && Interlocked.CompareExchange(ref codeRequestInFlight, 1, 0) == 0)
+                    {
+                        codeRequest = DesignerHostIpcClient.PollCodeRequest(pipeName, queryDocumentPath, LifecycleCommandTimeout);
+                        if (codeRequest is null) Interlocked.Exchange(ref codeRequestInFlight, 0);
+                    }
                 }
             }
             catch (Exception exception)
@@ -558,20 +578,52 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             }
 
             if (!succeeded || generation != Volatile.Read(ref documentStateGeneration))
+            {
+                if (codeRequest is not null) QueueCodeReply(codeRequest, DesignerCodeRequest.Result(codeRequest.Id, false, null));
                 return;
+            }
 
             try
             {
                 PostToOwnerThread(() =>
                 {
+                    ThreadHelper.ThrowIfNotOnUIThread();
                     if (generation == Volatile.Read(ref documentStateGeneration))
+                    {
                         PublishDocumentDirtyState(isDirty);
+                        if (codeRequest is not null) ExecuteCodeRequest(codeRequest, generation);
+                    }
+                    else if (codeRequest is not null)
+                        QueueCodeReply(codeRequest, DesignerCodeRequest.Result(codeRequest.Id, false, null));
                 });
             }
             catch (InvalidOperationException)
             {
                 // Handle teardown raced the background query.
+                if (codeRequest is not null) QueueCodeReply(codeRequest, DesignerCodeRequest.Result(codeRequest.Id, false, null));
             }
+        });
+    }
+
+    private void ExecuteCodeRequest(DesignerCodeRequest request, int generation)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var response = !disposing && generation == Volatile.Read(ref documentStateGeneration) && request.IsAuthorized(documentPath)
+            ? CodeDocuments?.Execute(request, () => documentPath) ?? DesignerCodeRequest.Result(request.Id, false, null)
+            : DesignerCodeRequest.Result(request.Id, false, null);
+        QueueCodeReply(request, response);
+    }
+
+    private void QueueCodeReply(DesignerCodeRequest request, string response)
+    {
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                lock (ipcGate)
+                    _ = DesignerHostIpcClient.SendCodeReply(pipeName, request.DesignPath, response, LifecycleCommandTimeout);
+            }
+            finally { Interlocked.Exchange(ref codeRequestInFlight, 0); }
         });
     }
 

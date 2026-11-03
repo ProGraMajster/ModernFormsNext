@@ -90,6 +90,8 @@
     href: content/docs/designer-multi-selection.md
   - name: Smart guides and grid
     href: content/docs/designer-smart-guides.md
+  - name: Events and code navigation
+    href: content/docs/designer-events.md
   - name: Designer architecture
     href: content/docs/designer-architecture.md
   - name: Preview resource policy

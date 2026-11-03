@@ -58,7 +58,8 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         : this(
             serviceProvider,
             documentPath,
-            new OutOfProcessDesignerHostControl(documentPath, hostingMode),
+            new OutOfProcessDesignerHostControl(documentPath, hostingMode)
+            { CodeDocuments = new VisualStudioCodeDocumentService(serviceProvider) },
             new VisualStudioDocumentServices(serviceProvider),
             hostingMode)
     {

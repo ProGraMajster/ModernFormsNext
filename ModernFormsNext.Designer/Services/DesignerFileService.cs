@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace ModernFormsNext.Designer.Services;
 
-internal sealed class DesignerFileService
+internal sealed partial class DesignerFileService
 {
     private readonly IDesignerHostEnvironment? environment;
     private readonly Func<string?>? currentDocumentPathProvider;
@@ -99,9 +99,7 @@ internal sealed class DesignerFileService
     internal DesignerEventHandlerFileResult EnsureEventHandlerMethodFromMetadata(
         DesignDocument document, string handlerName, string parameters)
     {
-        var syntax = SyntaxFactory.ParseParameterList("(" + parameters + ")");
-        if (syntax.ContainsDiagnostics || syntax.ContainsDirectives
-            || syntax.Parameters.Any(p => p.Type is null || p.Default is not null || p.AttributeLists.Count != 0))
+        if (!DesignerEventSource.TryReadParameters(parameters, out _))
             return new(false, string.Empty, "Cannot generate an unsupported event signature. Edit the handler in source.");
         return EnsureEventHandlerMethodCore(document, handlerName, parameters);
     }
@@ -109,45 +107,20 @@ internal sealed class DesignerFileService
     private DesignerEventHandlerFileResult EnsureEventHandlerMethodCore(
         DesignDocument document, string handlerName, string parameters)
     {
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentException.ThrowIfNullOrWhiteSpace(handlerName);
-        if (!DesignDocumentValidator.IsValidCSharpIdentifier(handlerName))
-            return new(false, string.Empty, "The handler name must be a valid C# identifier.");
-
-        var codePath = GetFormCodePath(document);
-
-        if (string.IsNullOrWhiteSpace(codePath) || !File.Exists(codePath))
-            return new DesignerEventHandlerFileResult(false, codePath ?? string.Empty, $"Cannot add event handler {handlerName}: form code file was not found.");
-
-        var sourceText = File.ReadAllText(codePath);
-        var root = CSharpSyntaxTree.ParseText(sourceText).GetRoot();
-        var classDeclaration = root
-            .DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .FirstOrDefault(type => string.Equals(type.Identifier.ValueText, document.ClassName, StringComparison.Ordinal))
-            ?? root.DescendantNodes().OfType<ClassDeclarationSyntax>().FirstOrDefault();
-
-        if (classDeclaration is null)
-            return new DesignerEventHandlerFileResult(false, codePath, $"Cannot add event handler {handlerName}: no class declaration was found.");
-
-        if (classDeclaration.Members
-            .OfType<MethodDeclarationSyntax>()
-            .Any(method => string.Equals(method.Identifier.ValueText, handlerName, StringComparison.Ordinal)))
+        // Legacy internal callers remain synchronous only for standalone files. A live editor
+        // must use the asynchronous path; falling through to disk could overwrite unsaved text.
+        if (environment is IDesignerCodeDocumentHostEnvironment)
+            return new(false, string.Empty, "Use the asynchronous host event editor for live C# buffers.");
+        try
         {
-            return new DesignerEventHandlerFileResult(true, codePath, $"Event handler {handlerName} already exists in {IOPath.GetFileName(codePath)}.");
+            var prepared = PrepareEventHandlerAsync(document, handlerName, parameters, true, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            if (prepared.Plan.Succeeded && !ApplyEventHandlerAsync(prepared, CancellationToken.None).GetAwaiter().GetResult())
+                return new(false, prepared.Path, "Source changed or the edit was denied; the binding was not changed.");
+            return new(prepared.Plan.Succeeded, prepared.Path, prepared.Plan.Message);
         }
-
-        var lineEnding = sourceText.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var methodText =
-            $"{lineEnding}    private void {handlerName}({parameters}){lineEnding}" +
-            $"    {{{lineEnding}" +
-            $"        // TODO: Add event handling logic.{lineEnding}" +
-            $"    }}{lineEnding}";
-        var insertionIndex = classDeclaration.CloseBraceToken.SpanStart;
-        var updatedText = sourceText.Insert(insertionIndex, methodText);
-        DesignerAtomicFileWriter.WriteUtf8(codePath, updatedText);
-
-        return new DesignerEventHandlerFileResult(true, codePath, $"Added event handler {handlerName} to {IOPath.GetFileName(codePath)}.");
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        { return new(false, string.Empty, $"Cannot edit event source: {ex.Message}"); }
     }
 
     public string GetDesignDocumentPath(DesignDocument document, string? explicitPath = null)
@@ -201,7 +174,7 @@ internal sealed class DesignerFileService
         return IOPath.Combine(AppContext.BaseDirectory, $"{document.ClassName}.Designer.cs");
     }
 
-    private string? GetFormCodePath(DesignDocument document)
+    internal string? GetFormCodePath(DesignDocument document)
     {
         var activeDocumentPath = currentDocumentPathProvider?.Invoke();
 
@@ -216,15 +189,20 @@ internal sealed class DesignerFileService
                 IOPath.GetDirectoryName(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!) ?? string.Empty,
                 $"{IOPath.GetFileNameWithoutExtension(DesignerDocumentPath.NormalizeDesignPath(environment.CurrentDocumentPath)!)}.cs");
 
-        return IOPath.Combine(AppContext.BaseDirectory, $"{document.ClassName}.cs");
+        // An unsaved design document does not authorize editing an executable's directory.
+        return null;
     }
 
-    private static string WriteEventHandlerParameters(Type? eventHandlerType)
+    internal static string WriteEventHandlerParameters(Type? eventHandlerType)
     {
         var invoke = eventHandlerType?.GetMethod("Invoke");
 
         if (invoke is null)
             return "object? sender, global::System.EventArgs e";
+
+        if (invoke.ReturnType != typeof(void) || invoke.GetParameters().Any(p => p.ParameterType.IsByRef
+            || p.ParameterType.IsPointer || p.ParameterType.IsByRefLike || p.ParameterType.IsFunctionPointer))
+            return "unsupported signature";
 
         return string.Join(
             ", ",
@@ -233,7 +211,8 @@ internal sealed class DesignerFileService
     }
 
     private static string SanitizeParameterName(string? name, int index)
-        => string.IsNullOrWhiteSpace(name) ? $"arg{index}" : name;
+        => string.IsNullOrWhiteSpace(name) ? $"arg{index}"
+            : SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
 
     private static string WriteTypeName(Type type)
     {
@@ -261,17 +240,32 @@ internal sealed class DesignerFileService
         if (type.IsByRef)
             return WriteTypeName(type.GetElementType()!);
 
-        if (type.IsGenericType)
-        {
-            var typeName = type.GetGenericTypeDefinition().FullName ?? type.Name;
-            var tickIndex = typeName.IndexOf('`', StringComparison.Ordinal);
-            if (tickIndex >= 0)
-                typeName = typeName[..tickIndex];
+        if (type.IsArray)
+            return WriteTypeName(type.GetElementType()!) + "[" + new string(',', type.GetArrayRank() - 1) + "]";
 
-            return $"global::{typeName}<{string.Join(", ", type.GetGenericArguments().Select(WriteTypeName))}>";
+        if (type.IsGenericType || type.IsNested)
+        {
+            var segments = new Stack<Type>();
+            for (var current = type; current is not null; current = current.DeclaringType) segments.Push(current);
+            var arguments = type.GetGenericArguments();
+            var index = 0;
+            var names = new List<string>();
+            foreach (var segment in segments)
+            {
+                var name = segment.Name;
+                var tick = name.IndexOf('`');
+                if (tick >= 0)
+                {
+                    var arity = int.Parse(name[(tick + 1)..], System.Globalization.CultureInfo.InvariantCulture);
+                    name = name[..tick] + "<" + string.Join(", ", arguments.Skip(index).Take(arity).Select(WriteTypeName)) + ">";
+                    index += arity;
+                }
+                names.Add(name);
+            }
+            return "global::" + (string.IsNullOrEmpty(type.Namespace) ? string.Empty : type.Namespace + ".") + string.Join(".", names);
         }
 
-        return $"global::{type.FullName ?? type.Name}";
+        return $"global::{(type.FullName ?? type.Name).Replace('+', '.')}";
     }
 }
 

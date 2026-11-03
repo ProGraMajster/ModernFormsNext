@@ -145,6 +145,7 @@ internal static partial class DesignerProjectUserControlDiscovery
                     DisplayName = Argument(controlMetadata, 0) as string ?? Text(type, controlMetadata, "DisplayName") ?? type.Name,
                     Category = Text(type, controlMetadata, "Category") ?? (path.Length == 0 ? "My Project" : "References"),
                     Description = Text(type, controlMetadata, "Description"),
+                    DefaultEventName = Argument(Attribute(type, "System.ComponentModel.DefaultEventAttribute"), 0) as string,
                     FrameworkBaseTypeName = FindFrameworkBase(type, frameworkControl)?.ToDisplayString() ?? "ModernFormsNext.Control",
                     VisibleInToolbox = Named(controlMetadata, "VisibleInToolbox") as bool?
                         ?? Argument(Attribute(type, "System.ComponentModel.BrowsableAttribute"), 0) as bool? ?? true,

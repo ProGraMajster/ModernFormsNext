@@ -8,7 +8,7 @@ using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Properties;
 
-internal sealed class DesignerPropertyGrid : DesignerPanelBase
+internal sealed partial class DesignerPropertyGrid : DesignerPanelBase
 {
     private readonly DesignerPropertyGridState state;
     private readonly DesignerPropertyGridRenderer renderer;
@@ -57,6 +57,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     {
         this.fileService = fileService;
         this.state = state;
+        eventBindings = fileService is null ? null : new DesignerEventBindingService(state.Session, fileService);
         renderer = new DesignerPropertyGridRenderer();
         controller = new DesignerPropertyGridController(state, renderer);
         TabStop = true;
@@ -68,6 +69,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
             ClampScrollOffset();
             Invalidate();
+            RefreshSelectedEventDiagnostic();
         };
 
         SizeChanged += (_, _) =>
@@ -126,6 +128,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
         textEditor.TextChanged += TextEditor_TextChanged;
 
         Controls.Add(textEditor);
+        if (row.Event is not null && fileService is not null) AttachEventPicker(row.Event, bounds);
         textEditor.BringToFront();
         textEditor.Select();
         textEditor.SelectAll();
@@ -212,17 +215,27 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
         var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
 
+        var previousEvent = state.SelectedEvent;
         if (controller.HandleMouseDown(this, logicalPoint.X, logicalPoint.Y, scrollOffset))
+        {
+            if (ReferenceEquals(previousEvent, state.SelectedEvent)) RefreshSelectedEventDiagnostic(force: true);
             Invalidate();
+        }
     }
 
     protected override void OnDoubleClick(MouseEventArgs e)
     {
         base.OnDoubleClick(e);
+        if (IsDisposed || Disposing) return;
 
         var logicalPoint = DesignerDpiCoordinateConverter.DeviceToLogicalPoint(e.X, e.Y, Scaling);
 
-        if (controller.TryCreateDefaultEventHandler(logicalPoint.X, logicalPoint.Y, Width, scrollOffset, out var eventDescriptor, out var handlerName))
+        if (eventBindings is not null && controller.SelectEventAt(logicalPoint.X, logicalPoint.Y, Width, scrollOffset) is { } selectedEvent)
+        {
+            ActivateEvent(selectedEvent);
+            return;
+        }
+        if (eventBindings is null && controller.TryCreateDefaultEventHandler(logicalPoint.X, logicalPoint.Y, Width, scrollOffset, out var eventDescriptor, out var handlerName))
         {
             EnsureEventHandlerMethod(eventDescriptor, handlerName);
             Invalidate();
@@ -276,6 +289,15 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
     {
         if (textEditor is null && comboEditor is null && booleanEditor is null && numericEditor is null)
             return true;
+
+        if (textEditor is not null && state.EditingEvent is { } eventDescriptor && eventBindings is not null)
+        {
+            var name = textEditor.Text.Trim();
+            state.CancelEditing();
+            RemoveEditors();
+            BindEvent(eventDescriptor, name, create: true, navigate: false);
+            return true;
+        }
 
         committingEdit = true;
         var committed = false;
@@ -432,6 +454,7 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
     private void RemoveEditors()
     {
+        RemoveEventPicker();
         if (textEditor is not null)
         {
             textEditor.KeyDown -= TextEditor_KeyDown;
@@ -555,6 +578,9 @@ internal sealed class DesignerPropertyGrid : DesignerPanelBase
 
     private void TextEditor_LostFocus(object? sender, EventArgs e)
     {
+        // The adjacent handler chooser takes focus without committing typed text. Enter or an
+        // explicit row commit owns event edits; a selection/document change cancels the editor.
+        if (state.EditingEvent is not null && eventBindings is not null) return;
         EndEditOrCancelOnFocusLoss();
     }
 

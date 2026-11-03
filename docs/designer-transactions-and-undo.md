@@ -26,6 +26,12 @@ written to disk.
 
 ## Transaction lifecycle
 
+Event editing uses the same typed binding dictionary changes. The source handler is validated
+and, when necessary, inserted before one model transaction commits. No transaction spans an
+asynchronous host request. Unbind and Designer Undo retain user methods; the code editor owns
+source undo/save separately. Stale document/selection/model work never binds to a new target.
+See [Designer events and navigation](designer-events.md) for conflicts and supported signatures.
+
 Begin a transaction with a concise user-facing description and commit it only after every step
 succeeds:
 

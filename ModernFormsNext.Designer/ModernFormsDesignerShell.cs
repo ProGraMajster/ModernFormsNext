@@ -79,6 +79,7 @@ public sealed class ModernFormsDesignerShell : Panel
         surface = Controls.Add(new DesignerSurface(Session));
         solutionExplorer = Controls.Add(new SolutionExplorerPanel(Session, T("SolutionExplorer"), T("NoProjectPath")));
         properties = Controls.Add(new DesignerPropertyGrid(Session, files, T("Properties")));
+        surface.DefaultEventRequested += (_, _) => properties.ActivateDefaultEvent();
         output = Controls.Add(new OutputPanel(Session, T("Output")));
         statusBar = Controls.Add(new DesignerStatusBar(Session, this.options, persistence));
         dockManager = new DesignerDockManager(this, this.options, LayoutChildren, Session.Log);

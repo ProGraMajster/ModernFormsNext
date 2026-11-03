@@ -302,9 +302,11 @@ overwriting the `.mfdesign` document.
   history. See [Designer copy and paste](designer-copy-paste.md). An operating-system
   clipboard contract ([#57](https://github.com/ProGraMajster/ModernFormsNext/issues/57)) remain
   separate work.
-- The Events view persists bindings and can generate a handler method. Default-event double-click,
-  compatible-method selection, robust navigation, and rename diagnostics remain in
-  [#37](https://github.com/ProGraMajster/ModernFormsNext/issues/37).
+- The Events view supports default-event activation, compatible paired-source method selection,
+  guarded source insertion, optional live-editor navigation and missing/incompatible binding
+  diagnostics. It retains user methods on unbind/Undo and does not execute project code.
+  Conditional classes, methods outside the paired file and unsupported delegate signatures
+  require source editing. See [Designer events and navigation](designer-events.md).
 - Project resources and inherited-control design remain incomplete
   ([#38](https://github.com/ProGraMajster/ModernFormsNext/issues/38),
   [#39](https://github.com/ProGraMajster/ModernFormsNext/issues/39)).
