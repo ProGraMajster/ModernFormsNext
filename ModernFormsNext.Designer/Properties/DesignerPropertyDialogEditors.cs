@@ -139,7 +139,7 @@ internal static class DesignerPropertyDialogEditors
                 return false;
             }
 
-            node.Properties.Remove("ImageLocation");
+            if (!node.IsInherited) node.Properties.Remove("ImageLocation");
             node.Properties[DesignerProjectAssets.ImageProperty] = DesignPropertyValue.FromString(assetId);
             return true;
         };

@@ -23,6 +23,7 @@ public sealed class CSharpDesignerParser
     private readonly Dictionary<string, DesignControlNode> nodes = new(StringComparer.Ordinal);
     private readonly List<string> nodeOrder = [];
     private readonly List<ControlAddOperation> addOperations = [];
+    private readonly List<(string Name, string? Parent, int Index)> inheritedMembers = [];
     private IReadOnlyList<DesignAnimationDefinitionDescriptor> animationDefinitions = [];
 
     /// <summary>
@@ -44,6 +45,7 @@ public sealed class CSharpDesignerParser
         nodes.Clear();
         nodeOrder.Clear();
         addOperations.Clear();
+        inheritedMembers.Clear();
 
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceText);
         var root = syntaxTree.GetCompilationUnitRoot();
@@ -93,6 +95,7 @@ public sealed class CSharpDesignerParser
         };
 
         var formNameAssigned = !string.IsNullOrWhiteSpace(options.FormNameOverride);
+        ReadInheritanceMetadata(classDeclaration, document);
 
         foreach (var statement in initializeComponent.Body.Statements)
             ProcessStatement(statement, document, ref formNameAssigned);
@@ -106,6 +109,47 @@ public sealed class CSharpDesignerParser
             document.FormName = document.ClassName;
 
         return CreateResult(document, options);
+    }
+
+    private void ReadInheritanceMetadata(ClassDeclarationSyntax declaration, DesignDocument document)
+    {
+        foreach (var trivia in declaration.GetLeadingTrivia())
+        {
+            if (!trivia.IsKind(SyntaxKind.SingleLineCommentTrivia)) continue;
+            var text = trivia.ToString();
+            if (text.StartsWith("// MFN-Base: ", StringComparison.Ordinal))
+            {
+                if (document.BaseTypeName is not null)
+                    AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Duplicate inheritance base metadata.", declaration);
+                document.BaseTypeName = text["// MFN-Base: ".Length..];
+            }
+            else if (text.StartsWith("// MFN-Viewport: ", StringComparison.Ordinal))
+            {
+                var parts = text["// MFN-Viewport: ".Length..].Split(',');
+                if (parts.Length != 2 || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out int width)
+                    || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int height))
+                    AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Invalid inheritance viewport metadata.", declaration);
+                else document.Size = new(width, height);
+            }
+            else if (text.StartsWith("// MFN-Inherited: ", StringComparison.Ordinal))
+            {
+                var parts = text["// MFN-Inherited: ".Length..].Split('|');
+                if (parts.Length != 5 || inheritedMembers.Count >= DesignDocumentValidator.MaximumNodeCount
+                    || !DesignDocumentValidator.IsValidCSharpIdentifier(parts[2])
+                    || parts[3] != "-" && !DesignDocumentValidator.IsValidCSharpIdentifier(parts[3])
+                    || !int.TryParse(parts[4], NumberStyles.None, CultureInfo.InvariantCulture, out int index)
+                    || index >= DesignDocumentValidator.MaximumNodeCount
+                    || nodes.ContainsKey(parts[2]) || fields.ContainsKey(parts[2]))
+                {
+                    AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Invalid or duplicate inherited member metadata.", declaration);
+                    continue;
+                }
+                var node = EnsureNode(parts[2], parts[1], DesignerMemberVisibility.None, declaration);
+                node.InheritedFrom = parts[0];
+                node.Bounds = default;
+                inheritedMembers.Add((parts[2], parts[3] == "-" ? null : parts[3], index));
+            }
+        }
     }
 
     private static ClassDeclarationSyntax? FindDesignerClass(
@@ -704,7 +748,10 @@ public sealed class CSharpDesignerParser
 
             case "Bounds":
                 if (TryReadBounds(valueExpression, out var bounds))
+                {
                     node.Bounds = bounds;
+                    if (node.IsInherited) node.InheritedBounds = bounds;
+                }
                 else
                     AddUnsupported(valueExpression, $"Unsupported Bounds assignment for '{ownerName}'.");
                 break;
@@ -742,6 +789,14 @@ public sealed class CSharpDesignerParser
         SyntaxNode syntax,
         ref bool formNameAssigned)
     {
+        if (document.BaseTypeName is not null && propertyPath is "Name" or "Text")
+        {
+            if (TryReadDesignerValue(valueExpression, out var inheritedValue))
+                document.Properties[propertyPath] = inheritedValue;
+            else
+                AddUnsupported(syntax, "Unsupported inherited root property assignment.");
+            return;
+        }
         switch (propertyPath)
         {
             case "Name":
@@ -778,7 +833,10 @@ public sealed class CSharpDesignerParser
             case "Size":
             case "ClientSize":
                 if (TryReadSize(valueExpression, out var width, out var height))
+                {
                     document.Size = new DesignSize(width, height);
+                    if (document.BaseTypeName is not null) document.InheritedSize = document.Size;
+                }
                 else
                     AddUnsupported(valueExpression, $"Unsupported form {propertyPath} assignment.");
                 break;
@@ -973,6 +1031,23 @@ public sealed class CSharpDesignerParser
                 parent.Children.Add(child);
             else
                 parent.Children.Insert(0, child);
+        }
+
+        foreach (var inherited in inheritedMembers)
+        {
+            var node = nodes[inherited.Name];
+            if (!added.Add(inherited.Name))
+            {
+                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "An inherited member cannot be added again.", null);
+                continue;
+            }
+            if (inherited.Parent is null)
+                document.Controls.Insert(Math.Min(inherited.Index, document.Controls.Count), node);
+            else if (nodes.TryGetValue(inherited.Parent, out var owner) && owner.IsInherited
+                && !ReferenceEquals(owner, node) && !ContainsDescendant(node, owner))
+                owner.Children.Insert(Math.Min(inherited.Index, owner.Children.Count), node);
+            else
+                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "The inherited member hierarchy is invalid.", null);
         }
 
         foreach (var name in nodeOrder)

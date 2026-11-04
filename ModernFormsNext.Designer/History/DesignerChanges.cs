@@ -2,6 +2,17 @@ using ModernFormsNext.Designing;
 
 namespace ModernFormsNext.Designer.History;
 
+// Automatic Anchor reflow changes the inherited baseline as well as displayed bounds.
+// Retain that baseline in the same undo unit so a resize never becomes a private-field override.
+internal sealed class DesignerInheritedBaselineChange(
+    DesignControlNode node, DesignNodeInheritanceState? before, DesignNodeInheritanceState? after) : IDesignerChange
+{
+    public bool IsEmpty => Equals(before, after);
+    public void Apply() => node.InheritanceState = after;
+    public void Revert() => node.InheritanceState = before;
+    public bool TryMerge(IDesignerChange subsequentChange) => false;
+}
+
 internal enum DesignerRootValueKind
 {
     Namespace,

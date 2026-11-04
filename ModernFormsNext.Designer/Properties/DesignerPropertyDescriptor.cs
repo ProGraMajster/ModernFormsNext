@@ -14,7 +14,7 @@ internal sealed class DesignerPropertyDescriptor
 
     public required Type ValueType { get; init; }
 
-    public bool IsReadOnly { get; init; }
+    public bool IsReadOnly { get; set; }
 
     public bool IsVisible { get; init; } = true;
 
@@ -24,9 +24,9 @@ internal sealed class DesignerPropertyDescriptor
 
     public int Depth { get; init; }
 
-    public bool HasDialogEditor { get; init; }
+    public bool HasDialogEditor { get; set; }
 
-    public Func<DesignerPropertyDialogContext, Task<bool>>? DialogEditor { get; init; }
+    public Func<DesignerPropertyDialogContext, Task<bool>>? DialogEditor { get; set; }
 
     public List<DesignerPropertyDescriptor> Children { get; } = [];
 

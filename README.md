@@ -182,7 +182,8 @@ Download the matching VSIX from the GitHub release assets when published, or bui
 `ModernFormsNext.VisualStudioExtension.Vsix`. The manifest supports amd64 Community, Professional,
 and Enterprise Visual Studio installations from version 17.0 onward without changing the existing
 extension identity. See [installation](docs/installation.md),
-[designer architecture](docs/designer-architecture.md), and [UserControls](docs/user-controls.md).
+[designer architecture](docs/designer-architecture.md), [UserControls](docs/user-controls.md),
+and [inherited designs](docs/designer-inheritance.md).
 
 ## Templates
 

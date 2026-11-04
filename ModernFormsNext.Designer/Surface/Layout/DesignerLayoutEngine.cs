@@ -405,11 +405,27 @@ internal sealed class DesignerLayoutEngine
 
             if (parentOwnsChildPlacement && !DesignerLayoutProperties.IsDocked(child))
             {
-                child.Bounds = new DesignBounds(
+                var previous = child.Bounds;
+                var updated = new DesignBounds(
                     absoluteBounds.X - parentBounds.X,
                     absoluteBounds.Y - parentBounds.Y,
                     absoluteBounds.Width,
                     absoluteBounds.Height);
+                if (child.InheritanceState is { } inherited)
+                {
+                    // The root resize is already emitted once in the derived initializer.
+                    // Account for its automatic reflow without authoring member assignments.
+                    var baseline = inherited.Bounds;
+                    child.InheritanceState = inherited with
+                    {
+                        Bounds = new(
+                            checked((int)(baseline.X + (long)updated.X - previous.X)),
+                            checked((int)(baseline.Y + (long)updated.Y - previous.Y)),
+                            checked((int)(baseline.Width + (long)updated.Width - previous.Width)),
+                            checked((int)(baseline.Height + (long)updated.Height - previous.Height)))
+                    };
+                }
+                child.Bounds = updated;
             }
 
             PersistAnchoredBounds(child.Children, absoluteBounds, child, layout);

@@ -135,6 +135,7 @@ internal sealed class DesignerModelMutationSnapshot
         private readonly string name;
         private readonly DesignBounds bounds;
         private readonly DesignerMemberVisibility memberVisibility;
+        private readonly DesignNodeInheritanceState? inheritedBaseline;
         private readonly Dictionary<string, DesignPropertyValue> properties;
         private readonly Dictionary<string, string?> events;
         private readonly IReadOnlyList<DesignControlNode>? children;
@@ -146,6 +147,7 @@ internal sealed class DesignerModelMutationSnapshot
             name = node.Name;
             bounds = node.Bounds;
             memberVisibility = node.MemberVisibility;
+            inheritedBaseline = node.InheritanceState;
             properties = new Dictionary<string, DesignPropertyValue>(node.Properties, StringComparer.Ordinal);
             events = new Dictionary<string, string?>(node.Events, StringComparer.Ordinal);
             children = includeChildren ? node.Children.ToArray() : null;
@@ -160,6 +162,7 @@ internal sealed class DesignerModelMutationSnapshot
             transactions.RecordAppliedChange(new DesignerNodeValueChange(node, DesignerNodeValueKind.Name, name, node.Name));
             transactions.RecordAppliedChange(new DesignerNodeValueChange(node, DesignerNodeValueKind.Bounds, bounds, node.Bounds));
             transactions.RecordAppliedChange(new DesignerNodeValueChange(node, DesignerNodeValueKind.MemberVisibility, memberVisibility, node.MemberVisibility));
+            transactions.RecordAppliedChange(new DesignerInheritedBaselineChange(node, inheritedBaseline, node.InheritanceState));
             RecordPropertyChanges(transactions, node.Properties, properties);
             RecordEventChanges(transactions, node.Events, events);
 

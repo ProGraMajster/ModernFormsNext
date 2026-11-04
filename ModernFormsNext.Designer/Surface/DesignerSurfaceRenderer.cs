@@ -163,7 +163,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         surfacePaintArgs.Canvas.DrawRectangle(formBounds, new SKColor(123, 183, 224), surfacePaintArgs.LogicalToDeviceUnits(1));
         DesignerGridPainter.Draw(surfacePaintArgs, clientBounds, view, state.SnappingOptions);
         surfacePaintArgs.Canvas.DrawText(
-            state.Document.FormName,
+            state.Document.BaseTypeName is not null && state.Document.Properties.TryGetValue("Text", out var inheritedText)
+                && inheritedText.Value is string title ? title : state.Document.FormName,
             Theme.UIFont,
             surfacePaintArgs.LogicalToDeviceUnits(Theme.FontSize),
             new System.Drawing.Rectangle(
@@ -288,7 +289,7 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
     private static void DrawSelection(PaintEventArgs e, DesignerSession state, DesignControlNode node,
         System.Drawing.Rectangle bounds)
         => DesignerSelectionAdorner.Draw(e, bounds,
-            state.SelectedNodes.Count == 1 ? DesignerLayoutProperties.GetResizeHandles(node) : [],
+            state.SelectedNodes.Count == 1 && !node.IsInheritanceLocked ? DesignerLayoutProperties.GetResizeHandles(node) : [],
             state.SelectedNodes.Count > 1 && ReferenceEquals(state.SelectedNode, node));
 
     private bool TryDrawEmbeddedPreview(

@@ -13,6 +13,63 @@ namespace ModernFormsNext.Designer.Tests;
 public sealed class CustomUserControlPreviewTests
 {
     [Fact]
+    public void CacheBoundsRetainedDocumentsAndInstanceLayouts()
+    {
+        using var project = new TemporaryPreviewProject();
+        var controls = new List<DesignerProjectUserControlInfo>();
+        for (int index = 0; index <= DesignerEmbeddedPreviewCache.MaximumCachedSources; index++)
+        {
+            var document = CreateUserControlDocument("Example", $"Card{index}", 300, 200);
+            var path = project.AddUserControl(document);
+            controls.Add(new(document.ClassName, $"Example.{document.ClassName}", IOPath.ChangeExtension(path, ".cs")));
+        }
+        var cache = new DesignerEmbeddedPreviewCache(project.ProjectFilePath, controls);
+        foreach (var control in controls)
+        {
+            for (int size = 0; size <= DesignerEmbeddedPreviewCache.MaximumCachedLayoutsPerSource; size++)
+            {
+                Assert.True(cache.TryGetPreview(control.FullName, new(300 + size, 200), out _, out var error), error);
+                Assert.InRange(cache.CachedSourceCount, 1, DesignerEmbeddedPreviewCache.MaximumCachedSources);
+                Assert.InRange(cache.CachedLayoutCount, 1, DesignerEmbeddedPreviewCache.MaximumCachedLayouts);
+                Assert.InRange(cache.CachedCharacterCount, 1, DesignerEmbeddedPreviewCache.MaximumCachedCharacters);
+            }
+        }
+    }
+
+    [Fact]
+    public void PreviewRejectsAnOversizedCompanionThroughCanonicalAdmission()
+    {
+        using var project = new TemporaryPreviewProject();
+        var document = CreateUserControlDocument("Example", "Card", 300, 200);
+        var path = project.AddUserControl(document);
+        using (var writer = new StreamWriter(path))
+        {
+            var whitespace = new string(' ', 4096);
+            for (int count = 0; count <= DesignDocumentSerializer.MaximumContentLength / whitespace.Length; count++)
+                writer.Write(whitespace);
+        }
+        var control = new DesignerProjectUserControlInfo("Card", "Example.Card", IOPath.ChangeExtension(path, ".cs"));
+        var cache = new DesignerEmbeddedPreviewCache(project.ProjectFilePath, [control]);
+
+        Assert.False(cache.TryGetPreview(control.FullName, new(300, 200), out _, out var error));
+        Assert.Contains("budget", error);
+        Assert.Equal(0, cache.CachedCharacterCount);
+    }
+
+    [Fact]
+    public void ProjectScanBudgetIncludesUnrelatedFiles()
+    {
+        using var project = new TemporaryPreviewProject();
+        for (int index = 0; index < 4; index++)
+            File.WriteAllText(IOPath.Combine(project.DirectoryPath, $"note{index}.txt"), "sample");
+
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            DesignerProjectUserControlDiscovery.EnumerateProjectFiles(project.DirectoryPath, "*.mfdesign", maximumEntries: 3).ToArray();
+        });
+    }
+
+    [Fact]
     public void PreviewLoadsChildrenCachesStableFramesAndNeverMutatesSourceDocuments()
     {
         using var project = new TemporaryPreviewProject();

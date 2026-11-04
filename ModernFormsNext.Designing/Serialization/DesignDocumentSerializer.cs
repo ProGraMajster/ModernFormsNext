@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace ModernFormsNext.Designing;
 
@@ -25,13 +26,21 @@ public sealed class DesignDocumentSerializer
     private readonly IReadOnlyDictionary<int, IDesignDocumentMigration> migrations;
 
     /// <summary>
-    /// Identifies the designer document format written by this serializer.
+    /// Identifies the default format written for ordinary, non-inherited documents.
     /// </summary>
     /// <remarks>
-    /// Format version 1 remains the current format. Adding migration infrastructure does not
-    /// itself change the persisted <c>.mfdesign</c> schema.
+    /// Format 1 preserves ordinary document compatibility. Inherited designs use
+    /// <see cref="InheritedFormatVersion"/> so older readers reject their ownership patches.
     /// </remarks>
     public const int CurrentFormatVersion = 1;
+
+    /// <summary>Identifies the format required for inherited ownership and override patches.</summary>
+    /// <remarks>
+    /// The serializer reads formats 1 and 2. It writes format 2 when a custom base is present,
+    /// without changing the caller's metadata. Readers supporting only format 1 must reject it.
+    /// Runtime controls and ordinary document serialization are unaffected.
+    /// </remarks>
+    public const int InheritedFormatVersion = 2;
 
     /// <summary>
     /// Gets the default serializer instance.
@@ -39,7 +48,7 @@ public sealed class DesignDocumentSerializer
     public static DesignDocumentSerializer Default { get; } = new();
 
     /// <summary>
-    /// Initializes a serializer that accepts the current format and versionless legacy documents.
+    /// Initializes a serializer that accepts ordinary and inherited formats and versionless ordinary documents.
     /// </summary>
     public DesignDocumentSerializer()
         : this(Array.Empty<IDesignDocumentMigration>())
@@ -83,6 +92,9 @@ public sealed class DesignDocumentSerializer
         EnsureCurrentDocumentFormat(document);
         var validation = new DesignDocumentValidator().ValidateStructure(document);
         if (!validation.IsValid) throw new InvalidOperationException(string.Join(" ", validation.Errors));
+        document = DesignInheritanceProjection.Authored(document);
+        if (document.BaseTypeName is not null)
+            document.Metadata = new() { FormatVersion = InheritedFormatVersion, ToolName = document.Metadata.ToolName };
         string json = JsonSerializer.Serialize(document, Options);
         if (json.Length > MaximumContentLength) throw new InvalidOperationException("The designer document exceeds the supported JSON text budget.");
         return json;
@@ -130,13 +142,13 @@ public sealed class DesignDocumentSerializer
         int currentVersion = inspection.EffectiveVersion;
         var migratedVersions = new HashSet<int>();
 
-        while (currentVersion != CurrentFormatVersion)
+        while (currentVersion != CurrentFormatVersion && currentVersion != InheritedFormatVersion)
         {
             if (currentVersion > CurrentFormatVersion)
             {
                 throw FormatVersionError(
                     $"Designer document format version {currentVersion} is newer than the " +
-                    $"supported version {CurrentFormatVersion}.");
+                    $"supported version {CurrentFormatVersion} (ordinary) or {InheritedFormatVersion} (inherited).");
             }
 
             if (!migrations.TryGetValue(currentVersion, out IDesignDocumentMigration? migration))
@@ -205,6 +217,8 @@ public sealed class DesignDocumentSerializer
         DesignDocument document = JsonSerializer.Deserialize<DesignDocument>(currentJson, Options)
             ?? throw new JsonException("The JSON did not contain a designer document.");
         EnsureCurrentDocumentFormat(document);
+        if (document.BaseTypeName is not null && document.Metadata.FormatVersion != InheritedFormatVersion)
+            throw FormatVersionError($"Inherited designs require format version {InheritedFormatVersion}; ownership metadata cannot be downgraded.");
         var validation = new DesignDocumentValidator().ValidateStructure(document);
         if (!validation.IsValid) throw new JsonException(string.Join(" ", validation.Errors));
 
@@ -355,11 +369,11 @@ public sealed class DesignDocumentSerializer
             throw new InvalidOperationException("Designer document metadata cannot be null.");
         }
 
-        if (document.Metadata.FormatVersion != CurrentFormatVersion)
+        if (document.Metadata.FormatVersion != CurrentFormatVersion && document.Metadata.FormatVersion != InheritedFormatVersion)
         {
             throw new InvalidOperationException(
                 $"Designer document format version {document.Metadata.FormatVersion} cannot be " +
-                $"serialized or materialized by a version {CurrentFormatVersion} serializer.");
+                $"serialized or materialized by a version {CurrentFormatVersion}/{InheritedFormatVersion} serializer.");
         }
     }
 
@@ -431,7 +445,17 @@ public sealed class DesignDocumentSerializer
         var options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = true
+            WriteIndented = true,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver
+            {
+                Modifiers = { info =>
+                {
+                    if (info.Type != typeof(DesignControlNode)) return;
+                    foreach (var property in info.Properties)
+                        if (property.Name is "bounds" or "memberVisibility")
+                            property.ShouldSerialize = (owner, _) => !((DesignControlNode)owner).IsInherited;
+                } }
+            }
         };
 
         options.Converters.Add(new DesignPropertyValueJsonConverter());

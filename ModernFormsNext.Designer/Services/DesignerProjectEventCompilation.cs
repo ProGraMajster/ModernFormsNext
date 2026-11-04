@@ -9,7 +9,8 @@ internal static partial class DesignerProjectUserControlDiscovery
 {
     // Event analysis reuses the metadata discovery's project identity, exclusions and literal
     // reference resolver. It never invokes MSBuild or loads a project assembly into the runtime.
-    internal static CSharpCompilation CreateEventCompilation(SyntaxTree activeTree, string? projectPath, CancellationToken cancellationToken = default)
+    internal static CSharpCompilation CreateEventCompilation(SyntaxTree activeTree, string? projectPath,
+        CancellationToken cancellationToken = default, List<string>? diagnostics = null)
     {
         var trees = new List<SyntaxTree> { activeTree };
         var remaining = DesignerEventSource.MaximumProjectCharacters - activeTree.Length;
@@ -49,7 +50,7 @@ internal static partial class DesignerProjectUserControlDiscovery
         if (paths.Count > 1024) throw new InvalidDataException("Event runtime metadata exceeds the reference identity safety budget.");
         if (directory is not null)
         {
-            var diagnostics = new List<string>();
+            diagnostics ??= [];
             var referenceBytesRemaining = 64L * 1024 * 1024;
             foreach (var path in ReadReferencePaths(projectPath, directory, diagnostics, sourceEnumerationBudget: 8192))
             {

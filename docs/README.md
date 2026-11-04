@@ -49,6 +49,7 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 ## Designer
 
 - [Designer architecture and document workflow](designer-architecture.md)
+- [Inherited Form and UserControl designs](designer-inheritance.md)
 - [Multi-selection, group movement and shared properties](designer-multi-selection.md)
 - [Smart guides, snapping and configurable grid](designer-smart-guides.md)
 - [Designer preview resource policy](designer-preview-resources.md) — configurable trusted-project limits and bounded lazy table previews.

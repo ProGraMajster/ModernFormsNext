@@ -7,7 +7,10 @@ namespace ModernFormsNext.Designer.Services;
 // document values. No Type, MemberInfo, attribute instance or user delegate crosses this boundary.
 internal sealed record DesignerCustomControlCatalog(
     IReadOnlyList<DesignerProjectUserControlInfo> Controls,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<string> Diagnostics)
+{
+    internal IReadOnlyList<DesignerProjectUserControlInfo> FormRoots { get; init; } = [];
+}
 
 internal sealed record DesignerCustomEvent(
     string Name, string DisplayName, string Category, string Description, string? Parameters);

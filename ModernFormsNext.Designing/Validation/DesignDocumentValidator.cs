@@ -79,6 +79,11 @@ public sealed partial class DesignDocumentValidator
         values.AddText(document.Namespace, MaximumTypeNameLength);
         values.AddText(document.ClassName, MaximumTypeNameLength);
         values.AddText(document.FormName, MaximumTypeNameLength);
+        values.AddText(document.BaseTypeName, MaximumTypeNameLength);
+        if (document.BaseTypeName is not null && !IsInheritanceTypeName(document.BaseTypeName))
+            result.AddError("The custom root base must be a qualified named C# type.");
+        if (document.InheritedSize is { } size && (document.BaseTypeName is null || size.Width < 0 || size.Height < 0))
+            result.AddError("An inherited root size override requires a custom base and nonnegative dimensions.");
         values.AddText(document.Metadata?.ToolName, MaximumTypeNameLength);
         values.ValidateProperties(document.Properties);
         values.ValidateEvents(document.Events);
@@ -110,18 +115,33 @@ public sealed partial class DesignDocumentValidator
             { result.AddError("Authored bounds require non-negative dimensions and representable right/bottom edges."); continue; }
             values.AddText(node.Name, MaximumTypeNameLength);
             values.AddText(node.TypeName, MaximumTypeNameLength);
+            values.AddText(node.InheritedFrom, MaximumTypeNameLength);
+            if (node.InheritedFrom is not null && (document.BaseTypeName is null || !IsInheritanceTypeName(node.InheritedFrom)))
+                result.AddError("An inherited control requires a custom root base and a qualified declaring type.");
+            if (node.InheritedBounds is { } inheritedBounds && (!node.IsInherited
+                || inheritedBounds.Width < 0 || inheritedBounds.Height < 0
+                || (long)inheritedBounds.X + inheritedBounds.Width > int.MaxValue
+                || (long)inheritedBounds.Y + inheritedBounds.Height > int.MaxValue))
+                result.AddError("Inherited bounds must be representable and belong to an inherited member.");
             values.ValidateProperties(node.Properties);
             values.ValidateEvents(node.Events);
             if (!result.IsValid) break;
             if (node.Children.Any(child => child is null))
             { result.AddError($"Control '{node.Name}' contains a null authored child."); continue; }
-            if (DesignPageContainers.GetChildError(node) is { } pageError)
+            if ((!node.IsInherited || node.InheritanceState is not null)
+                && DesignPageContainers.GetChildError(node) is { } pageError)
                 result.AddError($"Control '{node.Name}': {pageError}");
             if (pending.Count + node.Children.Count > MaximumNodeCount - count)
             { result.AddError($"Designer graphs support at most {MaximumNodeCount} control nodes."); break; }
             for (int index = node.Children.Count - 1; index >= 0; index--) pending.Push((node.Children[index], item.Depth + 1));
         }
         return result;
+    }
+
+    private static bool IsInheritanceTypeName(string value)
+    {
+        if (value.StartsWith("global::", StringComparison.Ordinal)) value = value[8..];
+        return value.Split('.').All(IsValidCSharpIdentifier);
     }
 
     /// <summary>

@@ -68,6 +68,11 @@ public sealed partial class DesignerSession
             error = "Structural Designer nodes cannot be edited independently of their owner.";
             return false;
         }
+        if (roots.Any(node => node.IsInherited))
+        {
+            error = "Inherited members require individual value editing in the derived design.";
+            return false;
+        }
         if (roots.Any(node => !ReferenceEquals(GetComponentBoundary(node), node)))
         {
             error = "Select the owning component instead of editing its embedded controls independently.";
@@ -148,6 +153,11 @@ public sealed partial class DesignerSession
         var parents = roots.Select(FindParent).Distinct<DesignControlNode?>(ReferenceEqualityComparer.Instance).ToArray();
         if (parents.Length != 1) { Log("Reordering requires selected siblings."); return false; }
         var collection = parents[0]?.Children ?? Document.Controls;
+        if (collection.Any(node => node.IsInherited))
+        {
+            Log("Reordering across inherited members requires editing their declaring design.");
+            return false;
+        }
         var before = collection.ToArray();
         var after = before.ToArray();
         var selected = new HashSet<DesignControlNode>(roots, ReferenceEqualityComparer.Instance);
@@ -276,7 +286,8 @@ public sealed partial class DesignerSession
         foreach (var (node, bounds) in plan)
         {
             TryFindNodeWithParent(node, Document.Controls, null, out _, out var source, out int index);
-            Transactions.ExecuteChange(new DesignerTreeMoveChange(node, source, index, destination, destination.Count));
+            Transactions.ExecuteChange(new DesignerTreeMoveChange(node, source, index, destination,
+                GetInheritedInsertionIndex(destination, actualParent, destination.Count)));
             SetNodeBounds(node, bounds);
             if (actualParent is not null && DesignerSpecialContainers.IsTableLayoutPanel(actualParent))
             {
