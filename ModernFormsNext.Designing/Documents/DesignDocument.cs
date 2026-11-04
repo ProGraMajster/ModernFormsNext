@@ -57,6 +57,22 @@ public sealed class DesignDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public DesignRootKind RootKind { get; set; } = DesignRootKind.Form;
 
+    /// <summary>Gets or sets the fully qualified custom base class identified by source metadata.</summary>
+    /// <remarks>
+    /// A null value describes an ordinary Form or UserControl root. The Designer resolves a
+    /// custom base through inert project metadata and design companions. It does not construct it.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? BaseTypeName { get; set; }
+
+    /// <summary>Gets or sets the derived-owned root size override in logical pixels.</summary>
+    /// <remarks>Used with <see cref="BaseTypeName"/>. Null preserves the base class size.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DesignSize? InheritedSize { get; set; }
+
+    internal DesignRootInheritanceState? InheritanceState { get; set; }
+    internal string? InheritanceError { get; set; }
+
     /// <summary>
     /// Gets or sets the runtime root name used by generated initialization code.
     /// </summary>

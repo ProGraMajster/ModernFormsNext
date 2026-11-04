@@ -18,44 +18,16 @@ internal static partial class DesignerProjectUserControlDiscovery
         var candidates = DiscoverSourceCandidates(projectPath).ToDictionary(c => c.FullName, StringComparer.Ordinal);
         try
         {
-            var trees = new List<SyntaxTree>();
-            foreach (var path in EnumerateProjectFiles(directory, "*.cs"))
-            {
-                try { trees.Add(CSharpSyntaxTree.ParseText(File.ReadAllText(path), path: path)); }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                { diagnostics.Add($"Cannot read source '{path}': {exception.Message}"); }
-            }
-
-            // SDK implicit usings are source semantics, not a reason to evaluate arbitrary project
-            // targets. Unresolved project-specific globals remain diagnostics instead of execution.
-            trees.Add(CSharpSyntaxTree.ParseText("global using System; global using System.Collections.Generic;"));
-            var references = new List<MetadataReference>();
-            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var compilation = CreateEventCompilation(CSharpSyntaxTree.ParseText(string.Empty,
+                path: IOPath.Combine(directory, ".catalog-metadata.cs")), projectPath, diagnostics: diagnostics);
             var trustedPaths = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
                 .Split(IOPath.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                .Concat([typeof(Control).Assembly.Location, typeof(DesignDocument).Assembly.Location]);
-            foreach (var path in trustedPaths)
-                if (paths.Add(path)) references.Add(MetadataReference.CreateFromFile(path));
-
-            var customReferences = new List<PortableExecutableReference>();
-            foreach (var path in ReadReferencePaths(projectPath, directory, diagnostics))
-            {
-                if (!paths.Add(path)) continue;
-                try
-                {
-                    // Copy bytes, then release the file before publishing a catalog. Rebuilds can
-                    // replace DLLs; refresh never reuses an assembly loaded into the Designer process.
-                    var reference = MetadataReference.CreateFromImage(File.ReadAllBytes(path), filePath: path);
-                    references.Add(reference);
-                    customReferences.Add(reference);
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or BadImageFormatException)
-                { diagnostics.Add($"Cannot inspect reference '{path}': {exception.Message} Rebuild/restore, then Refresh Toolbox."); }
-            }
-
-            var compilation = CSharpCompilation.Create("DesignerMetadata", trees, references,
-                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+                .Concat([typeof(Control).Assembly.Location, typeof(DesignDocument).Assembly.Location])
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var customReferences = compilation.References.OfType<PortableExecutableReference>()
+                .Where(reference => reference.FilePath is not null && !trustedPaths.Contains(reference.FilePath));
             var frameworkControl = compilation.GetTypeByMetadataName("ModernFormsNext.Control");
+            var frameworkForm = compilation.GetTypeByMetadataName("ModernFormsNext.Form");
             var assemblies = new List<(IAssemblySymbol Assembly, string Path)> { (compilation.Assembly, string.Empty) };
             foreach (var reference in customReferences)
             {
@@ -74,14 +46,18 @@ internal static partial class DesignerProjectUserControlDiscovery
             }
 
             var ambiguousTypes = new HashSet<string>(StringComparer.Ordinal);
+            int metadataEntries = 0;
             foreach (var (assembly, path) in assemblies)
             foreach (var type in EnumerateTypes(assembly.GlobalNamespace))
             {
+                if (++metadataEntries > 32768) throw new InvalidDataException("Project metadata exceeds its type discovery budget.");
                 if (type.DeclaredAccessibility == Microsoft.CodeAnalysis.Accessibility.Public && type.BaseType?.TypeKind == TypeKind.Error)
                     diagnostics.Add($"'{type}' has an unresolved base type. Restore missing dependencies and Refresh Toolbox; no runtime probing is attempted.");
-                if (type.TypeKind != TypeKind.Class || type.IsAbstract || type.Arity != 0
-                    || type.DeclaredAccessibility != Microsoft.CodeAnalysis.Accessibility.Public || type.ContainingType is not null
-                    || !Inherits(type, frameworkControl)) continue;
+                bool isFormRoot = Inherits(type, frameworkForm);
+                if (type.TypeKind != TypeKind.Class || type.Arity != 0 || type.ContainingType is not null
+                    || !isFormRoot && (type.IsAbstract || !Inherits(type, frameworkControl))
+                    || type.DeclaredAccessibility != Microsoft.CodeAnalysis.Accessibility.Public && !(isFormRoot && path.Length == 0))
+                    continue;
 
                 var name = type.ToDisplayString();
                 if (ambiguousTypes.Contains(name)) continue;
@@ -91,7 +67,7 @@ internal static partial class DesignerProjectUserControlDiscovery
                     diagnostics.Add($"'{name}' requires unsupported C# type-name syntax. Existing nodes remain placeholders.");
                     continue;
                 }
-                if (!type.InstanceConstructors.Any(c => c.DeclaredAccessibility == Microsoft.CodeAnalysis.Accessibility.Public && c.Parameters.Length == 0))
+                if (!isFormRoot && !type.InstanceConstructors.Any(c => c.DeclaredAccessibility == Microsoft.CodeAnalysis.Accessibility.Public && c.Parameters.Length == 0))
                 {
                     candidates.Remove(name);
                     diagnostics.Add($"'{name}' needs a public parameterless constructor for generated initialization. Existing nodes remain placeholders.");
@@ -117,9 +93,12 @@ internal static partial class DesignerProjectUserControlDiscovery
                 var hiddenEvents = new List<string>();
                 var names = new HashSet<string>(StringComparer.Ordinal);
                 var visited = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+                int memberCount = 0;
                 for (var current = type; current is not null && visited.Add(current) && !SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, frameworkControl?.ContainingAssembly); current = current.BaseType)
                 foreach (var member in current.GetMembers())
                 {
+                    if (++memberCount > 2048 || visited.Count > 64)
+                        throw new InvalidDataException("Project metadata exceeds its inherited member budget.");
                     if (member.IsStatic || member.DeclaredAccessibility != Microsoft.CodeAnalysis.Accessibility.Public || !names.Add(member.Name)) continue;
                     if (!DesignDocumentValidator.IsValidCSharpIdentifier(member.Name)) continue;
                     if (member is IPropertySymbol property && !property.IsIndexer)
@@ -139,14 +118,16 @@ internal static partial class DesignerProjectUserControlDiscovery
                 // generated partial may be enumerated first but must not change .mfdesign identity.
                 var sourcePath = candidates.TryGetValue(name, out var sourceCandidate)
                     ? sourceCandidate.SourceFilePath
-                    : type.Locations.FirstOrDefault(l => l.IsInSource)?.SourceTree?.FilePath ?? directory;
+                    : type.DeclaringSyntaxReferences.FirstOrDefault(reference =>
+                        reference.GetSyntax() is Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax { BaseList: not null })?.SyntaxTree.FilePath
+                        ?? type.Locations.FirstOrDefault(l => l.IsInSource)?.SourceTree?.FilePath ?? directory;
                 candidates[name] = new(type.Name, name, path.Length == 0 ? sourcePath : path)
                 {
                     DisplayName = Argument(controlMetadata, 0) as string ?? Text(type, controlMetadata, "DisplayName") ?? type.Name,
                     Category = Text(type, controlMetadata, "Category") ?? (path.Length == 0 ? "My Project" : "References"),
                     Description = Text(type, controlMetadata, "Description"),
                     DefaultEventName = Argument(Attribute(type, "System.ComponentModel.DefaultEventAttribute"), 0) as string,
-                    FrameworkBaseTypeName = FindFrameworkBase(type, frameworkControl)?.ToDisplayString() ?? "ModernFormsNext.Control",
+                    FrameworkBaseTypeName = FindFrameworkBase(type, isFormRoot ? frameworkForm : frameworkControl)?.ToDisplayString() ?? "ModernFormsNext.Control",
                     VisibleInToolbox = Named(controlMetadata, "VisibleInToolbox") as bool?
                         ?? Argument(Attribute(type, "System.ComponentModel.BrowsableAttribute"), 0) as bool? ?? true,
                     Properties = properties.OrderBy(p => p.Name, StringComparer.Ordinal).ToArray(),
@@ -159,24 +140,43 @@ internal static partial class DesignerProjectUserControlDiscovery
             foreach (var diagnostic in compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Take(10))
                 diagnostics.Add($"Source/reference metadata is incomplete: {diagnostic}. Restore/rebuild and Refresh Toolbox; unresolved members remain unavailable.");
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or BadImageFormatException or ArgumentException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or BadImageFormatException or ArgumentException)
         { diagnostics.Add($"Metadata refresh incomplete: {exception.Message} Existing document values are preserved; rebuild/restore and Refresh Toolbox."); }
 
-        return new(candidates.Values.OrderBy(c => c.Name, StringComparer.Ordinal).ThenBy(c => c.FullName, StringComparer.Ordinal).ToArray(), diagnostics);
+        var sorted = candidates.Values.OrderBy(c => c.Name, StringComparer.Ordinal).ThenBy(c => c.FullName, StringComparer.Ordinal).ToArray();
+        return new(sorted.Where(candidate => candidate.FrameworkBaseTypeName != "ModernFormsNext.Form").ToArray(), diagnostics)
+        {
+            FormRoots = sorted.Where(candidate => candidate.FrameworkBaseTypeName == "ModernFormsNext.Form").ToArray()
+        };
     }
 
     private static IEnumerable<INamedTypeSymbol> EnumerateTypes(INamespaceSymbol scope)
     {
-        foreach (var type in scope.GetTypeMembers()) yield return type;
-        foreach (var child in scope.GetNamespaceMembers())
-            foreach (var type in EnumerateTypes(child)) yield return type;
+        // PE namespace strings are metadata too. Traverse iteratively so their
+        // nesting cannot consume the Designer process stack.
+        var pending = new Stack<INamespaceSymbol>();
+        pending.Push(scope);
+        int count = 0;
+        while (pending.TryPop(out var current))
+        {
+            if (++count > 32768) throw new InvalidDataException("Project metadata exceeds its namespace discovery budget.");
+            foreach (var type in current.GetTypeMembers()) yield return type;
+            foreach (var child in current.GetNamespaceMembers())
+            {
+                if (count + pending.Count >= 32768) throw new InvalidDataException("Project metadata exceeds its namespace discovery budget.");
+                pending.Push(child);
+            }
+        }
     }
 
     private static bool Inherits(INamedTypeSymbol type, INamedTypeSymbol? frameworkControl)
     {
         var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         for (var current = type.BaseType; current is not null && seen.Add(current); current = current.BaseType)
+        {
+            if (seen.Count > 64) throw new InvalidDataException("Project metadata exceeds its base-chain budget.");
             if (SymbolEqualityComparer.Default.Equals(current, frameworkControl)) return true;
+        }
         return false;
     }
 
@@ -184,7 +184,10 @@ internal static partial class DesignerProjectUserControlDiscovery
     {
         var seen = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         for (var current = type.BaseType; current is not null && seen.Add(current); current = current.BaseType)
+        {
+            if (seen.Count > 64) throw new InvalidDataException("Project metadata exceeds its base-chain budget.");
             if (SymbolEqualityComparer.Default.Equals(current.ContainingAssembly, frameworkControl?.ContainingAssembly)) return current;
+        }
         return null;
     }
 
@@ -209,7 +212,10 @@ internal static partial class DesignerProjectUserControlDiscovery
         if (type.ToDisplayString() == "System.TimeOnly") editor = typeof(TimeOnly);
         var enumType = type.TypeKind == TypeKind.Enum && type.ToDisplayString().Split('.').All(DesignDocumentValidator.IsValidCSharpIdentifier)
             ? type.ToDisplayString() : null;
-        var enumFields = type.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue && DesignDocumentValidator.IsValidCSharpIdentifier(f.Name)).ToArray();
+        var enumFields = type.TypeKind == TypeKind.Enum
+            ? type.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue && DesignDocumentValidator.IsValidCSharpIdentifier(f.Name)).Take(2049).ToArray()
+            : [];
+        if (enumFields.Length > 2048) throw new InvalidDataException("Project metadata exceeds its enum member budget.");
         var members = enumType is null ? null : enumFields.Select(f => f.Name).ToArray();
         var readOnly = property.SetMethod?.DeclaredAccessibility != Microsoft.CodeAnalysis.Accessibility.Public || property.SetMethod.IsInitOnly
             || property.GetMethod?.DeclaredAccessibility != Microsoft.CodeAnalysis.Accessibility.Public
@@ -259,6 +265,7 @@ internal static partial class DesignerProjectUserControlDiscovery
             || metadata is null && Argument(Attribute(member, "System.ComponentModel.BrowsableAttribute"), 0) is false) return null;
         var invoke = (member.Type as INamedTypeSymbol)?.DelegateInvokeMethod;
         var supported = invoke is { ReturnsVoid: true, ReturnsByRef: false }
+            && invoke.Parameters.Length <= 32
             && invoke.Parameters.All(p => p.RefKind == RefKind.None && IsSafeParameterType(p.Type));
         if (!supported) diagnostics.Add($"'{member.ContainingType}.{member.Name}': unsupported delegate signature; edit/bind in source. No delegate is executed.");
         var parameters = supported ? string.Join(", ", invoke!.Parameters.Select((p, i) =>
@@ -267,11 +274,11 @@ internal static partial class DesignerProjectUserControlDiscovery
             Text(member, metadata, "Category") ?? "Action", Text(member, metadata, "Description") ?? "Safe delegate signature metadata.", parameters);
     }
 
-    private static bool IsSafeParameterType(ITypeSymbol type) => type switch
+    private static bool IsSafeParameterType(ITypeSymbol type, int depth = 0) => depth < 32 && type switch
     {
-        IArrayTypeSymbol array => IsSafeParameterType(array.ElementType),
+        IArrayTypeSymbol array => IsSafeParameterType(array.ElementType, depth + 1),
         INamedTypeSymbol named => named.TypeKind != TypeKind.Error && !named.IsRefLikeType
-            && named.TypeArguments.All(IsSafeParameterType),
+            && named.TypeArguments.Length <= 32 && named.TypeArguments.All(argument => IsSafeParameterType(argument, depth + 1)),
         _ => false
     };
 
@@ -287,6 +294,7 @@ internal static partial class DesignerProjectUserControlDiscovery
             _ => null
         })
         {
+            if (visited.Count > 64) throw new InvalidDataException("Project metadata exceeds its attribute inheritance budget.");
             var attribute = current.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == name);
             if (attribute is not null) return attribute;
         }

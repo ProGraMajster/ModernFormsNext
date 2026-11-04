@@ -96,6 +96,8 @@
     href: content/docs/designer-project-assets.md
   - name: Designer architecture
     href: content/docs/designer-architecture.md
+  - name: Inherited designs
+    href: content/docs/designer-inheritance.md
   - name: Preview resource policy
     href: content/docs/designer-preview-resources.md
   - name: Page and shell authoring

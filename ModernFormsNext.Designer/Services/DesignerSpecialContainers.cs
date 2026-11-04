@@ -69,6 +69,7 @@ internal static class DesignerSpecialContainers
 
     public static void EnsureSpecialChildren(DesignControlNode node)
     {
+        if (node.IsInherited && node.InheritanceState is null) return;
         if (IsSplitContainer(node))
             EnsureSplitPanels(node);
         else if (IsTabControl(node))
@@ -113,7 +114,10 @@ internal static class DesignerSpecialContainers
     }
 
     public static string GetOutlineName(DesignControlNode node)
-        => TryGetString(node, DesignNodeRoleNames.DisplayNamePropertyName, out var value) ? value : node.Name;
+    {
+        var name = TryGetString(node, DesignNodeRoleNames.DisplayNamePropertyName, out var value) ? value : node.Name;
+        return node.IsInherited ? $"{name} (inherited{(node.IsInheritanceLocked ? ", locked" : string.Empty)})" : name;
+    }
 
     public static string GetOutlineType(DesignControlNode node)
         => TryGetString(node, DesignNodeRoleNames.DisplayTypePropertyName, out var value) ? value : node.TypeName;

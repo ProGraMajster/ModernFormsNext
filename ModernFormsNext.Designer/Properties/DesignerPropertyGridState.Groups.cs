@@ -13,6 +13,7 @@ internal sealed partial class DesignerPropertyGridState
             var descriptors = new List<DesignerPropertyDescriptor>();
             AddNodeDescriptors(descriptors, node);
             AddMetadataDescriptors(descriptors, node);
+            ApplyInheritanceRules(descriptors, node);
             sets.Add(descriptors.Where(property => property.IsVisible).ToArray());
         }
         return IntersectDescriptors(sets);

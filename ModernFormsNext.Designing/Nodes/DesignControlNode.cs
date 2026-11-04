@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace ModernFormsNext.Designing;
 
@@ -36,6 +37,31 @@ public sealed class DesignControlNode
     /// that can be done without changing initialization semantics.
     /// </remarks>
     public DesignerMemberVisibility MemberVisibility { get; set; } = DesignerMemberVisibility.Private;
+
+    /// <summary>Gets or sets the qualified class declaring an inherited control member.</summary>
+    /// <remarks>
+    /// An inherited node records only derived-owned overrides when saved. Base controls are
+    /// materialized from their design companions for editing and are never constructed again
+    /// in the derived InitializeComponent method.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InheritedFrom { get; set; }
+
+    /// <summary>Gets or sets a derived-owned bounds override for an inherited control.</summary>
+    /// <remarks>Null preserves the base bounds. Units are logical pixels relative to the parent.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DesignBounds? InheritedBounds { get; set; }
+
+    /// <summary>Gets whether this node refers to a member owned by a base design.</summary>
+    [JsonIgnore]
+    public bool IsInherited => InheritedFrom is not null;
+
+    /// <summary>Gets whether inherited metadata prevents editing this control's values.</summary>
+    /// <remarks>Unresolved inherited members remain locked until their declaring metadata is available.</remarks>
+    [JsonIgnore]
+    public bool IsInheritanceLocked => IsInherited && InheritanceState?.CanOverride != true;
+
+    internal DesignNodeInheritanceState? InheritanceState { get; set; }
 
     /// <summary>
     /// Gets or sets the primitive property values assigned to this control.

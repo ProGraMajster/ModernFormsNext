@@ -25,6 +25,7 @@ public sealed partial class DesignerSession : IDisposable
     private readonly DesignerHitTestService hitTestService = new(new DesignerCoordinateMapper());
     private readonly IDesignerHostEnvironment? environment;
     private IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls = [];
+    private IReadOnlyList<DesignerProjectUserControlInfo> projectFormRoots = [];
     private string? metadataProjectPath;
     private readonly DesignerHistory detachedHistory;
     private readonly IDesignerClipboard clipboard;
@@ -254,6 +255,7 @@ public sealed partial class DesignerSession : IDisposable
         ThrowIfDisposed();
         var catalog = DesignerProjectUserControlDiscovery.DiscoverCatalog(CurrentProjectPath);
         projectUserControls = catalog.Controls;
+        projectFormRoots = catalog.FormRoots;
         metadataProjectPath = CurrentProjectPath;
         ToolboxVersion++;
         foreach (var diagnostic in catalog.Diagnostics) Log($"Toolbox: {diagnostic}");
@@ -309,6 +311,12 @@ public sealed partial class DesignerSession : IDisposable
 
         if (existing is null)
         {
+            var previousBase = document.BaseTypeName;
+            if (!DesignerRootInheritance.TryHydrate(document, environment?.CurrentProjectPath, normalizedPath, out var inheritanceDiagnostic))
+                Log(inheritanceDiagnostic!);
+            else if (inheritanceDiagnostic is not null)
+                Log(inheritanceDiagnostic);
+            markDirty |= previousBase != document.BaseTypeName;
             existing = new DesignerOpenDocument(
                 document,
                 normalizedPath,
@@ -347,7 +355,7 @@ public sealed partial class DesignerSession : IDisposable
             return false;
 
         var sourcePath = IOPath.ChangeExtension(designPath, ".cs");
-        var matchingControls = projectUserControls
+        var matchingControls = projectUserControls.Concat(projectFormRoots)
             .Where(control => string.Equals(
                 IOPath.GetFullPath(control.SourceFilePath),
                 IOPath.GetFullPath(sourcePath),
@@ -371,14 +379,16 @@ public sealed partial class DesignerSession : IDisposable
         var namespaceName = control.FullName.Length == control.Name.Length
             ? string.Empty
             : control.FullName[..^(control.Name.Length + 1)];
-        var changed = document.RootKind != DesignRootKind.UserControl
+        var rootKind = control.FrameworkBaseTypeName == typeof(Form).FullName
+            ? DesignRootKind.Form : DesignRootKind.UserControl;
+        var changed = document.RootKind != rootKind
             || !string.Equals(document.ClassName, control.Name, StringComparison.Ordinal)
             || !string.Equals(document.Namespace, namespaceName, StringComparison.Ordinal);
 
         if (!changed)
             return false;
 
-        document.RootKind = DesignRootKind.UserControl;
+        document.RootKind = rootKind;
         document.ClassName = control.Name;
         document.Namespace = namespaceName;
         return true;
@@ -707,11 +717,12 @@ public sealed partial class DesignerSession : IDisposable
         AssignDefaultTableLayoutPosition(node, parent);
         var targetCollection = destination ?? Document.Controls;
         TryFindParentForCollection(targetCollection, out var actualParent);
-        if (!CanInsertNode(node, new DesignerPasteTarget(targetCollection, actualParent, targetName, targetCollection.Count), out error))
+        int insertionIndex = GetInheritedInsertionIndex(targetCollection, actualParent, targetCollection.Count);
+        if (!CanInsertNode(node, new DesignerPasteTarget(targetCollection, actualParent, targetName, insertionIndex), out error))
             throw new InvalidOperationException(error);
 
         using var transaction = Transactions.Begin($"Add {shortTypeName}");
-        Transactions.ExecuteChange(new DesignerTreeInsertChange(targetCollection, node, targetCollection.Count));
+        Transactions.ExecuteChange(new DesignerTreeInsertChange(targetCollection, node, insertionIndex));
         Host.Selection.Select(node);
         transaction.Commit();
         Log($"Added {typeName} {node.Name} to {targetName}.");
@@ -733,6 +744,7 @@ public sealed partial class DesignerSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
         ThrowIfDisposed();
+        if (node.IsInherited || target?.IsInheritanceLocked == true) return false;
         if (SelectedNodes.Count > 1 && SelectedNodes.Contains(node))
         {
             if (target is not null && !TryFindNode(target, out _, out _)) return false;
@@ -791,6 +803,7 @@ public sealed partial class DesignerSession : IDisposable
             destinationIndex--;
 
         TryFindParentForCollection(destinationCollection, out var pageDestination);
+        destinationIndex = GetInheritedInsertionIndex(destinationCollection, pageDestination, destinationIndex);
         if (!CanInsertNode(node, new DesignerPasteTarget(destinationCollection, pageDestination, targetName, destinationIndex), out var insertionError))
         { Log(insertionError!); return false; }
         var sourceParent = FindParent(node);
@@ -865,6 +878,7 @@ public sealed partial class DesignerSession : IDisposable
     public bool MoveSelectedNodeOutOfContainer()
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Any(node => node.IsInherited)) return false;
         if (SelectedNodes.Count > 1) return MoveSelectedGroupOut();
         if (SelectedNode is null)
         {
@@ -910,6 +924,8 @@ public sealed partial class DesignerSession : IDisposable
         var destinationIndex = ReferenceEquals(destinationCollection, exitCollection)
             ? Math.Clamp(exitIndex + 1, 0, destinationCollection.Count)
             : destinationCollection.Count;
+        if (destinationParent?.IsInheritanceLocked == true) return false;
+        destinationIndex = GetInheritedInsertionIndex(destinationCollection, destinationParent, destinationIndex);
 
         using var transaction = Transactions.Begin($"Move {node.Name}");
         var snapshot = DesignerModelMutationSnapshot.CaptureNode(node);
@@ -943,6 +959,7 @@ public sealed partial class DesignerSession : IDisposable
     /// <returns><see langword="true"/> when the selected control was moved; otherwise, <see langword="false"/>.</returns>
     public bool MoveSelectedNodeToNextContainer()
     {
+        if (SelectedNodes.Any(node => node.IsInherited)) return false;
         if (SelectedNodes.Count > 1) return MoveSelectedGroupToNextContainer();
         if (SelectedNode is null)
         {
@@ -999,6 +1016,7 @@ public sealed partial class DesignerSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
         ThrowIfDisposed();
+        if (node.IsInherited) return false;
 
         if (!TryFindNodeWithParent(node, Document.Controls, parent: null, out var currentParent, out var sourceCollection, out var sourceIndex))
             return false;
@@ -1023,8 +1041,9 @@ public sealed partial class DesignerSession : IDisposable
             ? Document.Controls
             : GetChildCollectionForNewControl(targetParent, out _) ?? targetParent.Children;
         TryFindParentForCollection(destination, out var actualParent);
+        int targetIndex = GetInheritedInsertionIndex(destination, actualParent, destination.Count);
         if (!CanInsertNode(node, new DesignerPasteTarget(destination, actualParent,
-            targetParent?.Name ?? Document.FormName, destination.Count), out var insertionError))
+            targetParent?.Name ?? Document.FormName, targetIndex), out var insertionError))
         { Log(insertionError!); return false; }
         var sourcePageSelection = CapturePageSelection(currentParent);
 
@@ -1037,7 +1056,7 @@ public sealed partial class DesignerSession : IDisposable
                 sourceCollection,
                 sourceIndex,
                 destination,
-                destination.Count));
+                targetIndex));
             node.Bounds = new DesignBounds(
                 absoluteBounds.X - targetBounds.X,
                 absoluteBounds.Y - targetBounds.Y,
@@ -1065,6 +1084,11 @@ public sealed partial class DesignerSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
         ThrowIfDisposed();
+        if (node.IsInherited)
+        {
+            Log($"Inherited member '{node.Name}' must be removed in its declaring design.");
+            return false;
+        }
 
         if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
         {
@@ -1282,6 +1306,7 @@ public sealed partial class DesignerSession : IDisposable
     private bool MoveSelectedNodeWithinCurrentContainer(int delta)
     {
         ThrowIfDisposed();
+        if (SelectedNodes.Any(node => node.IsInherited)) return false;
         if (SelectedNodes.Count > 1) return ReorderSelectedGroup(delta);
         if (SelectedNode is null)
         {
@@ -1312,6 +1337,7 @@ public sealed partial class DesignerSession : IDisposable
                 : $"{node.Name} is already last in its container.");
             return false;
         }
+        if (collection[newIndex].IsInherited) return false;
 
         using var transaction = Transactions.Begin(delta < 0 ? $"Move {node.Name} up" : $"Move {node.Name} down");
         var pageParent = FindParent(node);
@@ -1373,6 +1399,8 @@ public sealed partial class DesignerSession : IDisposable
         ArgumentNullException.ThrowIfNull(node);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         EnsureNodeBelongsToDocument(node);
+        if (node.IsInherited)
+            throw new InvalidOperationException("An inherited member must be renamed in its declaring design.");
 
         var change = new DesignerNodeValueChange(
             node,
@@ -1399,6 +1427,7 @@ public sealed partial class DesignerSession : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
         EnsureNodeBelongsToDocument(node);
+        RequireEditableInheritance(node);
 
         var change = new DesignerNodeValueChange(
             node,
@@ -1427,7 +1456,12 @@ public sealed partial class DesignerSession : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
         ArgumentNullException.ThrowIfNull(value);
         if (node is not null)
+        {
             EnsureNodeBelongsToDocument(node);
+            RequireEditableInheritance(node);
+            if (node.IsInherited && DesignInheritanceProjection.IsStructuralProperty(propertyName))
+                throw new InvalidOperationException("Inherited identity and collections belong to the declaring design.");
+        }
 
         var properties = node?.Properties ?? Document.Properties;
         var existed = properties.TryGetValue(propertyName, out var previous);
@@ -1458,7 +1492,17 @@ public sealed partial class DesignerSession : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(propertyName);
         if (node is not null)
+        {
             EnsureNodeBelongsToDocument(node);
+            RequireEditableInheritance(node);
+        }
+
+        var inheritedProperties = node?.InheritanceState?.Properties ?? (node is null ? Document.InheritanceState?.Properties : null);
+        if (inheritedProperties?.TryGetValue(propertyName, out var baselineValue) == true)
+        {
+            SetPropertyValue(node, propertyName, baselineValue);
+            return;
+        }
 
         var properties = node?.Properties ?? Document.Properties;
         var existed = properties.TryGetValue(propertyName, out var previous);
@@ -1499,6 +1543,10 @@ public sealed partial class DesignerSession : IDisposable
             throw new ArgumentException("A Designer child collection cannot contain the same node more than once.", nameof(children));
 
         var collection = parent?.Children ?? Document.Controls;
+        RequireEditableInheritance(parent);
+        if (!collection.Where(node => node.IsInherited).SequenceEqual(children.Where(node => node.IsInherited)))
+            throw new InvalidOperationException("The inherited child structure must be edited in its declaring design.");
+        DesignInheritanceProjection.RequireOwnershipOrder(children, parent);
         var pageSelection = CapturePageSelection(parent);
         using var transaction = Transactions.Begin(description);
         Transactions.ExecuteChange(new DesignerChildrenReplaceChange(
@@ -1558,7 +1606,14 @@ public sealed partial class DesignerSession : IDisposable
         {
             if (SelectedNode is null)
             {
-                Document.FormName = string.IsNullOrWhiteSpace(name) ? Document.FormName : name.Trim();
+                if (Document.BaseTypeName is not null)
+                {
+                    if (!string.IsNullOrWhiteSpace(name))
+                        Document.Properties["Name"] = DesignPropertyValue.FromString(name.Trim());
+                    Document.Properties["Text"] = DesignPropertyValue.FromString(text);
+                }
+                else
+                    Document.FormName = string.IsNullOrWhiteSpace(name) ? Document.FormName : name.Trim();
                 new DesignerLayoutEngine().ResizeRoot(
                     Document,
                     new DesignSize(Math.Max(1, width), Math.Max(1, height)), PreviewResourcePolicy);
@@ -1566,6 +1621,9 @@ public sealed partial class DesignerSession : IDisposable
             else
             {
                 var node = SelectedNode;
+                RequireEditableInheritance(node);
+                if (node.IsInherited && (node.Name != name.Trim() || node.MemberVisibility != memberVisibility))
+                    throw new InvalidOperationException("Inherited identity belongs to the declaring design.");
                 node.Name = string.IsNullOrWhiteSpace(name) ? node.Name : name.Trim();
                 node.Bounds = new DesignBounds(x, y, Math.Max(1, width), Math.Max(1, height));
                 node.MemberVisibility = memberVisibility;
@@ -1630,7 +1688,7 @@ public sealed partial class DesignerSession : IDisposable
 
     internal DesignerProjectUserControlInfo? GetCustomControlMetadata(string typeName)
     {
-        var matches = projectUserControls.Where(control => DesignerProjectUserControlDiscovery.Matches(control, typeName)).Take(2).ToArray();
+        var matches = projectUserControls.Concat(projectFormRoots).Where(control => DesignerProjectUserControlDiscovery.Matches(control, typeName)).Take(2).ToArray();
         return matches.Length == 1 ? matches[0] : null;
     }
 
@@ -1654,7 +1712,9 @@ public sealed partial class DesignerSession : IDisposable
         => Document.RootKind == DesignRootKind.UserControl ? typeof(UserControl) : typeof(Form);
 
     internal string GetRootTypeName()
-        => Document.RootKind == DesignRootKind.UserControl
+        => Document.BaseTypeName is not null
+            ? string.IsNullOrEmpty(Document.Namespace) ? Document.ClassName : $"{Document.Namespace}.{Document.ClassName}"
+            : Document.RootKind == DesignRootKind.UserControl
             ? typeof(UserControl).FullName!
             : typeof(Form).FullName!;
 
@@ -2149,6 +2209,7 @@ public sealed partial class DesignerSession : IDisposable
     private bool CanUseSelectedNodeAsClipboardSource()
         => !disposed
         && SelectedNode is { } selected
+        && !selected.IsInherited
         && !DesignerSpecialContainers.IsSpecialGeneratedPart(selected)
         && TryFindNode(selected, out _, out _);
 
@@ -2162,6 +2223,11 @@ public sealed partial class DesignerSession : IDisposable
         }
 
         source = SelectedNode;
+        if (source.IsInherited)
+        {
+            error = "Inherited controls must be copied from their declaring design.";
+            return false;
+        }
         if (DesignerSpecialContainers.IsSpecialGeneratedPart(source))
         {
             error = $"{DesignerSpecialContainers.GetOutlineName(source)} is structural SplitContainer data and cannot be copied independently.";
@@ -2214,6 +2280,16 @@ public sealed partial class DesignerSession : IDisposable
         DesignerPasteTarget target,
         out string? error)
     {
+        if (node.IsInherited || target.Parent?.IsInheritanceLocked == true)
+        {
+            error = "An inherited member cannot be reparented, and a locked inherited container cannot receive local children.";
+            return false;
+        }
+        if (target.Index != GetInheritedInsertionIndex(target.Collection, target.Parent, target.Index))
+        {
+            error = "Local controls must keep the inherited container's append and Z-order rules.";
+            return false;
+        }
         if (DesignerSpecialContainers.IsSpecialGeneratedPart(node))
         {
             error = "SplitContainer panel nodes are structural Designer data and cannot be pasted independently.";
@@ -2262,6 +2338,24 @@ public sealed partial class DesignerSession : IDisposable
 
         error = null;
         return true;
+    }
+
+    private static void RequireEditableInheritance(DesignControlNode? node)
+    {
+        if (node?.IsInheritanceLocked == true)
+            throw new InvalidOperationException($"Inherited member '{node.Name}' is locked by its declaring metadata.");
+    }
+
+    private static int GetInheritedInsertionIndex(DesignControlCollection nodes, DesignControlNode? parent, int requested)
+    {
+        if (!nodes.Any(node => node.IsInherited)) return requested;
+        if (parent is not null && DesignInheritanceProjection.PreservesSequence(parent))
+        {
+            int last = nodes.Select((node, index) => (node, index)).Last(item => item.node.IsInherited).index;
+            return Math.Max(requested, last + 1);
+        }
+        int first = nodes.Select((node, index) => (node, index)).First(item => item.node.IsInherited).index;
+        return Math.Min(requested, first);
     }
 
     private void UpdatePageSelectionAfterRemoval(DesignControlNode? parent, int removedIndex)
@@ -2556,7 +2650,10 @@ public sealed partial class DesignerSession : IDisposable
         DesignControlCollection Collection,
         DesignControlNode? Parent,
         string DisplayName,
-        int Index);
+        int RequestedIndex)
+    {
+        public int Index => GetInheritedInsertionIndex(Collection, Parent, RequestedIndex);
+    }
 
     private void ThrowIfDisposed()
         => ObjectDisposedException.ThrowIf(disposed, this);

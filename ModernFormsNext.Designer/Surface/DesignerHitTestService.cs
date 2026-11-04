@@ -52,7 +52,7 @@ internal sealed class DesignerHitTestService
         if (state.SelectedNodes.Count > 1) return DesignerResizeHandle.None;
         var selectedNode = state.SelectedNode;
 
-        if (selectedNode is not null && !DesignerLayoutProperties.IsVisible(selectedNode))
+        if (selectedNode is not null && (selectedNode.IsInheritanceLocked || !DesignerLayoutProperties.IsVisible(selectedNode)))
             return DesignerResizeHandle.None;
 
         if (selectedNode is null)

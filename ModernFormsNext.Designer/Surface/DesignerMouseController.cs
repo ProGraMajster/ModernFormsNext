@@ -83,6 +83,7 @@ internal sealed class DesignerMouseController
 
         if (!selectionModifier && hitTestService.HitTestTabHeader(state, point, out var tabIndex) is { } tabControl)
         {
+            if (tabControl.IsInheritanceLocked) { state.SelectNode(tabControl); return; }
             using var transaction = state.Transactions.Begin($"Change selected tab on {tabControl.Name}");
             var snapshot = DesignerModelMutationSnapshot.CaptureNode(tabControl);
             try
@@ -103,6 +104,7 @@ internal sealed class DesignerMouseController
         if (!selectionModifier && hitTestService.HitTestSplitter(state, point) is { } splitContainer)
         {
             state.SelectNode(splitContainer);
+            if (splitContainer.IsInheritanceLocked) return;
             BeginOperation(surface, splitContainer, DesignerMouseOperation.MovingSplitter, DesignerResizeHandle.None, point);
             startSplitterDistance = DesignerSpecialContainers.GetInt(
                 splitContainer,
@@ -128,6 +130,7 @@ internal sealed class DesignerMouseController
 
         state.SelectNodeFromPointer(hit.Node, e.Control && !e.AltGraph, e.Shift);
         if (e.Control && !e.AltGraph || e.Shift) return;
+        if (hit.Node.IsInheritanceLocked) return;
 
         if (state.SelectedNodes.Count > 1)
         {

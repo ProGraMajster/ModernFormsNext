@@ -631,10 +631,50 @@ internal sealed partial class DesignerPropertyGridState
             AddNodeDescriptors(descriptors, node);
 
         AddMetadataDescriptors(descriptors, node);
+        ApplyInheritanceRules(descriptors, node);
+        if (node is null && playgroundState.Document.BaseTypeName is { } baseType)
+        {
+            foreach (var property in descriptors.Where(property => property.Name is "Namespace" or "ClassName"))
+                property.IsReadOnly = true;
+            descriptors.Add(ReadOnly("BaseType", "Base type", "Design", "The source-declared custom base.", typeof(string), () => baseType));
+        }
+        else if (node?.InheritedFrom is { } declaringType)
+            descriptors.Add(ReadOnly("InheritedFrom", "Inherited from", "Design", "The declaring design owns this member.", typeof(string), () => declaringType));
 
         return descriptors
             .Where(property => property.IsVisible)
             .ToArray();
+    }
+
+    private static void ApplyInheritanceRules(IEnumerable<DesignerPropertyDescriptor> descriptors, DesignControlNode? node)
+    {
+        if (node?.IsInherited != true) return;
+        foreach (var descriptor in descriptors)
+        {
+            // Identity and collections belong to the declaring design. Scalar,
+            // geometry and style edits use the existing property transaction path.
+            bool structural = DesignInheritanceProjection.IsStructuralProperty(descriptor.Name);
+            bool legacyImage = descriptor.Name == "Image"
+                && node.Properties.TryGetValue("ImageLocation", out var location) && location.Kind != DesignPropertyValueKind.Null;
+            if (node.IsInheritanceLocked || structural || legacyImage)
+            {
+                descriptor.IsReadOnly = true;
+                descriptor.HasDialogEditor = false;
+                descriptor.DialogEditor = null;
+                SetReadOnly(descriptor.Children);
+            }
+        }
+    }
+
+    private static void SetReadOnly(IEnumerable<DesignerPropertyDescriptor> descriptors)
+    {
+        foreach (var descriptor in descriptors)
+        {
+            descriptor.IsReadOnly = true;
+            descriptor.HasDialogEditor = false;
+            descriptor.DialogEditor = null;
+            SetReadOnly(descriptor.Children);
+        }
     }
 
     private void ApplyExpansionState(IEnumerable<DesignerPropertyDescriptor> properties)
@@ -678,10 +718,13 @@ internal sealed partial class DesignerPropertyGridState
             Category = "Appearance",
             Description = "Text displayed by the form title.",
             ValueType = typeof(string),
-            GetValue = () => playgroundState.Document.FormName,
+            GetValue = () => playgroundState.Document.BaseTypeName is not null
+                && playgroundState.Document.Properties.TryGetValue("Text", out var value) ? value.Value : playgroundState.Document.FormName,
             CommitText = text =>
             {
-                playgroundState.Document.FormName = text;
+                if (playgroundState.Document.BaseTypeName is null)
+                    playgroundState.Document.FormName = text;
+                else playgroundState.Document.Properties["Text"] = DesignPropertyValue.FromString(text);
                 return (true, null);
             }
         });
@@ -735,7 +778,8 @@ internal sealed partial class DesignerPropertyGridState
                 ? "The UserControl name assigned by generated initialization code."
                 : "The form name used by the designer and generated code.",
             ValueType = typeof(string),
-            GetValue = () => playgroundState.Document.FormName,
+            GetValue = () => playgroundState.Document.BaseTypeName is not null
+                && playgroundState.Document.Properties.TryGetValue("Name", out var value) ? value.Value : playgroundState.Document.FormName,
             CommitText = text =>
             {
                 var value = text.Trim();
@@ -743,7 +787,9 @@ internal sealed partial class DesignerPropertyGridState
                 if (string.IsNullOrWhiteSpace(value))
                     return (false, $"The {rootDisplayName} name cannot be empty.");
 
-                playgroundState.Document.FormName = value;
+                if (playgroundState.Document.BaseTypeName is null)
+                    playgroundState.Document.FormName = value;
+                else playgroundState.Document.Properties["Name"] = DesignPropertyValue.FromString(value);
                 return (true, null);
             }
         });
@@ -880,7 +926,7 @@ internal sealed partial class DesignerPropertyGridState
                     : node.Properties.TryGetValue("Text", out var text) ? text.Value : string.Empty,
                 CommitText = text =>
                 {
-                    node.Properties.Remove("Text");
+                    if (!node.IsInherited) node.Properties.Remove("Text");
                     node.Properties["Title"] = DesignPropertyValue.FromString(text);
                     return (true, null);
                 }
@@ -1348,6 +1394,7 @@ internal sealed partial class DesignerPropertyGridState
     {
         var ownerDocument = playgroundState.Document;
         var owner = playgroundState.SelectedNode;
+        canBind &= owner?.IsInheritanceLocked != true;
         return new()
         {
             Name = name,
@@ -1363,6 +1410,8 @@ internal sealed partial class DesignerPropertyGridState
             GetHandlerName = () => bindings.TryGetValue(name, out var handlerName) ? handlerName : null,
             CommitHandlerName = handlerName =>
             {
+                if (owner?.IsInheritanceLocked == true)
+                    return (false, "The inherited member is locked by its declaring design.");
                 if (!canBind && !string.IsNullOrWhiteSpace(handlerName))
                     return (false, "This delegate signature is unsupported. Bind it in source; discovery does not execute delegates.");
                 if (!string.IsNullOrWhiteSpace(handlerName) && !DesignDocumentValidator.IsValidCSharpIdentifier(handlerName))

@@ -39,22 +39,26 @@ internal static partial class DesignerProjectUserControlDiscovery
 
         try
         {
-            var declarations = EnumerateProjectFiles(projectDirectory, "*.cs")
-                .SelectMany(ReadDeclarations)
+            var inputs = ReadProjectDeclarations(projectDirectory).Take(4097).ToArray();
+            if (inputs.Length > 4096) throw new InvalidDataException("Project metadata exceeds its declaration budget.");
+            var declarations = inputs
                 .GroupBy(declaration => declaration.FullName, StringComparer.Ordinal)
                 .Select(MergePartialDeclarations)
                 .ToArray();
             var userControls = new HashSet<string>(StringComparer.Ordinal);
+            var declarationsByName = declarations.ToDictionary(declaration => declaration.FullName, StringComparer.Ordinal);
             var changed = true;
+            int rounds = 0;
 
             while (changed)
             {
+                if (++rounds > 64) throw new InvalidDataException("Project metadata exceeds its inheritance discovery budget.");
                 changed = false;
 
                 foreach (var declaration in declarations)
                 {
                     if (userControls.Contains(declaration.FullName)
-                        || !IsUserControlBase(declaration, declarations, userControls))
+                        || !IsUserControlBase(declaration, declarationsByName, userControls))
                     {
                         continue;
                     }
@@ -77,7 +81,7 @@ internal static partial class DesignerProjectUserControlDiscovery
                 .ThenBy(control => control.FullName, StringComparer.Ordinal)
                 .ToArray();
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or InvalidDataException)
         {
             return [];
         }
@@ -117,18 +121,27 @@ internal static partial class DesignerProjectUserControlDiscovery
             : null;
     }
 
-    private static IEnumerable<ProjectClassDeclaration> ReadDeclarations(string path)
+    private static IEnumerable<ProjectClassDeclaration> ReadProjectDeclarations(string directory)
     {
-        CompilationUnitSyntax root;
+        int count = 0;
+        long remaining = DesignerEventSource.MaximumProjectCharacters;
+        foreach (var path in EnumerateProjectFiles(directory, "*.cs", maximumEntries: 8192))
+        {
+            if (++count > DesignerEventSource.MaximumProjectFiles)
+                throw new InvalidDataException("Project metadata exceeds its source file budget.");
+            var text = ReadEventSourceText(path);
+            if ((remaining -= text.Length) < 0)
+                throw new InvalidDataException("Project metadata exceeds its source text budget.");
+            foreach (var declaration in ReadDeclarations(path, text))
+                yield return declaration;
+        }
+    }
 
-        try
-        {
-            root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetCompilationUnitRoot();
-        }
-        catch (IOException)
-        {
-            yield break;
-        }
+    private static IEnumerable<ProjectClassDeclaration> ReadDeclarations(string path, string text)
+    {
+        if (!DesignerEventSource.TryParse(text, path, out var tree, out var error))
+            throw new InvalidDataException(error);
+        var root = tree.GetCompilationUnitRoot();
 
         foreach (var declaration in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
         {
@@ -161,7 +174,7 @@ internal static partial class DesignerProjectUserControlDiscovery
 
     private static bool IsUserControlBase(
         ProjectClassDeclaration declaration,
-        IReadOnlyList<ProjectClassDeclaration> declarations,
+        IReadOnlyDictionary<string, ProjectClassDeclaration> declarations,
         HashSet<string> knownUserControls)
     {
         var baseTypeName = declaration.BaseTypeName;
@@ -226,33 +239,23 @@ internal static partial class DesignerProjectUserControlDiscovery
         while (pendingDirectories.Count > 0)
         {
             var directory = pendingDirectories.Pop();
-            IEnumerable<string> files;
-            IEnumerable<string> childDirectories;
-
-            try
+            // Count all visited entries, including files that do not match the requested
+            // suffix. A matching-file counter cannot bound scanning a large directory.
+            var options = new EnumerationOptions { AttributesToSkip = 0,
+                IgnoreInaccessible = true, RecurseSubdirectories = false };
+            foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", options))
             {
-                // Do not follow directory links back into a project or out into another tree.
-                var options = new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint,
-                    IgnoreInaccessible = true, RecurseSubdirectories = false };
-                files = Directory.EnumerateFiles(directory, searchPattern, options);
-                childDirectories = Directory.EnumerateDirectories(directory, "*", options);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                continue;
-            }
-
-            foreach (var file in files)
-            {
-                if (++entries > maximumEntries) throw new InvalidDataException("Project enumeration exceeds the event analysis safety budget.");
-                yield return file;
-            }
-
-            foreach (var childDirectory in childDirectories)
-            {
-                if (++entries > maximumEntries) throw new InvalidDataException("Project enumeration exceeds the event analysis safety budget.");
-                if (!IsExcludedProjectArtifact(childDirectory, projectDirectory))
-                    pendingDirectories.Push(childDirectory);
+                if (++entries > maximumEntries)
+                    throw new InvalidDataException("Project enumeration exceeds its entry safety budget.");
+                if ((entry.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                if ((entry.Attributes & FileAttributes.Directory) != 0)
+                {
+                    if (!IsExcludedProjectArtifact(entry.FullName, projectDirectory))
+                        pendingDirectories.Push(entry.FullName);
+                }
+                else if (System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(
+                    searchPattern, entry.Name, ignoreCase: OperatingSystem.IsWindows()))
+                    yield return entry.FullName;
             }
         }
     }
@@ -277,15 +280,14 @@ internal static partial class DesignerProjectUserControlDiscovery
     private static ProjectClassDeclaration? FindProjectBase(
         ProjectClassDeclaration declaration,
         string typeName,
-        IReadOnlyList<ProjectClassDeclaration> declarations)
+        IReadOnlyDictionary<string, ProjectClassDeclaration> declarations)
     {
         if (!typeName.Contains('.'))
         {
             var relativeName = string.IsNullOrWhiteSpace(declaration.Namespace)
                 ? typeName
                 : $"{declaration.Namespace}.{typeName}";
-            var relative = declarations.FirstOrDefault(candidate =>
-                string.Equals(candidate.FullName, relativeName, StringComparison.Ordinal));
+            declarations.TryGetValue(relativeName, out var relative);
 
             if (relative is not null)
                 return relative;
@@ -296,15 +298,13 @@ internal static partial class DesignerProjectUserControlDiscovery
         if (!string.IsNullOrWhiteSpace(declaration.Namespace))
         {
             var relativeName = $"{declaration.Namespace}.{typeName}";
-            var relative = declarations.FirstOrDefault(candidate =>
-                string.Equals(candidate.FullName, relativeName, StringComparison.Ordinal));
+            declarations.TryGetValue(relativeName, out var relative);
 
             if (relative is not null)
                 return relative;
         }
 
-        return declarations.FirstOrDefault(candidate =>
-            string.Equals(candidate.FullName, typeName, StringComparison.Ordinal));
+        return declarations.GetValueOrDefault(typeName);
     }
 
     private static IEnumerable<UsingDirectiveSyntax> ReadUsings(ClassDeclarationSyntax declaration)

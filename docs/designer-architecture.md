@@ -1,5 +1,8 @@
 # ModernFormsNext Designer Architecture
 
+Source-only base composition, inherited ownership and bounded companion admission are documented
+in [Inherited Form and UserControl designs](designer-inheritance.md).
+
 Animation/effect Property Grid editing, source-only custom-effect discovery, stable easing IDs,
 and round-trip boundaries are documented separately in
 [Designer animation and interaction-effect definitions](designer-animation-effects.md).

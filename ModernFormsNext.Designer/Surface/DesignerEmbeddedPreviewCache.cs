@@ -14,6 +14,13 @@ namespace ModernFormsNext.Designer.Surface;
 /// </remarks>
 internal sealed class DesignerEmbeddedPreviewCache
 {
+    internal const int MaximumCachedSources = 8;
+    internal const int MaximumCachedLayoutsPerSource = 4;
+    internal const int MaximumCachedLayouts = 16;
+    internal const int MaximumCachedCharacters = 4 * 1024 * 1024;
+    internal const int MaximumProjectEntries = 8192;
+    internal const int MaximumIndexedDocuments = 64;
+    private const int MaximumPreviewNodes = 512;
     private readonly IReadOnlyList<DesignerProjectUserControlInfo> projectUserControls;
     private readonly string? projectDirectory;
     private readonly Dictionary<string, string> documentPathsByType = new(StringComparer.Ordinal);
@@ -21,6 +28,11 @@ internal sealed class DesignerEmbeddedPreviewCache
     private readonly DesignerLayoutEngine layoutEngine = new();
     internal DesignerPreviewResourcePolicy ResourcePolicy { get; }
     private bool documentIndexBuilt;
+    private string? indexError;
+
+    internal int CachedSourceCount => sourcesByPath.Count;
+    internal int CachedLayoutCount => sourcesByPath.Values.Sum(source => source.Previews.Count);
+    internal int CachedCharacterCount => sourcesByPath.Values.Sum(source => source.Json?.Length ?? 0);
 
     /// <summary>
     /// Initializes a preview cache for one project discovery snapshot.
@@ -70,11 +82,33 @@ internal sealed class DesignerEmbeddedPreviewCache
         if (!TryResolveControl(typeName, out var control, out error))
             return false;
 
-        EnsureDocumentIndex();
+        if (projectDirectory is null)
+        {
+            error = "No project root is available for the custom control preview.";
+            return false;
+        }
+
+        // Prefer the source companion before scanning any unrelated documents.
+        // Reference-only types may still have a project-owned .mfdesign with an exact identity.
+        if (!documentPathsByType.ContainsKey(control.FullName) && documentPathsByType.Count < MaximumIndexedDocuments)
+        {
+            try
+            {
+                var sibling = DesignerProjectDocumentReader.RequireProjectPath(
+                    projectDirectory, IOPath.ChangeExtension(control.SourceFilePath, ".mfdesign"));
+                documentPathsByType[control.FullName] = sibling;
+            }
+            catch (Exception exception) when (IsRecoverablePreviewException(exception))
+            {
+                // A missing or external companion can still have an exact project-owned match.
+            }
+        }
+        if (!documentPathsByType.ContainsKey(control.FullName))
+            EnsureDocumentIndex();
 
         if (!documentPathsByType.TryGetValue(control.FullName, out var documentPath))
         {
-            error = $"No .mfdesign document was found for custom UserControl '{control.FullName}'.";
+            error = indexError ?? $"No .mfdesign document was found for custom UserControl '{control.FullName}'.";
             return false;
         }
 
@@ -105,6 +139,12 @@ internal sealed class DesignerEmbeddedPreviewCache
         var normalizedSize = new DesignSize(
             Math.Max(1, instanceSize.Width),
             Math.Max(1, instanceSize.Height));
+        if (normalizedSize.Width > 8192 || normalizedSize.Height > 8192
+            || (long)normalizedSize.Width * normalizedSize.Height > 32 * 1024 * 1024)
+        {
+            error = "The custom control preview exceeds its viewport budget.";
+            return false;
+        }
 
         if (source.Previews.TryGetValue(normalizedSize, out var cachedPreview))
         {
@@ -117,8 +157,16 @@ internal sealed class DesignerEmbeddedPreviewCache
         {
             // Deserialize the cached source text into a private materialization. Layout helpers may
             // normalize structural nodes, but the identity document and file contents stay read-only.
-            var document = Deserialize(source.Json);
+            var document = DesignInheritanceProjection.CloneHydrated(source.Document);
             NormalizePreviewDocument(document);
+            var nodes = new Stack<DesignControlNode>(document.Controls);
+            int count = 0;
+            while (nodes.TryPop(out var node))
+            {
+                if (++count > MaximumPreviewNodes)
+                    throw new InvalidDataException("The custom control preview exceeds its node budget.");
+                foreach (var child in node.Children) nodes.Push(child);
+            }
             DesignerSpecialContainers.NormalizeDocument(document);
             var layout = layoutEngine.Layout(document, normalizedSize, ResourcePolicy);
             preview = new DesignerEmbeddedPreview(
@@ -127,6 +175,13 @@ internal sealed class DesignerEmbeddedPreviewCache
                 normalizedSize,
                 document,
                 layout);
+            if (source.Previews.Count >= MaximumCachedLayoutsPerSource)
+                source.Previews.Remove(source.Previews.Keys.First());
+            if (CachedLayoutCount >= MaximumCachedLayouts)
+            {
+                var owner = sourcesByPath.Values.First(item => item.Previews.Count > 0);
+                owner.Previews.Remove(owner.Previews.Keys.First());
+            }
             source.Previews[normalizedSize] = preview;
             error = null;
             return true;
@@ -170,20 +225,6 @@ internal sealed class DesignerEmbeddedPreviewCache
 
         documentIndexBuilt = true;
 
-        foreach (var sourceGroup in projectUserControls.GroupBy(
-            control => IOPath.GetFullPath(control.SourceFilePath),
-            StringComparer.OrdinalIgnoreCase))
-        {
-            var controls = sourceGroup.ToArray();
-            var siblingPath = IOPath.ChangeExtension(sourceGroup.Key, ".mfdesign");
-
-            // A sibling path is the strongest source-level association and also lets the caller
-            // report malformed or stale identity data precisely. TryGetPreview still validates the
-            // document identity and root kind before exposing a projection.
-            if (controls.Length == 1 && File.Exists(siblingPath))
-                documentPathsByType[controls[0].FullName] = IOPath.GetFullPath(siblingPath);
-        }
-
         var unresolvedControls = projectUserControls
             .Where(control => !documentPathsByType.ContainsKey(control.FullName))
             .ToArray();
@@ -193,22 +234,37 @@ internal sealed class DesignerEmbeddedPreviewCache
 
         var pathsByIdentity = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
-        foreach (var path in DesignerProjectUserControlDiscovery.EnumerateProjectFiles(projectDirectory, "*.mfdesign"))
+        try
         {
-            var source = GetOrRefreshSource(path);
-
-            if (source.Document is null || string.IsNullOrWhiteSpace(source.Document.ClassName))
-                continue;
-
-            var identity = GetDocumentIdentity(source.Document);
-            if (!pathsByIdentity.TryGetValue(identity, out var identityPaths))
+            int count = 0;
+            long remaining = 16L * 1024 * 1024;
+            foreach (var path in DesignerProjectUserControlDiscovery.EnumerateProjectFiles(
+                projectDirectory, "*.mfdesign", MaximumProjectEntries))
             {
-                identityPaths = [];
-                pathsByIdentity.Add(identity, identityPaths);
-            }
+                long observedBytes = new FileInfo(path).Length;
+                if (++count > MaximumIndexedDocuments || observedBytes > remaining)
+                    throw new InvalidDataException("Project design discovery exceeds its scan budget. Use a matching source companion.");
+                var source = GetOrRefreshSource(path);
+                remaining -= Math.Max(observedBytes, (source.Json?.Length ?? 0) * 2L);
+                if (remaining < 0)
+                    throw new InvalidDataException("Project design discovery exceeds its text budget. Use a matching source companion.");
 
-            if (!identityPaths.Contains(source.Path, StringComparer.OrdinalIgnoreCase))
+                if (source.Document is null || string.IsNullOrWhiteSpace(source.Document.ClassName))
+                    continue;
+
+                var identity = GetDocumentIdentity(source.Document);
+                if (!pathsByIdentity.TryGetValue(identity, out var identityPaths))
+                {
+                    identityPaths = [];
+                    pathsByIdentity.Add(identity, identityPaths);
+                }
                 identityPaths.Add(source.Path);
+            }
+        }
+        catch (Exception exception) when (IsRecoverablePreviewException(exception))
+        {
+            indexError = $"Project design discovery unavailable: {exception.Message}";
+            return; // A partial index cannot establish unambiguous ownership.
         }
 
         foreach (var control in unresolvedControls)
@@ -230,6 +286,9 @@ internal sealed class DesignerEmbeddedPreviewCache
 
         try
         {
+            if (projectDirectory is null)
+                throw new InvalidDataException("No project root is available for the design companion.");
+            DesignerProjectDocumentReader.RequireProjectPath(projectDirectory, normalizedPath);
             var file = new FileInfo(normalizedPath);
             file.Refresh();
 
@@ -239,7 +298,7 @@ internal sealed class DesignerEmbeddedPreviewCache
                 {
                     Error = $"The custom UserControl preview document is missing: '{normalizedPath}'."
                 };
-                sourcesByPath[normalizedPath] = missing;
+                CacheSource(normalizedPath, missing);
                 return missing;
             }
 
@@ -253,8 +312,14 @@ internal sealed class DesignerEmbeddedPreviewCache
                 return cached;
             }
 
-            var json = File.ReadAllText(normalizedPath);
-            var document = Deserialize(json);
+            ParseCount++;
+            var document = DesignerProjectDocumentReader.Load(projectDirectory, normalizedPath);
+            var json = DesignDocumentSerializer.Default.Serialize(document);
+            // Check the persisted root contract before source discovery can synchronize it.
+            // A Form companion must never be admitted as an embedded UserControl preview.
+            if (document.RootKind == DesignRootKind.UserControl
+                && !DesignerRootInheritance.TryHydrate(document, projectDirectory, normalizedPath, out var inheritanceDiagnostic))
+                throw new InvalidDataException(inheritanceDiagnostic);
             var refreshed = new CachedPreviewSource(normalizedPath)
             {
                 LastWriteTimeUtc = observedLastWriteTimeUtc,
@@ -262,7 +327,7 @@ internal sealed class DesignerEmbeddedPreviewCache
                 Json = json,
                 Document = document
             };
-            sourcesByPath[normalizedPath] = refreshed;
+            CacheSource(normalizedPath, refreshed);
             return refreshed;
         }
         catch (Exception exception) when (IsRecoverablePreviewException(exception))
@@ -273,15 +338,22 @@ internal sealed class DesignerEmbeddedPreviewCache
                 Length = observedLength,
                 Error = $"Could not load custom UserControl preview document '{normalizedPath}': {exception.Message}"
             };
-            sourcesByPath[normalizedPath] = invalid;
+            CacheSource(normalizedPath, invalid);
             return invalid;
         }
     }
 
-    private DesignDocument Deserialize(string json)
+    private void CacheSource(string path, CachedPreviewSource source)
     {
-        ParseCount++;
-        return DesignDocumentSerializer.Default.Deserialize(json);
+        sourcesByPath.Remove(path);
+        while (sourcesByPath.Count >= MaximumCachedSources
+            || CachedCharacterCount + (source.Json?.Length ?? 0) > MaximumCachedCharacters)
+        {
+            if (sourcesByPath.Count == 0)
+                throw new InvalidDataException("The preview source exceeds its cache budget.");
+            sourcesByPath.Remove(sourcesByPath.Keys.First());
+        }
+        sourcesByPath[path] = source;
     }
 
     private static void NormalizePreviewDocument(DesignDocument document)
@@ -311,6 +383,9 @@ internal sealed class DesignerEmbeddedPreviewCache
 
     private static bool IsRecoverablePreviewException(Exception exception)
         => exception is IOException
+            or InvalidDataException
+            or BadImageFormatException
+            or OverflowException
             or UnauthorizedAccessException
             or JsonException
             or ArgumentException
