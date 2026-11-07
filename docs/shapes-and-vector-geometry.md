@@ -45,9 +45,9 @@ var ellipse = new Ellipse
 
 ## Geometry model and sharing
 
-`Geometry` is mutable and shareable. The focused initial model contains `LineGeometry`,
-`RectangleGeometry`, `EllipseGeometry`, and `PathGeometry`. A path owns observable `PathFigure`
-objects containing `LineSegment`, `QuadraticBezierSegment`, or `BezierSegment` values. A figure's
+`Geometry` is mutable and shareable. The model contains `LineGeometry`, `RectangleGeometry`,
+`EllipseGeometry`, `PathGeometry`, `GeometryGroup`, and `CombinedGeometry`. A path owns observable `PathFigure`
+objects containing `LineSegment`, `QuadraticBezierSegment`, `BezierSegment`, or `ArcSegment` values. A figure's
 `IsClosed` flag provides explicit closure, while `GeometryFillRule` selects winding or even-odd
 fill containment.
 
@@ -73,8 +73,62 @@ var path = new ModernFormsNext.Path
 };
 ```
 
-Coordinates are local logical pixels. The first version intentionally has no WPF-style Stretch,
-arc segment, geometry group, SVG-string core model, or separate shape layout engine.
+Coordinates are local logical pixels. `Geometry.GetBounds()` computes tight transformed path bounds,
+excluding a control's stroke. It uses the same converter as rendering and hit testing; cache repeated
+queries against `Version`. There is no separate shape layout engine.
+
+### Endpoint arcs, groups and filled-area operations
+
+`ArcSegment` takes an endpoint, finite non-negative X/Y radii (`Size`), ellipse-axis rotation in
+degrees, `IsLargeArc`, and `SweepDirection`. Positive Y points down. Coincident endpoints omit an
+arc; a zero radius produces a line; undersized radii are enlarged uniformly to connect the endpoints.
+The preceding segment or figure start supplies the start point. See the
+[SVG endpoint arc conventions](https://www.w3.org/TR/SVG/paths.html#PathDataEllipticalArcCommands).
+
+`GeometryGroup.Children` contributes ordered contours using the group's `FillRule`. It does not
+union their filled regions: overlapping contours can cancel under even-odd fill. Each child's
+transform precedes the group transform. Repeated children are legal; cycles are rejected before
+mutating ownership or subscriptions. Removing the last reference detaches its change listener.
+Designer persistence stores values rather than reference identities: repeated borrowed children
+become separate value copies after a round trip. Define shared runtime instances explicitly in
+code when subsequent mutations must affect multiple operands or controls together.
+
+`CombinedGeometry` performs `Union`, `Intersect`, `Xor`, or `Exclude` (first minus second) on filled
+areas. Null is empty, open contours are implicitly closed, and stroke widths do not participate.
+Operand transforms precede the operation; the combined transform follows it. A failed native
+operation raises `InvalidOperationException`; invalid transformed coordinates raise `ArgumentException`.
+
+```csharp
+var first = new EllipseGeometry(new RectangleF(0, 0, 60, 60));
+var second = new EllipseGeometry(new RectangleF(30, 0, 60, 60));
+var crescent = new CombinedGeometry(GeometryCombineMode.Exclude, first, second);
+var shape = new ModernFormsNext.Path
+{
+    Size = new Size(180, 100), Data = crescent,
+    Stretch = GeometryStretch.Uniform, Fill = new SolidColorBrush(Color.Gold)
+};
+```
+
+### Bounded path-data import
+
+`PathGeometry.Parse(string)` accepts invariant SVG-compatible **path data**, not an SVG XML document.
+Supported absolute/relative commands are `M L H V C S Q T A Z`; repeated parameter sets, smooth-curve
+reflection, signs, decimal/exponent syntax, commas and whitespace are supported. Arc flags are `0`
+or `1`; parsed negative radii are normalized to positive. Typed `ArcSegment` radii must be non-negative.
+
+The parser admits at most 262,144 UTF-16 characters, 16,384 segments and 1,024 figures, before native
+work. Non-finite values and relative/reflected arithmetic overflow fail with `FormatException`.
+`ToPathData()` writes deterministic absolute `M/L/Q/C/A/Z` commands with round-trip Single precision.
+`FillRule` and `Transform` remain separate properties; text output does not encode them. Large typed
+runtime paths may produce text beyond the parser's fixed ceilings.
+
+```csharp
+var outline = PathGeometry.Parse("M10 40 Q40 0 70 40 A20 20 0 0 1 110 40 Z");
+string data = outline.ToPathData();
+```
+
+XML, SVG resources, URLs, styles, text, gradients, `<use>` and external references are not imported.
+Parsing performs no file or network access. Use the existing Brush APIs for fills and strokes.
 
 `ModernFormsNext.Path` intentionally follows the conventional vector-control name. Code that also
 uses `System.IO.Path` should qualify the file-system type or introduce an alias:
@@ -97,8 +151,26 @@ ancestor pipeline. This provides hard control and parent clipping without a seco
 Ellipse and Circle automatically inset their contour by half `StrokeThickness`, retaining their
 complete centered stroke and anti-aliased fringe inside the back buffer. Explicit Line, Polygon,
 Polyline, and Path coordinates are not rewritten; portions intentionally placed outside the
-control's back-buffer bounds remain clipped. Geometry is not currently exposed as a generic Control
-clip source.
+control's back-buffer bounds remain clipped.
+
+`Shape.Stretch` defaults to `GeometryStretch.None`, preserving raw coordinates and their origin.
+`Fill` scales non-degenerate axes independently; `Uniform` fits and centers the whole geometry;
+`UniformToFill` covers the available area and clips excess pixels. Mapping uses tight transformed
+geometry bounds and `PaddedClientRectangle`, reserving half `StrokeThickness` on each edge even
+without a stroke brush. Stroke thickness is not stretched. A degenerate axis is centered without
+inventing an area; the remaining axis determines uniform scale. Wide miters may still be clipped.
+Size, padding, density, geometry and stroke-metric changes participate in cache selection.
+
+`Control.ClipGeometry` borrows reusable geometry in local logical coordinates. It clips the complete
+composition, including descendants, effects and shadow, through the same path and presentation
+mapping as pointer hit testing. Null removes it; empty geometry clips everything. Changes repaint
+the composition owner without changing layout or keyboard focus. Accessibility bounds and Designer
+selection remain rectangular. NativeViewHost islands suspend through their existing unsupported
+composition mechanism while they or an ancestor have a geometry clip.
+
+```csharp
+panel.ClipGeometry = new EllipseGeometry(new RectangleF(0, 0, 200, 120));
+```
 
 `Geometry.Transform` is applied while the path is still vector data, before rasterization. A
 Control presentation transform operates later on the complete control backbuffer, consistently
@@ -128,7 +200,7 @@ An Android build is not evidence of emulator/device visual or touch validation.
 All concrete shapes appear in the **Shapes** Toolbox category and use runtime-safe preview rendering.
 The Property Grid exposes Appearance and Geometry values. `PointCollection` has an ordered dialog
 with Add, Remove, Up, Down, and separate X/Y fields. `PathGeometry` has a structured dialog for
-figures, `StartPoint`, segment type and coordinates, `IsClosed`, `FillRule`, and transform. The
+figures, `StartPoint`, segment type and coordinates, arc radii/rotation/flags, `IsClosed`, `FillRule`, and transform. The
 inline editor remains available for quick entry: points use `x,y; x,y; ...`, and geometry uses a
 compact command form:
 
@@ -137,20 +209,42 @@ path evenodd M 8,88 Q 36,4 72,34 C 96,4 132,22 152,88 Z
 ```
 
 `line`, `rectangle`, `ellipse`, and an optional
-`transform(m11,m12,m21,m22,m31,m32)` prefix are supported. The Designer does not include a graphical
-Bezier canvas. `.mfdesign` stores platform-neutral values; code generation emits the public API;
+`transform(m11,m12,m21,m22,m31,m32)` prefix are supported. Path commands use the runtime parser.
+The same dialog also displays the canonical path and draggable nodes for the selected figure,
+with control handles for its selected quadratic/cubic segment. The view stays fixed during a drag.
+Escape, capture cancellation or focus loss restores the coordinate present at mouse-down; Cancel
+discards the entire private draft. A singular transform disables dragging and retains numeric editing.
+Arc endpoints are draggable; radii, rotation and flags use the structured fields. Groups and Boolean
+operands remain lossless structured data authored in code; the graphical dialog edits PathGeometry.
+
+`.mfdesign` stores platform-neutral values; code generation emits the public API;
 and the reverse parser understands the generator's supported output. Numeric display, parsing, JSON,
 and generated C# use invariant decimal syntax independently of the current UI culture.
 
+Extended vectors, `ClipGeometry` and `Stretch` use format **3**, which also supports inherited designs.
+Ordinary documents stay format 1; inherited designs without extended vectors stay format 2. The
+writer chooses the capability marker without changing caller metadata. Older readers reject format
+3 rather than silently dropping an arc or clip; downgrading the marker is rejected by current readers.
+
+Before allocation/conversion, the Designer bounds expanded typed visits, neutral property values,
+nesting and text. Shared references consume the expansion budget on each occurrence. Its hard vector
+work estimate is 65,536 shared across the document (or the supplied property sequence), with Boolean output conservatively charged as
+`sum + 6 * sum * sum` for both operands, including their self intersections. Line/quadratic/cubic
+degree weights are 1/2/3, and an arc reserves four cubics. Projected coordinate extent is bounded at one billion
+logical pixels. These admission estimates can reject a complex project even if its final area is
+small. They are independent of ordinary table preview settings and cannot be disabled by `.mfdesign`.
+Typed runtime geometry and runtime TableLayoutPanel counts receive no Designer limits. Invalid data
+produces a diagnostic; preview never loads application types or runs application code for geometry.
+
 Open **Shapes** in ControlGallery for solid and gradient fills, gradient and solid strokes, caps,
-joins, a reusable Bezier path, a vector transform, and stroke-safe control-bound smoke tests.
+joins, arcs, grouped/combined areas, Stretch, a shared mutable geometry clip, a vector transform,
+and stroke-safe control-bound smoke tests.
 
 ## Current limitations
 
-- The geometry model has line, rectangle, ellipse, line segment, quadratic Bezier, and cubic Bezier
-  primitives. It does not yet include arc segments, geometry groups/boolean operations, SVG import
-  or a core SVG-style path string, a general `Stretch` contract, or generic Control geometry clips.
-- The Designer provides structured and compact text editors, not a graphical Bezier canvas.
+- Full SVG document import is unsupported; the bounded path-data subset is explicit above.
+- Groups and Boolean operand trees do not have a graphical composition editor. Edit their typed
+  definitions; the PathGeometry canvas does not replace or flatten them.
 - Windows and Android share the Skia renderer. The [Android release matrix](android-release-validation.md)
   records bounded emulator/physical ellipse and Bezier animation screenshots and software callback
   profiles. Physical touch ergonomics, GPU/cache profiling and native-density child raster quality

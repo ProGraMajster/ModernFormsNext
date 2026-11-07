@@ -21,6 +21,19 @@ control typography parity. See the [supported metrics matrix](architecture/layou
 
 ## Evidence types and acceptance
 
+The focused `VectorGeometryValidationInstrumentation` runner uses the same bounded fixture as the
+Windows `--vector-geometry` HWND runner and the extended Shapes Gallery. It exercises endpoint arcs,
+shared group operands, XOR/Union, Stretch and a mutable parent clip. Source/alternative/restored
+frame-committed captures assert exact solid content pixels in both clip halves and the combined
+area's center; synthetic native touch reaches the included child and is rejected in the excluded
+half. A changed unrelated corner cannot satisfy the owned content probes. Run explicitly on each
+emulator/device and preserve the fresh `vector-geometry-*` artifact directory. This adds no manual
+gesture, GPU, broad SVG or general Android production claim.
+
+```powershell
+adb -s $serial shell am instrument -w com.programajster.modernformsnext.sample/com.programajster.modernformsnext.sample.VectorGeometryValidationInstrumentation
+```
+
 Keep these labels separate in every report:
 
 - **AUTOMATED**: shared/backend tests, builds and archive inspection on the development machine.

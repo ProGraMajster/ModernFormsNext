@@ -47,6 +47,7 @@ public partial class Control
     private readonly record struct NativeInvalidationState(Rectangle Client, bool Unsupported);
 
     internal bool HasUnsupportedNativeComposition =>
+        ClipGeometry is not null ||
         !float.IsFinite(EffectiveOpacity) || EffectiveOpacity < 0.999f ||
         !float.IsFinite(EffectiveRotation) || Math.Abs(EffectiveRotation) > 0.0001f ||
         !float.IsFinite(EffectiveScaleX) || Math.Abs(EffectiveScaleX - 1f) > 0.0001f ||

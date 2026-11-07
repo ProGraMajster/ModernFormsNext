@@ -384,7 +384,13 @@ internal static class DesignerPropertyValueEditor
             return ToPointCollectionPropertyValue(points);
 
         if (value is ModernFormsNext.Drawing.Geometry geometry)
-            return ToGeometryPropertyValue(geometry);
+        {
+            DesignerGeometryAdmission.Require(geometry);
+            var stored = ToGeometryPropertyValue(geometry);
+            var validation = new DesignDocumentValidator().ValidatePropertyValue(stored);
+            if (!validation.IsValid) throw new FormatException(string.Join(" ", validation.Errors));
+            return stored;
+        }
 
         if (value is ModernFormsNext.Font font)
             return ToFontPropertyValue(font);
@@ -596,6 +602,18 @@ internal static class DesignerPropertyValueEditor
                 for (int index = 0; index < path.Figures.Count; index++)
                     properties[$"Figure{index}"] = ToPathFigurePropertyValue(path.Figures[index]);
                 break;
+            case ModernFormsNext.Drawing.GeometryGroup group:
+                properties["FillRule"] = DesignPropertyValue.FromEnum(typeof(ModernFormsNext.Drawing.GeometryFillRule).FullName!, group.FillRule.ToString());
+                properties["ChildCount"] = DesignPropertyValue.FromInt32(group.Children.Count);
+                for (int index = 0; index < group.Children.Count; index++)
+                    properties[$"Child{index}"] = ToGeometryPropertyValue(group.Children[index]);
+                break;
+            case ModernFormsNext.Drawing.CombinedGeometry combined:
+                properties["Mode"] = DesignPropertyValue.FromEnum(typeof(ModernFormsNext.Drawing.GeometryCombineMode).FullName!, combined.Mode.ToString());
+                properties["Geometry1"] = combined.Geometry1 is null ? DesignPropertyValue.FromNull() : ToGeometryPropertyValue(combined.Geometry1);
+                properties["Geometry2"] = combined.Geometry2 is null ? DesignPropertyValue.FromNull() : ToGeometryPropertyValue(combined.Geometry2);
+                break;
+            default: throw new FormatException("Custom geometry cannot be persisted by the data-only Designer.");
         }
 
         return DesignPropertyValue.FromStructuredObject(geometry.GetType().FullName!, properties);
@@ -631,6 +649,17 @@ internal static class DesignerPropertyValueEditor
                 properties["ControlPoint2"] = ToDesignPropertyValue(cubic.ControlPoint2, typeof(System.Drawing.PointF));
                 properties["Point"] = ToDesignPropertyValue(cubic.Point, typeof(System.Drawing.PointF));
                 break;
+            case ModernFormsNext.Drawing.ArcSegment arc:
+                properties["Point"] = ToDesignPropertyValue(arc.Point, typeof(System.Drawing.PointF));
+                properties["Size"] = DesignPropertyValue.FromStructuredObject(typeof(System.Drawing.SizeF).FullName!, new Dictionary<string, DesignPropertyValue>
+                {
+                    ["Width"] = DesignPropertyValue.FromDouble(arc.Size.Width), ["Height"] = DesignPropertyValue.FromDouble(arc.Size.Height)
+                });
+                properties["RotationAngle"] = DesignPropertyValue.FromDouble(arc.RotationAngle);
+                properties["IsLargeArc"] = DesignPropertyValue.FromBoolean(arc.IsLargeArc);
+                properties["SweepDirection"] = DesignPropertyValue.FromEnum(typeof(ModernFormsNext.Drawing.SweepDirection).FullName!, arc.SweepDirection.ToString());
+                break;
+            default: throw new FormatException("Custom segments cannot be persisted by the data-only Designer.");
         }
         return DesignPropertyValue.FromStructuredObject(segment.GetType().FullName!, properties);
     }
@@ -684,6 +713,9 @@ internal static class DesignerPropertyValueEditor
 
         if (targetType == typeof(System.Drawing.Size))
             return new System.Drawing.Size(ReadInt(properties, "Width"), ReadInt(properties, "Height"));
+
+        if (targetType == typeof(System.Drawing.SizeF))
+            return new System.Drawing.SizeF((float)ReadDouble(properties, "Width"), (float)ReadDouble(properties, "Height"));
 
         if (targetType == typeof(DesignSize))
             return new DesignSize(ReadInt(properties, "Width"), ReadInt(properties, "Height"));
@@ -881,6 +913,27 @@ internal static class DesignerPropertyValueEditor
             }
             geometry = path;
         }
+        else if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.GeometryGroup)))
+        {
+            var group = new ModernFormsNext.Drawing.GeometryGroup();
+            if (properties.TryGetValue("FillRule", out var rule))
+                group.FillRule = (ModernFormsNext.Drawing.GeometryFillRule)ConvertValueCore(rule, typeof(ModernFormsNext.Drawing.GeometryFillRule))!;
+            int count = ReadInt(properties, "ChildCount");
+            for (int i = 0; i < count; i++)
+                group.Children.Add(FromGeometryPropertyValue(properties[$"Child{i}"], properties[$"Child{i}"].ObjectProperties!));
+            geometry = group;
+        }
+        else if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.CombinedGeometry)))
+        {
+            var combined = new ModernFormsNext.Drawing.CombinedGeometry();
+            if (properties.TryGetValue("Mode", out var mode))
+                combined.Mode = (ModernFormsNext.Drawing.GeometryCombineMode)ConvertValueCore(mode, typeof(ModernFormsNext.Drawing.GeometryCombineMode))!;
+            if (properties.TryGetValue("Geometry1", out var first) && first.Kind != DesignPropertyValueKind.Null)
+                combined.Geometry1 = FromGeometryPropertyValue(first, first.ObjectProperties!);
+            if (properties.TryGetValue("Geometry2", out var second) && second.Kind != DesignPropertyValueKind.Null)
+                combined.Geometry2 = FromGeometryPropertyValue(second, second.ObjectProperties!);
+            geometry = combined;
+        }
         else throw new FormatException("The structured geometry type is not supported by preview.");
 
         if (properties.TryGetValue("Transform", out DesignPropertyValue? transformValue)
@@ -929,6 +982,14 @@ internal static class DesignerPropertyValueEditor
                 ReadPointF(properties, "ControlPoint2"),
                 ReadPointF(properties, "Point"));
         }
+        if (IsStructuredType(value, typeof(ModernFormsNext.Drawing.ArcSegment)))
+        {
+            var size = properties.TryGetValue("Size", out var storedSize) ? (System.Drawing.SizeF)ConvertValueCore(storedSize, typeof(System.Drawing.SizeF))! : default;
+            var sweep = properties.TryGetValue("SweepDirection", out var direction)
+                ? (ModernFormsNext.Drawing.SweepDirection)ConvertValueCore(direction, typeof(ModernFormsNext.Drawing.SweepDirection))! : ModernFormsNext.Drawing.SweepDirection.Clockwise;
+            return new ModernFormsNext.Drawing.ArcSegment(ReadPointF(properties, "Point"), size,
+                (float)ReadDouble(properties, "RotationAngle"), ReadBool(properties, "IsLargeArc"), sweep);
+        }
         return null;
     }
 
@@ -937,6 +998,7 @@ internal static class DesignerPropertyValueEditor
 
     private static string WriteGeometryText(ModernFormsNext.Drawing.Geometry geometry)
     {
+        DesignerGeometryAdmission.Require(geometry);
         string transform = geometry.Transform == Matrix3x2.Identity
             ? string.Empty
             : $"transform({FormatMatrix(geometry.Transform)}) ";
@@ -950,45 +1012,12 @@ internal static class DesignerPropertyValueEditor
             ModernFormsNext.Drawing.EllipseGeometry ellipse =>
                 $"{transform}ellipse {FormatRectangle(ellipse.Rect)}",
             ModernFormsNext.Drawing.PathGeometry path =>
-                $"{transform}path {path.FillRule.ToString().ToLowerInvariant()} {WritePathFigures(path)}".TrimEnd(),
+                $"{transform}path {path.FillRule.ToString().ToLowerInvariant()} {path.ToPathData()}".TrimEnd(),
             _ => geometry.GetType().Name
         };
     }
 
-    private static string WritePathFigures(ModernFormsNext.Drawing.PathGeometry path)
-    {
-        var parts = new List<string>();
-        foreach (ModernFormsNext.Drawing.PathFigure figure in path.Figures)
-        {
-            parts.Add("M");
-            parts.Add(FormatPoint(figure.StartPoint));
-            foreach (ModernFormsNext.Drawing.PathSegment segment in figure.Segments)
-            {
-                switch (segment)
-                {
-                    case ModernFormsNext.Drawing.LineSegment line:
-                        parts.Add("L");
-                        parts.Add(FormatPoint(line.Point));
-                        break;
-                    case ModernFormsNext.Drawing.QuadraticBezierSegment quadratic:
-                        parts.Add("Q");
-                        parts.Add(FormatPoint(quadratic.ControlPoint));
-                        parts.Add(FormatPoint(quadratic.Point));
-                        break;
-                    case ModernFormsNext.Drawing.BezierSegment cubic:
-                        parts.Add("C");
-                        parts.Add(FormatPoint(cubic.ControlPoint1));
-                        parts.Add(FormatPoint(cubic.ControlPoint2));
-                        parts.Add(FormatPoint(cubic.Point));
-                        break;
-                }
-            }
 
-            if (figure.IsClosed)
-                parts.Add("Z");
-        }
-        return string.Join(' ', parts);
-    }
 
     private static string FormatPoint(System.Drawing.PointF point)
         => $"{point.X.ToString("R", CultureInfo.InvariantCulture)},{point.Y.ToString("R", CultureInfo.InvariantCulture)}";
@@ -1060,6 +1089,7 @@ internal static class DesignerPropertyValueEditor
 
     private static bool TryParseGeometry(string text, out object? value, out string? error)
     {
+        if (text.Length > 262144) return FailGeometry("Geometry text exceeds the supported character budget.", out value, out error);
         if (string.IsNullOrWhiteSpace(text) || string.Equals(text, "null", StringComparison.OrdinalIgnoreCase))
         {
             value = null;
@@ -1128,58 +1158,24 @@ internal static class DesignerPropertyValueEditor
     }
 
     private static ModernFormsNext.Drawing.PathGeometry? ParsePathGeometry(
-        string[] tokens,
-        ref int index,
-        out string? error)
+        string[] tokens, ref int index, out string? error)
     {
-        var path = new ModernFormsNext.Drawing.PathGeometry();
-        if (index < tokens.Length
-            && Enum.TryParse(tokens[index], ignoreCase: true, out ModernFormsNext.Drawing.GeometryFillRule fillRule))
+        var rule = ModernFormsNext.Drawing.GeometryFillRule.Winding;
+        if (index < tokens.Length && Enum.TryParse(tokens[index], ignoreCase: true, out ModernFormsNext.Drawing.GeometryFillRule parsedRule))
         {
-            path.FillRule = fillRule;
+            if (!Enum.IsDefined(parsedRule)) return FailPath("The fill rule is not defined.", out error);
+            rule = parsedRule;
             index++;
         }
-
-        ModernFormsNext.Drawing.PathFigure? figure = null;
-        while (index < tokens.Length)
+        try
         {
-            string command = tokens[index++].ToUpperInvariant();
-            switch (command)
-            {
-                case "M":
-                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF start))
-                        return FailPath("Command M requires one point.", out error);
-                    figure = new ModernFormsNext.Drawing.PathFigure(start);
-                    path.Figures.Add(figure);
-                    break;
-                case "L" when figure is not null:
-                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF linePoint))
-                        return FailPath("Command L requires one point.", out error);
-                    figure.Segments.Add(new ModernFormsNext.Drawing.LineSegment(linePoint));
-                    break;
-                case "Q" when figure is not null:
-                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF control)
-                        || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF quadraticPoint))
-                        return FailPath("Command Q requires a control point and an end point.", out error);
-                    figure.Segments.Add(new ModernFormsNext.Drawing.QuadraticBezierSegment(control, quadraticPoint));
-                    break;
-                case "C" when figure is not null:
-                    if (!TryReadPointToken(tokens, ref index, out System.Drawing.PointF control1)
-                        || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF control2)
-                        || !TryReadPointToken(tokens, ref index, out System.Drawing.PointF cubicPoint))
-                        return FailPath("Command C requires two control points and an end point.", out error);
-                    figure.Segments.Add(new ModernFormsNext.Drawing.BezierSegment(control1, control2, cubicPoint));
-                    break;
-                case "Z" when figure is not null:
-                    figure.IsClosed = true;
-                    break;
-                default:
-                    return FailPath("Path commands must start with M and use M, L, Q, C, or Z.", out error);
-            }
+            var path = ModernFormsNext.Drawing.PathGeometry.Parse(string.Join(' ', tokens, index, tokens.Length - index));
+            path.FillRule = rule;
+            index = tokens.Length;
+            error = null;
+            return path;
         }
-
-        error = null;
-        return path;
+        catch (FormatException failure) { return FailPath(failure.Message, out error); }
     }
 
     private static bool TryReadPointToken(string[] tokens, ref int index, out System.Drawing.PointF point)
@@ -1529,7 +1525,7 @@ internal static class DesignerPropertyValueEditor
             typeof(ModernFormsNext.Drawing.LinearGradientBrush), typeof(ModernFormsNext.Drawing.RadialGradientBrush),
             typeof(ModernFormsNext.Drawing.SweepGradientBrush), typeof(ModernFormsNext.Drawing.LineGeometry),
             typeof(ModernFormsNext.Drawing.RectangleGeometry), typeof(ModernFormsNext.Drawing.EllipseGeometry),
-            typeof(ModernFormsNext.Drawing.PathGeometry)
+            typeof(ModernFormsNext.Drawing.PathGeometry), typeof(ModernFormsNext.Drawing.GeometryGroup), typeof(ModernFormsNext.Drawing.CombinedGeometry)
         ];
         return knownPolymorphic.Any(type => targetType.IsAssignableFrom(type) && IsStructuredType(value, type));
     }
@@ -1541,7 +1537,7 @@ internal static class DesignerPropertyValueEditor
             typeof(ModernFormsNext.Drawing.LineGeometry),
             typeof(ModernFormsNext.Drawing.RectangleGeometry),
             typeof(ModernFormsNext.Drawing.EllipseGeometry),
-            typeof(ModernFormsNext.Drawing.PathGeometry)
+            typeof(ModernFormsNext.Drawing.PathGeometry), typeof(ModernFormsNext.Drawing.GeometryGroup), typeof(ModernFormsNext.Drawing.CombinedGeometry)
         }.Any(type => string.Equals(typeName, type.FullName, StringComparison.Ordinal)
             || string.Equals(typeName, type.Name, StringComparison.Ordinal));
 

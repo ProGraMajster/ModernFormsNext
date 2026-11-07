@@ -15,6 +15,7 @@
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\LayoutPolicyCertification.cs" Link="LayoutPolicyCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\VisualStateMetricCertification.cs" Link="VisualStateMetricCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\ShadowTypographyCertification.cs" Link="ShadowTypographyCertification.cs" />
+    <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\VectorGeometryCertification.cs" Link="VectorGeometryCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\RtlLayoutCertification.cs" Link="RtlLayoutCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\BindingNavigatorCertification.cs" Link="BindingNavigatorCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\ToolTipCertification.cs" Link="ToolTipCertification.cs" />

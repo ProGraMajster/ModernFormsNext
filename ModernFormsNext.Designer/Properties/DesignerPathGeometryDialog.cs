@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Globalization;
 using System.Numerics;
 using ModernFormsNext.Drawing;
+using ModernFormsNext.Designing;
 
 namespace ModernFormsNext.Designer.Properties;
 
@@ -23,6 +24,12 @@ internal sealed class DesignerPathGeometryDialog : Form
     private readonly TextBox control2YTextBox;
     private readonly TextBox endXTextBox;
     private readonly TextBox endYTextBox;
+    private readonly TextBox arcRadiusXTextBox;
+    private readonly TextBox arcRadiusYTextBox;
+    private readonly TextBox arcRotationTextBox;
+    private readonly CheckBox arcLargeCheckBox;
+    private readonly ComboBox arcSweepCombo;
+    private readonly DesignerPathCanvas pathCanvas;
     private readonly Label errorLabel;
     private bool changingSelection;
 
@@ -32,8 +39,8 @@ internal sealed class DesignerPathGeometryDialog : Form
 
         Text = "PathGeometry Editor";
         Name = nameof(DesignerPathGeometryDialog);
-        Size = new Size(930, 610);
-        MinimumSize = new Size(860, 560);
+        Size = new Size(1300, 760);
+        MinimumSize = new Size(1200, 720);
         StartPosition = FormStartPosition.CenterParent;
 
         Controls.Add(new Label { Left = 18, Top = 16, Width = 70, Height = 22, Text = "Fill rule" });
@@ -62,7 +69,7 @@ internal sealed class DesignerPathGeometryDialog : Form
         Controls.Add(new Label { Left = 290, Top = 126, Width = 230, Height = 22, Text = "Segments (figure order)" });
         segmentList = Controls.Add(new ListBox { Left = 290, Top = 152, Width = 336, Height = 160 });
         segmentTypeCombo = Controls.Add(new ComboBox { Left = 646, Top = 152, Width = 138, Height = 28 });
-        segmentTypeCombo.Items.AddRange(["Line", "Quadratic", "Cubic"]);
+        segmentTypeCombo.Items.AddRange(["Line", "Quadratic", "Cubic", "Arc"]);
         segmentTypeCombo.SelectedIndex = 0;
         var addSegmentButton = Controls.Add(new Button { Left = 792, Top = 150, Width = 86, Height = 30, Text = "Add", Anchor = AnchorStyles.Top | AnchorStyles.Right });
         var removeSegmentButton = Controls.Add(new Button { Left = 646, Top = 190, Width = 86, Height = 30, Text = "Remove" });
@@ -79,13 +86,34 @@ internal sealed class DesignerPathGeometryDialog : Form
         endYTextBox = AddCoordinateEditor("End Y", 310, editorTop + 108);
         var applySegmentButton = Controls.Add(new Button { Left = 646, Top = editorTop + 106, Width = 126, Height = 30, Text = "Apply Segment" });
 
-        errorLabel = Controls.Add(new Label { Left = 18, Top = 492, Width = 620, Height = 48, Text = string.Empty, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right });
-        var okButton = Controls.Add(new Button { Left = 710, Top = 510, Width = 78, Height = 30, Text = "OK", Anchor = AnchorStyles.Bottom | AnchorStyles.Right });
-        var cancelButton = Controls.Add(new Button { Left = 800, Top = 510, Width = 78, Height = 30, Text = "Cancel", Anchor = AnchorStyles.Bottom | AnchorStyles.Right });
+        arcRadiusXTextBox = AddCoordinateEditor("Arc radius X", 18, 488);
+        arcRadiusYTextBox = AddCoordinateEditor("Arc radius Y", 310, 488);
+        arcRotationTextBox = AddCoordinateEditor("Rotation deg", 18, 526);
+        arcLargeCheckBox = Controls.Add(new CheckBox { Left = 310, Top = 526, Width = 120, Height = 28, Text = "Large arc" });
+        arcSweepCombo = Controls.Add(new ComboBox { Left = 450, Top = 526, Width = 176, Height = 28 });
+        arcSweepCombo.Items.AddRange(Enum.GetNames<SweepDirection>().Cast<object>().ToArray());
+        pathCanvas = Controls.Add(new DesignerPathCanvas(geometry)
+        {
+            Left = 910, Top = 82, Width = 340, Height = 472,
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+        });
+        Controls.Add(new Label { Left = 910, Top = 56, Width = 340, Height = 22, Text = "Drag nodes / selected Bezier handles" });
+        Controls.Add(new Label { Left = 18, Top = 574, Width = 850, Height = 24, Text = "The canvas edits this draft only. Escape or lost capture cancels a drag; Cancel discards the draft." });
+        errorLabel = Controls.Add(new Label { Left = 18, Top = 610, Width = 850, Height = 48, Text = string.Empty, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right });
+        var okButton = Controls.Add(new Button { Left = 1082, Top = 656, Width = 78, Height = 30, Text = "OK", Anchor = AnchorStyles.Bottom | AnchorStyles.Right });
+        var cancelButton = Controls.Add(new Button { Left = 1170, Top = 656, Width = 78, Height = 30, Text = "Cancel", Anchor = AnchorStyles.Bottom | AnchorStyles.Right });
+        pathCanvas.SelectionChanged += (figure, segment) =>
+        {
+            figureList.SelectedIndex = figure;
+            segmentList.SelectedIndex = segment;
+            LoadFigure(); LoadSegment();
+        };
+        pathCanvas.DraftChanged += () => { LoadFigure(); LoadSegment(); };
+        pathCanvas.DiagnosticChanged += message => errorLabel.Text = message ?? string.Empty;
 
         figureList.SelectedIndexChanged += (_, _) => { if (!changingSelection) { RefreshSegments(0); LoadFigure(); } };
         segmentList.SelectedIndexChanged += (_, _) => { if (!changingSelection) LoadSegment(); };
-        addFigureButton.Click += (_, _) => { geometry.Figures.Add(new PathFigure()); RefreshFigures(geometry.Figures.Count - 1); };
+        addFigureButton.Click += (_, _) => { if (!CanAddDraftData()) return; geometry.Figures.Add(new PathFigure()); RefreshFigures(geometry.Figures.Count - 1); };
         removeFigureButton.Click += (_, _) => RemoveFigure();
         upFigureButton.Click += (_, _) => MoveFigure(-1);
         downFigureButton.Click += (_, _) => MoveFigure(1);
@@ -144,6 +172,7 @@ internal sealed class DesignerPathGeometryDialog : Form
 
     private void AddSegment()
     {
+        if (!CanAddDraftData()) return;
         PathFigure? figure = SelectedFigure();
         if (figure is null)
             return;
@@ -151,6 +180,7 @@ internal sealed class DesignerPathGeometryDialog : Form
         {
             1 => new QuadraticBezierSegment(),
             2 => new BezierSegment(),
+            3 => new ArcSegment(),
             _ => new LineSegment()
         };
         figure.Segments.Add(segment);
@@ -204,6 +234,14 @@ internal sealed class DesignerPathGeometryDialog : Form
                 cubic.ControlPoint2 = control2;
                 cubic.Point = end;
                 break;
+            case ArcSegment arc:
+                if (!TryFloat(arcRadiusXTextBox.Text, out float rx) || !TryFloat(arcRadiusYTextBox.Text, out float ry)
+                    || rx < 0 || ry < 0 || !TryFloat(arcRotationTextBox.Text, out float angle)
+                    || !Enum.TryParse(arcSweepCombo.SelectedItem?.ToString(), out SweepDirection sweep))
+                    return Fail("Arc radii must be finite and non-negative; select a direction and finite rotation.");
+                arc.Point = end; arc.Size = new SizeF(rx, ry); arc.RotationAngle = angle;
+                arc.IsLargeArc = arcLargeCheckBox.Checked; arc.SweepDirection = sweep;
+                break;
         }
         errorLabel.Text = string.Empty;
         RefreshSegments(segmentList.SelectedIndex);
@@ -228,7 +266,21 @@ internal sealed class DesignerPathGeometryDialog : Form
         }
         geometry.FillRule = fillRule;
         geometry.Transform = transform;
+        try { _ = DesignerPropertyValueEditor.ToDesignPropertyValue(geometry, typeof(Geometry)); }
+        catch (FormatException failure) { Fail(failure.Message); return; }
         DialogResult = DialogResult.OK;
+    }
+
+    private bool CanAddDraftData()
+    {
+        try
+        {
+            // Reserve enough property slots for the largest new segment before growing the draft.
+            var stored = DesignerPropertyValueEditor.ToDesignPropertyValue(geometry, typeof(Geometry));
+            var validation = new DesignDocumentValidator().ValidatePropertyValues([stored], DesignDocumentValidator.MaximumPropertyValueCount - 32);
+            return validation.IsValid || Fail(string.Join(" ", validation.Errors));
+        }
+        catch (FormatException failure) { return Fail(failure.Message); }
     }
 
     private void RefreshFigures(int selectedIndex)
@@ -285,6 +337,8 @@ internal sealed class DesignerPathGeometryDialog : Form
         SetPointEditors(control1XTextBox, control1YTextBox, null, false);
         SetPointEditors(control2XTextBox, control2YTextBox, null, false);
         SetPointEditors(endXTextBox, endYTextBox, null, segment is not null);
+        arcRadiusXTextBox.Enabled = arcRadiusYTextBox.Enabled = arcRotationTextBox.Enabled = arcLargeCheckBox.Enabled = arcSweepCombo.Enabled = segment is ArcSegment;
+        pathCanvas.SelectSegment(figureList.SelectedIndex, segmentList.SelectedIndex);
         switch (segment)
         {
             case LineSegment line:
@@ -298,6 +352,14 @@ internal sealed class DesignerPathGeometryDialog : Form
                 SetPointEditors(control1XTextBox, control1YTextBox, cubic.ControlPoint1, true);
                 SetPointEditors(control2XTextBox, control2YTextBox, cubic.ControlPoint2, true);
                 SetPointEditors(endXTextBox, endYTextBox, cubic.Point, true);
+                break;
+            case ArcSegment arc:
+                SetPointEditors(endXTextBox, endYTextBox, arc.Point, true);
+                arcRadiusXTextBox.Text = FormatFloat(arc.Size.Width);
+                arcRadiusYTextBox.Text = FormatFloat(arc.Size.Height);
+                arcRotationTextBox.Text = FormatFloat(arc.RotationAngle);
+                arcLargeCheckBox.Checked = arc.IsLargeArc;
+                arcSweepCombo.SelectedItem = arc.SweepDirection.ToString();
                 break;
         }
     }
@@ -341,6 +403,7 @@ internal sealed class DesignerPathGeometryDialog : Form
             LineSegment line => $"Line to {FormatPoint(line.Point)}",
             QuadraticBezierSegment quadratic => $"Quadratic via {FormatPoint(quadratic.ControlPoint)} to {FormatPoint(quadratic.Point)}",
             BezierSegment cubic => $"Cubic via {FormatPoint(cubic.ControlPoint1)}, {FormatPoint(cubic.ControlPoint2)} to {FormatPoint(cubic.Point)}",
+            ArcSegment arc => $"Arc ({FormatFloat(arc.Size.Width)},{FormatFloat(arc.Size.Height)}) to {FormatPoint(arc.Point)}",
             _ => segment.GetType().Name
         };
 

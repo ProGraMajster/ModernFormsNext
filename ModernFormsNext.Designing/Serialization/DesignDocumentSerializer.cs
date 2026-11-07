@@ -36,11 +36,20 @@ public sealed class DesignDocumentSerializer
 
     /// <summary>Identifies the format required for inherited ownership and override patches.</summary>
     /// <remarks>
-    /// The serializer reads formats 1 and 2. It writes format 2 when a custom base is present,
+    /// The serializer reads formats 1, 2 and 3. It writes at least format 2 when a custom base is present,
     /// without changing the caller's metadata. Readers supporting only format 1 must reject it.
     /// Runtime controls and ordinary document serialization are unaffected.
     /// </remarks>
     public const int InheritedFormatVersion = 2;
+
+    /// <summary>Identifies the format required for arcs, geometry groups, combinations, stretch and clips.</summary>
+    /// <remarks>
+    /// Readers predating extended vector data must reject this format instead of omitting segments
+    /// or preview clipping. Format 3 also supports inherited ownership. Ordinary documents remain
+    /// format 1 and inherited documents without extended vectors remain format 2. No package version
+    /// or runtime control semantics depend on this persistence capability marker.
+    /// </remarks>
+    public const int VectorFormatVersion = 3;
 
     /// <summary>
     /// Gets the default serializer instance.
@@ -93,8 +102,21 @@ public sealed class DesignDocumentSerializer
         var validation = new DesignDocumentValidator().ValidateStructure(document);
         if (!validation.IsValid) throw new InvalidOperationException(string.Join(" ", validation.Errors));
         document = DesignInheritanceProjection.Authored(document);
-        if (document.BaseTypeName is not null)
-            document.Metadata = new() { FormatVersion = InheritedFormatVersion, ToolName = document.Metadata.ToolName };
+        int required = RequiredDocumentFormat(document);
+        if (document.Metadata.FormatVersion < required)
+        {
+            // Authored returns the original object for ordinary documents. Borrow its validated
+            // collections through a serialization-only header so capability selection never changes
+            // the caller's metadata, ownership snapshots, history or property values.
+            document = new DesignDocument
+            {
+                Metadata = new() { FormatVersion = required, ToolName = document.Metadata.ToolName },
+                Namespace = document.Namespace, ClassName = document.ClassName, FormName = document.FormName,
+                RootKind = document.RootKind, BaseTypeName = document.BaseTypeName, Size = document.Size,
+                InheritedSize = document.InheritedSize, Properties = document.Properties,
+                Events = document.Events, Controls = document.Controls
+            };
+        }
         string json = JsonSerializer.Serialize(document, Options);
         if (json.Length > MaximumContentLength) throw new InvalidOperationException("The designer document exceeds the supported JSON text budget.");
         return json;
@@ -142,13 +164,13 @@ public sealed class DesignDocumentSerializer
         int currentVersion = inspection.EffectiveVersion;
         var migratedVersions = new HashSet<int>();
 
-        while (currentVersion != CurrentFormatVersion && currentVersion != InheritedFormatVersion)
+        while (currentVersion != CurrentFormatVersion && currentVersion != InheritedFormatVersion && currentVersion != VectorFormatVersion)
         {
             if (currentVersion > CurrentFormatVersion)
             {
                 throw FormatVersionError(
                     $"Designer document format version {currentVersion} is newer than the " +
-                    $"supported version {CurrentFormatVersion} (ordinary) or {InheritedFormatVersion} (inherited).");
+                    $"supported version {CurrentFormatVersion} (ordinary), {InheritedFormatVersion} (inherited) or {VectorFormatVersion} (extended vectors).");
             }
 
             if (!migrations.TryGetValue(currentVersion, out IDesignDocumentMigration? migration))
@@ -217,10 +239,11 @@ public sealed class DesignDocumentSerializer
         DesignDocument document = JsonSerializer.Deserialize<DesignDocument>(currentJson, Options)
             ?? throw new JsonException("The JSON did not contain a designer document.");
         EnsureCurrentDocumentFormat(document);
-        if (document.BaseTypeName is not null && document.Metadata.FormatVersion != InheritedFormatVersion)
-            throw FormatVersionError($"Inherited designs require format version {InheritedFormatVersion}; ownership metadata cannot be downgraded.");
         var validation = new DesignDocumentValidator().ValidateStructure(document);
         if (!validation.IsValid) throw new JsonException(string.Join(" ", validation.Errors));
+        int required = RequiredDocumentFormat(document);
+        if (document.Metadata.FormatVersion < required)
+            throw FormatVersionError($"This design requires format version {required}; ownership or extended vector metadata cannot be downgraded.");
 
         return new DesignDocumentDeserializationResult(
             document,
@@ -369,12 +392,40 @@ public sealed class DesignDocumentSerializer
             throw new InvalidOperationException("Designer document metadata cannot be null.");
         }
 
-        if (document.Metadata.FormatVersion != CurrentFormatVersion && document.Metadata.FormatVersion != InheritedFormatVersion)
+        if (document.Metadata.FormatVersion != CurrentFormatVersion && document.Metadata.FormatVersion != InheritedFormatVersion && document.Metadata.FormatVersion != VectorFormatVersion)
         {
             throw new InvalidOperationException(
                 $"Designer document format version {document.Metadata.FormatVersion} cannot be " +
-                $"serialized or materialized by a version {CurrentFormatVersion}/{InheritedFormatVersion} serializer.");
+                $"serialized or materialized by a version {CurrentFormatVersion}/{InheritedFormatVersion}/{VectorFormatVersion} serializer.");
         }
+    }
+
+    private static int RequiredDocumentFormat(DesignDocument document)
+    {
+        // This follows the shared structural preflight. Inspect inert values only; no runtime type
+        // lookup or converter is needed to decide whether an older reader can preserve the design.
+        var properties = new Stack<IReadOnlyDictionary<string, DesignPropertyValue>>();
+        properties.Push(document.Properties);
+        var nodes = new Stack<DesignControlNode>(document.Controls);
+        while (nodes.TryPop(out var node))
+        {
+            properties.Push(node.Properties);
+            foreach (var child in node.Children) nodes.Push(child);
+        }
+        while (properties.TryPop(out var values))
+        {
+            foreach (var entry in values)
+            {
+                if (entry.Key == "ClipGeometry" || entry.Key == "Stretch") return VectorFormatVersion;
+                var value = entry.Value;
+                string? type = value.ObjectTypeName;
+                if (type?.StartsWith("global::", StringComparison.Ordinal) == true) type = type[8..];
+                if (type is "ArcSegment" or "ModernFormsNext.Drawing.ArcSegment" or "GeometryGroup" or "ModernFormsNext.Drawing.GeometryGroup" or "CombinedGeometry" or "ModernFormsNext.Drawing.CombinedGeometry")
+                    return VectorFormatVersion;
+                if (value.ObjectProperties is { } nested) properties.Push(nested);
+            }
+        }
+        return document.BaseTypeName is null ? CurrentFormatVersion : InheritedFormatVersion;
     }
 
     private static FormatVersionInspection InspectFormatVersion(string json)

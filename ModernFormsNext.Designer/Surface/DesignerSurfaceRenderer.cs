@@ -4,6 +4,8 @@ using ModernFormsNext.Designer.Layout;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designing;
+using ModernFormsNext.Drawing;
+using ModernFormsNext.Rendering.Skia;
 using SkiaSharp;
 using System.Reflection;
 
@@ -91,6 +93,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
 
         e.Canvas.Save();
         e.Canvas.ClipRect(clientBounds.ToSKRect());
+        ApplyDescendantGeometryClip(e.Canvas, state.Document.Properties, state.Document.Size.Width, state.Document.Size.Height, clientBounds,
+            message => state.Log(message));
 
         DrawNodesInPaintOrder(
             e,
@@ -258,6 +262,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         {
             surfacePaintArgs.Canvas.Save();
             surfacePaintArgs.Canvas.ClipRect(GetChildClipBounds(bounds).ToSKRect());
+            ApplyDescendantGeometryClip(surfacePaintArgs.Canvas, node.Properties, absolute.Width, absolute.Height, bounds,
+                message => LogRuntimePropertyFailure(state, node, message));
 
             if (DesignerSpecialContainers.IsTabControl(node))
             {
@@ -291,6 +297,33 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         => DesignerSelectionAdorner.Draw(e, bounds,
             state.SelectedNodes.Count == 1 && !node.IsInheritanceLocked ? DesignerLayoutProperties.GetResizeHandles(node) : [],
             state.SelectedNodes.Count > 1 && ReferenceEquals(state.SelectedNode, node));
+
+    private static void ApplyDescendantGeometryClip(SKCanvas canvas, IReadOnlyDictionary<string, DesignPropertyValue> properties,
+        int width, int height, System.Drawing.Rectangle destination, Action<string> diagnostic)
+    {
+        if (!properties.TryGetValue(nameof(Control.ClipGeometry), out var stored) || stored.Kind == DesignPropertyValueKind.Null) return;
+        try
+        {
+            var geometry = DesignerPropertyValueEditor.FromDesignPropertyValue(stored, typeof(Geometry)) as Geometry
+                ?? throw new FormatException("A preview clip requires supported geometry data.");
+            using var path = SkiaGeometryConverter.CreatePath(geometry, new System.Drawing.SizeF(1, 1));
+            // Children are projected individually in the canonical Designer tree. Apply the parent's
+            // same local path to their composition. This node's own adorner is drawn after the scope.
+            SKMatrix original = canvas.TotalMatrix;
+            try
+            {
+                canvas.Translate(destination.Left, destination.Top);
+                canvas.Scale(destination.Width / (float)Math.Max(1, width), destination.Height / (float)Math.Max(1, height));
+                canvas.ClipPath(path, SKClipOperation.Intersect, true);
+            }
+            finally { canvas.SetMatrix(original); }
+        }
+        catch (Exception failure) when (failure is FormatException or ArgumentException or InvalidOperationException)
+        {
+            canvas.ClipRect(SKRect.Empty);
+            diagnostic("ClipGeometry: " + failure.Message);
+        }
+    }
 
     private bool TryDrawEmbeddedPreview(
         PaintEventArgs surfacePaintArgs,
@@ -341,6 +374,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
             try
             {
                 surfacePaintArgs.Canvas.ClipRect(deviceBounds.ToSKRect());
+                ApplyDescendantGeometryClip(surfacePaintArgs.Canvas, preview.Document.Properties, preview.Document.Size.Width, preview.Document.Size.Height, deviceBounds,
+                    message => LogRuntimePropertyFailure(state, instanceNode, message));
                 DrawNodesInPaintOrder(
                     surfacePaintArgs,
                     previewPaintArgs,

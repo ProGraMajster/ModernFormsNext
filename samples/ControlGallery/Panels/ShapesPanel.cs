@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using ModernFormsNext;
 using ModernFormsNext.Drawing;
+using ModernFormsNext.Validation;
 
 namespace ControlGallery.Panels;
 
@@ -50,6 +51,12 @@ public sealed class ShapesPanel : BasePanel
             Multiline = true,
             Text = "Manual checks: resize and dock the gallery, verify smooth solid/linear/radial/sweep fills, round caps and joins, the rotated Path, and complete anti-aliased strokes inside every card. On Android, also verify density-correct stroke widths and touch targeting."
         });
+        var extended = Controls.Add(new Panel { Bounds = new Rectangle(24, 550, 756, 480) });
+        var example = new VectorGeometryCertification(extended.Controls, message => System.Diagnostics.Debug.WriteLine(message));
+        var toggle = extended.Controls.Add(new Button { Bounds = new Rectangle(332, 24, 240, 40), Text = "Toggle XOR / Union and clip" });
+        bool alternative = false;
+        toggle.Click += (_, _) => example.PrepareAlternative(alternative = !alternative);
+        toggle.BringToFront();
     }
 
     private void AddEllipseCard(int left, int top)

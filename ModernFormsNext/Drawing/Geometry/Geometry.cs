@@ -57,6 +57,22 @@ public abstract class Geometry
         }
     }
 
+    /// <summary>Computes tight axis-aligned bounds in logical pixels after this geometry's transform.</summary>
+    /// <returns>The path bounds, excluding any stroke; empty geometry returns an empty rectangle.</returns>
+    /// <remarks>
+    /// Uses the same shared vector conversion as rendering and hit testing on Windows and Android.
+    /// This performs native path work; cache the result against <see cref="Version"/> when needed.
+    /// Call on the UI thread while the geometry is in use. It does not invalidate or perform layout.
+    /// </remarks>
+    /// <exception cref="ArgumentException">A transformed coordinate overflows.</exception>
+    /// <exception cref="InvalidOperationException">A Boolean area operation fails.</exception>
+    public System.Drawing.RectangleF GetBounds()
+    {
+        using var path = Rendering.Skia.SkiaGeometryConverter.CreatePath(this, new System.Drawing.SizeF(1, 1));
+        var bounds = path.ComputeTightBounds();
+        return System.Drawing.RectangleF.FromLTRB(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
+    }
+
     /// <summary>
     /// Raises <see cref="Changed"/> after a rendered value has changed.
     /// </summary>
