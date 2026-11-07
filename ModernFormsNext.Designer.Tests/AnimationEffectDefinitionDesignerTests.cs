@@ -322,7 +322,8 @@ public sealed class AnimationEffectDefinitionDesignerTests
 
         CSharpDesignerParseResult parsed = new CSharpDesignerParser().Parse(source);
 
-        Assert.True(parsed.Success);
+        Assert.False(parsed.Success);
+        Assert.True(parsed.IsPartial);
         DesignControlNode parsedButton = Assert.Single(parsed.Document!.Controls);
         Assert.DoesNotContain(LayoutTransitionDesignValue.PropertyName, parsedButton.Properties.Keys);
         Assert.DoesNotContain(VisualStateTransitionDesignValue.PropertyName, parsedButton.Properties.Keys);

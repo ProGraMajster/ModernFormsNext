@@ -17,6 +17,10 @@ namespace ModernFormsNext.CodeGeneration.Reverse;
 /// </remarks>
 public sealed class CSharpDesignerParser
 {
+    private const int MaximumSourceLength = 4 * 1024 * 1024;
+    private const int MaximumSyntaxItems = 200_000;
+    private const int MaximumSyntaxDepth = 256;
+    private const int MaximumDiagnostics = 256;
     private readonly CSharpDesignerSyntaxReader syntaxReader = new();
     private readonly List<CSharpDesignerDiagnostic> diagnostics = [];
     private readonly Dictionary<string, FieldDefinition> fields = new(StringComparer.Ordinal);
@@ -47,20 +51,38 @@ public sealed class CSharpDesignerParser
         addOperations.Clear();
         inheritedMembers.Clear();
 
+        if (sourceText.Length > MaximumSourceLength)
+        {
+            AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "The designer source exceeds the text budget.", null);
+            return CreateResult(null, options);
+        }
         var syntaxTree = CSharpSyntaxTree.ParseText(sourceText);
         var root = syntaxTree.GetCompilationUnitRoot();
+        if (!FitsSyntaxBudget(root))
+        {
+            AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "The designer source exceeds the syntax budget.", null);
+            return CreateResult(null, options);
+        }
 
         foreach (var diagnostic in syntaxTree.GetDiagnostics())
         {
+            if (diagnostics.Count >= MaximumDiagnostics)
+            {
+                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Further diagnostics were omitted.", null);
+                return CreateResult(null, options);
+            }
             var severity = diagnostic.Severity == DiagnosticSeverity.Error
                 ? CSharpDesignerDiagnosticSeverity.Error
                 : CSharpDesignerDiagnosticSeverity.Warning;
-            var position = diagnostic.Location.GetLineSpan().StartLinePosition;
+            var span = diagnostic.Location.GetLineSpan();
             diagnostics.Add(new CSharpDesignerDiagnostic(
                 severity,
                 diagnostic.GetMessage(CultureInfo.InvariantCulture),
-                position.Line + 1,
-                position.Character + 1));
+                span.StartLinePosition.Line + 1,
+                span.StartLinePosition.Character + 1,
+                null,
+                span.EndLinePosition.Line + 1,
+                span.EndLinePosition.Character + 1));
         }
 
         if (diagnostics.Any(diagnostic => diagnostic.Severity == CSharpDesignerDiagnosticSeverity.Error))
@@ -73,11 +95,12 @@ public sealed class CSharpDesignerParser
             return CreateResult(null, options);
         }
 
-        var initializeComponent = classDeclaration.Members
+        var initializers = classDeclaration.Members
             .OfType<MethodDeclarationSyntax>()
-            .FirstOrDefault(method => string.Equals(method.Identifier.ValueText, "InitializeComponent", StringComparison.Ordinal));
+            .Where(method => string.Equals(method.Identifier.ValueText, "InitializeComponent", StringComparison.Ordinal))
+            .Take(2).ToArray();
 
-        if (initializeComponent?.Body is null)
+        if (initializers is not [{ Body: { } body, ParameterList.Parameters.Count: 0 }])
         {
             AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "The designer class does not contain a block-bodied InitializeComponent method.", classDeclaration);
             return CreateResult(null, options);
@@ -97,8 +120,13 @@ public sealed class CSharpDesignerParser
         var formNameAssigned = !string.IsNullOrWhiteSpace(options.FormNameOverride);
         ReadInheritanceMetadata(classDeclaration, document);
 
-        foreach (var statement in initializeComponent.Body.Statements)
+        foreach (var statement in body.Statements)
             ProcessStatement(statement, document, ref formNameAssigned);
+
+        if (document.RootKind == DesignRootKind.Form && document.BaseTypeName is null &&
+            document.Properties.TryGetValue("Text", out var title) &&
+            title is { Kind: DesignPropertyValueKind.String, Value: string text } && text == document.FormName)
+            document.Properties.Remove("Text");
 
         BuildHierarchy(document);
 
@@ -109,6 +137,22 @@ public sealed class CSharpDesignerParser
             document.FormName = document.ClassName;
 
         return CreateResult(document, options);
+    }
+
+    private static bool FitsSyntaxBudget(SyntaxNode root)
+    {
+        var pending = new Stack<(SyntaxNodeOrToken Item, int Depth)>();
+        pending.Push((root, 0));
+        int budget = MaximumSyntaxItems;
+        while (pending.TryPop(out var entry))
+        {
+            if (--budget < 0 || entry.Depth > MaximumSyntaxDepth) return false;
+            var children = entry.Item.ChildNodesAndTokens();
+            if (children.Count > budget - pending.Count) return false;
+            for (int i = children.Count - 1; i >= 0; i--)
+                pending.Push((children[i], entry.Depth + 1));
+        }
+        return true;
     }
 
     private void ReadInheritanceMetadata(ClassDeclarationSyntax declaration, DesignDocument document)
@@ -345,7 +389,7 @@ public sealed class CSharpDesignerParser
         }
         AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
             "Designer control construction requires an empty constructor or NavigationPage with one declared known page; executable arguments and object initializers are unsupported.",
-            syntax, syntax.ToString());
+            syntax, GetDiagnosticExcerpt(syntax));
     }
 
     private bool TryProcessInteractionEffectAdd(InvocationExpressionSyntax invocation, DesignDocument document)
@@ -392,7 +436,7 @@ public sealed class CSharpDesignerParser
             }
             AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
                 "Expected one supported animation recipe as a string literal on this control.",
-                invocation, invocation.ToString());
+                invocation, GetDiagnosticExcerpt(invocation));
             return true;
         }
 
@@ -741,7 +785,7 @@ public sealed class CSharpDesignerParser
             bool assigned = addOperations.Any(operation => operation.ParentName == ownerName && operation.Member == propertyPath);
             if (assigned)
             {
-                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Repeated or clearing authored page assignments cannot be represented without losing source behavior.", syntax, syntax.ToString());
+                AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error, "Repeated or clearing authored page assignments cannot be represented without losing source behavior.", syntax, GetDiagnosticExcerpt(syntax));
                 return;
             }
             if (valueExpression.IsKind(SyntaxKind.NullLiteralExpression)) return;
@@ -834,18 +878,15 @@ public sealed class CSharpDesignerParser
                 break;
 
             case "Text":
-                if (document.RootKind == DesignRootKind.Form
-                    && !formNameAssigned
-                    && TryReadString(valueExpression, out var text)
-                    && !string.IsNullOrWhiteSpace(text))
+                if (TryReadString(valueExpression, out var text) && text is not null)
                 {
-                    document.FormName = text;
+                    if (document.RootKind == DesignRootKind.Form && !formNameAssigned &&
+                        !string.IsNullOrWhiteSpace(text))
+                        document.FormName = text;
+                    document.Properties[propertyPath] = DesignPropertyValue.FromString(text);
                 }
-                else if (document.RootKind == DesignRootKind.UserControl
-                    && TryReadDesignerValue(valueExpression, out var userControlText))
-                {
-                    document.Properties[propertyPath] = userControlText;
-                }
+                else
+                    AddUnsupported(valueExpression, "Unsupported design root Text assignment.");
 
                 break;
 
@@ -1139,7 +1180,7 @@ public sealed class CSharpDesignerParser
              DesignPageContainers.IsType(owner.TypeName, "FlyoutPage") ||
              DesignPageContainers.IsType(owner.TypeName, "AppShell")))
             AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
-                "Known page containers require their canonical authored slots, not Controls.Add.", invocation, invocation.ToString());
+                "Known page containers require their canonical authored slots, not Controls.Add.", invocation, GetDiagnosticExcerpt(invocation));
 
         childName = syntaxReader.GetObjectReferenceName(invocation.ArgumentList.Arguments[0].Expression) ?? string.Empty;
         return !string.IsNullOrWhiteSpace(childName)
@@ -1218,6 +1259,7 @@ public sealed class CSharpDesignerParser
 
     private static bool TryReadString(ExpressionSyntax expression, out string? value)
     {
+        expression = UnwrapParentheses(expression);
         if (expression is LiteralExpressionSyntax literal
             && literal.IsKind(SyntaxKind.StringLiteralExpression))
         {
@@ -1348,6 +1390,7 @@ public sealed class CSharpDesignerParser
 
     private static bool TryReadDesignerValue(ExpressionSyntax expression, out DesignPropertyValue value)
     {
+        expression = UnwrapParentheses(expression);
         if (TryReadString(expression, out var stringValue))
         {
             value = stringValue is null
@@ -1389,7 +1432,7 @@ public sealed class CSharpDesignerParser
 
     private static bool TryReadBounds(ExpressionSyntax expression, out DesignBounds bounds)
     {
-        if (TryReadObjectArguments(expression, 4, out var arguments))
+        if (TryReadGeometryArguments(expression, "Rectangle", 4, out var arguments))
         {
             bounds = new DesignBounds(arguments[0], arguments[1], arguments[2], arguments[3]);
             return true;
@@ -1401,7 +1444,7 @@ public sealed class CSharpDesignerParser
 
     private static bool TryReadPoint(ExpressionSyntax expression, out int x, out int y)
     {
-        if (TryReadObjectArguments(expression, 2, out var arguments))
+        if (TryReadGeometryArguments(expression, "Point", 2, out var arguments))
         {
             x = arguments[0];
             y = arguments[1];
@@ -1415,7 +1458,7 @@ public sealed class CSharpDesignerParser
 
     private static bool TryReadSize(ExpressionSyntax expression, out int width, out int height)
     {
-        if (TryReadObjectArguments(expression, 2, out var arguments))
+        if (TryReadGeometryArguments(expression, "Size", 2, out var arguments))
         {
             width = arguments[0];
             height = arguments[1];
@@ -1427,11 +1470,30 @@ public sealed class CSharpDesignerParser
         return false;
     }
 
+    private static ExpressionSyntax UnwrapParentheses(ExpressionSyntax expression)
+    {
+        while (expression is ParenthesizedExpressionSyntax parenthesized)
+            expression = parenthesized.Expression;
+        return expression;
+    }
+
+    private static bool TryReadGeometryArguments(ExpressionSyntax expression, string type, int count, out int[] values)
+    {
+        expression = UnwrapParentheses(expression);
+        if (expression is ImplicitObjectCreationExpressionSyntax ||
+            expression is ObjectCreationExpressionSyntax creation &&
+            creation.Type.WithoutTrivia().ToString() is { } name &&
+            (name == type || name == "System.Drawing." + type || name == "global::System.Drawing." + type))
+            return TryReadObjectArguments(expression, count, out values);
+        values = [];
+        return false;
+    }
+
     private static bool TryReadObjectArguments(ExpressionSyntax expression, int count, out int[] values)
     {
         values = [];
 
-        if (expression is not ObjectCreationExpressionSyntax objectCreation
+        if (expression is not BaseObjectCreationExpressionSyntax { Initializer: null } objectCreation
             || objectCreation.ArgumentList?.Arguments.Count != count)
         {
             return false;
@@ -1440,7 +1502,9 @@ public sealed class CSharpDesignerParser
         var arguments = new int[count];
         for (var index = 0; index < count; index++)
         {
-            if (!TryReadInt32(objectCreation.ArgumentList.Arguments[index].Expression, out arguments[index]))
+            var argument = objectCreation.ArgumentList.Arguments[index];
+            if (argument.NameColon is not null || argument.RefKindKeyword.RawKind != 0 ||
+                !TryReadInt32(UnwrapParentheses(argument.Expression), out arguments[index]))
                 return false;
         }
 
@@ -1890,7 +1954,10 @@ public sealed class CSharpDesignerParser
         || typeName.EndsWith(expectedSuffix, StringComparison.Ordinal);
 
     private void AddUnsupported(SyntaxNode syntax, string message)
-        => AddDiagnostic(CSharpDesignerDiagnosticSeverity.Warning, message, syntax, syntax.ToString());
+        => AddDiagnostic(CSharpDesignerDiagnosticSeverity.Warning, message, syntax, GetDiagnosticExcerpt(syntax));
+
+    private static string? GetDiagnosticExcerpt(SyntaxNode syntax)
+        => syntax.Span.Length <= 512 ? syntax.ToString() : null;
 
     private void AddDiagnostic(
         CSharpDesignerDiagnosticSeverity severity,
@@ -1898,17 +1965,17 @@ public sealed class CSharpDesignerParser
         SyntaxNode? syntax,
         string? unsupportedSyntax = null)
     {
-        int? line = null;
-        int? column = null;
-
-        if (syntax is not null)
+        if (diagnostics.Count >= MaximumDiagnostics)
         {
-            var position = syntax.GetLocation().GetLineSpan().StartLinePosition;
-            line = position.Line + 1;
-            column = position.Character + 1;
+            if (diagnostics.Count == MaximumDiagnostics)
+                diagnostics.Add(new(CSharpDesignerDiagnosticSeverity.Error, "Further diagnostics were omitted."));
+            return;
         }
 
-        diagnostics.Add(new CSharpDesignerDiagnostic(severity, message, line, column, unsupportedSyntax));
+        var span = syntax?.GetLocation().GetLineSpan();
+        diagnostics.Add(new CSharpDesignerDiagnostic(severity, message,
+            span?.StartLinePosition.Line + 1, span?.StartLinePosition.Character + 1,
+            unsupportedSyntax, span?.EndLinePosition.Line + 1, span?.EndLinePosition.Character + 1));
     }
 
     private CSharpDesignerParseResult CreateResult(
@@ -1923,7 +1990,9 @@ public sealed class CSharpDesignerParser
                         diagnostic.Message,
                         diagnostic.Line,
                         diagnostic.Column,
-                        diagnostic.Syntax)
+                        diagnostic.Syntax,
+                        diagnostic.EndLine,
+                        diagnostic.EndColumn)
                     : diagnostic)
                 .ToArray()
             : diagnostics.ToArray();

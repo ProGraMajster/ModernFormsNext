@@ -277,20 +277,40 @@ self-writes by expected content hash, safely reload a clean document, and surfac
 conflict instead of replacing dirty Designer state. The full lifecycle and security contract is
 documented in [Designer autosave, recovery, and external changes](designer-autosave-and-recovery.md).
 
-Reverse synchronization is prepared as an explicit, conservative operation:
+Reverse synchronization is an explicit, conservative operation.
 
 ```text
 MainForm.Designer.cs
     -> CSharpDesignerParser
-    -> diagnostics
-    -> DesignDocument
-    -> optional user-approved update of MainForm.mfdesign
+    -> diagnostics and detached projection
+    -> compare with the active design
+    -> Apply Code in one undoable transaction
 ```
 
-For now, `.mfdesign` remains the designer state source of truth, but `MainForm.cs` remains the
-user-facing project item. A host should use reverse sync only when a generated `.Designer.cs`
-file appears newer or manually edited, and it should report parser diagnostics before
-overwriting the `.mfdesign` document.
+`.mfdesign` remains the source of truth. The watcher and manual import stage source for review.
+Compare identifies the source and its fingerprint. Unsupported input includes a one-based,
+end-exclusive diagnostic span where available. A partial projection cannot be applied. Correct
+the source and check for changes again, or use Save As to an independent destination.
+
+Apply Code checks the reviewed source and authoritative file fingerprints again. It compares the
+complete projection with the generated view of the current design and applies supported value and
+geometry edits. Existing control identity, tree structure and assignments must be present.
+Make structural changes and removals in the Designer. Custom inherited roots require editing
+their declaring design. Undo restores the previous model. Code stays on disk until the user saves.
+
+Save blocks unresolved code conflicts before either canonical file is written. Keep Designer
+acknowledges a complete reviewed version and retains the design model. For edited generated files,
+regeneration updates the verified `InitializeComponent` body while retaining source and comments
+outside it. When the owned region or field declarations cannot be verified, Save As is available.
+The sibling user partial class stays under the source editor's ownership.
+
+The parser admits generated declarations and known control constructors, assignments, layout,
+containment and event bindings. It supports parenthesized literal values and target-typed
+`new(...)` for the known Size, Location and Bounds slots. These forms normalize to generated
+syntax on save. It limits input to 4 Mi UTF-16 code units, 200,000 syntax items and 256 levels.
+Calls outside recognized framework forms, arbitrary constructors in geometry slots, named or
+by-reference geometry arguments, dynamic expressions and control flow are diagnostic-only.
+Parsing does not load application assemblies or run C#.
 
 ## Current Designer limitations
 

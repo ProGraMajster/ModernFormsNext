@@ -119,12 +119,12 @@ public sealed class ModernFormsDesignerShell : Panel
         => Session.LoadDocument(document);
 
     /// <summary>
-    /// Imports a supported generated <c>.Designer.cs</c> file into the active design session.
+    /// Stages a generated <c>.Designer.cs</c> file for review in the active design session.
     /// </summary>
     /// <param name="path">The generated C# designer file to import.</param>
     /// <remarks>
-    /// The import path uses the conservative ModernFormsNext reverse parser. Unsupported
-    /// C# statements are reported in the output log and are not guessed.
+    /// The review shows diagnostics for unsupported source. Apply Code verifies the reviewed
+    /// fingerprint and commits supported changes to the active design in one transaction.
     /// </remarks>
     public void ImportDesignerCode(string path)
         => commands.ImportDesignerCode(path);
