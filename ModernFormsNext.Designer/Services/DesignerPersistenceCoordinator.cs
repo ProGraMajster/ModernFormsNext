@@ -16,7 +16,8 @@ internal enum DesignerPersistenceActions
     SaveAs = 16,
     OpenDisk = 32,
     Compare = 64,
-    Dismiss = 128
+    Dismiss = 128,
+    ApplyCode = 256
 }
 
 internal enum DesignerPersistenceNoticeKind
@@ -58,7 +59,7 @@ internal readonly record struct DesignerSaveResult(bool Succeeded, string? Path,
 /// file observation run in the background, then marshal immutable results through the configured
 /// dispatcher. Each document owns a separate scheduler, write gate, watcher, and conflict state.
 /// </remarks>
-internal sealed class DesignerPersistenceCoordinator : IDisposable
+internal sealed partial class DesignerPersistenceCoordinator : IDisposable
 {
     private static readonly TimeSpan ExternalChangeDebounce = TimeSpan.FromMilliseconds(400);
     private static readonly TimeSpan ExternalChangeRetry = TimeSpan.FromMilliseconds(750);
@@ -287,6 +288,14 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 return RejectSave("ExternalChangeDetected", verificationError!);
             }
 
+            bool ownsGeneratedFile = false;
+            if (preparedCode is not null &&
+                !TryPrepareGeneratedWrite(state, normalizedPath, preparedCode, savingCanonicalPath,
+                    out preparedCode, out ownsGeneratedFile, out var ownershipError))
+            {
+                return RejectSave("GeneratedOwnership", ownershipError!);
+            }
+
             session.LogDiagnostic(
                 $"SAVE_POLICY_DECISION Decision=ALLOW " +
                 $"Reason={(resolvingAttachedRecovery
@@ -313,6 +322,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
 
             state.KnownGeneratedHash = generatedHash;
             state.ExpectedGeneratedHash = generatedHash;
+            if (preparedCode is not null) state.OwnedGeneratedHash = ownsGeneratedFile ? generatedHash : null;
             state.FileMissing = false;
             CancelExternalSchedule(state);
             ClearPendingExternalState(state);
@@ -489,8 +499,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         {
             if (designDisposition == ExternalDesignDisposition.Accepted)
             {
-                state.KnownGeneratedHash = generated.Exists ? generated.Hash : null;
-                state.ExpectedGeneratedHash = null;
+                ProcessExternalGeneratedCode(document, state, generated);
             }
             else if (designDisposition == ExternalDesignDisposition.Conflict)
             {
@@ -590,10 +599,15 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                     return new DesignerGenerationFileResult(false, string.Empty, string.Empty, [verificationError!]);
                 }
 
+                if (!TryPrepareGeneratedWrite(state, document.Path, result, canonical: true,
+                        out result, out bool ownsGeneratedFile, out var ownershipError))
+                    return new DesignerGenerationFileResult(false, string.Empty, string.Empty, [ownershipError!]);
+
                 DesignerAtomicFileWriter.WriteUtf8(result.Path, result.Code);
                 var hash = DesignerFileHash.ComputeFileSha256(result.Path);
                 state.KnownGeneratedHash = hash;
                 state.ExpectedGeneratedHash = hash;
+                state.OwnedGeneratedHash = ownsGeneratedFile ? hash : null;
             }
             finally
             {
@@ -641,6 +655,9 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             return false;
         }
 
+        if (action == DesignerPersistenceActions.ApplyCode)
+            return ApplyReviewedCode(documentState, out error);
+
         return ApplyExternalAction(documentState, action, saveAsPath, out error);
     }
 
@@ -675,9 +692,10 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             $"Designer baseline SHA-256: {state.KnownDesignHash ?? "missing"}",
             $"Current disk SHA-256: {state.PendingDiskDesignHash ?? "missing"}",
             $"Generated-code baseline SHA-256: {state.KnownGeneratedHash ?? "missing"}",
-            $"Current generated-code SHA-256: {state.PendingDiskGeneratedHash ?? "missing"}",
+            $"Reviewed source: {state.PendingGeneratedSource?.Path ?? "none"}",
+            $"Reviewed source SHA-256: {state.PendingGeneratedSource?.Hash ?? state.PendingDiskGeneratedHash ?? "missing"}",
             string.Empty,
-            "Choose Reload to use the disk model, Keep to retain the Designer model, or Save As to preserve both versions.");
+            DescribeReviewedCode(state));
     }
 
     public void CheckForExternalChanges()
@@ -832,6 +850,8 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
 
     internal async Task WaitForIdleAsync()
     {
+        // Include posting the UI completion in background work. The dispatcher can
+        // still have callbacks to drain when this method returns.
         while (true)
         {
             Task[] tasks;
@@ -1143,12 +1163,11 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 state.WriteGate.Release();
             }
         });
-        TrackBackgroundTask(task);
-        _ = task.ContinueWith(
+        TrackBackgroundTask(task.ContinueWith(
             completed => PostToUi(() => CompleteAutosave(document, state, snapshot, autosaveSequence, completed)),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+            TaskScheduler.Default));
     }
 
     private void CompleteAutosave(
@@ -1441,8 +1460,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             inspectDesign ? designPath : null,
             inspectGenerated ? generatedPath : null,
             rootKind));
-        TrackBackgroundTask(task);
-        _ = task.ContinueWith(
+        TrackBackgroundTask(task.ContinueWith(
             completed => PostToUi(() => CompleteExternalObservation(
                 document,
                 state,
@@ -1452,7 +1470,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 completed)),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+            TaskScheduler.Default));
     }
 
     private void CompleteExternalObservation(
@@ -1534,17 +1552,11 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             ? ProcessExternalDesign(document, state, design)
             : ExternalDesignDisposition.NoChange;
 
-        // A changed .mfdesign is authoritative for the model. Coalesced generated-code events are
-        // recorded as the new observed baseline and are not reverse-imported over that reload.
+        // The design document wins the reload. A coalesced code edit still needs review.
         if (observation.Generated is { } generated)
         {
-            if (designDisposition == ExternalDesignDisposition.NoChange)
+            if (designDisposition != ExternalDesignDisposition.Conflict)
                 ProcessExternalGeneratedCode(document, state, generated);
-            else if (designDisposition == ExternalDesignDisposition.Accepted)
-            {
-                state.KnownGeneratedHash = generated.Exists ? generated.Hash : null;
-                state.ExpectedGeneratedHash = null;
-            }
             else
             {
                 state.DeferredGeneratedObservation = generated;
@@ -1638,6 +1650,8 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             state.PendingDiskDesignHash = null;
             state.PendingDiskDocument = null;
             state.Notice = null;
+            if (state.PendingGeneratedSource is { } review)
+                StageReviewedCode(state, review, state.PendingGeneratedCanonical);
             session.Log($"Reloaded externally changed {document.DisplayName}.");
             return ExternalDesignDisposition.Accepted;
         }
@@ -1667,6 +1681,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 return;
 
             state.ExpectedGeneratedHash = null;
+            state.PendingGeneratedSource = null;
             state.PendingDiskGeneratedHash = null;
             state.PendingGeneratedMissing = true;
             state.Notice = new DesignerPersistenceNotification(
@@ -1692,61 +1707,18 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         }
         state.ExpectedGeneratedHash = null;
         if (string.Equals(observed.Hash, state.KnownGeneratedHash, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        state.PendingDiskGeneratedHash = observed.Hash;
-        state.PendingGeneratedDocument = observed.ParsedGeneratedDocument;
-        state.PendingDiskLastWriteUtc = observed.LastWriteUtc;
-        if (observed.ParsedGeneratedDocument is null)
         {
-            state.Notice = new DesignerPersistenceNotification(
-                Guid.NewGuid(),
-                DesignerPersistenceNoticeKind.ExternalGeneratedCodeInvalid,
-                "Generated code could not be imported",
-                "The external .Designer.cs edit was not applied, and the current Designer model was preserved. " + observed.Error,
-                document.DisplayName,
-                DesignerPersistenceActions.Keep | DesignerPersistenceActions.SaveAs | DesignerPersistenceActions.Compare,
-                DiskTimestampUtc: observed.LastWriteUtc);
+            if (state.PendingGeneratedSource is { } reviewed && state.PendingGeneratedCanonical &&
+                !string.Equals(reviewed.Hash, observed.Hash, StringComparison.OrdinalIgnoreCase))
+            {
+                state.PendingGeneratedSource = null;
+                state.PendingDiskGeneratedHash = null;
+                state.Notice = null;
+            }
             return;
         }
 
-        if (!document.IsDirty && ReferenceEquals(session.ActiveOpenDocument, document))
-        {
-            try
-            {
-                session.ReplaceDocument(observed.ParsedGeneratedDocument, "Import external Designer code");
-            }
-            catch (Exception exception)
-            {
-                state.Notice = new DesignerPersistenceNotification(
-                    Guid.NewGuid(),
-                    DesignerPersistenceNoticeKind.ExternalGeneratedCodeConflict,
-                    "Generated code import failed",
-                    "The changed .Designer.cs file was verified, but its model could not be applied. The current Designer model and history were preserved. " + exception.Message,
-                    document.DisplayName,
-                    DesignerPersistenceActions.Keep | DesignerPersistenceActions.Reload | DesignerPersistenceActions.SaveAs | DesignerPersistenceActions.Compare,
-                    DiskTimestampUtc: observed.LastWriteUtc);
-                session.LogDiagnostic($"Could not import external generated code for {document.DisplayName}: {exception.Message}");
-                return;
-            }
-            state.KnownGeneratedHash = observed.Hash;
-            state.PendingDiskGeneratedHash = null;
-            state.PendingGeneratedDocument = null;
-            state.Notice = null;
-            session.Log($"Imported externally changed {IOPath.GetFileName(observed.Path)} as one Designer transaction.");
-            return;
-        }
-
-        state.Notice = new DesignerPersistenceNotification(
-            Guid.NewGuid(),
-            DesignerPersistenceNoticeKind.ExternalGeneratedCodeConflict,
-            "Generated code changed outside the Designer",
-            document.IsDirty
-                ? "The Designer also has unsaved changes. Choose Keep, Reload, or Save As; no reverse import was performed."
-                : "Activate this document, then choose Reload to import the generated code as one transaction.",
-            document.DisplayName,
-            DesignerPersistenceActions.Keep | DesignerPersistenceActions.Reload | DesignerPersistenceActions.SaveAs | DesignerPersistenceActions.Compare,
-            DiskTimestampUtc: observed.LastWriteUtc);
+        StageReviewedCode(state, observed, canonical: true);
     }
 
     private bool ApplyExternalAction(
@@ -1760,16 +1732,27 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         switch (action)
         {
             case DesignerPersistenceActions.Keep:
+                bool codeReview = state.Notice?.Kind is DesignerPersistenceNoticeKind.ExternalGeneratedCodeConflict
+                    or DesignerPersistenceNoticeKind.ExternalGeneratedCodeInvalid;
+                if (codeReview && state.PendingGeneratedSource is { } pending && !VerifyReviewedSource(state, pending, out error))
+                    return false;
+                if (codeReview && state.PendingGeneratedCanonical)
+                    state.ReviewedGeneratedHash = state.PendingDiskGeneratedHash;
                 var deferredGenerated = state.DeferredGeneratedObservation;
+                var retainedReview = codeReview ? null : state.PendingGeneratedSource;
+                bool retainedCanonical = state.PendingGeneratedCanonical;
                 state.ExpectedDesignHash = null;
                 state.ExpectedGeneratedHash = null;
                 state.KnownDesignHash = state.PendingDesignMissing
                     ? null
                     : state.PendingDiskDesignHash ?? state.KnownDesignHash;
-                state.KnownGeneratedHash = state.PendingGeneratedMissing
-                    ? null
-                    : state.PendingDiskGeneratedHash ?? state.KnownGeneratedHash;
+                if (codeReview || state.PendingGeneratedMissing)
+                    state.KnownGeneratedHash = state.PendingGeneratedMissing
+                        ? null
+                        : state.PendingDiskGeneratedHash ?? state.KnownGeneratedHash;
                 ClearPendingExternalState(state);
+                if (retainedReview is not null)
+                    StageReviewedCode(state, retainedReview, retainedCanonical);
                 if (deferredGenerated is not null)
                     ProcessExternalGeneratedCode(document, state, deferredGenerated);
                 session.Log($"Kept the in-memory Designer version for {document.DisplayName}.");
@@ -1780,7 +1763,8 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 if (!EnsureRecoveryNow(document, out error))
                     return false;
                 var deferredAfterReload = state.DeferredGeneratedObservation;
-                var designWasReloaded = false;
+                var retainedAfterReload = state.PendingGeneratedSource;
+                bool retainedAfterReloadCanonical = state.PendingGeneratedCanonical;
                 try
                 {
                     if (state.PendingDiskDocument is { } diskDocument)
@@ -1788,13 +1772,6 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                         session.ReloadDocumentBaseline(document, diskDocument, markDirty: false, "Reloaded the disk version.");
                         state.KnownDesignHash = state.PendingDiskDesignHash;
                         state.SourceLastWriteUtc = state.PendingDiskLastWriteUtc;
-                        designWasReloaded = true;
-                    }
-                    else if (state.PendingGeneratedDocument is { } generatedDocument
-                        && ReferenceEquals(session.ActiveOpenDocument, document))
-                    {
-                        session.ReplaceDocument(generatedDocument, "Import external Designer code");
-                        state.KnownGeneratedHash = state.PendingDiskGeneratedHash;
                     }
                     else
                     {
@@ -1811,18 +1788,10 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 state.ExpectedDesignHash = null;
                 state.ExpectedGeneratedHash = null;
                 ClearPendingExternalState(state);
+                if (retainedAfterReload is not null)
+                    StageReviewedCode(state, retainedAfterReload, retainedAfterReloadCanonical);
                 if (deferredAfterReload is not null)
-                {
-                    if (designWasReloaded)
-                    {
-                        state.KnownGeneratedHash = deferredAfterReload.Exists ? deferredAfterReload.Hash : null;
-                        state.ExpectedGeneratedHash = null;
-                    }
-                    else
-                    {
-                        ProcessExternalGeneratedCode(document, state, deferredAfterReload);
-                    }
-                }
+                    ProcessExternalGeneratedCode(document, state, deferredAfterReload);
                 RaiseStateChanged();
                 return true;
 
@@ -1838,6 +1807,8 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
                 return result.Succeeded;
 
             case DesignerPersistenceActions.Dismiss:
+                if (state.PendingGeneratedSource is not null)
+                    ClearPendingExternalState(state);
                 state.Notice = null;
                 RaiseStateChanged();
                 return true;
@@ -2392,7 +2363,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         state.PendingDiskGeneratedHash = null;
         state.PendingDiskLastWriteUtc = null;
         state.PendingDiskDocument = null;
-        state.PendingGeneratedDocument = null;
+        state.PendingGeneratedSource = null;
         state.DeferredGeneratedObservation = null;
         state.PendingDesignMissing = false;
         state.PendingGeneratedMissing = false;
@@ -2454,9 +2425,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         }
 
         var parse = files.ImportDesignerCodeText(read.Text, new CSharpDesignerParseOptions { RootKind = rootKind });
-        var parseError = parse.Success && parse.Document is not null
-            ? null
-            : string.Join("; ", parse.Diagnostics.Select(diagnostic => diagnostic.Message));
+        var parseError = parse.Success ? null : FormatReverseDiagnostics(parse);
         return new ObservedFile(
             path,
             true,
@@ -2464,7 +2433,7 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
             read.LastWriteUtc,
             null,
             parse.Success ? parse.Document : null,
-            Retryable: !parse.Success || parse.Document is null,
+            Retryable: !parse.Success && !parse.IsPartial,
             parseError);
     }
 
@@ -2649,12 +2618,17 @@ internal sealed class DesignerPersistenceCoordinator : IDisposable
         public string? ExpectedDesignHash { get; set; }
         public string? KnownGeneratedHash { get; set; }
         public string? ExpectedGeneratedHash { get; set; }
+        public string? OwnedGeneratedHash { get; set; }
+        public string? ReviewedGeneratedHash { get; set; }
         public DateTimeOffset? SourceLastWriteUtc { get; set; }
         public string? PendingDiskDesignHash { get; set; }
         public string? PendingDiskGeneratedHash { get; set; }
         public DateTimeOffset? PendingDiskLastWriteUtc { get; set; }
         public DesignDocument? PendingDiskDocument { get; set; }
-        public DesignDocument? PendingGeneratedDocument { get; set; }
+        public ObservedFile? PendingGeneratedSource { get; set; }
+        public bool PendingGeneratedCanonical { get; set; }
+        public long ReviewedGeneration { get; set; }
+        public long ReviewedRevision { get; set; }
         public ObservedFile? DeferredGeneratedObservation { get; set; }
         public DesignerPersistenceNotification? Notice { get; set; }
         public RecoveryEntry? Recovery { get; set; }

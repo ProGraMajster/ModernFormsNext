@@ -179,7 +179,8 @@ public sealed class CSharpDesignerGenerator
         else if (document.Properties.TryGetValue("Name", out var authoredName))
             WritePropertyAssignment(writer, "this", "Name", authoredName, "design root", validation);
 
-        if (document.RootKind == DesignRootKind.Form && document.BaseTypeName is null)
+        if (document.RootKind == DesignRootKind.Form && document.BaseTypeName is null &&
+            !document.Properties.ContainsKey("Text"))
             writer.WriteLine($"        this.Text = {CSharpLiteralWriter.WriteStringLiteral(rootName)};");
 
         var rootSizeProperty = document.RootKind == DesignRootKind.Form ? "ClientSize" : "Size";
@@ -199,9 +200,7 @@ public sealed class CSharpDesignerGenerator
                 continue;
             }
 
-            if (GeneratedRootProperties.Contains(property.Key)
-                || document.BaseTypeName is null && document.RootKind == DesignRootKind.Form
-                    && string.Equals(property.Key, "Text", StringComparison.Ordinal))
+            if (GeneratedRootProperties.Contains(property.Key))
                 continue;
 
             if (!TryWriteAnimationProperty(writer, "this", property.Key, property.Value, "design root", validation, options))

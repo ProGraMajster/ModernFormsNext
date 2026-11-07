@@ -2,6 +2,7 @@ using ModernFormsNext.CodeGeneration.CSharp;
 using ModernFormsNext.CodeGeneration.Reverse;
 using ModernFormsNext.Designer;
 using ModernFormsNext.Designer.Properties;
+using ModernFormsNext.Designer.Recovery;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
@@ -140,21 +141,25 @@ public sealed class UserControlDesignerTests
                 private void InitializeComponent()
                 {
                     this.Name = "NavigationPanel";
-                    this.Size = new System.Drawing.Size(480, 320);
+                    this.Size = new System.Drawing.Size(420, 310);
                 }
             }
             """);
-        var session = new DesignerSession();
+        using var session = new DesignerSession();
         session.LoadDocument(CreateUserControlDocument("NavigationPanel"));
-        var commands = new DesignerCommandService(
-            session,
-            new DesignerFileService(),
-            new ModernFormsDesignerOptions());
+        var files = new DesignerFileService();
+        var options = new ModernFormsDesignerOptions { AutoSaveEnabled = false };
+        using var persistence = new DesignerPersistenceCoordinator(session, files, options,
+            new DesignerRecoveryStore(IOPath.Combine(project.DirectoryPath, "recovery")));
+        using var commands = new DesignerCommandService(session, files, options, persistence);
 
         commands.ImportDesignerCode(designerPath);
 
-        Assert.Equal(DesignRootKind.UserControl, session.Document.RootKind);
         Assert.Equal(new DesignSize(480, 320), session.Document.Size);
+        var notice = Assert.IsType<DesignerPersistenceNotification>(persistence.CurrentNotification);
+        Assert.True(persistence.ApplyCurrentAction(notice.Id, DesignerPersistenceActions.ApplyCode, null, out var error), error);
+        Assert.Equal(DesignRootKind.UserControl, session.Document.RootKind);
+        Assert.Equal(new DesignSize(420, 310), session.Document.Size);
     }
 
     [Fact]

@@ -529,42 +529,7 @@ internal sealed class DesignerCommandService : IDisposable
 
     public void ImportDesignerCode(string path)
     {
-        if (!File.Exists(path))
-        {
-            state.Log($"Import failed: {path} does not exist.");
-            return;
-        }
-
-        try
-        {
-            var result = files.ImportDesignerCode(
-                path,
-                new ModernFormsNext.CodeGeneration.Reverse.CSharpDesignerParseOptions
-                {
-                    RootKind = state.Document.RootKind
-                });
-
-            foreach (var diagnostic in result.Diagnostics)
-            {
-                var location = diagnostic.Line is null
-                    ? string.Empty
-                    : $" ({diagnostic.Line}:{diagnostic.Column})";
-                state.Log($"Reverse sync {diagnostic.Severity}{location}: {diagnostic.Message}");
-            }
-
-            if (result.Success && result.Document is not null)
-            {
-                state.ReplaceDocument(result.Document, "Import designer code");
-                state.Log($"Imported designer code from {path}.");
-                return;
-            }
-
-            state.Log($"Import from {path} did not produce a usable design document.");
-        }
-        catch (Exception ex)
-        {
-            state.Log($"Import failed: {ex.Message}");
-        }
+        Persistence.ReviewDesignerCode(path);
     }
 
     private DesignerPersistenceCoordinator Persistence

@@ -79,15 +79,31 @@ internal sealed partial class DesignerFileService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        return ImportDesignerCodeText(File.ReadAllText(path), options);
+        var read = DesignerStableFileReader.Instance.Read(path);
+        if (read is not { Exists: true, Error: null, Text: { } source })
+            throw new IOException(read.Error ?? "The Designer source file is missing.");
+        return ImportDesignerCodeText(source, options);
     }
 
     public CSharpDesignerParseResult ImportDesignerCodeText(
         string sourceText,
         CSharpDesignerParseOptions? options = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceText);
+        ArgumentNullException.ThrowIfNull(sourceText);
         return new CSharpDesignerRoundTripService().ParseDesignerCode(sourceText, options);
+    }
+
+    internal CSharpDesignerParseResult ProjectDesignerCode(DesignDocument document)
+    {
+        var roundTrip = new CSharpDesignerRoundTripService();
+        var generated = roundTrip.Generate(document, new CSharpDesignerGenerationOptions
+        {
+            AnimationDefinitions = animationDefinitionsProvider?.Invoke() ?? []
+        });
+        return generated.Succeeded
+            ? ImportDesignerCodeText(generated.Code, new CSharpDesignerParseOptions { RootKind = document.RootKind })
+            : new CSharpDesignerParseResult(null, generated.Validation.Errors.Select(error =>
+                new CSharpDesignerDiagnostic(CSharpDesignerDiagnosticSeverity.Error, error)).ToArray());
     }
 
     public DesignerEventHandlerFileResult EnsureEventHandlerMethod(

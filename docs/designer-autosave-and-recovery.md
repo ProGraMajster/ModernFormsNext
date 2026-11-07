@@ -219,19 +219,16 @@ The generated `.Designer.cs` sibling is watched because it can be edited by anot
 Designer waits for stable content and runs only the conservative ModernFormsNext reverse parser;
 arbitrary C# is never executed.
 
-- A clean active Designer document accepts a successfully parsed external generated file as one
-  transactional document replacement. The imported model is dirty because `.mfdesign` has not yet
-  been saved. A clean inactive tab waits for activation and explicit Reload instead of switching
-  session ownership behind the user's back.
-- A dirty Designer document is never silently replaced by generated code. It enters the same
-  explicit conflict workflow.
-- Unsupported or partial C# produces parser diagnostics and leaves the current model unchanged.
+- A complete external parse is staged for Compare and Apply Code on the active tab. Apply Code
+  checks both fingerprints and the reviewed model revision before applying supported changes
+  in one transaction. The model becomes dirty when its values change.
+- Unsupported or partial C# provides diagnostics with source spans. The active design and both
+  disk files stay intact. Ordinary Save waits for reconciliation or a different destination.
 - If both files change in one coalesced interval, `.mfdesign` takes precedence as the canonical
-  source. The Designer does not merge two representations automatically.
+  source and the generated edit remains available for separate review.
 
-Reverse parsing continues to support only the deterministic subset emitted by
-`ModernFormsNext.CodeGeneration`. Improving arbitrary-source fidelity remains separate work; see
-[#81](https://github.com/ProGraMajster/ModernFormsNext/issues/81).
+Manual import uses the same review flow. See the [static syntax and ownership contract](designer-architecture.md)
+for supported edits and how Save preserves text outside the verified initialization body.
 
 ## Cleanup, diagnostics, and failures
 
@@ -281,8 +278,8 @@ are rejected so cleanup cannot escape through a junction or symbolic link.
 - Recovery persists the design model, not undo/redo history, selection, clipboard state, or project
   executable state.
 - There is no distributed lock, three-way merge, recovery index database, line-level comparison
-  view, or automatic identity inference after an external move. The built-in Compare action shows
-  recovery timestamps and content hashes only.
+  view, or automatic identity inference after an external move. Compare shows recovery fingerprints
+  or reverse-sync diagnostics and affected property names.
 - External tracking is limited to the exact `.mfdesign` and generated `.Designer.cs` files. Project
   resources and arbitrary dependencies are outside this feature.
 - Reverse import remains constrained to generated-code syntax the conservative parser recognizes.

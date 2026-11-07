@@ -40,7 +40,7 @@ public sealed class CSharpDesignerParseOptions
     public DesignSize DefaultFormSize { get; set; } = new(800, 600);
 
     /// <summary>
-    /// Gets or sets a value indicating whether warnings should make the parse result unsuccessful.
+    /// Gets or sets whether to report warnings as errors. A partial projection is never a successful import.
     /// </summary>
     public bool TreatWarningsAsErrors { get; set; }
 }
