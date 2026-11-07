@@ -160,6 +160,13 @@ public sealed class AnimationsAndInteractionEffectsPanel : BasePanel
             Text = "Manual checklist: change Windows animation preference while this page is open; verify immediate reduced-motion behavior and return to enabled; select each ripple overflow policy and run rapid input; resize during a wave; test pointer/keyboard activation, disabled state, cancel, Designer save/reload, and diagnostics returning to Active 0 / Tick source stopped."
         });
 
+        var recipeButton = Controls.Add(new Button
+        {
+            Left = 24, Top = 676, Width = 196, Height = 36, Text = "Play animation recipe"
+        });
+        recipeButton.InteractionEffects.Add(new AnimationRecipeEffect(
+            "Click\nScale 0.9 140 EaseOut\nScale 1 260 BlendEaseInOut 0.6"));
+
         ripplePolicyCombo.SelectedIndex = 0;
         UpdatePolicyButtons();
         UpdateDiagnostics();

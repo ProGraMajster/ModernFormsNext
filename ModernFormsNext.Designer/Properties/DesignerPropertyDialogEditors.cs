@@ -169,6 +169,22 @@ internal static class DesignerPropertyDialogEditors
             return await dialog.ShowDialog(context.Owner) == DialogResult.OK;
         };
 
+    public static Func<DesignerPropertyDialogContext, Task<bool>> AnimationRecipe(
+        IDictionary<string, DesignPropertyValue> properties)
+        => async context =>
+        {
+            var recipe = properties.TryGetValue(AnimationRecipeDesignValue.PropertyName, out var value)
+                ? value.Value as string : null;
+            using var dialog = new DesignerAnimationRecipeDialog(recipe);
+            if (await dialog.ShowDialog(context.Owner) != DialogResult.OK)
+                return false;
+            if (dialog.Recipe is { } updated)
+                properties[AnimationRecipeDesignValue.PropertyName] = DesignPropertyValue.FromString(updated);
+            else
+                properties.Remove(AnimationRecipeDesignValue.PropertyName);
+            return true;
+        };
+
     private static string? GetStoredString(DesignControlNode node, string propertyName)
         => node.Properties.TryGetValue(propertyName, out var value)
             ? value.Value?.ToString()

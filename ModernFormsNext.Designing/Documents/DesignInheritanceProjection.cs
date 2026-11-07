@@ -8,7 +8,7 @@ internal static class DesignInheritanceProjection
 {
     internal static bool IsStructuralProperty(string name)
         => name is "Name" or "MemberVisibility" or "Children" or "Controls" or "TabPages" or "Pages"
-            or "Columns" or "Items" or "Nodes" or "InteractionEffects" or "RowStyles" or "ColumnStyles"
+            or "Columns" or "Items" or "Nodes" or "InteractionEffects" or AnimationRecipeDesignValue.PropertyName or "RowStyles" or "ColumnStyles"
             or "TableColumn" or "TableRow" or "TableColumnSpan" or "TableRowSpan";
 
     internal static SortedDictionary<string, DesignPropertyValue> CloneProperties(IReadOnlyDictionary<string, DesignPropertyValue> properties)
@@ -57,6 +57,13 @@ internal static class DesignInheritanceProjection
         if (state is not null && !document.Controls.Where(node => node.IsInherited)
             .Select(node => node.Name).SequenceEqual(state.ChildNames))
             throw new InvalidOperationException("The inherited root structure must be edited in its declaring design.");
+        var properties = Difference(document.Properties, state?.Properties);
+        if (state?.Properties.ContainsKey(AnimationRecipeDesignValue.PropertyName) == true &&
+            (!document.Properties.ContainsKey(AnimationRecipeDesignValue.PropertyName) ||
+                properties.ContainsKey(AnimationRecipeDesignValue.PropertyName)))
+        {
+            throw new InvalidOperationException("The inherited animation recipe must be edited in its declaring design.");
+        }
         var authored = new DesignDocument
         {
             Metadata = document.Metadata,
@@ -68,7 +75,7 @@ internal static class DesignInheritanceProjection
             Size = document.Size,
             InheritedSize = state is null ? document.InheritedSize
                 : document.Size == state.Size ? null : document.Size,
-            Properties = Difference(document.Properties, state?.Properties),
+            Properties = properties,
             Events = Difference(document.Events, state?.Events)
         };
         RequireOwnershipOrder(document.Controls, parent: null);

@@ -52,7 +52,7 @@ public sealed class DesignDocumentPersistenceTests
 
     [Theory]
     [InlineData(0, "no migration")]
-    [InlineData(4, "newer")]
+    [InlineData(DesignDocumentSerializer.AnimationFormatVersion + 1, "newer")]
     public void UnsupportedFormatVersionReportsVersionAndJsonPath(int version, string expectedReason)
     {
         string json = $$"""
@@ -217,7 +217,7 @@ public sealed class DesignDocumentPersistenceTests
         const string original = "existing valid content";
         File.WriteAllText(path, original);
         DesignDocument unsupported = CreateDocument("Unsupported");
-        unsupported.Metadata.FormatVersion = DesignDocumentSerializer.VectorFormatVersion + 1;
+        unsupported.Metadata.FormatVersion = DesignDocumentSerializer.AnimationFormatVersion + 1;
 
         try
         {
