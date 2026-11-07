@@ -88,8 +88,9 @@ already exist.
   for `CollectionView` and charts.
 - The retained Shape/Geometry model, path figures, line/quadratic/cubic segments, transforms, Skia
   rendering, hit testing, Designer round trips, and ControlGallery coverage are implemented.
-  Arcs, geometry groups/boolean operations, SVG import, a general Stretch contract, and graphical
-  Bezier editing remain future work.
+  Extended vectors add arcs, groups/Boolean areas, bounded path data, explicit Stretch, Control
+  geometry clips and a data-only graphical Bezier draft editor. Full SVG document import remains
+  unsupported; see the current [vector contract](../shapes-and-vector-geometry.md).
 - No general document provider registry, MIME sniffing contract, paged render source, password
   request, or platform print adapter. Existing document code is in the main package.
 - Android hosts Forms, owned modal dialogs, and reusable popups through #72, including native Back
@@ -522,7 +523,7 @@ DateTimePicker.
 
 ### Stage 4 — shapes and vector geometry (implemented 1.10.0 foundation)
 
-#### 17. Shape and geometry system — delivered foundation; advanced scope remains
+#### 17. Shape and geometry system — shared vectors and bounded tooling
 
 Implemented: `Shape`, `Ellipse`, `Circle`, `Line`, `Path`, `Polygon`, and `Polyline`; fill/stroke,
 opacity, caps/joins/dashes, transforms, fill rules, layout, invalidation, hit testing, Skia resource
@@ -531,10 +532,11 @@ path/figure, line-segment, quadratic-Bezier, and cubic-Bezier geometry. The Desi
 structured point/path editors and culture-invariant compact parsing. ControlGallery and focused
 tests cover runtime/Designer behavior without introducing another renderer or layout engine.
 
-Remaining advanced scope: arc segments, geometry groups/boolean operations, SVG import or a core
-SVG-style path grammar, a general `Stretch` contract, generic Control geometry clips, and a
-graphical Bezier editor. These are proposals, not 1.10.0 capabilities. Android compiles the shared
-renderer, but physical-device visual/touch/GPU/cache profiling is still a validation gap. See
+The extended model adds endpoint arcs, ordered groups and Boolean filled-area operations, bounded
+SVG-style path data, explicit `Stretch`, generic Control geometry clips, and a graphical Bezier
+draft editor. These additions postdate 1.10.0. Full SVG XML/resource import and graphical Boolean
+composition editing remain unsupported. Windows/Android native qualification is recorded separately;
+compilation does not establish physical touch ergonomics or GPU/cache profiling. See
 [Shapes and vector geometry](../shapes-and-vector-geometry.md) and
 [Known limitations](../known-limitations.md).
 

@@ -17,6 +17,7 @@ if (args.Contains("--layout-policy", StringComparer.Ordinal)) { Environment.Exit
 if (args.Contains("--layout-policy-immediate", StringComparer.Ordinal)) { Environment.ExitCode = LayoutPolicyScenario.Run(immediate: true); return; }
 
 if (args.Contains("--shadow-typography", StringComparer.Ordinal)) { Environment.ExitCode = ShadowTypographyScenario.Run(); return; }
+if (args.Contains("--vector-geometry", StringComparer.Ordinal)) { Environment.ExitCode = VectorGeometryScenario.Run(); return; }
 
 if (args.Contains("--app-shell", StringComparer.Ordinal)) { Environment.ExitCode = AppShellScenario.Run(); return; }
 

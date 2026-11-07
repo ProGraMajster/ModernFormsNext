@@ -133,6 +133,9 @@ public static class CSharpLiteralWriter
         if (IsType(typeName, "System.Drawing.Size"))
             return $"new System.Drawing.Size({ReadInt(properties, "Width")}, {ReadInt(properties, "Height")})";
 
+        if (IsType(typeName, "System.Drawing.SizeF"))
+            return $"new System.Drawing.SizeF({ReadFloat(properties, "Width")}, {ReadFloat(properties, "Height")})";
+
         if (IsType(typeName, "System.Drawing.Point"))
             return $"new System.Drawing.Point({ReadInt(properties, "X")}, {ReadInt(properties, "Y")})";
 
@@ -222,6 +225,22 @@ public static class CSharpLiteralWriter
 
         if (IsType(typeName, "ModernFormsNext.Drawing.PathGeometry"))
             return WritePathGeometry(properties);
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.GeometryGroup"))
+        {
+            var children = new List<string>();
+            for (int i = 0; i < ReadInt(properties, "ChildCount"); i++) children.Add(WriteValueCore(properties[$"Child{i}"]));
+            return "new ModernFormsNext.Drawing.GeometryGroup { FillRule = "
+                + ReadValue(properties, "FillRule", "ModernFormsNext.Drawing.GeometryFillRule.Winding")
+                + ", Transform = " + ReadValue(properties, "Transform", "System.Numerics.Matrix3x2.Identity")
+                + (children.Count == 0 ? "" : ", Children = { " + string.Join(", ", children) + " }") + " }";
+        }
+
+        if (IsType(typeName, "ModernFormsNext.Drawing.CombinedGeometry"))
+            return "new ModernFormsNext.Drawing.CombinedGeometry("
+                + ReadValue(properties, "Mode", "ModernFormsNext.Drawing.GeometryCombineMode.Union") + ", "
+                + ReadValue(properties, "Geometry1", "null") + ", " + ReadValue(properties, "Geometry2", "null") + ")"
+                + WriteGeometryInitializer(properties);
 
         if (IsType(typeName, "ModernFormsNext.Drawing.SolidColorBrush"))
         {
@@ -463,6 +482,11 @@ public static class CSharpLiteralWriter
             ?? new SortedDictionary<string, DesignPropertyValue>(StringComparer.Ordinal);
         if (IsType(typeName, "ModernFormsNext.Drawing.LineSegment"))
             return $"new ModernFormsNext.Drawing.LineSegment({ReadValue(properties, "Point", "System.Drawing.PointF.Empty")})";
+        if (IsType(typeName, "ModernFormsNext.Drawing.ArcSegment"))
+            return "new ModernFormsNext.Drawing.ArcSegment(" + ReadValue(properties, "Point", "System.Drawing.PointF.Empty") + ", "
+                + ReadValue(properties, "Size", "System.Drawing.SizeF.Empty") + ", " + ReadFloat(properties, "RotationAngle") + ", "
+                + ReadBoolLiteral(properties, "IsLargeArc") + ", "
+                + ReadValue(properties, "SweepDirection", "ModernFormsNext.Drawing.SweepDirection.Clockwise") + ")";
         if (IsType(typeName, "ModernFormsNext.Drawing.QuadraticBezierSegment"))
         {
             return "new ModernFormsNext.Drawing.QuadraticBezierSegment("

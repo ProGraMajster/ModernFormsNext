@@ -108,7 +108,7 @@ internal static class DesignerPropertyDialogEditors
             ModernFormsNext.Drawing.Geometry? current = getGeometry();
             if (current is not null and not ModernFormsNext.Drawing.PathGeometry)
             {
-                context.Session.Log("The structured geometry dialog edits PathGeometry. Use the inline editor for LineGeometry, RectangleGeometry, or EllipseGeometry.");
+                context.Session.Log("The graphical dialog edits PathGeometry drafts. Simple geometries use the inline editor; groups and Boolean operands are preserved as structured data and authored in code.");
                 return false;
             }
 

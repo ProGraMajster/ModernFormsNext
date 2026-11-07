@@ -1484,7 +1484,7 @@ public sealed class CSharpDesignerParser
             return true;
         }
 
-        if (IsType(typeName, "SKSize")
+        if ((IsType(typeName, "SKSize") || IsType(typeName, "SizeF"))
             && TryReadDoubleObjectArguments(objectCreation, 2, out double[] floatSize))
         {
             propertyValues["Width"] = DesignPropertyValue.FromDouble(floatSize[0]);
@@ -1583,6 +1583,29 @@ public sealed class CSharpDesignerParser
 
         if (IsType(typeName, "PathGeometry"))
             return TryReadPathGeometry(objectCreation, typeName, out value);
+
+        if (IsType(typeName, "GeometryGroup"))
+        {
+            if (objectCreation.ArgumentList is { Arguments.Count: > 0 }) return false;
+            ReadSimpleInitializerAssignments(objectCreation, propertyValues, "Children");
+            ReadCollectionInitializer(objectCreation, "Children", "Child", propertyValues);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
+
+        if (IsType(typeName, "CombinedGeometry"))
+        {
+            if (objectCreation.ArgumentList?.Arguments.Count != 3
+                || !TryReadStructuredArgument(objectCreation, 0, out var mode)
+                || !TryReadStructuredArgument(objectCreation, 1, out var first)
+                || !TryReadStructuredArgument(objectCreation, 2, out var second)) return false;
+            propertyValues["Mode"] = mode;
+            propertyValues["Geometry1"] = first;
+            propertyValues["Geometry2"] = second;
+            ReadSimpleInitializerAssignments(objectCreation, propertyValues);
+            value = DesignPropertyValue.FromStructuredObject(typeName, propertyValues);
+            return true;
+        }
 
         if (IsType(typeName, "SolidColorBrush"))
         {
@@ -1754,7 +1777,7 @@ public sealed class CSharpDesignerParser
                 }
             }
         }
-        properties[$"{propertyName.TrimEnd('s')}Count"] = DesignPropertyValue.FromInt32(count);
+        properties[propertyName == "Children" ? "ChildCount" : $"{propertyName.TrimEnd('s')}Count"] = DesignPropertyValue.FromInt32(count);
     }
 
     private static bool TryReadPathInitializerItem(
@@ -1801,6 +1824,19 @@ public sealed class CSharpDesignerParser
             && TryReadStructuredArgument(creation, 0, out DesignPropertyValue point))
         {
             properties["Point"] = point;
+        }
+        else if (IsType(typeName, "ArcSegment") && creation.ArgumentList?.Arguments.Count == 5
+            && TryReadStructuredArgument(creation, 0, out var arcPoint)
+            && TryReadStructuredArgument(creation, 1, out var size)
+            && TryReadDouble(creation.ArgumentList.Arguments[2].Expression, out var angle)
+            && TryReadBoolean(creation.ArgumentList.Arguments[3].Expression, out var large)
+            && TryReadStructuredArgument(creation, 4, out var sweep))
+        {
+            properties["Point"] = arcPoint;
+            properties["Size"] = size;
+            properties["RotationAngle"] = DesignPropertyValue.FromDouble(angle);
+            properties["IsLargeArc"] = DesignPropertyValue.FromBoolean(large);
+            properties["SweepDirection"] = sweep;
         }
         else if (IsType(typeName, "QuadraticBezierSegment")
             && TryReadStructuredArgument(creation, 0, out DesignPropertyValue control)

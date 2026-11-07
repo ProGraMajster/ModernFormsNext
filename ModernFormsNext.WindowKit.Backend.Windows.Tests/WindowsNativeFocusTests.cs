@@ -20,6 +20,7 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
     [InlineData("--page-composition", "PAGE_COMPOSITION:PASS:")]
     [InlineData("--app-shell", "APP_SHELL:PASS:")]
     [InlineData("--shadow-typography", "SHADOW_TYPOGRAPHY:PASS:")]
+    [InlineData("--vector-geometry", "VECTOR_GEOMETRY:PASS:HWND")]
     [InlineData("--layout-policy", "LAYOUT_POLICY:PASS:")]
     [InlineData("--layout-policy-immediate", "LAYOUT_POLICY:PASS:")]
     [InlineData("--visual-state-metrics", "VISUAL_STATE_METRICS:PASS:")]
@@ -60,6 +61,8 @@ public sealed class WindowsNativeFocusTests(ITestOutputHelper output)
             Assert.Contains(marker, report);
             if (argument == "--tooltips")
                 Assert.Contains("TOOLTIP:NATIVE_ALPHA_PIXELS_FOCUS_MENU:PASS", report);
+            if (argument == "--vector-geometry")
+                Assert.Contains("VECTOR_GEOMETRY:DESIGNER_NATIVE_DRAG_ESCAPE:PASS", report);
             if (argument == "--layout-policy-immediate")
                 Assert.Contains("native-policy-immediate=True", report);
             if (argument == "--visual-state-metrics-immediate")

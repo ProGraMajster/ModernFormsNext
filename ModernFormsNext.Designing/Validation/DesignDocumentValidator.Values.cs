@@ -50,6 +50,7 @@ public sealed partial class DesignDocumentValidator
     {
         private int valueCount;
         private int textLength;
+        private long geometryWork;
 
         internal void AddText(string? text, int maximumLength = MaximumTextLength)
         {
@@ -132,6 +133,13 @@ public sealed partial class DesignDocumentValidator
                     AddText(child.Key, MaximumTypeNameLength);
                     pending.Push((child.Value, item.Depth + 1, false));
                 }
+            }
+            if (result.IsValid && value is not null)
+            {
+                if (ValidateGeometryWork(value, out long work) is { } workError) result.AddError(workError);
+                else if (work > MaximumGeometryWork - geometryWork)
+                    result.AddError("Designer data exceeds the shared expanded vector-work budget.");
+                else geometryWork += work;
             }
         }
     }

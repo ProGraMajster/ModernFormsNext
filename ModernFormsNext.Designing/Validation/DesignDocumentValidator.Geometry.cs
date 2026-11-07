@@ -18,7 +18,10 @@ public sealed partial class DesignDocumentValidator
             "Shadow" => ValidateShadowShape(properties),
             "PathGeometry" => ValidateIndexedValues(properties, "FigureCount", "Figure", "ModernFormsNext.Drawing.PathFigure"),
             "PathFigure" => ValidateIndexedValues(properties, "SegmentCount", "Segment",
-                "ModernFormsNext.Drawing.LineSegment", "ModernFormsNext.Drawing.QuadraticBezierSegment", "ModernFormsNext.Drawing.BezierSegment"),
+                "ModernFormsNext.Drawing.LineSegment", "ModernFormsNext.Drawing.QuadraticBezierSegment", "ModernFormsNext.Drawing.BezierSegment", "ModernFormsNext.Drawing.ArcSegment"),
+            "GeometryGroup" => ValidateIndexedValues(properties, "ChildCount", "Child",
+                "ModernFormsNext.Drawing.LineGeometry", "ModernFormsNext.Drawing.RectangleGeometry", "ModernFormsNext.Drawing.EllipseGeometry",
+                "ModernFormsNext.Drawing.PathGeometry", "ModernFormsNext.Drawing.GeometryGroup", "ModernFormsNext.Drawing.CombinedGeometry"),
             "PointCollection" => ValidateIndexedValues(properties, "Count", "Point", "System.Drawing.PointF"),
             "LinearGradientBrush" or "RadialGradientBrush" or "SweepGradientBrush"
                 => ValidateIndexedValues(properties, "GradientStopCount", "GradientStop", "ModernFormsNext.Drawing.GradientStop"),
@@ -35,10 +38,13 @@ public sealed partial class DesignDocumentValidator
             "LineSegment" => ["Point"],
             "QuadraticBezierSegment" => ["ControlPoint", "Point"],
             "BezierSegment" => ["ControlPoint1", "ControlPoint2", "Point"],
+            "ArcSegment" => ["Point", "Size", "RotationAngle", "IsLargeArc", "SweepDirection"],
+            "GeometryGroup" => ["ChildCount", "FillRule", "Transform"],
+            "CombinedGeometry" => ["Mode", "Geometry1", "Geometry2", "Transform"],
             "PointCollection" => ["Count"],
             _ => null
         };
-        string? indexedPrefix = drawing switch { "PathGeometry" => "Figure", "PathFigure" => "Segment", "PointCollection" => "Point", _ => null };
+        string? indexedPrefix = drawing switch { "PathGeometry" => "Figure", "PathFigure" => "Segment", "PointCollection" => "Point", "GeometryGroup" => "Child", _ => null };
         if (allowed is not null)
             foreach (var name in properties.Keys)
                 if (!allowed.Contains(name, StringComparer.Ordinal)
@@ -49,7 +55,7 @@ public sealed partial class DesignDocumentValidator
         {
             "LineGeometry" => ["StartPoint", "EndPoint"],
             "PathFigure" => ["StartPoint"],
-            "LineSegment" => ["Point"],
+            "LineSegment" or "ArcSegment" => ["Point"],
             "QuadraticBezierSegment" => ["ControlPoint", "Point"],
             "BezierSegment" => ["ControlPoint1", "ControlPoint2", "Point"],
             _ => []
@@ -60,15 +66,39 @@ public sealed partial class DesignDocumentValidator
         if (drawing is "RectangleGeometry" or "EllipseGeometry"
             && properties.TryGetValue("Rect", out var rectangle) && !IsStructuredValue(rectangle, "System.Drawing.RectangleF"))
             return "A geometry rectangle must use its known RectangleF data shape.";
+        if (drawing is "RectangleGeometry" or "EllipseGeometry" && properties.TryGetValue("Rect", out var rect))
+            foreach (string dimension in new[] { "Width", "Height" })
+                if (rect.ObjectProperties!.TryGetValue(dimension, out var number)
+                    && (!IsFiniteFloat(number) || Convert.ToDouble(number.Value, CultureInfo.InvariantCulture) < 0))
+                    return "A geometry rectangle requires finite non-negative dimensions.";
         if (allowed is not null && properties.TryGetValue("Transform", out var transform)
             && !IsStructuredValue(transform, "System.Numerics.Matrix3x2"))
             return "A geometry transform must use its known Matrix3x2 data shape.";
         if (drawing == "PathFigure" && properties.TryGetValue("IsClosed", out var closed)
             && (closed?.Kind != DesignPropertyValueKind.Boolean || closed.Value is not bool))
             return "A path figure IsClosed member must be Boolean.";
-        if (drawing == "PathGeometry" && properties.TryGetValue("FillRule", out var fill)
+        if (drawing is "PathGeometry" or "GeometryGroup" && properties.TryGetValue("FillRule", out var fill)
             && !IsKnownEnum(fill, "ModernFormsNext.Drawing.GeometryFillRule", "Winding", "EvenOdd"))
             return "A path fill rule must be a supported GeometryFillRule value.";
+        if (drawing == "CombinedGeometry")
+        {
+            if (properties.TryGetValue("Mode", out var mode) && !IsKnownEnum(mode, "ModernFormsNext.Drawing.GeometryCombineMode", "Union", "Intersect", "Xor", "Exclude"))
+                return "A geometry combination mode must be supported.";
+            foreach (string operand in new[] { "Geometry1", "Geometry2" })
+                if (properties.TryGetValue(operand, out var child) && child?.Kind != DesignPropertyValueKind.Null && !IsGeometryValue(child))
+                    return "A geometry operand must be null or known geometry data.";
+        }
+        if (drawing == "ArcSegment")
+        {
+            if (properties.TryGetValue("Size", out var radii) && (!IsStructuredValue(radii, "System.Drawing.SizeF")
+                || radii.ObjectProperties!.Values.Any(number => !IsFiniteFloat(number) || Convert.ToDouble(number.Value, CultureInfo.InvariantCulture) < 0)))
+                return "Arc radii must be finite non-negative SizeF data.";
+            if (properties.TryGetValue("RotationAngle", out var angle) && !IsFiniteFloat(angle)) return "Arc rotation must be finite.";
+            if (properties.TryGetValue("IsLargeArc", out var large) && (large?.Kind != DesignPropertyValueKind.Boolean || large.Value is not bool))
+                return "An arc selection flag must be Boolean.";
+            if (properties.TryGetValue("SweepDirection", out var sweep) && !IsKnownEnum(sweep, "ModernFormsNext.Drawing.SweepDirection", "CounterClockwise", "Clockwise"))
+                return "An arc sweep must be a supported direction.";
+        }
 
         string[]? floatingFields = IsStructuredValue(value, "System.Drawing.PointF") || IsStructuredValue(value, "SkiaSharp.SKPoint")
             ? ["X", "Y"] : IsStructuredValue(value, "System.Drawing.SizeF") || IsStructuredValue(value, "SkiaSharp.SKSize")
@@ -163,10 +193,18 @@ public sealed partial class DesignDocumentValidator
     private static bool IsStructuredValue(DesignPropertyValue? value, string expected)
     {
         if (value?.Kind != DesignPropertyValueKind.Object || value.ObjectProperties is null) return false;
-        string? actual = value.ObjectTypeName;
-        if (actual?.StartsWith("global::", StringComparison.Ordinal) == true) actual = actual[8..];
-        return actual == expected || actual == expected[(expected.LastIndexOf('.') + 1)..];
+        ReadOnlySpan<char> actual = value.ObjectTypeName.AsSpan();
+        if (actual.StartsWith("global::", StringComparison.Ordinal)) actual = actual[8..];
+        return actual.SequenceEqual(expected.AsSpan()) || actual.SequenceEqual(expected.AsSpan(expected.LastIndexOf('.') + 1));
     }
+
+    private static bool IsGeometryValue(DesignPropertyValue? value)
+        => IsStructuredValue(value, "ModernFormsNext.Drawing.LineGeometry")
+            || IsStructuredValue(value, "ModernFormsNext.Drawing.RectangleGeometry")
+            || IsStructuredValue(value, "ModernFormsNext.Drawing.EllipseGeometry")
+            || IsStructuredValue(value, "ModernFormsNext.Drawing.PathGeometry")
+            || IsStructuredValue(value, "ModernFormsNext.Drawing.GeometryGroup")
+            || IsStructuredValue(value, "ModernFormsNext.Drawing.CombinedGeometry");
 
     private static bool IsFiniteFloat(DesignPropertyValue? value)
         => value?.Kind == DesignPropertyValueKind.Int32 && value.Value is int

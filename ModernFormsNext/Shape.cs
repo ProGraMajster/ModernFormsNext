@@ -31,12 +31,15 @@ public abstract class Shape : Control
     private StrokeLineCap strokeLineCap;
     private StrokeLineJoin strokeLineJoin;
     private float miterLimit = 4f;
+    private GeometryStretch stretch;
     private Geometry? definingGeometry;
-    private WeakGeometryInvalidationSubscription? geometrySubscription;
+    private WeakGeometrySubscription<Shape>? geometrySubscription;
     private Geometry? cachedGeometry;
     private int cachedGeometryVersion;
     private float cachedScaleX;
     private float cachedScaleY;
+    private Rectangle cachedTarget;
+    private float cachedStretchStroke;
     private SKPath? cachedPath;
     private SKPath? cachedStrokeHitPath;
     private float cachedHitStrokeWidth;
@@ -83,6 +86,29 @@ public abstract class Shape : Control
     {
         get => stroke;
         set => SetBrushField(ref stroke, value);
+    }
+
+    /// <summary>Gets or sets how transformed geometry fits the padded client area.</summary>
+    /// <remarks>
+    /// None preserves existing raw logical coordinates. Other modes use tight path bounds after
+    /// Geometry.Transform, center the result inside PaddedClientRectangle and reserve half the
+    /// stroke thickness on every edge, even without a stroke brush. Stroke thickness itself is not
+    /// stretched. Zero-width/height geometry is centered on that axis without inventing an area;
+    /// the other axis determines uniform scale. UniformToFill and wide miters may be clipped by
+    /// the control buffer. Density and presentation transforms are applied afterward. This changes
+    /// rendering and hit testing without requesting layout; set on the UI thread.
+    /// </remarks>
+    [Category("Geometry"), DefaultValue(GeometryStretch.None)]
+    public GeometryStretch Stretch
+    {
+        get => stretch;
+        set
+        {
+            if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            if (stretch == value) return;
+            stretch = value;
+            InvalidateGeometryCache();
+        }
     }
 
     /// <summary>Gets or sets the stroke thickness in logical pixels.</summary>
@@ -193,7 +219,7 @@ public abstract class Shape : Control
         geometrySubscription = null;
         definingGeometry = geometry;
         if (geometry is not null)
-            geometrySubscription = new WeakGeometryInvalidationSubscription(this, geometry);
+            geometrySubscription = new(this, geometry, static shape => shape.HandleGeometryChanged());
         InvalidateGeometryCache();
     }
 
@@ -260,8 +286,10 @@ public abstract class Shape : Control
             return null;
 
         SizeF scale = ScaleFactor;
+        Rectangle target = PaddedClientRectangle;
         if (cachedPath is not null && ReferenceEquals(cachedGeometry, geometry) &&
-            cachedGeometryVersion == geometry.Version && cachedScaleX == scale.Width && cachedScaleY == scale.Height)
+            cachedGeometryVersion == geometry.Version && cachedScaleX == scale.Width && cachedScaleY == scale.Height &&
+            (Stretch == GeometryStretch.None || cachedTarget == target && cachedStretchStroke == StrokeThickness))
         {
             return cachedPath;
         }
@@ -273,8 +301,36 @@ public abstract class Shape : Control
         cachedGeometryVersion = geometry.Version;
         cachedScaleX = scale.Width;
         cachedScaleY = scale.Height;
-        cachedPath = SkiaGeometryConverter.CreatePath(geometry, scale);
+        // Build before publishing the cache key: failed conversion must never reuse a partial path.
+        cachedPath = null;
+        using var converted = SkiaGeometryConverter.CreatePath(geometry, scale);
+        if (Stretch != GeometryStretch.None) StretchPath(converted, target, scale);
+        cachedPath = new SKPath(converted);
+        cachedTarget = target;
+        cachedStretchStroke = StrokeThickness;
         return cachedPath;
+    }
+
+    private void StretchPath(SKPath path, Rectangle target, SizeF density)
+    {
+        if (path.IsEmpty) return;
+        double insetX = StrokeThickness * density.Width / 2d, insetY = StrokeThickness * density.Height / 2d;
+        double width = target.Width - 2 * insetX, height = target.Height - 2 * insetY;
+        if (width <= 0 || height <= 0) { path.Reset(); return; }
+        SKRect bounds = path.ComputeTightBounds();
+        double sx = bounds.Width > 0 ? width / bounds.Width : 1;
+        double sy = bounds.Height > 0 ? height / bounds.Height : 1;
+        if (Stretch != GeometryStretch.Fill)
+        {
+            double uniform = bounds.Width <= 0 ? sy : bounds.Height <= 0 ? sx :
+                Stretch == GeometryStretch.Uniform ? Math.Min(sx, sy) : Math.Max(sx, sy);
+            sx = sy = uniform;
+        }
+        double tx = target.Left + insetX + (width - bounds.Width * sx) / 2 - bounds.Left * sx;
+        double ty = target.Top + insetY + (height - bounds.Height * sy) / 2 - bounds.Top * sy;
+        if (!float.IsFinite((float)sx) || !float.IsFinite((float)sy) || !float.IsFinite((float)tx) || !float.IsFinite((float)ty))
+            throw new ArgumentException("Geometry stretch exceeds the finite coordinate range.");
+        path.Transform(new SKMatrix((float)sx, 0, (float)tx, 0, (float)sy, (float)ty, 0, 0, 1));
     }
 
     private SKPath? GetStrokeHitPath()
@@ -312,6 +368,20 @@ public abstract class Shape : Control
     private void HandleGeometryChanged()
         => InvalidateGeometryCache();
 
+    /// <inheritdoc/>
+    protected override void OnPaddingChanged(EventArgs e)
+    {
+        if (Stretch != GeometryStretch.None) InvalidateGeometryCache();
+        base.OnPaddingChanged(e);
+    }
+
+    /// <inheritdoc/>
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        if (Stretch != GeometryStretch.None) InvalidateGeometryCache();
+        base.OnSizeChanged(e);
+    }
+
     private void InvalidateGeometryCache()
     {
         DisposeNativeCaches();
@@ -320,6 +390,7 @@ public abstract class Shape : Control
 
     private void InvalidateStrokeCache()
     {
+        if (Stretch != GeometryStretch.None) { InvalidateGeometryCache(); return; }
         cachedStrokeHitPath?.Dispose();
         cachedStrokeHitPath = null;
         Invalidate();
@@ -334,37 +405,4 @@ public abstract class Shape : Control
         cachedGeometry = null;
     }
 
-    private sealed class WeakGeometryInvalidationSubscription : IDisposable
-    {
-        private readonly WeakReference<Shape> target;
-        private Geometry? source;
-
-        public WeakGeometryInvalidationSubscription(Shape target, Geometry source)
-        {
-            this.target = new WeakReference<Shape>(target);
-            this.source = source;
-            source.Changed += HandleChanged;
-        }
-
-        public void Dispose()
-        {
-            Geometry? current = source;
-            if (current is null)
-                return;
-
-            source = null;
-            current.Changed -= HandleChanged;
-        }
-
-        private void HandleChanged(object? sender, EventArgs e)
-        {
-            if (target.TryGetTarget(out Shape? shape))
-            {
-                shape.HandleGeometryChanged();
-                return;
-            }
-
-            Dispose();
-        }
-    }
 }

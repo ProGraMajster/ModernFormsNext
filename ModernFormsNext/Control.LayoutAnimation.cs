@@ -155,7 +155,7 @@ public partial class Control
     /// </remarks>
     internal virtual bool HitTestClient(PointF clientPoint)
         => clientPoint.X >= 0f && clientPoint.Y >= 0f &&
-            clientPoint.X < ScaledWidth && clientPoint.Y < ScaledHeight;
+            clientPoint.X < ScaledWidth && clientPoint.Y < ScaledHeight && GeometryClipContains(clientPoint);
 
     internal Point ParentPresentationPointToClient(Point parentPoint)
     {
@@ -262,6 +262,31 @@ public partial class Control
             Math.Abs(EffectiveTranslationY) > 0.0001f;
 
     internal void DrawBackBuffer(SKCanvas canvas, SKBitmap buffer, float parentOffsetX = 0f, float parentOffsetY = 0f)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        ArgumentNullException.ThrowIfNull(buffer);
+        SKPath? clip = GetGeometryClipPath();
+        if (clip is null) { DrawBackBufferCore(canvas, buffer, parentOffsetX, parentOffsetY); return; }
+
+        canvas.Save();
+        try
+        {
+            // Clip at final composition, never bake it into a retained child buffer. Restoring or
+            // mutating a clip must expose current child pixels without leaving stale transparent areas.
+            SKMatrix original = canvas.TotalMatrix;
+            PointF origin = ClientPointToParentPresentation(PointF.Empty);
+            PointF x = ClientPointToParentPresentation(new PointF(1, 0));
+            PointF y = ClientPointToParentPresentation(new PointF(0, 1));
+            canvas.Concat(new SKMatrix(x.X - origin.X, y.X - origin.X, origin.X + parentOffsetX,
+                x.Y - origin.Y, y.Y - origin.Y, origin.Y + parentOffsetY, 0, 0, 1));
+            canvas.ClipPath(clip, SKClipOperation.Intersect, true);
+            canvas.SetMatrix(original);
+            DrawBackBufferCore(canvas, buffer, parentOffsetX, parentOffsetY);
+        }
+        finally { canvas.Restore(); }
+    }
+
+    private void DrawBackBufferCore(SKCanvas canvas, SKBitmap buffer, float parentOffsetX, float parentOffsetY)
     {
         ArgumentNullException.ThrowIfNull(canvas);
         ArgumentNullException.ThrowIfNull(buffer);

@@ -2799,6 +2799,7 @@ namespace ModernFormsNext
                     DisposeResourceReferences ();
                     DisposeBrushInvalidationSubscriptions ();
                     DisposeShadowRendering();
+                    DisposeGeometryClip();
                     FreeBackBuffer ();
 
                     foreach (var c in Controls.GetAllControls (true))

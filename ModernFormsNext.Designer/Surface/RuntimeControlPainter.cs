@@ -56,6 +56,7 @@ internal static class RuntimeControlPainter
                 destination.Height / (float)logicalSize.Height);
 
             var controlPaintArgs = new PaintEventArgs(logicalImageInfo, canvas, scaling: 1d);
+            control.ApplyGeometryClip(canvas);
 
             // Paint into an isolated surface first. Runtime background drawing clears the
             // canvas, so doing it directly on the designer surface would erase the workspace.
