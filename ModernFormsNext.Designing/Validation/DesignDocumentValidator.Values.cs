@@ -67,6 +67,12 @@ public sealed partial class DesignDocumentValidator
             { result.AddError("Designer data exceeds the property value budget."); return; }
             foreach (var property in properties)
             {
+                if (property.Key == AnimationRecipeDesignValue.PropertyName &&
+                    property.Value is not { Kind: DesignPropertyValueKind.String, Value: string { Length: <= AnimationRecipeDesignValue.MaximumLength } })
+                {
+                    result.AddError("AnimationRecipe must be a bounded text value.");
+                    break;
+                }
                 AddText(property.Key, MaximumTypeNameLength);
                 ValidateValue(property.Value);
                 if (!result.IsValid) break;

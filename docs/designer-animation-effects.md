@@ -1,13 +1,12 @@
 # Designer animation and interaction-effect definitions
 
 ModernFormsNext Designer edits animation configuration as detached document data. Opening a
-Property Grid editor does not construct an `InteractionEffect`, load the application assembly,
-invoke a custom constructor, start the animation scheduler, or preview executable project code.
-Generated application code remains the only place where configured effects are instantiated.
+Property Grid editor keeps the document and application assembly separate. **Animation Recipe**
+offers explicit playback on a stock sample control using the framework scheduler.
 
 ## Property Grid surface
 
-The design root and ordinary controls expose three separate concepts:
+The design root and ordinary controls expose four separate concepts:
 
 - **Interaction Effects** is an ordered collection. The editor can add built-in `RippleEffect`
   and `PressScaleEffect` entries, keep duplicates when runtime permits them, remove entries, and
@@ -17,6 +16,9 @@ The design root and ordinary controls expose three separate concepts:
   `DurationMilliseconds`, and a built-in easing identifier. Reset removes the optional value.
 - **Visual State Transitions** maps directional `VisualState` pairs to the existing
   `Control.StyleTransitions` collection. Each line identifies `From`, `To`, duration, and easing.
+- **Animation Recipe** composes a bounded sequence of presentation changes for controls, including
+  a UserControl root. Its first line
+  selects the activation event. The dialog provides Play, Stop and Restart.
 
 The editors keep private working copies until **OK**. **Cancel** leaves the document unchanged.
 There is no independent runtime animation model in Designer and these definitions never appear as
@@ -25,9 +27,8 @@ structured values.
 
 ## Stable `.mfdesign` representation
 
-Animation configuration uses the existing `DesignPropertyValue` structured-object shape. No
-document-format version bump is required, and documents that omit these optional properties retain
-their historical behavior.
+Interaction effects and transitions use the existing `DesignPropertyValue` structured-object shape.
+Documents without animation recipes keep the same format selection.
 
 Interaction effects are stored in `InteractionEffects` with `Count` plus ordered `ItemN` values.
 Each item carries a namespace-qualified, assembly-independent runtime type name and only explicitly
@@ -75,10 +76,39 @@ services, Brushes, and factory expressions are deliberately not deserialized. A 
 custom effect type stays in `.mfdesign` as an unavailable entry that can be kept, reordered, or
 removed; generation reports it and skips unsafe code rather than destroying the definition.
 
-`AnimationDefinition` subclasses can carry the same source metadata, but remain code-first because
-the current runtime has no general control-level definition collection or activation contract.
-Designer therefore does not offer them in the Interaction Effects list and does not invent a
-parallel attachment API.
+`AnimationDefinition` subclasses can carry the same source metadata and remain code-first.
+
+## Animation Recipe
+
+Open **Behavior → Animation Recipe** on a control. Enter `Click` on the first line and one
+step per subsequent line. This example dims and restores the control on activation.
+
+```text
+Click
+Opacity 0.45 140 EaseOut
+Opacity 1 240 BlendEaseInOut 0.6
+```
+
+Each step gives a property, target, duration in milliseconds, and registered easing ID.
+Targets are `Opacity` from 0 to 1, uniform `Scale` from 0.5 to 2, and `Rotation` from
+−180 to 180 degrees. Use a decimal point. Supported IDs are `Linear`, `EaseIn`, `EaseOut`,
+`EaseInOut`, and `BlendEaseInOut`. The last takes a strength from 0 to 1. Zero selects
+linear progress and one selects the framework's ease-in-out curve.
+
+Play runs the current draft on a stock sample. Stop resets the sample and Restart begins again
+from that baseline. Playback uses the production scheduler and respects its reduced-motion policy.
+A recipe is limited to 2,048 characters, eight steps and two seconds of authored duration.
+A separate three-second preview deadline cancels active work even if policy scales its duration.
+Unsupported recipes show a diagnostic and are retained in the document. Change or remove them
+explicitly in the editor. Closing the editor ends its preview. OK and Remove use the ordinary
+property history, so Undo and Redo restore the previous value.
+
+The Designer stores the recipe as text data in format 4. Readers that predate the recipe
+capability reject this format. Generation emits an `AnimationRecipeEffect` in the existing
+`InteractionEffects` collection. Reverse import accepts the generated literal form. The
+application activates the same sequence on `Click`, including keyboard activation for controls
+that raise it. Another activation replaces the run and starts from the current values.
+Inherited recipes belong to their declaring design.
 
 ## Generation and reverse synchronization
 
@@ -109,12 +139,9 @@ included in the VSIX; no application assembly is added to the extension process.
 
 ## Current limitations
 
-- Custom delegate easing remains code-first.
-- General custom `AnimationDefinition` activation remains code-first.
-- There is no automatic design-surface effect preview; this avoids interfering with selection,
-  drag, resize, and custom-code isolation.
-- Designer-wide undo/redo does not exist yet. Editors use atomic OK/Cancel semantics so a future
-  transaction service can wrap one committed definition change.
+- Project-defined easing delegates and executable `AnimationDefinition` subclasses remain code-first.
+- Live playback is scoped to the recipe dialog sample. The static design surface keeps authored
+  animation and effect data inert.
 - Android runtime animation integration is implemented. Broad emulator and physical-device frame,
   lifecycle, setting-change, and rendering validation remains outstanding.
 

@@ -636,6 +636,8 @@ internal sealed partial class DesignerPropertyGridState
         {
             foreach (var property in descriptors.Where(property => property.Name is "Namespace" or "ClassName"))
                 property.IsReadOnly = true;
+            if (playgroundState.Document.InheritanceState?.Properties.ContainsKey(AnimationRecipeDesignValue.PropertyName) == true)
+                SetReadOnly(descriptors.Where(property => property.Name == AnimationRecipeDesignValue.PropertyName));
             descriptors.Add(ReadOnly("BaseType", "Base type", "Design", "The source-declared custom base.", typeof(string), () => baseType));
         }
         else if (node?.InheritedFrom is { } declaringType)
@@ -854,6 +856,8 @@ internal sealed partial class DesignerPropertyGridState
         descriptors.Add(ReadOnly("Y", "Y", "Layout", originDescription, typeof(int), () => 0));
         descriptors.Add(DesignerPropertyDescriptorFactory.CreateDocumentSize(playgroundState.Document));
         descriptors.Add(InteractionEffectsProperty(playgroundState.Document.Properties));
+        if (playgroundState.Document.RootKind == DesignRootKind.UserControl)
+            descriptors.Add(AnimationRecipeProperty(playgroundState.Document.Properties));
         AddAnimationDescriptors(descriptors, playgroundState.Document.Properties);
         descriptors.Add(FormSize("Width", "Width", size => size.Width, (width, height) => new DesignSize(width, height)));
         descriptors.Add(FormSize("Height", "Height", size => size.Height, (width, height) => new DesignSize(width, height)));
@@ -944,6 +948,7 @@ internal sealed partial class DesignerPropertyGridState
     private void AddSpecialContainerDescriptors(List<DesignerPropertyDescriptor> descriptors, DesignControlNode node)
     {
         descriptors.Add(InteractionEffectsProperty(node.Properties));
+        descriptors.Add(AnimationRecipeProperty(node.Properties));
         AddAnimationDescriptors(descriptors, node.Properties);
 
         if (DesignerSpecialContainers.IsTabControl(node))
@@ -1056,6 +1061,23 @@ internal sealed partial class DesignerPropertyGridState
                     ? $"{effects.Count} effect{(effects.Count == 1 ? string.Empty : "s")}"
                     : "(invalid)";
             }
+        };
+
+    private static DesignerPropertyDescriptor AnimationRecipeProperty(
+        IDictionary<string, DesignPropertyValue> properties)
+        => new()
+        {
+            Name = AnimationRecipeDesignValue.PropertyName,
+            DisplayName = "Animation Recipe",
+            Category = "Behavior",
+            Description = "Configures a bounded sequence that runs on click. Play previews the draft on a sample.",
+            ValueType = typeof(string),
+            IsReadOnly = true,
+            HasDialogEditor = true,
+            DialogEditor = DesignerPropertyDialogEditors.AnimationRecipe(properties),
+            GetValue = () => !properties.TryGetValue(AnimationRecipeDesignValue.PropertyName, out var value)
+                ? "(none)"
+                : AnimationRecipeDesignValue.TryRead(value, out _, out _) ? "On Click" : "(preview unavailable)"
         };
 
     private static DesignerPropertyDescriptor TabPagesProperty(DesignControlNode tabControl)

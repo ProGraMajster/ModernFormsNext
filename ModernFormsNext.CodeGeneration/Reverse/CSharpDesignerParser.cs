@@ -375,7 +375,28 @@ public sealed class CSharpDesignerParser
             properties = node.Properties;
         }
 
-        if (!TryReadInteractionEffect(invocation.ArgumentList.Arguments[0].Expression, out DesignPropertyValue effect))
+        ArgumentSyntax argument = invocation.ArgumentList.Arguments[0];
+        if (argument.Expression is ObjectCreationExpressionSyntax recipeCreation
+            && recipeCreation.Type.WithoutTrivia().ToString() == AnimationRecipeDesignValue.EffectTypeName)
+        {
+            if ((ownerName != "this" || document.RootKind == DesignRootKind.UserControl)
+                && argument.NameColon is null && argument.RefKindKeyword.RawKind == 0
+                && recipeCreation.Initializer is null
+                && recipeCreation.ArgumentList?.Arguments is [{ NameColon: null, RefKindKeyword.RawKind: 0,
+                    Expression: LiteralExpressionSyntax literal }]
+                && literal.IsKind(SyntaxKind.StringLiteralExpression)
+                && AnimationRecipeDesignValue.TryValidate(literal.Token.ValueText, out _)
+                && properties.TryAdd(AnimationRecipeDesignValue.PropertyName, DesignPropertyValue.FromString(literal.Token.ValueText)))
+            {
+                return true;
+            }
+            AddDiagnostic(CSharpDesignerDiagnosticSeverity.Error,
+                "Expected one supported animation recipe as a string literal on this control.",
+                invocation, invocation.ToString());
+            return true;
+        }
+
+        if (!TryReadInteractionEffect(argument.Expression, out DesignPropertyValue effect))
         {
             AddUnsupported(invocation, $"Unsupported interaction effect initializer for '{ownerName}'.");
             return true;

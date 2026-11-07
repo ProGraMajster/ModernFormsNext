@@ -36,7 +36,7 @@ public sealed class DesignDocumentSerializer
 
     /// <summary>Identifies the format required for inherited ownership and override patches.</summary>
     /// <remarks>
-    /// The serializer reads formats 1, 2 and 3. It writes at least format 2 when a custom base is present,
+    /// The serializer reads formats 1 through 4. It writes at least format 2 when a custom base is present,
     /// without changing the caller's metadata. Readers supporting only format 1 must reject it.
     /// Runtime controls and ordinary document serialization are unaffected.
     /// </remarks>
@@ -50,6 +50,10 @@ public sealed class DesignDocumentSerializer
     /// or runtime control semantics depend on this persistence capability marker.
     /// </remarks>
     public const int VectorFormatVersion = 3;
+
+    /// <summary>Identifies the format that preserves Designer animation recipes.</summary>
+    /// <remarks>Older readers must reject this format so they cannot regenerate a recipe as an ordinary property.</remarks>
+    public const int AnimationFormatVersion = 4;
 
     /// <summary>
     /// Gets the default serializer instance.
@@ -164,13 +168,14 @@ public sealed class DesignDocumentSerializer
         int currentVersion = inspection.EffectiveVersion;
         var migratedVersions = new HashSet<int>();
 
-        while (currentVersion != CurrentFormatVersion && currentVersion != InheritedFormatVersion && currentVersion != VectorFormatVersion)
+        while (!IsSupportedFormat(currentVersion))
         {
             if (currentVersion > CurrentFormatVersion)
             {
                 throw FormatVersionError(
                     $"Designer document format version {currentVersion} is newer than the " +
-                    $"supported version {CurrentFormatVersion} (ordinary), {InheritedFormatVersion} (inherited) or {VectorFormatVersion} (extended vectors).");
+                    $"supported version {CurrentFormatVersion} (ordinary), {InheritedFormatVersion} (inherited), " +
+                    $"{VectorFormatVersion} (extended vectors) or {AnimationFormatVersion} (animation recipes).");
             }
 
             if (!migrations.TryGetValue(currentVersion, out IDesignDocumentMigration? migration))
@@ -243,7 +248,7 @@ public sealed class DesignDocumentSerializer
         if (!validation.IsValid) throw new JsonException(string.Join(" ", validation.Errors));
         int required = RequiredDocumentFormat(document);
         if (document.Metadata.FormatVersion < required)
-            throw FormatVersionError($"This design requires format version {required}; ownership or extended vector metadata cannot be downgraded.");
+            throw FormatVersionError($"This design requires format version {required}; its authored capabilities cannot be downgraded.");
 
         return new DesignDocumentDeserializationResult(
             document,
@@ -392,23 +397,29 @@ public sealed class DesignDocumentSerializer
             throw new InvalidOperationException("Designer document metadata cannot be null.");
         }
 
-        if (document.Metadata.FormatVersion != CurrentFormatVersion && document.Metadata.FormatVersion != InheritedFormatVersion && document.Metadata.FormatVersion != VectorFormatVersion)
+        if (!IsSupportedFormat(document.Metadata.FormatVersion))
         {
             throw new InvalidOperationException(
                 $"Designer document format version {document.Metadata.FormatVersion} cannot be " +
-                $"serialized or materialized by a version {CurrentFormatVersion}/{InheritedFormatVersion}/{VectorFormatVersion} serializer.");
+                $"serialized or materialized by a version {CurrentFormatVersion}/{InheritedFormatVersion}/{VectorFormatVersion}/{AnimationFormatVersion} serializer.");
         }
     }
+
+    private static bool IsSupportedFormat(int version)
+        => version is CurrentFormatVersion or InheritedFormatVersion or VectorFormatVersion or AnimationFormatVersion;
 
     private static int RequiredDocumentFormat(DesignDocument document)
     {
         // This follows the shared structural preflight. Inspect inert values only; no runtime type
         // lookup or converter is needed to decide whether an older reader can preserve the design.
         var properties = new Stack<IReadOnlyDictionary<string, DesignPropertyValue>>();
+        if (document.Properties.ContainsKey(AnimationRecipeDesignValue.PropertyName)) return AnimationFormatVersion;
         properties.Push(document.Properties);
         var nodes = new Stack<DesignControlNode>(document.Controls);
+        int required = document.BaseTypeName is null ? CurrentFormatVersion : InheritedFormatVersion;
         while (nodes.TryPop(out var node))
         {
+            if (node.Properties.ContainsKey(AnimationRecipeDesignValue.PropertyName)) return AnimationFormatVersion;
             properties.Push(node.Properties);
             foreach (var child in node.Children) nodes.Push(child);
         }
@@ -416,16 +427,16 @@ public sealed class DesignDocumentSerializer
         {
             foreach (var entry in values)
             {
-                if (entry.Key == "ClipGeometry" || entry.Key == "Stretch") return VectorFormatVersion;
+                if (entry.Key is "ClipGeometry" or "Stretch") required = VectorFormatVersion;
                 var value = entry.Value;
                 string? type = value.ObjectTypeName;
                 if (type?.StartsWith("global::", StringComparison.Ordinal) == true) type = type[8..];
                 if (type is "ArcSegment" or "ModernFormsNext.Drawing.ArcSegment" or "GeometryGroup" or "ModernFormsNext.Drawing.GeometryGroup" or "CombinedGeometry" or "ModernFormsNext.Drawing.CombinedGeometry")
-                    return VectorFormatVersion;
+                    required = VectorFormatVersion;
                 if (value.ObjectProperties is { } nested) properties.Push(nested);
             }
         }
-        return document.BaseTypeName is null ? CurrentFormatVersion : InheritedFormatVersion;
+        return required;
     }
 
     private static FormatVersionInspection InspectFormatVersion(string json)

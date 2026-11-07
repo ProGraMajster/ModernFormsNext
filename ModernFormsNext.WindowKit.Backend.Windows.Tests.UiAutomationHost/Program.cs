@@ -18,6 +18,7 @@ if (args.Contains("--layout-policy-immediate", StringComparer.Ordinal)) { Enviro
 
 if (args.Contains("--shadow-typography", StringComparer.Ordinal)) { Environment.ExitCode = ShadowTypographyScenario.Run(); return; }
 if (args.Contains("--vector-geometry", StringComparer.Ordinal)) { Environment.ExitCode = VectorGeometryScenario.Run(); return; }
+if (args.Contains("--animation-recipe", StringComparer.Ordinal)) { Environment.ExitCode = AnimationRecipeScenario.Run(); return; }
 
 if (args.Contains("--app-shell", StringComparer.Ordinal)) { Environment.ExitCode = AppShellScenario.Run(); return; }
 

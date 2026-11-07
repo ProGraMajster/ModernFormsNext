@@ -188,6 +188,11 @@ public sealed class CSharpDesignerGenerator
 
         foreach (var property in document.Properties)
         {
+            if (property.Key == AnimationRecipeDesignValue.PropertyName && document.RootKind == DesignRootKind.Form)
+            {
+                validation.AddWarning("Animation Recipe on the design root was skipped. A Form is a window; select a child control.");
+                continue;
+            }
             if (property.Key == Drawing.ProjectAssetPath.ImageProperty)
             {
                 validation.AddError("A project image must target a supported child control.");
@@ -301,7 +306,7 @@ public sealed class CSharpDesignerGenerator
     {
         foreach (var property in properties)
         {
-            if (!IsValidPropertyPath(property))
+            if (property != AnimationRecipeDesignValue.PropertyName && !IsValidPropertyPath(property))
                 validation.AddError($"Property name '{property}' on {owner} is not a valid C# identifier.");
         }
     }
@@ -587,6 +592,14 @@ public sealed class CSharpDesignerGenerator
         DesignDocumentValidationResult validation,
         CSharpDesignerGenerationOptions options)
     {
+        if (propertyName == AnimationRecipeDesignValue.PropertyName)
+        {
+            if (!AnimationRecipeDesignValue.TryRead(value, out string recipe, out string? error))
+                validation.AddWarning($"Animation Recipe on '{ownerName}' was skipped: {error}");
+            else
+                writer.WriteLine($"        {targetExpression}.InteractionEffects.Add(new {AnimationRecipeDesignValue.EffectTypeName}({CSharpLiteralWriter.WriteStringLiteral(recipe)}));");
+            return true;
+        }
         if (string.Equals(propertyName, InteractionEffectDesignValue.PropertyName, StringComparison.Ordinal))
         {
             WriteInteractionEffects(writer, targetExpression, value, ownerName, validation, options);

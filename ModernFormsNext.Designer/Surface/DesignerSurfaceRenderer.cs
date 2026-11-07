@@ -762,6 +762,11 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         {
             var propertyPath = NormalizeRuntimePropertyPath(property.Key);
 
+            // Recipe playback belongs to the opt-in editor sample. A normal surface frame
+            // neither applies this metadata through reflection nor parses or schedules it.
+            if (propertyPath == AnimationRecipeDesignValue.PropertyName)
+                continue;
+
             if (propertyPath == DesignerProjectAssets.ImageProperty)
             {
                 // Layout and baseline projections do not load assets. Only the
