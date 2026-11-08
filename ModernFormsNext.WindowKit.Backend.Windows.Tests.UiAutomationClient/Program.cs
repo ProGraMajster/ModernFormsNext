@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Windows.Automation;
 
+if (args.Length == 2 && args[0] == "--presentation") return PresentationLifetimeScenario.Run(args[1]);
+
 if (args.Length == 2 && args[0] == "--grid-calendar") return GridCalendarScenario.Run(args[1]);
 
 if (args.Length == 2 && args[0] == "--text") return TextScenario.Run(args[1]);

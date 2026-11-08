@@ -68,9 +68,61 @@ The 800-child regression asserts one parent visibility event, preserved focus/na
 events and a later standalone child state event. Native COM tests additionally
 exercise the AdviseEvents vtable and caller-owned SAFEARRAY lifetime.
 
-Validation: full solution restore and Debug/Release builds succeeded; full tests
+Original qualification on `5fe28ea`: full solution restore and Debug/Release builds succeeded; full tests
 each passed 4,484/4,484 with zero failures/skips. Three pre-existing NU1902 warnings
 concern MessagePack in Designer/VSIX projects, outside this runtime patch. ControlGallery
 Release was launched, its real HWND captured, and closed with exit code 0; this is
 a startup smoke, not a manual screen-reader audit. Original failing reproducers and
 all later TRX/logs remain under artifacts/mtd-stability.
+
+## Integration with the newer master
+
+The patch was replayed on `32b4fe3` (54 commits beyond its original base), with
+an identical stable patch ID and no textual conflicts. The integration retains
+virtualized UIA child navigation and bounded structure snapshots, ToolTip role
+mapping, native Tab transport, binding activation/reentrant creation guards,
+inherited layout/RTL policy, typography refresh, and shadow/geometry disposal.
+Designer and Android changes on master are retained rather than copied from the
+older branch. The hidden-buffer change owns only the existing raster back buffer;
+it neither releases caller images nor changes the newer shadow/filter ownership.
+
+`NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles` drives
+real HWNDs with 8 and 800 descendants through a separate UIA client. Each of 100
+cycles subscribes, hides and reparents the same subtree, shows/repaints it,
+rediscovers its stable runtime ID, and unsubscribes. A second HWND changes its name
+independently. A native WinEvent hook verifies descendant visibility IDs and
+bounded delivery, while the host records private/managed bytes, actual bitmap
+counts/bytes, UI work and dispatcher heartbeat. Hidden buffers must be zero;
+all 200 requested Name changes must reach the client exactly once. These are
+bounded regression probes, not a screen-reader audit or an exhaustive native-heap
+leak proof. Logs (including failed fixture-development attempts) remain under
+`artifacts/native-presentation/` and `artifacts/master-integration/`.
+
+Integration qualification (2026-11-08): full solution restore, Debug and Release
+builds, and both complete test suites passed (5,859/5,859 each, zero failures or
+skips). Builds retained three existing NU1902 warnings and six existing VSTHRD010
+warnings in unchanged Designer/VSIX code. CI-change, release-documentation and
+package-contract checks passed (45, 39 and 8 assertions). The bounded dynamic
+resource publish probe passed both JIT and trimmed executions; its 60 other trim
+warnings remain documented, and this is not a whole-framework trimming claim.
+ControlGallery Release was launched, its Button sample selected and invoked by
+an external UIA client, and its real window captured before normal shutdown.
+
+The Release 800-descendant native probe delivered all 200 subscribed changes in
+5.59 seconds across 100 cycles, with 100 descendant HIDE events, 200 SHOW events
+and no root HIDE. All hidden subtree bitmap samples were zero; runtime identity
+survived reparenting. The small-tree probe also passed. These elapsed values cover
+the client-driven cycles, not process startup and initial discovery.
+
+An explicitly local pre-merge ModernTubeDownloader consumer (application source
+`25d13d5`, central pin still unchanged) passed 20 Classic/Modern transitions,
+playlist selection/deduplication/restart checks, and the physical 5120 x 2880,
+225% DPI scenario with 2,750 history entries, 2,617 jobs and 2,750 thumbnails.
+Store hashes were unchanged and owned image/cache counts returned to zero on
+shutdown. A predeclared fresh-process A/B run on that same fixture measured
+first-HWND times of 3.55 seconds for the prior framework and 2.39 seconds for the
+integration, with peak private memory 967.89 and 970.36 MiB. The earlier integration
+launch took 4.22 seconds; all observations are retained. These warm OS/file-cache
+single runs establish compatibility, not a statistically demonstrated speedup or
+cold-boot result. Application evidence is retained under
+`artifacts/mfn-master-integration-20261108` in its isolated dashboard worktree.
