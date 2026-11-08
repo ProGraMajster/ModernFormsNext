@@ -949,10 +949,38 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 return IntPtr.Zero;
 
             if (_msaaAccessibilityObject is null || !ReferenceEquals(_msaaAccessibilityObject.PlatformObject, root))
+            {
                 _msaaAccessibilityObject = WindowsMsaaAccessibleObject.CreateRoot(root);
+                _msaaNotifications = null;
+            }
 
             var interfaceId = WindowsMsaaAccessibleObject.InterfaceId;
             return LresultFromObject(ref interfaceId, wParam, _msaaAccessibilityObject);
+        }
+
+        internal int GetMsaaEventChildId(IPlatformAccessibleObject root, IPlatformAccessibleObject source)
+        {
+            if (_msaaAccessibilityObject is null || !ReferenceEquals(_msaaAccessibilityObject.PlatformObject, root))
+            {
+                _msaaAccessibilityObject = WindowsMsaaAccessibleObject.CreateRoot(root);
+                _msaaNotifications = null;
+            }
+            return _msaaAccessibilityObject.GetEventChildId(source);
+        }
+
+        private WindowsMsaaNotificationBatch? _msaaNotifications;
+        internal void QueueMsaaNotification(IPlatformAccessibleObject root, IPlatformAccessibleObject source, int eventId)
+        {
+            int childId = GetMsaaEventChildId(root, source);
+            var owner = _msaaAccessibilityObject;
+            _msaaNotifications ??= new WindowsMsaaNotificationBatch(
+                action => Dispatcher.UIThread.Post(action),
+                (_, kind, child) =>
+                {
+                    if (_hwnd != IntPtr.Zero && ReferenceEquals(owner, _msaaAccessibilityObject))
+                        NotifyWinEvent((uint)kind, _hwnd, unchecked((int)0xFFFFFFFC), child);
+                });
+            _msaaNotifications.Add(source, eventId, childId);
         }
 
         private IntPtr GetUiaAccessibilityObject(IntPtr wParam, IntPtr lParam)

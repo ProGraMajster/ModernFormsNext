@@ -47,7 +47,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows
             int objectId,
             int childId)
         {
-            NotifyClients(owner, eventId, objectId, childId);
+            if (owner is WindowImpl native && objectId == 0 &&
+                owner.TryGetFeature<IPlatformAccessibilityHost>()?.AccessibilityRoot is { } root)
+            {
+                var target = childId == 0 ? source : source.GetChild(childId - 1);
+                if (target is not null && eventId > 0)
+                    native.QueueMsaaNotification(root, target, eventId);
+            }
+            else NotifyClients(owner, eventId, objectId, childId);
 
             // UIA providers are created lazily by WM_GETOBJECT. A normal accessibility
             // notification must not instantiate a provider when no UIA client has queried the HWND.

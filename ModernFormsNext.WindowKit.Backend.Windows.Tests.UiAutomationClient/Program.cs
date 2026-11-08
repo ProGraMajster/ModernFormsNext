@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Windows.Automation;
 
+if (args.Length == 2 && args[0] == "--presentation") return PresentationLifetimeScenario.Run(args[1]);
+
 if (args.Length == 2 && args[0] == "--grid-calendar") return GridCalendarScenario.Run(args[1]);
 
 if (args.Length == 2 && args[0] == "--text") return TextScenario.Run(args[1]);
@@ -43,7 +45,20 @@ object pattern = button.GetCurrentPattern(InvokePattern.Pattern);
 if (pattern is not InvokePattern invokePattern)
     return 4;
 
-invokePattern.Invoke();
+using var nameChanged = new ManualResetEventSlim();
+AutomationPropertyChangedEventHandler onNameChanged = (_, e) =>
+{
+    if (e.Property == AutomationElement.NameProperty && Equals(e.NewValue, "ModernFormsNext UIA action invoked"))
+        nameChanged.Set();
+};
+Automation.AddAutomationPropertyChangedEventHandler(root, TreeScope.Element, onNameChanged, AutomationElement.NameProperty);
+bool nameEventReceived;
+try
+{
+    invokePattern.Invoke();
+    nameEventReceived = nameChanged.Wait(TimeSpan.FromSeconds(5));
+}
+finally { Automation.RemoveAutomationPropertyChangedEventHandler(root, onNameChanged); }
 button.SetFocus();
 
 var result = new
@@ -55,7 +70,8 @@ var result = new
     RootControlType = rootControlType,
     ButtonControlType = buttonControlType,
     DisabledCommandIsEnabled = disabledButton.Current.IsEnabled,
-    HasKeyboardFocus = button.Current.HasKeyboardFocus
+    HasKeyboardFocus = button.Current.HasKeyboardFocus,
+    NameEventReceived = nameEventReceived
 };
 
 Console.WriteLine(JsonSerializer.Serialize(result));
