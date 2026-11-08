@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 
 namespace ModernFormsNext.VisualStudioExtension;
 
-// One bounded code request travels over the existing per-pane pipe, polled off the VS UI thread.
-// Source is data only. Paths are independently authorized against the pane's current design file.
+// Bounded Designer requests travel over the per-pane pipe, polled off the VS UI thread.
+// Source is data only. The Save command carries only the active design identity.
 internal sealed class DesignerCodeRequest
 {
+    internal const string SaveCommand = "SAVE_COMMAND";
     internal const int MaximumTextCharacters = 512 * 1024;
     internal const int MaximumFrameCharacters = 4 * 1024 * 1024;
     internal const int MaximumInsertionCharacters = 16 * 1024;
@@ -27,6 +28,10 @@ internal sealed class DesignerCodeRequest
     internal int Offset { get; }
     internal string Insertion { get; }
     internal long ExpiresUtcTicks { get; }
+    internal bool IsSaveCommand => Operation == SaveCommand;
+
+    private bool HasEmptySavePayload => SourcePath.Length == 0 && ExpectedText.Length == 0
+        && Offset == 0 && Insertion.Length == 0;
 
     internal string Encode() => string.Join("\t", "CODE", Id, Operation, Base64(DesignPath), Base64(SourcePath),
         Base64(ExpectedText), Offset.ToString(CultureInfo.InvariantCulture), Base64(Insertion), ExpiresUtcTicks.ToString(CultureInfo.InvariantCulture));
@@ -37,19 +42,22 @@ internal sealed class DesignerCodeRequest
         if (line is null || line.Length > MaximumFrameCharacters) return false;
         var parts = line.Split('\t');
         if (parts.Length != 9 || parts[0] != "CODE" || !Guid.TryParseExact(parts[1], "N", out _)
-            || parts[2] != "READ" && parts[2] != "INSERT" && parts[2] != "NAVIGATE"
+            || parts[2] != "READ" && parts[2] != "INSERT" && parts[2] != "NAVIGATE" && parts[2] != SaveCommand
             || !int.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out var offset)
             || !long.TryParse(parts[8], NumberStyles.None, CultureInfo.InvariantCulture, out var expires)) return false;
         try
         {
             var design = Unbase64(parts[3]); var source = Unbase64(parts[4]);
             var text = Unbase64(parts[5]); var insertion = Unbase64(parts[7]);
-            if (design.Length == 0 || design.Length > 32768 || source.Length == 0 || source.Length > 32768
+            bool saveCommand = parts[2] == SaveCommand;
+            if (design.Length == 0 || design.Length > 32768 || !saveCommand && source.Length == 0 || source.Length > 32768
                 || text.Length > MaximumTextCharacters || insertion.Length > MaximumInsertionCharacters
                 || offset < 0 || offset > text.Length || expires <= 0
                 || parts[2] == "READ" && (text.Length != 0 || insertion.Length != 0 || offset != 0)
                 || parts[2] == "NAVIGATE" && insertion.Length != 0) return false;
-            request = new(parts[1], parts[2], design, source, text, offset, insertion, expires);
+            var decoded = new DesignerCodeRequest(parts[1], parts[2], design, source, text, offset, insertion, expires);
+            if (saveCommand && !decoded.HasEmptySavePayload) return false;
+            request = decoded;
             return true;
         }
         catch (Exception ex) when (ex is FormatException or ArgumentException) { return false; }
@@ -60,9 +68,11 @@ internal sealed class DesignerCodeRequest
         if (DateTime.UtcNow.Ticks >= ExpiresUtcTicks || ExpiresUtcTicks - DateTime.UtcNow.Ticks > TimeSpan.FromSeconds(35).Ticks) return false;
         try
         {
-            return string.Equals(Path.GetFullPath(DesignPath), Path.GetFullPath(currentDesignPath), StringComparison.OrdinalIgnoreCase)
-                && string.Equals(Path.GetFullPath(SourcePath), Path.ChangeExtension(Path.GetFullPath(currentDesignPath), ".cs"), StringComparison.OrdinalIgnoreCase)
-                && string.Equals(Path.GetExtension(currentDesignPath), ".mfdesign", StringComparison.OrdinalIgnoreCase);
+            var canonical = Path.GetFullPath(currentDesignPath);
+            return string.Equals(Path.GetFullPath(DesignPath), canonical, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(Path.GetExtension(canonical), ".mfdesign", StringComparison.OrdinalIgnoreCase)
+                && (IsSaveCommand ? HasEmptySavePayload
+                    : string.Equals(Path.GetFullPath(SourcePath), Path.ChangeExtension(canonical, ".cs"), StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException) { return false; }
     }

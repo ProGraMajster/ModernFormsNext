@@ -36,6 +36,28 @@ public sealed class DesignerCodeRequestTests
     }
 
     [Fact]
+    public async Task SaveCommandCarriesOnlyTheBoundDesignAndGetsOneAcknowledgement()
+    {
+        using var broker = new DesignerCodeRequestBroker();
+        var operation = broker.RequestAsync(DesignerCodeRequest.SaveCommand, DesignPath,
+            string.Empty, string.Empty, 0, string.Empty, CancellationToken.None);
+        Assert.True(DesignerCodeRequest.TryDecode(broker.Poll(DesignPath), out var request));
+        Assert.True(request.IsSaveCommand);
+        Assert.True(request.IsAuthorized(DesignPath));
+        Assert.False(request.IsAuthorized(IOPath.ChangeExtension(DesignPath, ".other")));
+
+        var payload = new DesignerCodeRequest(request.Id, request.Operation, DesignPath, SourcePath,
+            string.Empty, 0, string.Empty, request.ExpiresUtcTicks);
+        Assert.False(DesignerCodeRequest.TryDecode(payload.Encode(), out _));
+        Assert.False(payload.IsAuthorized(DesignPath));
+
+        var reply = DesignerCodeRequest.Result(request.Id, true, null);
+        Assert.True(broker.Complete(reply, DesignPath));
+        Assert.False(broker.Complete(reply, DesignPath));
+        Assert.Equal((true, string.Empty), await operation);
+    }
+
+    [Fact]
     public async Task BoundedReaderRetainsAFrameAndRejectsOversizedInput()
     {
         Assert.Equal("DIRTY\t0", await DesignerCodeRequest.ReadBoundedLineAsync(new StringReader("DIRTY\t0\r\n")));

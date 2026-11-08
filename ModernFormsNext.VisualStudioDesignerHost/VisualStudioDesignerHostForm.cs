@@ -29,6 +29,7 @@ public sealed class VisualStudioDesignerHostForm : Form
     private int ownerExitScheduled;
     private bool closeConfirmationPending;
     private bool closeConfirmed;
+    private bool saveShortcutPending;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VisualStudioDesignerHostForm"/> class.
@@ -131,10 +132,41 @@ public sealed class VisualStudioDesignerHostForm : Form
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        // The embedded HWND receives this key before Visual Studio's own accelerator loop.
+        // Let the VS pane handle its Save command after this input dispatch has returned.
+        if (arguments.HostingMode == DesignerHostingMode.Integrated && e.KeyData == (Keys.Control | Keys.S)
+            && shell.Session.CurrentDocumentPath is { } designPath && environment.CodeRequests is { } requests)
+        {
+            e.SuppressKeyPress = true;
+            if (!saveShortcutPending)
+                _ = ForwardSaveShortcutAsync(requests, designPath);
+            return;
+        }
+
         if (shell.ProcessDesignerShortcut(e))
             return;
 
         base.OnKeyDown(e);
+    }
+
+    private async Task ForwardSaveShortcutAsync(DesignerCodeRequestBroker requests, string designPath)
+    {
+        saveShortcutPending = true;
+        try
+        {
+            DesignerHostDiagnosticLog.Write("VS_SAVE_COMMAND_QUEUED");
+            var result = await requests.RequestAsync(DesignerCodeRequest.SaveCommand, designPath,
+                string.Empty, string.Empty, 0, string.Empty, CancellationToken.None);
+            DesignerHostDiagnosticLog.Write($"VS_SAVE_COMMAND_REPLY Accepted={result.Success}");
+        }
+        catch (OperationCanceledException)
+        {
+            DesignerHostDiagnosticLog.Write("VS_SAVE_COMMAND_REPLY Canceled=True");
+        }
+        finally
+        {
+            saveShortcutPending = false;
+        }
     }
 
     private void HandleClosing(object? sender, System.ComponentModel.CancelEventArgs e)

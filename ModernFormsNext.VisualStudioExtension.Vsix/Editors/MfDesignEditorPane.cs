@@ -95,11 +95,24 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         this.hostingMode = hostingMode;
         this.documentPath = System.IO.Path.GetFullPath(documentPath);
         this.hostControl.DocumentDirtyChanged += HandleDocumentDirtyChanged;
+        if (hostControl is OutOfProcessDesignerHostControl hosted)
+            hosted.ForwardSaveCommand = () => ExecuteForwardedSave(VisualStudioDocumentServices.GetActiveDesignerPane(serviceProvider));
         DesignerEditorDiagnosticLog.Write(
             $"PANE_CREATED Moniker={this.documentPath} HostingMode={hostingMode}");
     }
 
     internal DesignerHostingMode HostingMode => hostingMode;
+
+    internal bool ExecuteForwardedSave(MfDesignEditorPane? activePane)
+    {
+        if (hostingMode != DesignerHostingMode.Integrated || !ReferenceEquals(this, activePane)
+            || Volatile.Read(ref closeState) != 0 || Volatile.Read(ref disposeState) != 0)
+            return false;
+
+        var group = VSConstants.GUID_VSStandardCommandSet97;
+        return ErrorHandler.Succeeded(((IOleCommandTarget)this).Exec(
+            ref group, (uint)VSConstants.VSStd97CmdID.Save, 0, IntPtr.Zero, IntPtr.Zero));
+    }
 
     /// <inheritdoc/>
     public override System.Windows.Forms.IWin32Window Window => hostControl.Window;
@@ -428,7 +441,8 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
             // Return from the shell command before crossing the process boundary. A synchronous
             // host FOCUS callback can otherwise wait for this same Visual Studio UI thread while
             // SaveDocData is waiting for the host, creating a reentrant IPC stall.
-            hostControl.PostToOwnerThread(ExecuteDeferredSaveCommand);
+            var requestedPath = documentPath;
+            hostControl.PostToOwnerThread(() => ExecuteDeferredSaveCommand(requestedPath));
             DesignerEditorDiagnosticLog.Write(
                 "SAVE_SINGLEFLIGHT_STATE Phase=ExecScheduled Active=True");
             DesignerEditorDiagnosticLog.Write(
@@ -541,13 +555,17 @@ public sealed class MfDesignEditorPane : WindowPane, IVsPersistDocData, IPersist
         }
     }
 
-    private void ExecuteDeferredSaveCommand()
+    private void ExecuteDeferredSaveCommand(string requestedPath)
     {
         DesignerEditorDiagnosticLog.Write(
             $"SAVE_SINGLEFLIGHT_STATE Phase=DeferredBegin Active=True " +
             $"ManagedThreadId={Environment.CurrentManagedThreadId}");
         try
         {
+            if (Volatile.Read(ref closeState) != 0 || Volatile.Read(ref disposeState) != 0
+                || !string.Equals(documentPath, requestedPath, StringComparison.OrdinalIgnoreCase))
+                return;
+
 #pragma warning disable VSTHRD010 // IDesignerDocumentHost posts this callback to the pane's owner UI thread.
             var hresult = SaveDocData(VSSAVEFLAGS.VSSAVE_Save, out _, out var canceled);
 #pragma warning restore VSTHRD010

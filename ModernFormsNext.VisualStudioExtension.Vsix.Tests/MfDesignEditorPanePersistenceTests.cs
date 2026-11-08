@@ -282,6 +282,46 @@ public sealed class MfDesignEditorPanePersistenceTests
     }
 
     [Fact]
+    public void ForwardedCtrlSReusesTheDeferredSaveAndRequiresTheSameActivePane()
+    {
+        using var context = new EditorContext();
+        using var other = new EditorContext("Other.mfdesign");
+        context.Host.SetDirty(true);
+        other.Host.SetDirty(true);
+
+        Assert.False(context.Pane.ExecuteForwardedSave(null));
+        Assert.False(context.Pane.ExecuteForwardedSave(other.Pane));
+        Assert.Empty(context.Host.PostedActions);
+        Assert.Empty(other.Host.PostedActions);
+
+        Assert.True(context.Pane.ExecuteForwardedSave(context.Pane));
+        Assert.True(context.Pane.ExecuteForwardedSave(context.Pane));
+        Assert.Single(context.Host.PostedActions);
+        Assert.Equal(0, context.Host.SaveCount);
+        context.Host.RunPostedActions();
+
+        Assert.Equal(1, context.Host.SaveCount);
+        Assert.False(context.Host.IsDirty);
+        Assert.True(other.Host.IsDirty);
+        Assert.Equal(0, other.Host.SaveCount);
+    }
+
+    [Fact]
+    public void DeferredCtrlSDoesNotSaveAfterThePaneCloses()
+    {
+        using var context = new EditorContext();
+        context.Host.SetDirty(true);
+
+        Assert.True(context.Pane.ExecuteForwardedSave(context.Pane));
+        Assert.Single(context.Host.PostedActions);
+        Assert.Equal(VSConstants.S_OK, context.Pane.Close());
+        context.Host.RunPostedActions();
+
+        Assert.Equal(0, context.Host.SaveCount);
+        Assert.True(context.Host.IsDirty);
+    }
+
+    [Fact]
     public void PriorityCtrlSStillWorksAfterEarlierSynchronousCloseStyleSave()
     {
         using var context = new EditorContext();

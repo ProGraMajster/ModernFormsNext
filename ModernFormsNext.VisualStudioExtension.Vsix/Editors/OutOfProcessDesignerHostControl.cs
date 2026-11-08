@@ -39,6 +39,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private int documentStateGeneration;
     private int codeRequestInFlight;
     internal VisualStudioCodeDocumentService? CodeDocuments { get; set; }
+    internal Func<bool>? ForwardSaveCommand { get; set; }
 
     public event EventHandler<DesignerDocumentDirtyChangedEventArgs>? DocumentDirtyChanged;
 
@@ -565,11 +566,19 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
                     {
                         codeRequest = DesignerHostIpcClient.PollCodeRequest(pipeName, queryDocumentPath, LifecycleCommandTimeout);
                         if (codeRequest is null) Interlocked.Exchange(ref codeRequestInFlight, 0);
+                        else if (codeRequest.IsSaveCommand && !isDirty)
+                        {
+                            // An edit and its shortcut can arrive between the dirty query
+                            // and this poll. Observe dirty again after dequeueing that Save.
+                            succeeded = DesignerHostIpcClient.TryGetDocumentDirty(pipeName, queryDocumentPath,
+                                queryProjectPath, DirtyQueryTimeout, out isDirty);
+                        }
                     }
                 }
             }
             catch (Exception exception)
             {
+                succeeded = false;
                 DesignerEditorDiagnosticLog.WriteException("DIRTY_QUERY_EXCEPTION", exception);
             }
             finally
@@ -608,10 +617,25 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     private void ExecuteCodeRequest(DesignerCodeRequest request, int generation)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        var response = !disposing && generation == Volatile.Read(ref documentStateGeneration) && request.IsAuthorized(documentPath)
-            ? CodeDocuments?.Execute(request, () => documentPath) ?? DesignerCodeRequest.Result(request.Id, false, null)
-            : DesignerCodeRequest.Result(request.Id, false, null);
-        QueueCodeReply(request, response);
+        var response = DesignerCodeRequest.Result(request.Id, false, null);
+        try
+        {
+            if (!disposing && generation == Volatile.Read(ref documentStateGeneration) && request.IsAuthorized(documentPath))
+            {
+                if (request.IsSaveCommand)
+                    response = DesignerCodeRequest.Result(request.Id, ForwardSaveCommand?.Invoke() == true, null);
+                else if (CodeDocuments is not null)
+                    response = CodeDocuments.Execute(request, () => documentPath);
+            }
+        }
+        catch (Exception exception) when (exception is COMException or InvalidOperationException)
+        {
+            DesignerEditorDiagnosticLog.WriteException("DESIGNER_HOST_REQUEST_FAILED", exception);
+        }
+        finally
+        {
+            QueueCodeReply(request, response);
+        }
     }
 
     private void QueueCodeReply(DesignerCodeRequest request, string response)

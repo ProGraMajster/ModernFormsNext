@@ -32,6 +32,20 @@ internal sealed class VisualStudioDocumentServices : IVisualStudioDocumentServic
         this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
+    internal static MfDesignEditorPane? GetActiveDesignerPane(IServiceProvider serviceProvider)
+    {
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if (serviceProvider.GetService(typeof(SVsShellMonitorSelection)) is not IVsMonitorSelection monitorSelection
+            || ErrorHandler.Failed(monitorSelection.GetCurrentElementValue(
+                (uint)VSConstants.VSSELELEMID.SEID_DocumentFrame, out var frameValue))
+            || frameValue is not IVsWindowFrame frame
+            || ErrorHandler.Failed(frame.GetProperty((int)__VSFPROPID.VSFPROPID_DocView, out var docView)))
+            return null;
+
+        return docView as MfDesignEditorPane;
+    }
+
     public int QuerySaveFile(string documentPath, out uint result)
     {
         ThreadHelper.ThrowIfNotOnUIThread();

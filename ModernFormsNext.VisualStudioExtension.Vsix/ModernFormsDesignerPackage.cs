@@ -80,7 +80,8 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
             as IVsRegisterPriorityCommandTarget;
         if (priorityCommandRegistrar is not null)
         {
-            designerSaveCommandTarget = new DesignerSaveCommandTarget(GetActiveDesignerPane);
+            designerSaveCommandTarget = new DesignerSaveCommandTarget(
+                () => VisualStudioDocumentServices.GetActiveDesignerPane(this));
             ErrorHandler.ThrowOnFailure(priorityCommandRegistrar.RegisterPriorityCommandTarget(
                 0,
                 designerSaveCommandTarget,
@@ -111,25 +112,6 @@ public sealed class ModernFormsDesignerPackage : AsyncPackage
         }
 
         base.Dispose(disposing);
-    }
-
-    private MfDesignEditorPane? GetActiveDesignerPane()
-    {
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        if (GetService(typeof(SVsShellMonitorSelection)) is not IVsMonitorSelection monitorSelection
-            || ErrorHandler.Failed(monitorSelection.GetCurrentElementValue(
-                (uint)VSConstants.VSSELELEMID.SEID_DocumentFrame,
-                out var frameValue))
-            || frameValue is not IVsWindowFrame frame
-            || ErrorHandler.Failed(frame.GetProperty(
-                (int)__VSFPROPID.VSFPROPID_DocView,
-                out var docView)))
-        {
-            return null;
-        }
-
-        return docView as MfDesignEditorPane;
     }
 
     internal ModernFormsDesignableFileInfo? GetSelectedDesignableFile()
