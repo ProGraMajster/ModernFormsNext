@@ -174,6 +174,15 @@ internal partial interface IRawElementProviderFragmentRootAbi
 }
 
 [GeneratedComInterface]
+[Guid("a407b27b-0f6d-4427-9292-473c7bf93258")]
+internal partial interface IRawElementProviderAdviseEventsAbi
+{
+    // Native ABI inherits IUnknown, not IRawElementProviderSimple (Windows SDK).
+    [PreserveSig] int AbiAdviseEventAdded(int eventId, IntPtr propertyIds);
+    [PreserveSig] int AbiAdviseEventRemoved(int eventId, IntPtr propertyIds);
+}
+
+[GeneratedComInterface]
 [Guid("54FCB24B-E18E-47A2-B4D3-ECCBE77599A2")]
 internal partial interface IInvokeProviderAbi
 {
@@ -549,6 +558,34 @@ internal static class WindowsUiaNativeMethods
 
     [DllImport("oleaut32.dll")]
     private static extern int SafeArrayDestroy(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    private static extern uint SafeArrayGetDim(IntPtr safeArray);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetVartype(IntPtr safeArray, out ushort type);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetLBound(IntPtr safeArray, uint dimension, out int bound);
+
+    [DllImport("oleaut32.dll")]
+    private static extern int SafeArrayGetUBound(IntPtr safeArray, uint dimension, out int bound);
+
+    internal static int[]? ReadPropertyIds(IntPtr safeArray)
+    {
+        if (safeArray == IntPtr.Zero) return null;
+        Marshal.ThrowExceptionForHR(SafeArrayGetVartype(safeArray, out ushort type));
+        if (SafeArrayGetDim(safeArray) != 1 || type != (ushort)VarEnum.VT_I4)
+            throw new ArgumentException("UIA property identifiers require a one-dimensional VT_I4 SAFEARRAY.");
+        Marshal.ThrowExceptionForHR(SafeArrayGetLBound(safeArray, 1, out int lower));
+        Marshal.ThrowExceptionForHR(SafeArrayGetUBound(safeArray, 1, out int upper));
+        var values = new int[checked(upper - lower + 1)];
+        Marshal.ThrowExceptionForHR(SafeArrayAccessData(safeArray, out IntPtr data));
+        try { Marshal.Copy(data, values, 0, values.Length); }
+        finally { _ = SafeArrayUnaccessData(safeArray); }
+        // Borrowed input: the caller owns and destroys the SAFEARRAY.
+        return values;
+    }
 
     [DllImport("oleaut32.dll")]
     private static extern int VariantClear(ref WindowsUiaVariant value);

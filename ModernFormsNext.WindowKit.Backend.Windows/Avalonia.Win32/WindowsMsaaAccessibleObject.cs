@@ -51,9 +51,13 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         /// <returns>The MSAA provider that wraps <paramref name="platformObject"/>.</returns>
         public static WindowsMsaaAccessibleObject CreateRoot(IPlatformAccessibleObject platformObject)
         {
-            var cache = new WindowsMsaaAccessibleObjectCache();
+            var cache = new WindowsMsaaAccessibleObjectCache(platformObject);
             return cache.GetOrCreate(platformObject);
         }
+
+        // WinEvents are addressed relative to OBJID_CLIENT. A descendant's CHILDID_SELF
+        // must not become the HWND root's CHILDID_SELF (notably for Hide/StateChange).
+        internal int GetEventChildId(IPlatformAccessibleObject source) => cache.GetEventChildId(source);
 
         /// <inheritdoc/>
         public object? get_accChild(object varChild)
@@ -180,6 +184,8 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         private IPlatformAccessibleObject GetChildById(int childId)
         {
+            if (cache.IsEventId(childId))
+                return cache.ResolveEventChild(PlatformObject, childId) ?? ThrowInvalidChildId(childId);
             if (childId <= 0)
                 ThrowInvalidChildId(childId);
 
@@ -200,9 +206,53 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private static IPlatformAccessibleObject ThrowInvalidChildId(int childId)
             => throw new COMException($"Invalid MSAA child identifier {childId}.", ErrorInvalidArgument);
 
-        private sealed class WindowsMsaaAccessibleObjectCache
+        private sealed class WindowsMsaaAccessibleObjectCache(IPlatformAccessibleObject root)
         {
             private readonly ConditionalWeakTable<IPlatformAccessibleObject, WindowsMsaaAccessibleObject> objects = new();
+            private readonly ConditionalWeakTable<IPlatformAccessibleObject, EventIdentity> identities = new();
+            private readonly Dictionary<int, WeakReference<IPlatformAccessibleObject>> eventTargets = [];
+            private readonly object sync = new();
+            private int nextEventId = 0x40000000;
+
+            private sealed record EventIdentity(int Id);
+            internal bool IsEventId(int id) => id >= 0x40000000;
+
+            internal int GetEventChildId(IPlatformAccessibleObject source)
+            {
+                if (ReferenceEquals(source, root)) return ChildIdSelf;
+                lock (sync)
+                {
+                    var identity = identities.GetValue(source, _ => new EventIdentity(checked(nextEventId++)));
+                    if (!eventTargets.ContainsKey(identity.Id))
+                    {
+                        eventTargets[identity.Id] = new(source);
+                        // Weak event lookup is an index into the canonical tree, not another tree.
+                        // Bound stale entries after collection/reparenting without retaining controls.
+                        if ((identity.Id & 255) == 0)
+                            foreach (var (id, weak) in eventTargets.ToArray())
+                                if (!weak.TryGetTarget(out var target) || !BelongsToRoot(target)) eventTargets.Remove(id);
+                    }
+                    return identity.Id;
+                }
+            }
+
+            internal IPlatformAccessibleObject? ResolveEventChild(IPlatformAccessibleObject owner, int id)
+            {
+                lock (sync)
+                    return ReferenceEquals(owner, root) && eventTargets.TryGetValue(id, out var weak)
+                        && weak.TryGetTarget(out var target) && BelongsToRoot(target) ? target : null;
+            }
+
+            private bool BelongsToRoot(IPlatformAccessibleObject target)
+            {
+                for (int depth = 0; depth < 512; depth++)
+                {
+                    if (ReferenceEquals(target, root)) return true;
+                    if (target.Parent is not { } parent) return false;
+                    target = parent;
+                }
+                return false;
+            }
 
             public WindowsMsaaAccessibleObject GetOrCreate(IPlatformAccessibleObject platformObject)
                 => objects.GetValue(platformObject, value => new WindowsMsaaAccessibleObject(value, this));

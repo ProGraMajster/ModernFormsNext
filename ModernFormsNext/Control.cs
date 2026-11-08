@@ -1865,8 +1865,13 @@ namespace ModernFormsNext
         {
             NotifyNativePresentationChanged();
             CreateControl ();
-            // A hidden child retains its cache but no longer participates in NeedsPaint.
-            // Erase its previous pixels in the parent's composition when visibility changes.
+            // Hidden pages do not participate in NeedsPaint. Retaining their pixel caches
+            // scales with the number of visited pages and the square of the display DPI.
+            // Descendants receive OnParentVisibleChanged below; only renderer-owned
+            // buffers are released. GetBackBuffer marks a recreated buffer dirty.
+            if (!Visible)
+                FreeBackBuffer ();
+            // Erase the old pixels in the parent's composition.
             Parent?.Invalidate ();
 
             (Events[s_visibleChangedEvent] as EventHandler)?.Invoke (this, e);
