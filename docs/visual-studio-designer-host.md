@@ -198,11 +198,14 @@ document view is still unwinding, and `WindowPane` already owns disposal of its 
 The later, idempotent pane disposal unsubscribes dirty callbacks and performs exactly one bounded
 host shutdown. A canceled close never reaches that disposal path.
 
-Ctrl+S reliability while focus is inside the integrated cross-process Designer remains tracked
-separately in [issue #99](https://github.com/ProGraMajster/ModernFormsNext/issues/99). It does not
-change either hosting mode's persistence contract. Until its Experimental Instance follow-up is
-complete, use the Designer toolbar **Save** button or choose **Save** in Visual Studio's document
-close prompt; both reach the same canonical persistence coordinator described above.
+In integrated mode, the embedded window forwards the exact Ctrl+S gesture through its existing
+per-document request channel. Visual Studio rechecks the document identity and active pane,
+then schedules that pane's standard Save command after the key dispatch. Dirty state is read
+from the host and clears only after the canonical save succeeds. A pending Save is coalesced
+with repeated requests. A closed or renamed pane discards its queued callback.
+
+Visual Studio **Save All** uses the same RDT and persistence path for each dirty document. After
+a successful save, the tab's asterisk clears and closing the document requires no save prompt.
 
 ## View Designer and project metadata
 
