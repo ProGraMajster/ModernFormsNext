@@ -432,6 +432,10 @@ public sealed partial class WindowsUiaProviderTests
             new InlineDispatcher(),
             eventSink);
 
+        provider.AdviseEventAdded(WindowsUiaEventSubscriptions.PropertyChangedEvent, null);
+        provider.AdviseEventAdded(WindowsUiaEventSubscriptions.StructureChangedEvent, null);
+        provider.AdviseEventAdded(WindowsUiaIds.AutomationFocusChangedEvent, null);
+        provider.AdviseEventAdded(WindowsUiaIds.ElementSelectedEvent, null);
         provider.RaiseNotification(node, 0x8005);
         provider.RaiseNotification(node, 0x800C);
         provider.RaiseNotification(node, 0x800A);
@@ -476,6 +480,7 @@ public sealed partial class WindowsUiaProviderTests
             new InlineDispatcher(),
             eventSink);
 
+        provider.AdviseEventAdded(WindowsUiaEventSubscriptions.StructureChangedEvent, null);
         root.AddChild(new TestAccessibleObject("Added", 13));
         provider.RaiseNotification(root, 0x8004);
         WindowsUiaStructureEvent addEvent = eventSink.StructureEvents[^1];
@@ -511,6 +516,7 @@ public sealed partial class WindowsUiaProviderTests
             AssertComInterface(unknown, new Guid("D6DD68D1-86FD-4332-8666-9ABEDEA2D24C"));
             AssertComInterface(unknown, new Guid("F7063DA8-8359-439C-9297-BBC5299A7D87"));
             AssertComInterface(unknown, new Guid("620CE2A5-AB8F-40A9-86CB-DE3C75599B58"));
+            AssertComInterface(unknown, new Guid("a407b27b-0f6d-4427-9292-473c7bf93258"));
             AssertComInterface(unknown, new Guid("54FCB24B-E18E-47A2-B4D3-ECCBE77599A2"));
         }
         finally
@@ -583,6 +589,7 @@ public sealed partial class WindowsUiaProviderTests
             Assert.Equal(50000, root.GetProperty("ButtonControlType").GetInt32());
             Assert.True(root.GetProperty("HasKeyboardFocus").GetBoolean());
             Assert.False(root.GetProperty("DisabledCommandIsEnabled").GetBoolean());
+            Assert.True(root.GetProperty("NameEventReceived").GetBoolean());
 
             Assert.Equal("INVOKED", await ReadLineStartingWithAsync(host, "INVOKED", timeout.Token));
         }
