@@ -57,13 +57,13 @@ internal sealed class ThemeResolver
         this.limits = limits;
     }
 
-    public ThemeResolutionResult Resolve(ThemeDefinition definition, double textScale = 1d)
+    public ThemeResolutionResult Resolve(ThemeDefinition definition, double textScale = 1d, string? implicitBaseTheme = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         var diagnostics = new List<ThemeDiagnostic>();
         var definitions = new List<ThemeDefinition>();
         var visiting = new HashSet<string>(StringComparer.Ordinal);
-        Collect(definition, definitions, visiting, diagnostics, 0);
+        Collect(definition, definitions, visiting, diagnostics, 0, implicitBaseTheme);
 
         foreach (ThemeDefinition item in definitions)
             ValidateDefinition(item, diagnostics);
@@ -176,7 +176,8 @@ internal sealed class ThemeResolver
         List<ThemeDefinition> result,
         HashSet<string> visiting,
         List<ThemeDiagnostic> diagnostics,
-        int depth)
+        int depth,
+        string? implicitBaseTheme = null)
     {
         if (depth >= limits.MaximumInheritanceDepth)
         {
@@ -194,14 +195,15 @@ internal sealed class ThemeResolver
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(definition.BaseTheme))
+        string? baseThemeId = definition.BaseTheme ?? implicitBaseTheme;
+        if (!string.IsNullOrWhiteSpace(baseThemeId))
         {
-            ThemeDefinition? baseTheme = findTheme(definition.BaseTheme);
+            ThemeDefinition? baseTheme = findTheme(baseThemeId);
             if (baseTheme is null)
             {
                 diagnostics.Add(Error(
                     "THEME_BASE_MISSING",
-                    $"Base theme '{definition.BaseTheme}' is not registered.",
+                    $"Base theme '{baseThemeId}' is not registered.",
                     "baseTheme"));
             }
             else

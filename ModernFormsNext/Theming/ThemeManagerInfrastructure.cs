@@ -68,6 +68,7 @@ internal interface IThemeEnvironment
 {
     bool IsDesignMode { get; }
     ThemeVariant GetSystemVariant(ThemeVariant fallback);
+    IPlatformThemeSettingsNotifications? GetThemeNotifications() => null;
     bool IsReducedMotionRequested { get; }
 }
 
@@ -104,6 +105,9 @@ internal sealed class DefaultThemeEnvironment : IThemeEnvironment
             _ => fallback
         };
     }
+
+    public IPlatformThemeSettingsNotifications? GetThemeNotifications()
+        => IsDesignMode ? null : PlatformServiceRegistry.GetService<IPlatformThemeSettings>() as IPlatformThemeSettingsNotifications;
 
     public bool IsReducedMotionRequested
         => !IsDesignMode && PlatformServiceRegistry.GetService<IPlatformThemeSettings>()?.GetReducedMotion() == true;

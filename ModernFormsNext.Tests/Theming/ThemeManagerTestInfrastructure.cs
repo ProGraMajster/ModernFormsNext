@@ -1,4 +1,5 @@
 using ModernFormsNext.Animations;
+using ModernFormsNext.WindowKit.Backend;
 using ModernFormsNext.WindowKit.Backend.Lifecycle;
 
 namespace ModernFormsNext.Tests;
@@ -157,6 +158,8 @@ internal sealed class TestThemeEnvironment(
     public bool IsDesignMode { get; set; } = designMode;
     public ThemeVariant SystemVariant { get; set; } = systemVariant;
     public bool IsReducedMotionRequested { get; set; } = reducedMotion;
+    public IPlatformThemeSettingsNotifications? Notifications { get; set; }
+    public IPlatformThemeSettingsNotifications? GetThemeNotifications() => IsDesignMode ? null : Notifications;
 
     public ThemeVariant GetSystemVariant(ThemeVariant fallback)
         => SystemVariant is ThemeVariant.Light or ThemeVariant.Dark ? SystemVariant : fallback;

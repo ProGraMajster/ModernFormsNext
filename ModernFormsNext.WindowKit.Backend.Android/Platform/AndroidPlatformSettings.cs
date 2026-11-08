@@ -11,7 +11,7 @@ namespace ModernFormsNext.WindowKit.Backend.Android;
 // This is the existing IPlatformSettings registration with an optional capability, not a second
 // preference registry. Native listeners borrow only the application context; Activity is queried
 // from the canonical weak tracker for every read and is never retained by a subscription.
-internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatformAccessibilitySettings, IDisposable
+internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatformAccessibilitySettings, IPlatformThemeSettingsNotifications, IDisposable
 {
     private readonly Context context;
     private readonly AndroidActivityTracker tracker;
@@ -20,6 +20,8 @@ internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatfo
     private readonly UiModeManager? uiMode;
     private PlatformAccessibilityPreferences current = new();
     private EventHandler<PlatformAccessibilityPreferences>? changed;
+    private EventHandler? appearanceChanged;
+    private PlatformColorScheme observedScheme;
     private NativeListener? listener;
     private bool configurationRegistered, contrastRegistered, disposed;
     private long listenerGeneration;
@@ -54,10 +56,38 @@ internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatfo
         }
     }
 
+    public PlatformColorScheme GetPreferredVariant()
+    {
+        // The process context is available before the first Activity and during recreation.
+        try { return AndroidAppearanceMode.GetColorScheme((int?)context.Resources?.Configuration?.UiMode); }
+        catch (Java.Lang.Exception) { return PlatformColorScheme.Unknown; }
+    }
+
+    public bool? GetReducedMotion() => null;
+
+    public event EventHandler? PreferredVariantChanged
+    {
+        add
+        {
+            VerifyAccess();
+            if (appearanceChanged is null) observedScheme = GetPreferredVariant();
+            appearanceChanged += value;
+            UpdateObservation();
+        }
+        remove
+        {
+            if (disposed) return;
+            VerifyAccess();
+            appearanceChanged -= value;
+            UpdateObservation();
+        }
+    }
+
     private void OnLifecycleChanged(object? sender, PlatformApplicationLifecycleEventArgs e)
     {
         if (disposed) return;
-        Report(() => { UpdateObservation(); Refresh(); });
+        Report(UpdateObservation);
+        RefreshObservedPreferences();
     }
 
     private void VerifyAccess()
@@ -96,9 +126,23 @@ internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatfo
         if (failures.Count != 0) throw new AggregateException("Preference observers failed.", failures);
     }
 
+    private void RefreshObservedPreferences()
+    {
+        Report(Refresh);
+        if (disposed || appearanceChanged is not { } handlers) return;
+        PlatformColorScheme next = GetPreferredVariant();
+        if (observedScheme == next) return;
+        observedScheme = next;
+        foreach (EventHandler handler in handlers.GetInvocationList())
+        {
+            if (disposed || observedScheme != next) break;
+            Report(() => handler(this, EventArgs.Empty));
+        }
+    }
+
     private void UpdateObservation()
     {
-        bool demand = !disposed && changed is not null && tracker.CurrentActivity is not null;
+        bool demand = !disposed && (appearanceChanged is not null || changed is not null && tracker.CurrentActivity is not null);
         if (!demand)
         {
             RetireObservation();
@@ -106,10 +150,10 @@ internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatfo
         }
         if (listener is not null) return;
         long version = ++listenerGeneration;
-        listener = new NativeListener(() => dispatcher.Post(() =>
+        listener = new NativeListener(dispatcher, () =>
         {
-            if (!disposed && version == listenerGeneration && changed is not null) Report(Refresh);
-        }));
+            if (!disposed && version == listenerGeneration) RefreshObservedPreferences();
+        });
         try
         {
             // Mark attempted registrations first: a platform call may fail after taking
@@ -159,6 +203,7 @@ internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatfo
         VerifyAccess();
         disposed = true;
         changed = null;
+        appearanceChanged = null;
         tracker.Publisher.LifecycleChanged -= OnLifecycleChanged;
         UpdateObservation();
         current = new();
@@ -170,17 +215,35 @@ internal sealed class AndroidPlatformSettings : DefaultPlatformSettings, IPlatfo
         catch (Exception error) { AndroidLogger.Write($"Accessibility preference notification: {error.GetType().Name}", diagnosticSink); }
     }
 
-    private sealed class NativeListener(Action notify) : Java.Lang.Object, IComponentCallbacks, UiModeManager.IContrastChangeListener
+    private sealed class NativeListener(AndroidMainThreadDispatcher dispatcher, Action notify)
+        : Java.Lang.Object, IComponentCallbacks, UiModeManager.IContrastChangeListener
     {
         private Action? notify = notify;
+        private int pending;
+
         internal void Retire() => Interlocked.Exchange(ref notify, null);
         public void OnConfigurationChanged(Configuration newConfig) => PublishChange();
         public void OnLowMemory() { }
         public void OnContrastChanged(float contrast) => PublishChange();
+
         private void PublishChange()
         {
-            try { Volatile.Read(ref notify)?.Invoke(); }
-            catch (Exception error) { System.Diagnostics.Debug.WriteLine($"Preference callback: {error.GetType().Name}"); }
+            if (Volatile.Read(ref notify) is null || Interlocked.Exchange(ref pending, 1) != 0) return;
+            try
+            {
+                // Read the latest configuration on the UI thread. Multiple native reports can
+                // describe the same change, and a retired listener cannot deliver queued work.
+                dispatcher.Post(() =>
+                {
+                    Interlocked.Exchange(ref pending, 0);
+                    Volatile.Read(ref notify)?.Invoke();
+                });
+            }
+            catch (Exception error)
+            {
+                Interlocked.Exchange(ref pending, 0);
+                System.Diagnostics.Debug.WriteLine($"Preference callback: {error.GetType().Name}");
+            }
         }
     }
 }
