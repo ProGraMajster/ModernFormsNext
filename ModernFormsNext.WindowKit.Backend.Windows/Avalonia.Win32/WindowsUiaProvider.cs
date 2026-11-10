@@ -630,6 +630,7 @@ internal sealed partial class WindowsUiaRootProvider :
     WindowsUiaProvider,
     IRawElementProviderFragmentRoot,
     IRawElementProviderFragmentRootAbi,
+    IRawElementProviderAdviseEventsAbi,
     IDisposable
 {
     private WindowsUiaRootProvider(WindowsUiaProviderContext context, IPlatformAccessibleObject root)
@@ -693,6 +694,20 @@ internal sealed partial class WindowsUiaRootProvider :
     public void RaiseNotification(IPlatformAccessibleObject source, int eventId)
         => Context.RaiseNotification(source, eventId);
 
+    // UIAutomationCore can advise from a COM thread. Subscription bookkeeping must
+    // not dispatch to the UI thread or hold a lock across a native event callback.
+    internal void AdviseEventAdded(int eventId, int[]? properties)
+        => Context.Subscriptions.Add(eventId, properties);
+
+    internal void AdviseEventRemoved(int eventId, int[]? properties)
+        => Context.Subscriptions.Remove(eventId, properties);
+
+    public int AbiAdviseEventAdded(int eventId, IntPtr properties)
+        => Try(() => AdviseEventAdded(eventId, WindowsUiaNativeMethods.ReadPropertyIds(properties)));
+
+    public int AbiAdviseEventRemoved(int eventId, IntPtr properties)
+        => Try(() => AdviseEventRemoved(eventId, WindowsUiaNativeMethods.ReadPropertyIds(properties)));
+
     /// <inheritdoc/>
     public void Dispose() => Context.Dispose();
 
@@ -722,12 +737,15 @@ internal sealed class WindowsUiaProviderContext : IDisposable
     {
         Hwnd = hwnd;
         this.dispatcher = dispatcher;
-        this.eventSink = eventSink;
+        Subscriptions = new WindowsUiaEventSubscriptions(eventSink);
+        this.eventSink = Subscriptions;
     }
 
     public IntPtr Hwnd { get; }
 
     public WindowsUiaRootProvider Root { get; private set; } = null!;
+
+    internal WindowsUiaEventSubscriptions Subscriptions { get; }
 
     public void Initialize(IPlatformAccessibleObject root, WindowsUiaRootProvider provider)
     {
@@ -782,7 +800,7 @@ internal sealed class WindowsUiaProviderContext : IDisposable
         }
     }
 
-    public void Dispose() { disposed = true; rootTarget = null; }
+    public void Dispose() { disposed = true; rootTarget = null; Subscriptions.Clear(); }
 
     internal void Validate(WeakReference<IPlatformAccessibleObject> target, bool isRoot) => Resolve(target, isRoot);
 

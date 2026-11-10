@@ -1,5 +1,7 @@
 using System.Drawing;
 using ModernFormsNext;
+if (args.Contains("--presentation-small", StringComparer.Ordinal)) { Environment.ExitCode = PresentationLifetimeScenario.Run(8); return; }
+if (args.Contains("--presentation-large", StringComparer.Ordinal)) { Environment.ExitCode = PresentationLifetimeScenario.Run(800); return; }
 
 if (args.Contains("--designer-groups", StringComparer.Ordinal)) { Environment.ExitCode = DesignerGroupScenario.Run(); return; }
 if (args.Contains("--designer-guides", StringComparer.Ordinal)) { Environment.ExitCode = DesignerGroupScenario.RunGuides(); return; }
