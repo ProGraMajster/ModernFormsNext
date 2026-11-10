@@ -22,7 +22,7 @@ namespace ModernFormsNext;
 /// var removed = await navigation.PopAsync(); // Caller now owns the removed page.
 /// removed?.Dispose();
 /// </code></example>
-public class NavigationPage : Page
+public partial class NavigationPage : Page
 {
     private const int PendingLimit = 128;
     private readonly PageHost host;
@@ -52,6 +52,8 @@ public class NavigationPage : Page
         }, (_, e) => e.CanExecute = !retiring && (CanGoBack || IsNavigating)));
         InputBindings.Add(new KeyBinding(backInput, new KeyGesture(Keys.BrowserBack)));
         InputBindings.Add(new KeyBinding(backInput, new KeyGesture(Keys.Left, KeyModifiers.Alt)));
+        navigationBar = Controls.AddImplicitControl(new NavigationHeader(host));
+        RefreshNavigationBar();
     }
 
     /// <summary>Creates a stack owning one detached root without presenting it yet.</summary>
@@ -63,6 +65,7 @@ public class NavigationPage : Page
         {
             stack.Add(rootPage);
             host.PresentPage(rootPage);
+            RefreshNavigationBar();
         }
     }
 
@@ -252,6 +255,7 @@ public class NavigationPage : Page
         void Attempt(Action action) { try { action(); } catch (Exception error) { (failures ??= []).Add(error); } }
         Attempt(() => host.PresentPage(next, deferAppearance: duration > TimeSpan.Zero));
         foreach (var page in removed) Attempt(() => host.ReleasePage(page));
+        Attempt(RefreshNavigationBar);
         Attempt(() => StackChanged?.Invoke(this, EventArgs.Empty));
         Attempt(NotifyBack);
         if (restoreFocus) Attempt(host.RestorePageFocus);
@@ -281,11 +285,17 @@ public class NavigationPage : Page
     {
         if (retiring || !stack.Remove(page)) return;
         if (host.Page is null && CurrentPage is { } next && host.Owns(next)) host.PresentPage(next);
+        RefreshNavigationBar();
         StackChanged?.Invoke(this, EventArgs.Empty);
         NotifyBack();
     }
 
-    private void NotifyBack() { backInput.RaiseCanExecuteChanged(); BackCommand.RaiseCanExecuteChanged(); }
+    private void NotifyBack()
+    {
+        RefreshNavigationBar();
+        backInput.RaiseCanExecuteChanged();
+        BackCommand.RaiseCanExecuteChanged();
+    }
     private static bool HasUiAccess(AnimationScheduler scheduler)
     { try { return scheduler.CheckFrameworkAccess(); } catch { return false; } }
     private void OnHostChanged() { lifetime++; activeLifetime?.Cancel(); }
@@ -296,7 +306,13 @@ public class NavigationPage : Page
     {
         protected override IEnumerable<AccessibleObject> GetAccessibilityChildren()
         {
-            if (!owner.retiring) yield return owner.host.AccessibilityObject;
+            if (!owner.retiring)
+            {
+                var header = owner.navigationBar;
+                if (!owner.navigationBarAtBottom && header is { Visible: true }) yield return header.AccessibilityObject;
+                yield return owner.host.AccessibilityObject;
+                if (owner.navigationBarAtBottom && header is { Visible: true }) yield return header.AccessibilityObject;
+            }
             foreach (var child in base.GetAccessibilityChildren()) yield return child;
         }
     }
@@ -307,13 +323,18 @@ public class NavigationPage : Page
     protected override void OnLayout(LayoutEventArgs e)
     {
         base.OnLayout(e);
-        if (!host.IsDisposed) { host.Bounds = LogicalPaddedClientRectangle; host.RefreshPagePresentation(); }
+        if (host is { IsDisposed: false } && !retiring)
+        {
+            host.Bounds = LayoutNavigationBar(LogicalPaddedClientRectangle);
+            host.RefreshPagePresentation();
+        }
     }
     /// <inheritdoc/>
     protected override void OnParentChanged(EventArgs e)
     {
         host?.RefreshPagePresentation();
         base.OnParentChanged(e);
+        PerformLayout();
     }
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -325,6 +346,7 @@ public class NavigationPage : Page
         List<Exception> failures = [];
         try { activeLifetime?.Cancel(); } catch (Exception error) { failures.Add(error); }
         while (pending.TryDequeue(out var request)) request.Complete(NavigationResult.Empty, new OperationCanceledException());
+        ObserveNavigationHeaderPage(null);
         host.PageLost -= OnPageLost;
         host.HostChanged -= OnHostChanged;
         stack.Clear();

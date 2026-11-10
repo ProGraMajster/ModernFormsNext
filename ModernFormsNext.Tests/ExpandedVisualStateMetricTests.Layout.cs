@@ -38,6 +38,33 @@ public sealed partial class ExpandedVisualStateMetricTests
     }
 
     [Theory]
+    [InlineData(1.25d)]
+    [InlineData(1.5d)]
+    [InlineData(2.625d)]
+    public void SingleLineEllipsisRoundsFractionalDeviceWidthBeforeClamping(double scale)
+    {
+        var implementation = DispatchProxy.Create<IWindowBaseImpl, MetricDpiProxy>();
+        ((MetricDpiProxy)(object)implementation).Scale = scale;
+        using var window = new MetricDpiWindow(implementation);
+        using var back = new Button { Text = "Back", AutoEllipsis = true, Size = new(220, 48) };
+        using var title = new Label { Text = "Animated details updated", AutoEllipsis = true, Size = new(300, 48) };
+        window.Controls.Add(back);
+        window.Controls.Add(title);
+
+        foreach (var control in new Control[] { back, title })
+        {
+            var width = TextMeasurer.MeasureText(control.Text, control).Width;
+            var layout = ModernFormsNext.Layout.TextImageLayoutEngine.Layout(control);
+            Assert.Equal((int)Math.Ceiling(width), layout.TextBounds.Width);
+
+            control.Width = 18;
+            var narrow = ModernFormsNext.Layout.TextImageLayoutEngine.Layout(control);
+            Assert.Equal(narrow.Field.Width, narrow.TextBounds.Width);
+        }
+        window.adapter.Dispose();
+    }
+
+    [Theory]
     [InlineData(1d)]
     [InlineData(1.25d)]
     [InlineData(1.5d)]

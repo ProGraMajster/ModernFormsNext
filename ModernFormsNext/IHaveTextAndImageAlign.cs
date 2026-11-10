@@ -13,6 +13,7 @@ interface IHaveTextAndImageAlign
     int ImageIndex { get; set; }
     string ImageKey { get; set; }
     bool Multiline => false;
+    bool AutoEllipsis => false;
 
     public SKBitmap? GetImage ()
     {

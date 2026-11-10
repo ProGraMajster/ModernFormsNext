@@ -58,6 +58,54 @@ public static class DesignPageContainers
         return null;
     }
 
+    /// <summary>Identifies the data-only navigation header properties exposed by Designer.</summary>
+    /// <param name="propertyName">The complete, case-sensitive property name.</param>
+    /// <returns>True for a supported scalar or bounded padding property.</returns>
+    public static bool IsNavigationBarProperty(string propertyName) => propertyName is
+        "NavigationBarVisible" or "NavigationBarHeight" or "NavigationBarAtBottom" or
+        "NavigationBarTitle" or "NavigationBarBackText" or "NavigationBarPadding" or "NavigationBarPreviewPlaceholder" or
+        "NavigationBarPreviewShowBack" or "NavigationBarPreviewActionCount" or "HideNavigationBar";
+
+    internal static string? GetNavigationBarError(DesignControlNode node)
+    {
+        if (IsType(node.TypeName, "NavigationHeader"))
+            return "NavigationHeader belongs to its navigator and cannot be authored as a control.";
+        if (node.Properties is null) return null;
+        bool navigator = IsType(node.TypeName, "NavigationPage") || IsType(node.TypeName, "AppShell");
+        if (!navigator && !IsPage(node.TypeName)) return null;
+        if (node.Properties.TryGetValue("HideNavigationBar", out var hide)
+            && (hide is null || hide.Kind != DesignPropertyValueKind.Boolean || hide.Value is not bool))
+            return "HideNavigationBar requires a boolean value.";
+        foreach (var (name, value) in node.Properties)
+        {
+            if (!name.StartsWith("NavigationBar", StringComparison.Ordinal)
+                && !name.StartsWith("HideNavigationBar.", StringComparison.Ordinal)) continue;
+            bool valid = navigator && value is not null && (name switch
+            {
+                "NavigationBarVisible" or "NavigationBarAtBottom" or "NavigationBarPreviewPlaceholder" or "NavigationBarPreviewShowBack"
+                    => value.Kind == DesignPropertyValueKind.Boolean && value.Value is bool,
+                "NavigationBarPreviewActionCount" => value.Kind == DesignPropertyValueKind.Int32 && value.Value is int count && count is >= 0 and <= 16,
+                "NavigationBarHeight" => value.Kind == DesignPropertyValueKind.Int32 && value.Value is int height && height is >= 1 and <= 4096,
+                "NavigationBarTitle" or "NavigationBarBackText"
+                    => value.Kind == DesignPropertyValueKind.String && value.Value is string text && text.Length <= 1024,
+                "NavigationBarPadding" => IsNavigationBarPadding(value),
+                _ => false
+            });
+            if (!valid) return $"{name} is not valid data-only navigation header metadata.";
+        }
+        return null;
+    }
+
+    private static bool IsNavigationBarPadding(DesignPropertyValue value)
+    {
+        if (value.Kind != DesignPropertyValueKind.Object || !IsType(value.ObjectTypeName, "Padding")
+            || value.ObjectProperties is not { Count: 4 } parts) return false;
+        foreach (string side in new[] { "Left", "Top", "Right", "Bottom" })
+            if (!parts.TryGetValue(side, out var part) || part is null || part.Kind != DesignPropertyValueKind.Int32
+                || part.Value is not int length || length is < 0 or > 4096) return false;
+        return true;
+    }
+
     /// <summary>Validates this node's immediate authored page children without constructing controls.</summary>
     /// <param name="node">The node to inspect; descendants remain the canonical validator's responsibility.</param>
     /// <returns>The first ownership error, or null when the known page rules are satisfied.</returns>
@@ -70,6 +118,8 @@ public static class DesignPageContainers
         bool navigation = IsType(node.TypeName, "NavigationPage");
         bool tabs = IsType(node.TypeName, "TabbedPage");
         bool flyout = IsType(node.TypeName, "FlyoutPage");
+        if (GetNavigationBarError(node) is { } headerError)
+            return headerError;
         if (node.Children is null) return "Authored children must be a non-null collection.";
         if (node.Children.Any(child => child is null)) return "Authored page children must not contain null nodes.";
         if (IsType(node.TypeName, "AppShell") && node.Children.Count != 0)

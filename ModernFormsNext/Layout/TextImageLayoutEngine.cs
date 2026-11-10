@@ -158,7 +158,12 @@ internal static class TextImageLayoutEngine
         var image_size = control.LogicalToDeviceUnits (text_image_control.GetImage ()?.GetSize () ?? Size.Empty);
         var maxBounds = layout.Field;
 
-        var text_size = GetTextSize (control).ToSize ();
+        var measured_text = GetTextSize (control);
+        var text_size = measured_text.ToSize ();
+        // A fractional glyph advance still needs the final device pixel. Rounding down
+        // incorrectly enables ellipsis even when the available field can fit the entire line.
+        if (text_image_control.AutoEllipsis)
+            text_size.Width = (int)Math.Ceiling (measured_text.Width);
         text_size.Height++;
 
         // Sizes cannot be bigger than max bounds

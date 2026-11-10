@@ -743,6 +743,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         // Only exact metadata identifiers reach reflection: no assembly-qualified generic
         // arguments, arrays, embedded NUL truncation or other CLR type-name expressions.
         if (!normalized.Split('.').All(DesignDocumentValidator.IsValidCSharpIdentifier)) return null;
+        // The navigation presenter owns its runtime chrome. An authored node cannot construct it.
+        if (normalized is nameof(NavigationHeader) or "ModernFormsNext.NavigationHeader") return null;
         var frameworkAssembly = typeof(Control).Assembly;
         return frameworkAssembly.GetType(normalized, throwOnError: false)
             ?? frameworkAssembly.GetType($"ModernFormsNext.{normalized}", throwOnError: false);
@@ -753,6 +755,10 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         Action<string>? assetDiagnostic = null)
     {
         var appliedCount = 0;
+        if (control.GetType() == typeof(NavigationPage))
+            ((NavigationPage)control).EnableNavigationBarPreview();
+        else if (control.GetType() == typeof(AppShell))
+            ((AppShell)control).EnableNavigationBarPreview();
         if (control is DocumentViewer documentViewer)
             documentViewer.SuppressDesignTimeImageLoading();
         else if (control is MarkdownEditor markdownEditor)
@@ -821,6 +827,12 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
                 continue;
             if (includeLayout && control is TabbedPage && propertyPath == "SelectedIndex")
                 continue;
+            if (control is NavigationPage or AppShell && propertyPath.StartsWith("NavigationBar", StringComparison.Ordinal)
+                && !DesignPageContainers.IsNavigationBarProperty(propertyPath))
+            {
+                propertyErrors.Add($"{propertyPath}: unsupported navigation header metadata.");
+                continue;
+            }
             var rootProperty = control.GetType().GetProperty(propertyPath.Split('.')[0], BindingFlags.Instance | BindingFlags.Public);
             if (ignoreUnknownProperties && rootProperty is null)
                 continue;

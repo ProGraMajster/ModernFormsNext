@@ -72,11 +72,16 @@ public sealed class AppShellPanel : BasePanel
         editor.Validating += (_, args) => args.Cancel = block.Checked;
         body.Controls.Add(new Label { Text = description, Multiline = true, Bounds = new(12, 65, 760, 100) });
         var page = new ContentPage { Title = title, Content = body };
+        page.SetNavigationActions(new NavigationAction("Rename", new DelegateCommand(() =>
+        {
+            page.Title = editor.Text;
+            ShowStatus();
+        })));
         created.Add(page); return page;
     }
     private void ShowStatus() => status.Text = $"Current: {shell.CurrentRoute?.Route ?? "(empty — choose Open home)"}\n" +
         $"History: {shell.NavigationStack.Count}; lifecycle links: {(binding is null ? "disabled" : "explicitly enabled")}. " +
-        "Focus an editor for Alt+Left / BrowserBack. Example link delivery registers no operating-system protocol.";
+        "Edit the page title and use Rename in the navigation header. Alt+Left / BrowserBack use the existing navigation scope.";
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {

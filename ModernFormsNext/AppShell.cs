@@ -56,6 +56,7 @@ public partial class AppShell : Page
         }, CanNavigate);
         BackCommand = new AsyncCommand(async (_, token) => { await GoBackAsync(cancellationToken: token).ConfigureAwait(false); },
             _ => !retiring && Enabled && (HasPendingAdmission || navigator.CanGoBack));
+        navigator.SetShellHeaderOwner(this);
         var cancelPending = new RoutedCommand("CancelPendingShellRoute");
         CommandBindings.Add(new CommandBinding(cancelPending, (_, args) =>
         {
@@ -313,7 +314,8 @@ public partial class AppShell : Page
     {
         if (retiring) return;
         Exception? failure = null;
-        try { NavigateCommand?.RaiseCanExecuteChanged(); } catch (Exception error) { failure = error; }
+        try { navigator.RefreshShellHeader(); } catch (Exception error) { failure = error; }
+        try { NavigateCommand?.RaiseCanExecuteChanged(); } catch (Exception error) { failure ??= error; }
         try { if (!retiring) BackCommand?.RaiseCanExecuteChanged(); } catch (Exception error) { failure ??= error; }
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
