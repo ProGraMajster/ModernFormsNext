@@ -157,12 +157,23 @@ public sealed class ThemeApplyOptions
         }
     }
 
+    /// <summary>Gets or sets whether a System theme should follow live platform light and dark changes.</summary>
+    /// <remarks>
+    /// The default is false. With <see cref="ThemeVariant.System"/>, this option uses the
+    /// matching built-in base when the definition has no authored base. Authored values and
+    /// application resources retain precedence. A successful explicit apply without this option
+    /// stops following. Live updates commit immediately on the UI thread when the backend
+    /// supplies notifications. When the scheme is unavailable, <see cref="SystemFallbackVariant"/> applies.
+    /// </remarks>
+    public bool FollowSystemAppearance { get; set; }
+
     internal ThemeApplyOptions Clone()
         => new()
         {
             Transition = (Transition ?? throw new InvalidOperationException("Transition options cannot be null.")).Clone(),
             SystemFallbackVariant = SystemFallbackVariant,
-            TextScale = TextScale
+            TextScale = TextScale,
+            FollowSystemAppearance = FollowSystemAppearance
         };
 }
 

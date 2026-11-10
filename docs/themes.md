@@ -255,10 +255,40 @@ Windows reads the current application light/dark and client-animation preference
 apply. It does not yet listen for live OS preference changes; reapply a System theme when the host
 observes such a change.
 
-Android support is experimental. The shared model, JSON stream APIs, dynamic resources,
-transitions, and background-time exclusion build for Android. No Android platform theme provider
-is registered yet, so System uses `ThemeApplyOptions.SystemFallbackVariant`. Emulator/device
-startup, visual transitions, and storage integration remain manual validation items.
+### Follow light and dark appearance on Android
+
+Android's experimental backend reads the current application night configuration through
+`IPlatformThemeSettings`. After Android backend initialization, apply an authored System theme
+with `FollowSystemAppearance` to subscribe to live changes.
+
+```csharp
+var appearance = new ThemeDefinition("my-app.system", "Application appearance")
+{
+    Variant = ThemeVariant.System
+};
+appearance.Colors[ThemeTokens.Colors.Primary.Name] = System.Drawing.Color.MediumVioletRed;
+
+ThemeApplyResult result = ThemeManager.Current.Apply(
+    appearance,
+    new ThemeApplyOptions
+    {
+        FollowSystemAppearance = true,
+        SystemFallbackVariant = ThemeVariant.Light
+    });
+```
+
+A definition without an authored base uses the built-in palette for the resolved variant.
+An explicit base and authored tokens keep their precedence, as do `Application.Resources`
+and local control values. A later successful apply of an explicit theme ends observation.
+Existing System applies without the option resolve the variant once and retain their authored
+inheritance.
+
+The Android service refreshes when the process receives a configuration change and when the
+activity lifecycle changes. The manager coalesces notifications, rereads the current scheme,
+and commits the latest palette atomically on the UI thread. In-process Activity recreation
+retains the current application choice. Process restart requires the application to opt in again.
+The configured fallback applies when the scheme is unknown. Opt-in does not infer high contrast
+or reduced motion from Android night mode. See [Android dark theme behavior](https://developer.android.com/develop/ui/views/theming/darktheme).
 
 ## ControlGallery checks
 
@@ -304,12 +334,12 @@ kept for rendering, window-lifecycle, emulator/device, and interactive Designer 
 
 ## Known limitations
 
-- no automatic OS-theme-change notification;
+- live OS light/dark following currently requires the Android backend and explicit opt-in;
 - no file hot reload;
 - no animated layout tokens, GlassBrush, NoBrush, or incompatible gradients;
 - shadow pixels are clipped by ancestor bounds and do not reserve layout space;
 - independently styled rich documents, custom renderers and explicit font-only drawing calls do not consume control typography metrics automatically;
-- Android has no system-theme provider and remains experimental;
+- Android remains experimental;
 - physical-device Android and interactive Designer checks cannot be replaced by headless tests.
 
 See the [central known-limitations index](known-limitations.md) for issue mapping and priorities.

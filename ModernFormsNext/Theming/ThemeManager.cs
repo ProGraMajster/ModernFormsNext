@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ModernFormsNext.Animations;
+using ModernFormsNext.WindowKit.Backend;
 
 namespace ModernFormsNext;
 
@@ -58,6 +59,11 @@ public sealed class ThemeManager
     private long canceledSwitches;
     private long failedSwitches;
     private long latestRequest;
+    private int pendingExplicitApplies;
+    private int appearanceRefreshRequested;
+    private int appearanceRefreshPosted;
+    private ThemeApplyOptions? activeAppearanceOptions;
+    private IPlatformThemeSettingsNotifications? observedAppearance;
 
     private ThemeManager()
         : this(
@@ -251,6 +257,22 @@ public sealed class ThemeManager
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(theme);
+        Interlocked.Increment(ref pendingExplicitApplies);
+        try
+        {
+            return await ApplyExplicitAsync(theme, options, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (Interlocked.Decrement(ref pendingExplicitApplies) == 0 &&
+                Volatile.Read(ref appearanceRefreshRequested) != 0)
+                PostAppearanceRefresh();
+        }
+    }
+
+    private async Task<ThemeApplyResult> ApplyExplicitAsync(
+        ThemeDefinition theme, ThemeApplyOptions? options, CancellationToken cancellationToken)
+    {
         var stopwatch = Stopwatch.StartNew();
         long requestId = Interlocked.Increment(ref latestRequest);
         ThemeDefinition definition;
@@ -275,7 +297,9 @@ public sealed class ThemeManager
             return await FailAsync(theme, diagnostics, exception, stopwatch.Elapsed).ConfigureAwait(false);
         }
 
-        ThemeResolutionResult resolution = Resolve(definition, applyOptions.SystemFallbackVariant, applyOptions.TextScale);
+        ThemeResolutionResult resolution = applyOptions.FollowSystemAppearance && definition.Variant == ThemeVariant.System
+            ? ResolveFollowingTheme(definition, applyOptions, environment.GetSystemVariant(ThemeVariant.System))
+            : Resolve(definition, applyOptions.SystemFallbackVariant, applyOptions.TextScale);
         SetLastDiagnostics(resolution.Diagnostics);
         if (!resolution.Success)
             return await FailAsync(definition, resolution.Diagnostics, null, stopwatch.Elapsed).ConfigureAwait(false);
@@ -286,8 +310,12 @@ public sealed class ThemeManager
         try
         {
             ThemeApplyResult result = await dispatcher.InvokeAsync(
-                () => Commit(requestId, definition, resolution.Snapshot!, resolution.Diagnostics, applyOptions),
-                cancellationToken).ConfigureAwait(false);
+                () =>
+                {
+                    ThemeApplyResult applied = Commit(requestId, definition, resolution.Snapshot!, resolution.Diagnostics, applyOptions);
+                    if (applied.Success) UpdateAppearanceObservation();
+                    return applied;
+                }, cancellationToken).ConfigureAwait(false);
             SetLastApplyDuration(stopwatch.Elapsed);
             return result;
         }
@@ -345,6 +373,105 @@ public sealed class ThemeManager
     private ThemeResolutionResult Resolve(ThemeDefinition definition, ThemeVariant fallback, double textScale = 1d)
         => new ThemeResolver(FindRegistered, () => environment.GetSystemVariant(fallback), limits).Resolve(definition, textScale);
 
+    private ThemeResolutionResult ResolveFollowingTheme(ThemeDefinition definition, ThemeApplyOptions options, ThemeVariant reportedVariant)
+    {
+        ThemeVariant variant = EffectiveFollowingVariant(reportedVariant, options);
+        string implicitBase = variant == ThemeVariant.Dark ? BuiltInThemes.DarkThemeId : BuiltInThemes.LightThemeId;
+        ThemeResolutionResult result = new ThemeResolver(FindRegistered, () => variant, limits)
+            .Resolve(definition, options.TextScale, implicitBase);
+        if (reportedVariant is ThemeVariant.Light or ThemeVariant.Dark) return result;
+
+        var fallback = new ThemeDiagnostic("THEME_SYSTEM_APPEARANCE_UNAVAILABLE", ThemeDiagnosticSeverity.Information,
+            $"The platform appearance is unknown. Using the configured {variant} fallback.", "variant");
+        return result with { Diagnostics = [.. result.Diagnostics, fallback] };
+    }
+
+    private static ThemeVariant EffectiveFollowingVariant(ThemeVariant reportedVariant, ThemeApplyOptions options)
+        => reportedVariant is ThemeVariant.Light or ThemeVariant.Dark ? reportedVariant : options.SystemFallbackVariant;
+
+    private void UpdateAppearanceObservation()
+    {
+        IPlatformThemeSettingsNotifications? next = activeAppearanceOptions is null ? null : environment.GetThemeNotifications();
+        try
+        {
+            if (!ReferenceEquals(next, observedAppearance))
+            {
+                if (observedAppearance is { } previous) previous.PreferredVariantChanged -= OnAppearanceChanged;
+                observedAppearance = null;
+                if (next is not null)
+                {
+                    next.PreferredVariantChanged += OnAppearanceChanged;
+                    observedAppearance = next;
+                }
+            }
+            // A change can arrive between initial resolution and subscription.
+            if (next is not null) OnAppearanceChanged(next, EventArgs.Empty);
+        }
+        catch (Exception error)
+        {
+            Debug.WriteLine($"System appearance observation failed: {error.GetType().Name}");
+        }
+    }
+
+    private void OnAppearanceChanged(object? sender, EventArgs e)
+    {
+        Volatile.Write(ref appearanceRefreshRequested, 1);
+        PostAppearanceRefresh();
+    }
+
+    private void PostAppearanceRefresh()
+    {
+        if (Volatile.Read(ref pendingExplicitApplies) != 0 ||
+            Interlocked.Exchange(ref appearanceRefreshPosted, 1) != 0)
+            return;
+
+        try { dispatcher.Post(RefreshAppearance); }
+        catch (Exception error)
+        {
+            Volatile.Write(ref appearanceRefreshPosted, 0);
+            Debug.WriteLine($"System appearance dispatch failed: {error.GetType().Name}");
+        }
+    }
+
+    private void RefreshAppearance()
+    {
+        Volatile.Write(ref appearanceRefreshPosted, 0);
+        if (Volatile.Read(ref pendingExplicitApplies) != 0 ||
+            Interlocked.Exchange(ref appearanceRefreshRequested, 0) == 0 ||
+            activeAppearanceOptions is not { } options || activeDefinition is not { } definition)
+            return;
+
+        // System delivery never takes priority over an application apply. Recheck the request
+        // after resolution and after ThemeChanging observers, which may apply a new theme.
+        long requestId = Interlocked.Read(ref latestRequest);
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            ThemeVariant reportedVariant = environment.GetSystemVariant(ThemeVariant.System);
+            if (activeSnapshot?.Variant == EffectiveFollowingVariant(reportedVariant, options)) return;
+            ThemeResolutionResult resolution = ResolveFollowingTheme(definition, options, reportedVariant);
+            if (!CanRefreshAppearance(requestId))
+            {
+                OnAppearanceChanged(observedAppearance, EventArgs.Empty);
+                return;
+            }
+            if (!resolution.Success)
+            {
+                _ = FailAsync(definition, resolution.Diagnostics, null, stopwatch.Elapsed);
+                return;
+            }
+            Commit(requestId, definition, resolution.Snapshot!, resolution.Diagnostics, options, appearanceRefresh: true);
+            SetLastApplyDuration(stopwatch.Elapsed);
+        }
+        catch (Exception error)
+        {
+            _ = FailAsync(definition, Array.Empty<ThemeDiagnostic>(), error, stopwatch.Elapsed);
+        }
+    }
+
+    private bool CanRefreshAppearance(long requestId)
+        => Volatile.Read(ref pendingExplicitApplies) == 0 && requestId == Interlocked.Read(ref latestRequest);
+
     private ThemeDefinition? FindRegistered(string id)
     {
         lock (sync)
@@ -356,14 +483,15 @@ public sealed class ThemeManager
         ThemeDefinition definition,
         ThemeResolvedSnapshot snapshot,
         IReadOnlyList<ThemeDiagnostic> diagnostics,
-        ThemeApplyOptions options)
+        ThemeApplyOptions options,
+        bool appearanceRefresh = false)
     {
         if (requestId != Interlocked.Read(ref latestRequest))
             return CancelResult(diagnostics, TimeSpan.Zero);
 
         lock (sync)
         {
-            if (currentTransition is not null &&
+            if (!appearanceRefresh && currentTransition is not null &&
                 options.Transition.ReplacementMode == AnimationReplacementMode.IgnoreNew)
             {
                 return CancelResult(diagnostics, TimeSpan.Zero);
@@ -372,16 +500,23 @@ public sealed class ThemeManager
 
         ThemeResolvedSnapshot? previousSnapshot;
         ThemeDefinition? previousDefinition;
+        ThemeApplyOptions? previousAppearanceOptions;
         lock (sync)
         {
             previousSnapshot = activeSnapshot;
             previousDefinition = activeDefinition;
+            previousAppearanceOptions = activeAppearanceOptions;
         }
 
         var changing = new ThemeChangingEventArgs(previousSnapshot, snapshot);
         ThemeChanging?.Invoke(this, changing);
         if (changing.Cancel)
             return CancelResult(diagnostics, TimeSpan.Zero);
+        if (appearanceRefresh && !CanRefreshAppearance(requestId))
+        {
+            OnAppearanceChanged(observedAppearance, EventArgs.Empty);
+            return CancelResult(diagnostics, TimeSpan.Zero);
+        }
 
         Dictionary<object, object?> oldResources = resources.GetSnapshot();
         Dictionary<string, object> oldLegacy = legacyStore.GetSnapshot();
@@ -394,7 +529,7 @@ public sealed class ThemeManager
         // nor a manager first initialized in a host retains that host's disposed scheduler.
         // Internally injected managers deliberately keep their explicitly supplied scheduler.
         AnimationScheduler scheduler = schedulerProvider();
-        bool transitionEnabled = options.Transition.Enabled &&
+        bool transitionEnabled = !appearanceRefresh && options.Transition.Enabled &&
             options.Transition.Duration > TimeSpan.Zero &&
             !environment.IsDesignMode &&
             !scheduler.Policy.ShouldCompleteImmediately &&
@@ -415,6 +550,7 @@ public sealed class ThemeManager
             {
                 activeDefinition = definition.Clone();
                 activeSnapshot = snapshot;
+                activeAppearanceOptions = options.FollowSystemAppearance && definition.Variant == ThemeVariant.System ? options : null;
             }
 
             using (Application.BeginVisualInvalidationBatch())
@@ -478,6 +614,7 @@ public sealed class ThemeManager
                 {
                     activeDefinition = previousDefinition;
                     activeSnapshot = previousSnapshot;
+                    activeAppearanceOptions = previousAppearanceOptions;
                     if (ReferenceEquals(currentTransition, runtime))
                         currentTransition = null;
                     transitionState = ThemeTransitionStatus.Failed;
