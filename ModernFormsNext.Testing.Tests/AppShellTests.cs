@@ -138,6 +138,38 @@ public sealed partial class AppShellTests
         late.Dispose();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HeaderBackUsesShellPendingAdmissionAndUpdatesRouteTitle(bool neutral)
+    {
+        using var f = new ShellFixture(neutral);
+        var home = NewPage("home");
+        using var late = NewPage("late");
+        var source = new TaskCompletionSource<Page>();
+        CancellationToken cancellation = default;
+        f.Shell.Routes.Register("home", _ => home);
+        f.Shell.Routes.Register("late", (_, token) => { cancellation = token; return source.Task; });
+        var header = f.Shell.NavigationBar;
+        Assert.Same(f.Shell.BackCommand, header.BackButton.Command);
+        Assert.False(header.BackButton.Visible);
+        Assert.True(Complete(f.Shell.GoToAsync("/home", animated: false)));
+        Assert.Equal("home", header.TitleLabel.Text);
+        var visit = f.Shell.GoToAsync("/late", animated: false);
+        Assert.True(header.BackButton.Visible);
+        header.BackButton.Select();
+        Assert.Same(header.BackButton, f.Focused);
+        header.BackButton.PerformClick();
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Same(home.Content, f.Focused);
+        Assert.False(header.BackButton.Visible);
+        f.CompleteFactory(source, late);
+        Assert.False(Complete(visit));
+        Assert.Same(home, f.Shell.CurrentPage);
+        Assert.Null(late.Parent);
+        Assert.Equal("home", header.TitleLabel.Text);
+    }
+
     [Fact]
     public void PreCanceledOrUnknownRequestsDoNotCancelAnExistingFactory()
     {

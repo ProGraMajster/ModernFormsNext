@@ -38,6 +38,66 @@ Mount pages through a `PageHost` to receive host lifecycle events. Directly addi
 as an ordinary Form child does not assign a page owner. `ControlGallery` → **Pages and
 navigation** demonstrates content, validation, retained history and Back.
 
+## Navigation header
+
+In 1.12.0, NavigationPage and AppShell show a navigation header by default. The active
+page supplies the title, and the built-in Back button uses the navigator or shell's
+existing BackCommand. The button appears when that scope can go back, including when
+AppShell can cancel an uncommitted route. The root has no Back button when there is
+no pending work. Title changes on the active page appear immediately.
+
+Existing layouts get 42 logical pixels less page height by default. Set
+NavigationBarVisible to false on the navigator or shell to restore the full page area,
+for example when an application already supplies navigation chrome. Set
+HideNavigationBar on a page to use the full area only while that page is current.
+Set NavigationBarAtBottom for bottom placement. NavigationBarHeight and NavigationBarPadding
+use logical pixels inside the host's client area. The built-in header can grow to fit
+scaled text when the host has room. Android uses
+the host's normal system-bar and cutout insets. IME avoidance remains the host's existing
+application policy. A navigator in the selected tab or flyout detail displays its own
+header unless an ancestor navigator already displays one. The flyout menu is auxiliary
+navigation and reserves no header for its nested stacks. Each displayed header controls its
+own scope. Nested keyboard and system Back still follow the nearest canonical input
+scope. A modal form uses the headers of the navigators mounted in that form. Form title
+bars and native window chrome are configured independently.
+
+In runtime code, style the existing NavigationBar with the normal Control styling and
+theme resources. TitleLabel exposes standard text styling. BackButton exposes its
+ordinary image and text presentation. Set the button label through NavigationBarBackText
+and leave command binding to the navigator. Use the canonical BackCommand if supplying
+your own Back affordance.
+
+~~~csharp
+navigation.NavigationBarHeight = 48;
+navigation.NavigationBarBackText = "Documents";
+navigation.NavigationBar.TitleView = new Label { Text = "My workspace" };
+
+var refresh = new DelegateCommand(RefreshDocument);
+home.SetNavigationActions(new NavigationAction("Refresh", refresh));
+~~~
+
+Actions borrow their command and optional parameter. A routed command targets the active
+page. Actions that do not fit are removed from visible and keyboard traversal until there
+is room. Right-to-left layout mirrors the leading and trailing positions.
+
+Assign a detached runtime Control to TitleView or HeaderView on the UI thread.
+HeaderView fills the padded header and takes precedence over the title slot, the built-in
+Back button and actions. The header owns an attached view and disposes it with the
+navigator. Replacing or clearing a view detaches it, so the caller can reuse or dispose
+the old view. Custom content uses the ordinary control tree and supplies its own
+accessibility names, roles and tab order.
+
+Designer 1.12.0 previews the built-in header from data-only visibility, placement,
+height, title, Back text and padding properties. A root-page title previews from the
+authored page. NavigationBarPreviewShowBack controls the disabled Back sample and
+NavigationBarPreviewActionCount adds up to 16 disabled toolbar slots without command
+references. For a custom view configured in user-owned runtime code, set
+NavigationBarPreviewPlaceholder to true to preview the reserved space with an inert
+label. That flag has no effect on runtime presentation. Route factories, custom
+header/title views and page toolbar commands stay in runtime code. The current Designer
+metadata has no general reference contract for page command objects. See **AppShell** in
+ControlGallery for an example with route titles and a page-specific action.
+
 ## Ownership and the actual tree
 
 All access and navigation starts belong on the owning UI thread. There is one control tree,

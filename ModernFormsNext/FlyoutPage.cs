@@ -251,6 +251,9 @@ public class FlyoutPage : Page
         }
     }
 
+    // A drawer is auxiliary chrome. Only the detail branch may supply a navigation header.
+    internal bool IsMenuPresentationBranch(Control child) => ReferenceEquals(child, flyoutHost);
+
     private bool SetSlot(PageHost target, PageHost other, Page? page)
     {
         VerifyPageAccess();

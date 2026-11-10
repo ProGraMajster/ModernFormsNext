@@ -15,6 +15,8 @@ internal sealed class PageNavigationCertification : IDisposable
     private bool veto;
     internal NavigationPage Navigation { get; }
     internal int LifecycleEvents { get; private set; }
+    internal bool IsAtRoot => ReferenceEquals(Navigation.CurrentPage, root);
+    internal Button HeaderBackButton => Navigation.NavigationBar.BackButton;
 
     internal PageNavigationCertification(Form form, Action<string> output)
     {
@@ -26,6 +28,12 @@ internal sealed class PageNavigationCertification : IDisposable
         container.Controls.Add(new PageHost { Page = Navigation, Dock = DockStyle.Fill });
         container.BringToFront();
         Check(root.LifecycleState == PageLifecycleState.Appeared && Navigation.IsPresented, "shown-host-lifecycle");
+        Check(Navigation.NavigationBar.Visible && !HeaderBackButton.Visible &&
+            Navigation.NavigationBar.TitleLabel.Text == root.Title, "default-root-header");
+        var header = Navigation.NavigationBar;
+        var frame = root.Parent!.Parent!;
+        Check(frame.Top == header.Bottom && frame.Width == header.Width, "header-reserves-native-page-space");
+        Check(ReferenceEquals(HeaderBackButton.Command, Navigation.BackCommand), "header-uses-canonical-Back-command");
     }
 
     internal void ExerciseImmediate()
@@ -69,7 +77,14 @@ internal sealed class PageNavigationCertification : IDisposable
         Check(operation.IsCompletedSuccessfully && operation.Result && ReferenceEquals(Navigation.CurrentPage, detail), "animated-push-completion");
         Check(detail!.LifecycleState == PageLifecycleState.Appeared && detail.Opacity == .7f && Editor(detail).Focused,
             "animated-state-authored-opacity-focus");
-        var peer = Navigation.AccessibilityObject.GetChild(0)!.GetChild(0)!.GetChild(0)!;
+        var header = Navigation.NavigationBar;
+        Check(HeaderBackButton.Visible && header.TitleLabel.Text == detail.Title, "header-follows-committed-page");
+        var newTitle = detail.Title + " updated";
+        detail.Title = newTitle;
+        Check(header.TitleLabel.Text == newTitle, "header-live-title");
+        Check(ReferenceEquals(Navigation.AccessibilityObject.GetChild(0), header.AccessibilityObject) &&
+            HeaderBackButton.AccessibilityObject.Name == "Back", "native-header-semantic-role-and-button");
+        var peer = Navigation.AccessibilityObject.GetChild(1)!.GetChild(0)!.GetChild(0)!;
         Check(ReferenceEquals(peer, detail.AccessibilityObject), "actual-current-semantic-page");
         Check(Editor(detail).AccessibilityObject.Bounds.Location == Editor(detail).PointToScreen(System.Drawing.Point.Empty),
             "native-semantic-editor-bounds");
@@ -96,6 +111,14 @@ internal sealed class PageNavigationCertification : IDisposable
             "native-Back-transfer-and-focus");
     }
 
+    internal void PresentDetailAgain()
+    {
+        var push = Navigation.PushAsync(detail!, false);
+        Check(push.IsCompletedSuccessfully && push.Result, "represent-detail-for-second-Back");
+        Check(Editor(detail!).Focused && HeaderBackButton.Visible && Navigation.BackCommand.CanExecute(null),
+            "represented-detail-has-editor-focus-and-Back");
+    }
+
     internal void VerifyRetainedPresentation()
     {
         Check(form.Visible && Navigation.NavigationStack.Count == 1 && root.IsPresented && Navigation.IsPresented,
@@ -114,7 +137,8 @@ internal sealed class PageNavigationCertification : IDisposable
             next.Dispose();
         }
         Check(Navigation.NavigationStack.Count == 1 && root.IsPresented &&
-            Navigation.AccessibilityObject.GetChild(0)!.GetChildCount() == 1, "bounded-current-semantic-presentation");
+            Navigation.AccessibilityObject.GetChildCount() == 2 &&
+            Navigation.AccessibilityObject.GetChild(1)!.GetChildCount() == 1, "bounded-current-semantic-presentation");
         output($"PAGE_NAVIGATION cycles=100 lifecycle={LifecycleEvents} activeAnimations={AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount}");
     }
 

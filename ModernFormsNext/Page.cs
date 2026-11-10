@@ -30,7 +30,42 @@ public abstract class Page : Control
 {
     private PageLifecycleState lifecycleState;
     private long lifecycleVersion;
-    private bool retiring;
+    private bool retiring, hideNavigationBar;
+    internal event EventHandler? NavigationBarVisibilityChanged;
+
+    /// <summary>Gets or sets whether the containing navigator hides its header while this page is current.</summary>
+    /// <remarks>UI thread only. The page still participates in ordinary Back routing. The navigator's host-level
+    /// NavigationBarVisible setting also applies.</remarks>
+    [DefaultValue(false)]
+    public bool HideNavigationBar
+    {
+        get => hideNavigationBar;
+        set
+        {
+            VerifyPageAccess();
+            if (hideNavigationBar == value) return;
+            hideNavigationBar = value;
+            NavigationBarVisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private IReadOnlyList<NavigationAction> navigationActions = Array.Empty<NavigationAction>();
+    internal IReadOnlyList<NavigationAction> NavigationActions => navigationActions;
+    internal event EventHandler? NavigationActionsChanged;
+
+    /// <summary>Replaces the page's runtime navigation toolbar actions.</summary>
+    /// <param name="actions">At most 16 actions, listed in visual order. An empty array clears them.</param>
+    /// <remarks>UI thread only. Copies the list and borrows the command objects.
+    /// These runtime references are not Designer data.</remarks>
+    public void SetNavigationActions(params NavigationAction[] actions)
+    {
+        VerifyPageAccess();
+        ArgumentNullException.ThrowIfNull(actions);
+        if (actions.Length > 16 || actions.Any(static action => action is null))
+            throw new ArgumentException("Supply at most 16 non-null navigation actions.", nameof(actions));
+        navigationActions = Array.AsReadOnly((NavigationAction[])actions.Clone());
+        NavigationActionsChanged?.Invoke(this, EventArgs.Empty);
+    }
     internal PageHost? OwnerHost { get; private set; }
     internal Control? HostParent { get; private set; }
     internal bool IsRetiringPage => retiring || IsDisposed || Disposing;

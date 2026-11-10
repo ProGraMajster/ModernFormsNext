@@ -128,9 +128,10 @@ public sealed partial class DesignDocumentValidator
             if (!result.IsValid) break;
             if (node.Children.Any(child => child is null))
             { result.AddError($"Control '{node.Name}' contains a null authored child."); continue; }
-            if ((!node.IsInherited || node.InheritanceState is not null)
-                && DesignPageContainers.GetChildError(node) is { } pageError)
-                result.AddError($"Control '{node.Name}': {pageError}");
+            var pageError = !node.IsInherited || node.InheritanceState is not null
+                ? DesignPageContainers.GetChildError(node)
+                : DesignPageContainers.GetNavigationBarError(node);
+            if (pageError is not null) result.AddError($"Control '{node.Name}': {pageError}");
             if (pending.Count + node.Children.Count > MaximumNodeCount - count)
             { result.AddError($"Designer graphs support at most {MaximumNodeCount} control nodes."); break; }
             for (int index = node.Children.Count - 1; index >= 0; index--) pending.Push((node.Children[index], item.Depth + 1));

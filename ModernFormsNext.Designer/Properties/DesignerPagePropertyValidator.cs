@@ -15,7 +15,8 @@ internal static class DesignerPagePropertyValidator
         => IsKnown(type) && (property.Name == "Text"
             || (property.DeclaringType == typeof(Page) || property.DeclaringType is { } owner && IsKnown(owner))
                 && property.Name is not ("Title" or "SelectedIndex" or "FlowDirection" or "DisplayMode"
-                    or "FlyoutWidth" or "SplitBreakpoint" or "TransitionDuration"));
+                    or "FlyoutWidth" or "SplitBreakpoint" or "TransitionDuration")
+                && !DesignPageContainers.IsNavigationBarProperty(property.Name));
 
     internal static bool TryValidate(DesignControlNode node, Type type, out string? error)
     {

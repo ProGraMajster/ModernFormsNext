@@ -20,6 +20,7 @@ public sealed class PageNavigationValidationInstrumentation : Instrumentation
     private MainActivity activity = null!;
     private Form main = null!;
     private int assertions;
+    private bool headerTouchOnly;
 
     /// <summary>Creates the explicit native page runner.</summary>
     public PageNavigationValidationInstrumentation() { }
@@ -28,7 +29,12 @@ public sealed class PageNavigationValidationInstrumentation : Instrumentation
     /// <param name="ownership">JNI ownership.</param>
     public PageNavigationValidationInstrumentation(IntPtr handle, global::Android.Runtime.JniHandleOwnership ownership) : base(handle, ownership) { }
     /// <inheritdoc/>
-    public override void OnCreate(Bundle? arguments) { base.OnCreate(arguments); Start(); }
+    public override void OnCreate(Bundle? arguments)
+    {
+        base.OnCreate(arguments);
+        headerTouchOnly = arguments?.GetString("headerTouchOnly") == "true";
+        Start();
+    }
     /// <inheritdoc/>
     public override void OnStart()
     {
@@ -56,6 +62,13 @@ public sealed class PageNavigationValidationInstrumentation : Instrumentation
                 foreach (var control in main.Controls) control.Visible = false;
                 return new PageNavigationCertification(main, Record);
             });
+            if (headerTouchOnly)
+            {
+                ExerciseHeaderTouch(fixture);
+                success = true;
+                return;
+            }
+
             Ui(() => { fixture.ExerciseImmediate(); return true; });
             Ui(() =>
             {
@@ -126,11 +139,45 @@ public sealed class PageNavigationValidationInstrumentation : Instrumentation
                 if (keepScreenOn == false) Ui(() => { activity.Window!.ClearFlags(WindowManagerFlags.KeepScreenOn); return true; });
             }
             catch (Exception error) { success = false; Record("FAIL cleanup " + error.GetType().Name); }
-            Record($"ANDROID_PAGE_NAVIGATION_{(success ? "PASS" : "FAIL")} assertions={assertions}");
-            File.WriteAllText(System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, "page-navigation-validation.txt"), report.ToString());
+            string scenario = headerTouchOnly ? "ANDROID_NAVIGATION_HEADER_TOUCH" : "ANDROID_PAGE_NAVIGATION";
+            string reportName = headerTouchOnly ? "page-navigation-header-touch.txt" : "page-navigation-validation.txt";
+            Record($"{scenario}_{(success ? "PASS" : "FAIL")} assertions={assertions}");
+            File.WriteAllText(System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, reportName), report.ToString());
             result.PutString("stream", report.ToString());
             Finish(success ? Result.Ok : Result.Canceled, result);
         }
+    }
+
+    // Exercise the touch modality in its own Activity run. This preserves the native
+    // hardware Back and IME sequence in the original instrumentation entry point.
+    private void ExerciseHeaderTouch(PageNavigationCertification fixture)
+    {
+        var push = Ui(fixture.BeginAnimatedPush);
+        Wait(() => push.IsCompleted, "header-touch-push-completion");
+        Ui(() => { fixture.VerifyAnimatedPush(push); return true; });
+        HideImeAndIdle();
+        Capture("page-navigation-header-touch.png");
+        var center = Ui(() =>
+        {
+            var button = fixture.HeaderBackButton;
+            return button.PointToScreen(new System.Drawing.Point(button.ScaledWidth / 2, button.ScaledHeight / 2));
+        });
+        Tap(center);
+        Wait(() => Ui(() => fixture.IsAtRoot && fixture.BackCompletion.IsCompleted), "native-header-Back-touch");
+        Ui(() => { fixture.VerifyBack(); return true; });
+        HideImeAndIdle();
+        Capture("page-navigation-header-touch-root.png");
+    }
+
+    private void Tap(System.Drawing.Point point)
+    {
+        long time = SystemClock.UptimeMillis();
+        using var down = MotionEvent.Obtain(time, time, MotionEventActions.Down, point.X, point.Y, 0)!;
+        using var up = MotionEvent.Obtain(time, time + 50, MotionEventActions.Up, point.X, point.Y, 0)!;
+        down.SetSource(InputSourceType.Touchscreen);
+        up.SetSource(InputSourceType.Touchscreen);
+        SendPointerSync(down);
+        SendPointerSync(up);
     }
 
     private void BackWithoutIme() { HideImeAndIdle(); SendKeyDownUpSync(Keycode.Back); }

@@ -32,6 +32,11 @@ internal static class PageNavigationScenario
                     Back(hwnd);
                     await fixture.BackCompletion;
                     fixture.VerifyBack();
+                    fixture.PresentDetailAgain();
+                    ClickBack(fixture.HeaderBackButton, hwnd);
+                    await fixture.BackCompletion;
+                    fixture.VerifyBack();
+                    Console.WriteLine("PASS PAGE_NAVIGATION native-header-Back-hit-test");
                     int lifecycle = fixture.LifecycleEvents;
                     using (var secondary = new Form { Text = "Page lifetime focus check" })
                     {
@@ -62,6 +67,24 @@ internal static class PageNavigationScenario
         SendMessage(hwnd, 0x0100, (nint)(int)Keys.BrowserBack, 0);
         SendMessage(hwnd, 0x0101, (nint)(int)Keys.BrowserBack, 0);
     }
+    private static void ClickBack(Button button, nint hwnd)
+    {
+        var screen = button.PointToScreen(new System.Drawing.Point(button.ScaledWidth / 2, button.ScaledHeight / 2));
+        var local = new NativePoint { X = screen.X, Y = screen.Y };
+        Require(ScreenToClient(hwnd, ref local), "Cannot map native header Back pointer.");
+        var position = (nint)((local.X & 0xffff) | (local.Y << 16));
+        SendMessage(hwnd, 0x0200, 0, position);
+        SendMessage(hwnd, 0x0201, 1, position);
+        SendMessage(hwnd, 0x0202, 0, position);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint { public int X, Y; }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ScreenToClient(nint hwnd, ref NativePoint point);
+
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint handle);
     [DllImport("user32.dll")] private static extern nint SendMessage(nint handle, uint message, nint wParam, nint lParam);

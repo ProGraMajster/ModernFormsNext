@@ -260,8 +260,9 @@ public sealed partial class PageNavigationTests
             Assert.Same(page, Done(f.Navigation.PopAsync(false)));
         }
         var navPeer = f.Navigation.AccessibilityObject;
-        Assert.Equal(1, navPeer.GetChildCount());
-        var hostPeer = navPeer.GetChild(0)!;
+        Assert.Equal(2, navPeer.GetChildCount());
+        Assert.Same(f.Navigation.NavigationBar.AccessibilityObject, navPeer.GetChild(0));
+        var hostPeer = navPeer.GetChild(1)!;
         Assert.Equal(1, hostPeer.GetChildCount());
         Assert.Same(f.Root.AccessibilityObject, hostPeer.GetChild(0)!.GetChild(0));
         Assert.Same(f.Root.Content!.AccessibilityObject, f.Root.AccessibilityObject.GetChild(0));
