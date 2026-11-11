@@ -2,19 +2,29 @@ name: Release
 
 on:
   push:
-    # GitHub Release is created only after a version tag is pushed, not after ordinary pushes to master.
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      prepare_run_id:
+        description: Successful preparation run ID for this exact tag
+        type: string
+        required: true
+      approval_comment_id:
+        description: Repository owner comment ID containing the release approval JSON
+        type: string
+        required: true
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
-  # Publication is deliberately outside PR concurrency/caching. Never cancel an
-  # in-progress publisher to replace it with a newer PR or tag run.
-  release:
+  prepare:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_COMMIT: ${{ github.sha }}
 
     steps:
       - name: Checkout
@@ -22,6 +32,11 @@ jobs:
         with:
           # The documentation build verifies that the triggering tag resolves to github.sha.
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate the release ref
+        shell: pwsh
+        run: .\scripts\Assert-ReleaseTag.ps1 -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -60,11 +75,11 @@ jobs:
         run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore --verbosity minimal -m:1 /p:UseSharedCompilation=false
 
       - name: Pack
-        run: dotnet pack ModernFormsNext.slnx --configuration Release --no-build --output artifacts/packages
+        run: dotnet pack ModernFormsNext.slnx --configuration Release --no-build --output artifacts/candidate/packages
 
       - name: Validate package contents
         shell: pwsh
-        run: .\scripts\Validate-ReleasePackages.ps1 -PackageDirectory artifacts/packages
+        run: .\scripts\Validate-ReleasePackages.ps1 -PackageDirectory artifacts/candidate/packages -ExpectedVersion $env:RELEASE_TAG.Substring(1)
 
       - name: Test release documentation scripts
         shell: pwsh
@@ -74,45 +89,134 @@ jobs:
         shell: pwsh
         run: .\scripts\tests\Test-ReleasePackages.ps1
 
+      - name: Test release handoff and evidence gates
+        shell: pwsh
+        run: |
+          .\scripts\tests\Test-ReleaseHandoff.ps1
+          .\scripts\tests\Test-ReleaseEvidence.ps1
+
       - name: Build versioned documentation artifacts
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag.TrimStart("v")
           .\scripts\Build-ReleaseDocumentation.ps1 `
-            -Version $version `
-            -Tag $tag `
-            -Commit "${{ github.sha }}" `
+            -Version $env:RELEASE_TAG `
+            -Tag $env:RELEASE_TAG `
+            -Commit $env:RELEASE_COMMIT `
             -RequireTag `
-            -OutputDirectory artifacts/release-docs
+            -OutputDirectory artifacts/candidate/release-docs
 
-      - name: Validate versioned documentation artifacts
+      - name: Setup Node for the documentation browser smoke
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run the offline documentation browser smoke
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag.TrimStart("v")
-          .\scripts\Validate-ReleaseDocumentation.ps1 `
-            -ArtifactDirectory artifacts/release-docs `
-            -ExpectedVersion $version `
-            -ExpectedCommit "${{ github.sha }}" `
-            -ExpectedTag $tag
+          .\scripts\Test-ReleaseDocumentationBrowser.ps1 -ArtifactDirectory artifacts/candidate/release-docs -ExpectedVersion $env:RELEASE_TAG -ExpectedCommit $env:RELEASE_COMMIT -ExpectedTag $env:RELEASE_TAG -OutputDirectory artifacts/browser-smoke
+
+      - name: Record the immutable release candidate
+        shell: pwsh
+        env:
+          PREPARE_RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          $vsix = 'ModernFormsNext.VisualStudioExtension.Vsix/bin/Release/net472/ModernFormsNextDesigner.vsix'
+          $apk = @(Get-ChildItem -LiteralPath 'samples/ModernFormsNext.CrossPlatform.Sample/bin/Release/net10.0-android' -File -Filter '*-Signed.apk')
+          if ($apk.Count -ne 1) { throw 'Expected one signed Android qualification APK.' }
+          Copy-Item -LiteralPath $vsix -Destination artifacts/candidate/ModernFormsNextDesigner.vsix
+          Copy-Item -LiteralPath $apk[0].FullName -Destination artifacts/candidate/ModernFormsNextSample.apk
+          Copy-Item -LiteralPath artifacts/browser-smoke/browser.json -Destination artifacts/candidate/browser.json
+          .\scripts\ReleaseEvidence.ps1 -Prepare -CandidateDirectory artifacts/candidate -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -PrepareRunId $env:PREPARE_RUN_ID -Repository $env:REPOSITORY
+
+      - name: Retain the release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: artifacts/candidate/
+          if-no-files-found: error
+
+      - name: Retain browser smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-browser-smoke
+          path: |
+            artifacts/browser-smoke/browser.json
+            artifacts/browser-smoke/page-*.png
+          if-no-files-found: error
+
+  # A tag push only prepares artifacts. Publication takes an explicit owner approval
+  # and consumes those exact bytes, with no concurrent or replacement publisher.
+  publish:
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag'
+    runs-on: windows-latest
+    concurrency:
+      group: release-publication
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      issues: read
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_COMMIT: ${{ github.sha }}
+      PREPARE_RUN_ID: ${{ inputs.prepare_run_id }}
+      APPROVAL_COMMENT_ID: ${{ inputs.approval_comment_id }}
+      REPOSITORY: ${{ github.repository }}
+      APPROVAL_FILE: ${{ runner.temp }}/release-owner-approval.json
+
+    steps:
+      - name: Checkout exact publication tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Authenticate candidate provenance and owner approval
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .\scripts\Confirm-ReleaseHandoff.ps1 -Repository $env:REPOSITORY -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -PrepareRunId $env:PREPARE_RUN_ID -ApprovalCommentId $env:APPROVAL_COMMENT_ID -ApprovalFile $env:APPROVAL_FILE
+
+      - name: Retrieve the exact prepared candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: release-candidate
+          path: artifacts/candidate
+          run-id: ${{ inputs.prepare_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify all release gates
+        shell: pwsh
+        run: .\scripts\ReleaseEvidence.ps1 -CandidateDirectory artifacts/candidate -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -PrepareRunId $env:PREPARE_RUN_ID -Repository $env:REPOSITORY -ApprovalFile $env:APPROVAL_FILE -ApprovalCommentId $env:APPROVAL_COMMENT_ID -VerifiedEvidenceFile artifacts/verified-release-evidence.json
+
+      - name: Retain verified publication evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-publication-evidence
+          path: artifacts/verified-release-evidence.json
+          if-no-files-found: error
 
       - name: Create GitHub Release
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          .\scripts\Assert-ReleaseTag.ps1 -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -CheckOrigin
+          $version = $env:RELEASE_TAG.TrimStart("v")
           $releaseNotesPath = "docs/$version-release-notes.md"
           if (-not (Test-Path -LiteralPath $releaseNotesPath)) {
             throw "Release notes were not found at '$releaseNotesPath'."
           }
 
-          gh release create "${{ github.ref_name }}" `
-            artifacts/packages/*.nupkg `
-            artifacts/packages/*.snupkg `
-            artifacts/release-docs/*.zip `
+          gh release create $env:RELEASE_TAG `
+            artifacts/candidate/packages/*.nupkg `
+            artifacts/candidate/packages/*.snupkg `
+            artifacts/candidate/release-docs/*.zip `
+            --verify-tag `
             --title "ModernFormsNext $version" `
             --notes-file $releaseNotesPath `
             --latest
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed.' }
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -124,12 +228,16 @@ jobs:
 
       - name: Publish to NuGet
         shell: pwsh
+        env:
+          NUGET_PUBLISH_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          Get-ChildItem artifacts/packages -Filter *.nupkg | ForEach-Object {
+          .\scripts\Assert-ReleaseTag.ps1 -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -CheckOrigin
+          Get-ChildItem artifacts/candidate/packages -Filter *.nupkg | ForEach-Object {
             dotnet nuget push $_.FullName `
-              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" `
+              --api-key $env:NUGET_PUBLISH_KEY `
               --source "https://api.nuget.org/v3/index.json" `
-              --symbol-api-key "${{ steps.login.outputs.NUGET_API_KEY }}" `
+              --symbol-api-key $env:NUGET_PUBLISH_KEY `
               --symbol-source "https://api.nuget.org/v3/index.json" `
               --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw 'NuGet package push failed.' }
           }

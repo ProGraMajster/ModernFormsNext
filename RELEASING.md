@@ -1,19 +1,17 @@
 # Releasing ModernFormsNext
 
-This repository creates releases from Git tags, not from ordinary pushes to `master`.
+This repository prepares release candidates from version tags and publishes after owner approval.
 
 PRs targeting `master` always report the required `build` check. Code/build changes
 run the full Release solution build and tests; allowlisted Markdown-only changes
 run source-documentation and script checks in the same job. Ordinary master pushes
 do not repeat the PR build under the existing strict, non-bypassable PR protection.
 See [CI policy](docs/ci.md) for exact paths, cache/concurrency behavior and the audit.
-The tag workflow remains an independent full publication gate, with no PR cache,
-binary reuse or cancellation of an in-progress release.
+The tag workflow runs an independent full preparation gate with a fresh build and no PR cache.
 
 > [!WARNING]
-> Pushing a tag that matches `v*.*.*` starts `.github/workflows/release.yml`. That workflow creates
-> a GitHub Release and publishes `.nupkg` packages to NuGet. A release tag is therefore a publication
-> action, not a harmless marker.
+> Pushing a tag that matches `v*.*.*` starts release preparation. Publication requires the verified
+> owner approval and a separate workflow dispatch on the same tag.
 
 ## Release versions
 
@@ -151,8 +149,8 @@ do not configure a general release-to-release ApiCompat baseline; compare both A
 against the release base separately when qualifying packaging changes. DocFX selects the native
 Android surface once to avoid duplicate pages.
 
-Before first publication, the maintainer must confirm the existing nuget.org Trusted Publishing
-policy permits creation of this new package ID by the existing tag workflow. No API keys are added.
+Before first publication, the maintainer must confirm the nuget.org Trusted Publishing policy
+permits creation of this new package ID by the `Release` publication job on the version tag.
 
 Versioned documentation and sample artifacts are also mandatory release inputs. Restore the pinned
 DocFX tool, run the script tests, build the four ZIP files from the Release outputs, and validate
@@ -188,8 +186,9 @@ After the release PR is reviewed and its required `.NET` / `build` check is gree
    from a comparison URL to the final tag URL.
 2. Commit that final release-note change and push it through the normal review path.
 3. Create the annotated or lightweight `vX.Y.Z` tag on the exact reviewed commit.
-4. Push the tag only when GitHub Release and NuGet publication are intended.
-5. Monitor the `Release` workflow until GitHub Release creation and every NuGet push succeed.
+4. Push the tag to prepare the candidate. Wait for preparation to succeed and download its evidence.
+5. Record the Visual Studio, Android and Marketplace evidence. Follow the [release handoff guide](docs/releasing/release-smoke-and-handoff.md)
+   to approve the exact candidate and dispatch publication. Wait for GitHub Release creation and every NuGet push to succeed.
 6. Verify the matching docs, offline HTML, samples, and SDK ZIP files are attached to the GitHub
    Release and contain the expected tag/commit metadata.
 7. Attach the matching `ModernFormsNextDesigner.vsix` to the GitHub Release. The current workflow
@@ -198,9 +197,9 @@ After the release PR is reviewed and its required `.NET` / `build` check is gree
    publication.
 
 There is no second `.NET` run on the ordinary merge push. A green docs-only PR
-check is not proof of newly built release binaries. The tag workflow always performs
-its own restore/build/tests/package/documentation validation on the tagged source
-before publishing. Its test step uses `--no-build --no-restore` against those outputs.
+check covers source documentation and release script contracts. Preparation performs its own
+restore/build/tests/package/documentation validation on the tagged source. Its test step uses
+`--no-build --no-restore` against those outputs. Publication uses the verified prepared artifacts.
 
 Example commands are intentionally explicit:
 
@@ -229,6 +228,5 @@ List tags on GitHub:
 git ls-remote --tags origin
 ```
 
-If the workflow did not start, verify that the tag exists on `origin` and matches `v*.*.*`. If the
-workflow starts unexpectedly, do not delete/recreate the tag blindly: first inspect whether a
-GitHub Release or NuGet package was already published.
+If preparation did not start, verify that the tag exists on `origin` and matches `v*.*.*`. When
+investigating an unexpected run, check which job ran and whether the provider recorded publication.
