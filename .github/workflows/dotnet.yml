@@ -52,6 +52,14 @@ jobs:
         shell: pwsh
         run: ./scripts/tests/Test-ReleasePackages.ps1
 
+      - name: Test release evidence gates
+        shell: pwsh
+        run: ./scripts/tests/Test-ReleaseEvidence.ps1
+
+      - name: Test release handoff provenance
+        shell: pwsh
+        run: ./scripts/tests/Test-ReleaseHandoff.ps1
+
       - name: Setup .NET
         if: steps.changes.outputs.full != 'false'
         uses: actions/setup-dotnet@v4

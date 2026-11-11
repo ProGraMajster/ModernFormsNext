@@ -40,9 +40,9 @@ timestamps differ.
 
 ## Source identity and release failure behavior
 
-`.github/workflows/release.yml` checks out the tag event with full tag history. It derives the
-version by removing the leading `v` from `github.ref_name`, then passes the tag and `github.sha` to
-`Build-ReleaseDocumentation.ps1 -RequireTag`.
+The release preparation job validates the tag and commit before building archives with
+`Build-ReleaseDocumentation.ps1 -RequireTag`. See the [release handoff](release-smoke-and-handoff.md)
+for the browser smoke, artifact evidence and publication approval.
 
 The build script verifies all of the following before creating bundles:
 
@@ -160,10 +160,10 @@ matching Release assemblies/XML. Ignored local `docs/docfx.json`, `docs/index.md
 `docs/api/`, and `docs/_site/` remnants are not release inputs and must not be treated as a second
 documentation source.
 
-The scripts deterministically validate metadata, archives, public links represented by repository
-content, and internal offline links. Browser rendering, interactive Visual Studio Designer/VSIX
-behavior, Marketplace publication, and Android emulator or physical-device behavior remain manual
-gates and must be reported separately.
+The scripts validate metadata, archives, public links represented by repository content and
+internal offline links. A browser smoke also checks rendered articles and loads local assets.
+The release evidence includes operator observations for the Visual Studio Designer, Marketplace
+and physical Android devices.
 
 Repository-wide project/version validation selects Git-tracked inputs when available and uses a
 bounded, generated-directory-aware filesystem fallback for source archives. Nested worktrees below

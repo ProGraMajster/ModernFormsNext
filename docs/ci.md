@@ -118,7 +118,7 @@ dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore
 
 Do not mix local warm-cache measurements with hosted cold builds to calculate an
 improvement. A release benchmark must be a local dry-run unless actual publication
-is explicitly intended; pushing a benchmark version tag would publish packages.
+is explicitly intended. Pushing a benchmark version tag would start release preparation.
 
 ## References
 
