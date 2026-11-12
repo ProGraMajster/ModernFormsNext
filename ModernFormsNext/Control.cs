@@ -1710,8 +1710,13 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Called when the Parent property is changed.
+        /// Raises <see cref="ParentChanged"/> after the parent assignment commits.
         /// </summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>
+        /// Called on the UI thread. Overrides must call base to notify subscribers and
+        /// accessibility clients. Reparenting publishes the detach and attach separately.
+        /// </remarks>
         protected virtual void OnParentChanged (EventArgs e)
         {
             (Events[s_parentEvent] as EventHandler)?.Invoke(this, e);
@@ -1922,6 +1927,15 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the control that contains this control.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. A null value removes this control from its current owner.
+        /// Assigning the current parent does nothing. Reparenting first detaches, then attaches;
+        /// each committed assignment raises <see cref="ParentChanged"/> through the owning
+        /// collection, with <see cref="Parent"/> and collection membership already updated.
+        /// A newer assignment made by a callback is preserved. Parent changes also update
+        /// inherited resources, input ownership and layout through the normal collection path.
+        /// Observer exceptions propagate without rolling back the committed parent.
+        /// </remarks>
         public Control? Parent {
             get => parent;
             set {
@@ -1941,9 +1955,9 @@ namespace ModernFormsNext
                     return;
                 }
 
+                // The collection publishes the canonical detach/attach assignments. Publishing
+                // here again would duplicate the event, including after a callback redirected us.
                 value.Controls.Add (this);
-
-                OnParentChanged (EventArgs.Empty);
             }
         }
 

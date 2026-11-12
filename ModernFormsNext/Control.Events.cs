@@ -296,8 +296,15 @@ public partial class Control
     }
 
     /// <summary>
-    /// Raised when the Parent property is changed.
+    /// Occurs after a committed change to <see cref="Parent"/>.
     /// </summary>
+    /// <remarks>
+    /// Raised on the UI thread once per committed assignment. Reparenting reports null for
+    /// the detach and then the new parent for the attach; assigning the same parent is silent.
+    /// The collection and Parent already agree when handlers run. Handlers may change the
+    /// parent again; later code should read the current Parent rather than assume the originally
+    /// requested owner still applies. Exceptions propagate without undoing the committed change.
+    /// </remarks>
     public event EventHandler? ParentChanged {
         add => Events.AddHandler (s_parentEvent, value);
         remove => Events.RemoveHandler (s_parentEvent, value);
