@@ -88,6 +88,7 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the icon displayed on the tab.
         /// </summary>
+        /// <remarks>The borrowed image is drawn into a 16 by 16 logical-pixel slot, scaled once for DPI. The caller owns its lifetime.</remarks>
         public SKImage? Icon
         {
             get => icon;
@@ -205,19 +206,26 @@ namespace ModernFormsNext
         /// Calculates the preferred size of the tab.
         /// </summary>
         /// <param name="proposedSize">The proposed size.</param>
-        /// <returns>The preferred size for layout.</returns>
+        /// <returns>The preferred size in device pixels for the strip's item layout.</returns>
         /// <remarks>
         /// The width is calculated based on text, icon, close button, and padding,
         /// while respecting <see cref="TabStrip.TabMinWidth"/> and <see cref="TabStrip.TabMaxWidth"/>.
+        /// Measurement uses the same effective font, selected emphasis and typography as painting.
+        /// Height includes natural text/icon height and vertical breathing room. Explicit strip
+        /// height or size constraints may still clip content; width caps use a single-line ellipsis.
         /// </remarks>
         public Size GetPreferredSize(Size proposedSize)
         {
-            var horizontalPadding = Parent?.LogicalToDeviceUnits(Padding.Horizontal) ?? Padding.Horizontal;
-            var fontSize = Parent?.LogicalToDeviceUnits(Theme.FontSize) ?? Theme.FontSize;
-
-            int textWidth = 0;
+            // Paint rounds each edge separately. Rounding their sum can reserve one pixel less
+            // at fractional DPI and trigger ellipsis for a caption whose measured width fits.
+            var horizontalPadding = Parent is { } owner
+                ? owner.LogicalToDeviceUnits(Padding.Left) + owner.LogicalToDeviceUnits(Padding.Right)
+                : Padding.Horizontal;
+            SKSize textSize = SKSize.Empty;
             if (DisplayMode != TabDisplayMode.IconOnly && !string.IsNullOrWhiteSpace(Text))
-                textWidth = (int)Math.Round(TextMeasurer.MeasureText(Text, Theme.UIFont, fontSize).Width);
+                textSize = Parent?.MeasureHeaderText(Text, Enabled && Selected)
+                    ?? TextMeasurer.MeasureText(Text, Theme.UIFont, Theme.FontSize, new Size(int.MaxValue, int.MaxValue));
+            int textWidth = (int)Math.Ceiling(textSize.Width);
 
             int iconWidth = 0;
             if (Icon != null && DisplayMode != TabDisplayMode.TextOnly)
@@ -225,7 +233,7 @@ namespace ModernFormsNext
 
             int closeWidth = 0;
             if (Closable && !Pinned && Parent?.ShowCloseButtons == true)
-                closeWidth = Parent.LogicalToDeviceUnits(18);
+                closeWidth = Parent.LogicalToDeviceUnits(14);
 
             int gap = 0;
             if (iconWidth > 0 && textWidth > 0)
@@ -236,12 +244,17 @@ namespace ModernFormsNext
 
             var width = horizontalPadding + textWidth + iconWidth + closeWidth + gap;
 
-            width = Math.Max(width, Parent?.TabMinWidth ?? 48);
+            width = Math.Max(width, Parent?.LogicalToDeviceUnits(Parent.TabMinWidth) ?? 48);
 
             if (Parent?.TabMaxWidth is int maxWidth && maxWidth > 0)
-                width = Math.Min(width, maxWidth);
+                width = Math.Min(width, Parent.LogicalToDeviceUnits(maxWidth));
 
-            return new Size(width, Bounds.Height);
+            int contentHeight = Math.Max((int)Math.Ceiling(textSize.Height), Math.Max(iconWidth, closeWidth));
+            int verticalPadding = Parent is { } parent
+                ? parent.LogicalToDeviceUnits(Padding.Top) + parent.LogicalToDeviceUnits(Padding.Bottom) + parent.LogicalToDeviceUnits(8)
+                : Padding.Vertical + 8;
+            int height = Math.Max(Parent?.LogicalToDeviceUnits(31) ?? 31, contentHeight + verticalPadding);
+            return new Size(width, height);
         }
 
         /// <summary>

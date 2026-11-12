@@ -24,6 +24,14 @@ namespace ControlGallery.Panels
             tb2.Tabs.Add (new TabStripItem { Text = "File" });
             tb2.Tabs.Add (new TabStripItem { Text = "Share" });
             tb2.Tabs.Add ("View");
+
+            Controls.Add(new Label { Left = 10, Top = 125, Width = 600, Text = "Standalone strip with its own 200% italic font" });
+            var large = Controls.Add(new TabStrip {
+                Left = 10, Top = 155, Width = 700,
+                Font = new Font(Theme.UIFont.FamilyName, Theme.FontSize * 2, FontStyle.Italic)
+            });
+            large.Tabs.Add("General");
+            large.Tabs.Add("Advanced");
         }
     }
 }
