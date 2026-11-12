@@ -494,54 +494,35 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the maximum size of the Window
+        /// Gets or sets the maximum drawable window size in logical pixels.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. <see cref="System.Drawing.Size.Empty"/> clears the upper limit.
+        /// A nonempty value can lower <see cref="MinimumSize"/>. Both effective limits are
+        /// committed to the backend before size clamping and notifications. MaximumSizeChanged
+        /// precedes MinimumSizeChanged when both change; an unchanged value is silent.
+        /// Reentrant constraint changes or close/dispose suppress remaining obsolete notifications.
+        /// Callback failures propagate after still-current notifications, without rolling back limits.
+        /// </remarks>
         public System.Drawing.Size MaximumSize {
             get => maximum_size;
-            set {
-                if (maximum_size != value) {
-                    // Don't let MinimumSize be larger than MaximumSize
-                    var nextMinimum = !minimum_size.IsEmpty && !value.IsEmpty
-                        ? new System.Drawing.Size (Math.Min (minimum_size.Width, value.Width), Math.Min (minimum_size.Height, value.Height))
-                        : minimum_size;
-                    // Native rejection must not publish a managed value that never took effect.
-                    Window.SetMinMaxSize (nextMinimum.ToAvaloniaSize (), value.ToAvaloniaSize ());
-                    minimum_size = nextMinimum;
-                    maximum_size = value;
-
-                    // Keep form size within new limits
-                    var size = Size;
-                    if (!value.IsEmpty && (size.Width > value.Width || size.Height > value.Height))
-                        Size = new System.Drawing.Size (Math.Min (size.Width, value.Width), Math.Min (size.Height, value.Height));
-
-                    OnMaximumSizeChanged (EventArgs.Empty);
-                }
-            }
+            set => SetSizeConstraint(value, minimum: false);
         }
 
         /// <summary>
-        /// Gets or sets the minimum size of the Window
+        /// Gets or sets the minimum drawable window size in logical pixels.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. <see cref="System.Drawing.Size.Empty"/> clears the lower limit.
+        /// A nonempty value can raise <see cref="MaximumSize"/>. Both effective limits are
+        /// committed to the backend before size clamping and notifications. MinimumSizeChanged
+        /// precedes MaximumSizeChanged when both change; an unchanged value is silent.
+        /// Reentrant constraint changes or close/dispose suppress remaining obsolete notifications.
+        /// Callback failures propagate after still-current notifications, without rolling back limits.
+        /// </remarks>
         public System.Drawing.Size MinimumSize {
             get => minimum_size;
-            set {
-                if (minimum_size != value) {
-                    // Don't let MaximumSize be smaller than MinimumSize
-                    var nextMaximum = !value.IsEmpty && !maximum_size.IsEmpty
-                        ? new System.Drawing.Size (Math.Max (value.Width, maximum_size.Width), Math.Max (value.Height, maximum_size.Height))
-                        : maximum_size;
-                    Window.SetMinMaxSize (value.ToAvaloniaSize (), nextMaximum.ToAvaloniaSize ());
-                    maximum_size = nextMaximum;
-                    minimum_size = value;
-
-                    // Keep form size within new limits
-                    var size = Size;
-                    if (size.Width < value.Width || size.Height < value.Height)
-                        Size = new System.Drawing.Size (Math.Max (size.Width, value.Width), Math.Max (size.Height, value.Height));
-
-                    OnMinimumSizeChanged (EventArgs.Empty);
-                }
-            }
+            set => SetSizeConstraint(value, minimum: true);
         }
 
         /// <summary>

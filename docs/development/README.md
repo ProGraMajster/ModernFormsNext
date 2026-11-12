@@ -17,6 +17,7 @@ fresh result for the current checkout. For application guidance, use the documen
 
 ## Runtime investigations
 
+- [Paired window size constraint notifications: issue 165](issue-165-size-constraint-notifications.md)
 - [Parent notifications and reentrant ownership: issue 164](issue-164-parent-notifications.md)
 - [Rendering backend foundation: issue 46](issue-46-rendering-foundation-report.md)
 - [High DPI: issue 120](issue-120-high-dpi.md)

@@ -16,6 +16,8 @@ internal static class WindowGeometryScenario
                 try {
                     Exercise(false);
                     Exercise(true);
+                    ExerciseConstraints(false);
+                    ExerciseConstraints(true);
                     CancelAndClose(owner);
                 }
                 catch (Exception error) { failure = error; }
@@ -145,6 +147,58 @@ internal static class WindowGeometryScenario
         Require(form.Size == new Size(580, 430) && sizeEvents.SequenceEqual(["Resize", "Resize", "Size", "Client"]),
             $"Reentrant native resize left stale state or emitted an obsolete SizeChanged: size={form.Size}, events={string.Join(",", sizeEvents)}, chrome={systemChrome}.");
         form.Close();
+    }
+
+    private static void ExerciseConstraints(bool systemChrome)
+    {
+        using var form = new Form { UseSystemDecorations = systemChrome, StartPosition = FormStartPosition.Manual,
+            Size = new Size(700, 520), MinimumSize = new Size(600, 450), MaximumSize = new Size(800, 600) };
+        try {
+            form.Show();
+            nint hwnd = form.PlatformHandle.Handle;
+            Require(GetWindowThreadProcessId(hwnd, out uint process) == GetCurrentThreadId() && process == Environment.ProcessId,
+                "Constraint regression must target an owned UI-thread HWND.");
+            List<string> events = [];
+            Exception? observationFailure = null;
+            void Observe(string name) {
+                events.Add(name);
+                // Do not throw assertions through a native resize callback.
+                try {
+                    Require(form.MinimumSize == form.MaximumSize, "A coercion observer saw an incoherent pair.");
+                    Require(GetClientRect(hwnd, out var native), "GetClientRect failed for constraints.");
+                    Require(form.Size == new Size((int)(native.Width / form.Scaling), (int)(native.Height / form.Scaling)),
+                        "Constraint notification did not observe the native drawable size.");
+                }
+                catch (Exception error) { observationFailure ??= error; }
+            }
+            form.MinimumSizeChanged += (_, _) => Observe("Minimum");
+            form.MaximumSizeChanged += (_, _) => Observe("Maximum");
+            void Check(Size expected, params string[] order) {
+                if (observationFailure is not null) throw observationFailure;
+                Require(form.MinimumSize == expected && form.MaximumSize == expected && form.Size == expected,
+                    $"Native constraints/clamp diverged: {form.MinimumSize}/{form.MaximumSize}/{form.Size}, expected {expected}.");
+                Require(events.SequenceEqual(order), "Unexpected native constraint event order: " + string.Join(",", events));
+                events.Clear();
+            }
+
+            form.MaximumSize = new Size(480, 360);
+            Check(new Size(480, 360), "Maximum", "Minimum");
+            form.MinimumSize = new Size(640, 480);
+            Check(new Size(640, 480), "Minimum", "Maximum");
+            form.MinimumSize = form.MinimumSize;
+            form.MaximumSize = form.MaximumSize;
+            Require(events.Count == 0, "No-op native constraints raised notifications.");
+
+            int late = 0;
+            form.MaximumSizeChanged += (_, _) => form.Close();
+            form.MaximumSizeChanged += (_, _) => late++;
+            form.MaximumSize = new Size(480, 360);
+            if (observationFailure is not null) throw observationFailure;
+            Require(!IsWindow(hwnd) && late == 0 && events.SequenceEqual(["Maximum"]),
+                "Close from a constraint observer left a window or obsolete notification.");
+            Console.WriteLine("WINDOW_GEOMETRY:CONSTRAINTS:" + systemChrome);
+        }
+        finally { form.Close(); }
     }
 
     private static void CancelAndClose(Form owner)
