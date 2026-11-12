@@ -362,13 +362,23 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Raised when the MaximumSize property is changed.
+        /// Occurs after the effective <see cref="Form.MaximumSize"/> changes.
         /// </summary>
+        /// <remarks>
+        /// Raised on the UI thread after the coherent pair of limits commits. A setter notifies
+        /// its explicitly assigned property first and its coerced partner second. Reentrant limit
+        /// changes or close/dispose stop obsolete notifications, including remaining subscribers.
+        /// Observer failures propagate after still-current subscribers and property notifications.
+        /// </remarks>
         public event EventHandler? MaximumSizeChanged;
 
         /// <summary>
-        /// Raised when the MinimumSize property is changed.
+        /// Occurs after the effective <see cref="Form.MinimumSize"/> changes.
         /// </summary>
+        /// <remarks>
+        /// Has the ordering, reentrancy and exception contract of <see cref="MaximumSizeChanged"/>.
+        /// Handlers observe the committed pair and the backend's actual size after normal clamping.
+        /// </remarks>
         public event EventHandler? MinimumSizeChanged;
 
         // A rejected down (including validation cancellation) must not become a click on up.
@@ -565,17 +575,21 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the MaximumSizeChanged event.
         /// </summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>Called on the UI thread. Overrides must call base to notify current subscribers.</remarks>
         protected virtual void OnMaximumSizeChanged (EventArgs e)
         {
-            MaximumSizeChanged?.Invoke (this, e);
+            NotifySizeConstraintObservers(MaximumSizeChanged, e);
         }
 
         /// <summary>
         /// Raises the MinimumSizeChanged event.
         /// </summary>
+        /// <param name="e">The event data.</param>
+        /// <remarks>Called on the UI thread. Overrides must call base to notify current subscribers.</remarks>
         protected virtual void OnMinimumSizeChanged (EventArgs e)
         {
-            MinimumSizeChanged?.Invoke (this, e);
+            NotifySizeConstraintObservers(MinimumSizeChanged, e);
         }
 
         /// <summary>

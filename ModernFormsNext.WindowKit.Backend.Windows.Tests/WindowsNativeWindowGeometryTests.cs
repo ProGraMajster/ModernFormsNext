@@ -42,6 +42,8 @@ public sealed class WindowsNativeWindowGeometryTests
             Assert.Contains("WINDOW_GEOMETRY:NATIVE_MOVE:True", output);
             Assert.Contains("WINDOW_GEOMETRY:DPI", output);
             Assert.Contains("WINDOW_GEOMETRY:REENTRANCY", output);
+            Assert.Contains("WINDOW_GEOMETRY:CONSTRAINTS:False", output);
+            Assert.Contains("WINDOW_GEOMETRY:CONSTRAINTS:True", output);
             Assert.Contains("WINDOW_GEOMETRY:PASS", output);
         }
         finally
