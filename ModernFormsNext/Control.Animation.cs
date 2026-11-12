@@ -5,6 +5,11 @@ namespace ModernFormsNext
     /// <summary>
     /// Provides animation-related properties for controls.
     /// </summary>
+    /// <remarks>
+    /// Set render transforms on the owning UI thread. Every distinct value is retained,
+    /// including small changes at animation endpoints. Changes notify native presentation
+    /// observers and invalidate rendering without changing layout bounds.
+    /// </remarks>
     public partial class Control
     {
         private float opacity = 1f;
@@ -31,7 +36,9 @@ namespace ModernFormsNext
             set {
                 var clamped = Math.Clamp (value, 0f, 1f);
 
-                if (Math.Abs (opacity - clamped) < 0.0001f)
+                // Approximate equality can discard the final 0/1 after a near-terminal
+                // frame. Keep exact state and notify observers for every distinct value.
+                if (opacity == clamped)
                     return;
 
                 opacity = clamped;
@@ -40,12 +47,12 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the horizontal render translation of the control.
+        /// Gets or sets the horizontal render translation of the control, in logical pixels.
         /// </summary>
         public float TranslationX {
             get => translationX;
             set {
-                if (Math.Abs (translationX - value) < 0.0001f)
+                if (translationX == value)
                     return;
 
                 translationX = value;
@@ -54,12 +61,12 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the vertical render translation of the control.
+        /// Gets or sets the vertical render translation of the control, in logical pixels.
         /// </summary>
         public float TranslationY {
             get => translationY;
             set {
-                if (Math.Abs (translationY - value) < 0.0001f)
+                if (translationY == value)
                     return;
 
                 translationY = value;
@@ -68,12 +75,12 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the horizontal render scale of the control.
+        /// Gets or sets the dimensionless horizontal render scale of the control; 1 is unchanged.
         /// </summary>
         public float ScaleX {
             get => scaleX;
             set {
-                if (Math.Abs (scaleX - value) < 0.0001f)
+                if (scaleX == value)
                     return;
 
                 scaleX = value;
@@ -82,12 +89,12 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Gets or sets the vertical render scale of the control.
+        /// Gets or sets the dimensionless vertical render scale of the control; 1 is unchanged.
         /// </summary>
         public float ScaleY {
             get => scaleY;
             set {
-                if (Math.Abs (scaleY - value) < 0.0001f)
+                if (scaleY == value)
                     return;
 
                 scaleY = value;
@@ -101,7 +108,7 @@ namespace ModernFormsNext
         public float Rotation {
             get => rotation;
             set {
-                if (Math.Abs (rotation - value) < 0.0001f)
+                if (rotation == value)
                     return;
 
                 rotation = value;

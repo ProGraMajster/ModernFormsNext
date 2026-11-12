@@ -115,6 +115,11 @@ Both effects are enabled by default and run through the existing shared animatio
 
 Entrance is nominally 120 ms and exit 80 ms with ease-out timing. The scheduler's duration scale applies. Reduced motion, disabled animations, a zero duration scale, or detected high contrast completes immediately. Changing either property during presentation settles the entrance or finishes the exit. Translation affects rendering within the existing popup clip, without reflowing the owner or its controls.
 
+Completion commits the exact translation endpoint before announcing the visible tooltip.
+Sub-millisecond frames near the end of an ease-out transition must not leave residual
+translation. The shared control transform setters retain every distinct value and invalidate
+rendering, including changes smaller than 0.0001; assigning the same value again is a no-op.
+
 Windows uses uniform opacity on the existing popup window; Android uses its existing popup host view. An external backend without optional opacity support, or a backend refusing opacity, keeps opaque presentation. Translation can still run. Tooltips do not create a separate render tree, timer service, focus scope or native tooltip control.
 
 `InitialDelay`, `ReshowDelay` and `AutoPopDelay` still use the existing dispatcher timers. Recent-hide history uses the scheduler's monotonic clock. Manual `Show` bypasses the initial delay. A positive duration starts at show and begins dismissal at its deadline, followed by the bounded exit; zero keeps a manual tooltip until dismissal. `Hide` begins the exit, and repeating it cannot extend the deadline. Replacing a tooltip reuses its current frame and cancels stale work; an old completion cannot dismiss the replacement. Switching owning forms closes the old popup. `Active = false`, association removal and disposal retire it immediately.
