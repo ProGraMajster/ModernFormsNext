@@ -36,6 +36,7 @@ fresh result for the current checkout. For application guidance, use the documen
 
 ## Release evidence
 
+- [1.12.0 scope re-audit, 2026-11-12 — incomplete, publication not approved](1.12.0-scope-reaudit-2026-11-12.md)
 - [1.11.0 release readiness](1.11.0-release-readiness.md)
 - [1.11.0 roadmap completion](1.11.0-roadmap-completion.md)
 - [1.10.0 documentation and limitations audit](../audits/1.10.0-documentation-and-limitations-audit.md)

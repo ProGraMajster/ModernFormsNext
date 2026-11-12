@@ -332,9 +332,10 @@ Parsing does not load application assemblies or run C#.
   require source editing. See [Designer events and navigation](designer-events.md).
 - [Designer project assets](designer-project-assets.md) uses portable IDs shared
   by the design document, preview, generated C# and runtime.
-- Project resources and inherited-control design remain incomplete
-  ([#38](https://github.com/ProGraMajster/ModernFormsNext/issues/38),
-  [#39](https://github.com/ProGraMajster/ModernFormsNext/issues/39)).
+- Project resources and source-described inherited-control design are implemented through
+  the bounded contracts in [project assets](designer-project-assets.md) and
+  [inherited designs](designer-inheritance.md). These features do not execute application
+  constructors or provide general custom-control execution isolation.
 - Arbitrary project code is not executed for preview. Source-described UserControls use the safe
   data-only model above; broader isolation is tracked by
   [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40).
