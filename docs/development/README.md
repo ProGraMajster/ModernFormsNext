@@ -23,6 +23,7 @@ fresh result for the current checkout. For application guidance, use the documen
 - [Snap/maximize geometry: issue 137](issue-137-snap-maximize.md)
 - [Scroll layout consistency: issue 130](scroll-layout-regression.md)
 - [Partial redraw regression](partial-redraw-regression.md)
+- [Exact animation endpoints: issue 88 follow-up](issue-88-animation-endpoints.md)
 - [Performance diagnostics plan: issue 58](issue-58-performance-diagnostics-plan.md)
 - [Text composition plan: issue 62](issue-62-text-input-plan.md)
 - [Accessibility Phase 4 plan: issue 59](issue-59-accessibility-phase4-plan.md)

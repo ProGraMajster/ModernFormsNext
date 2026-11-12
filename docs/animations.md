@@ -80,6 +80,12 @@ responsible for their normal invalidation behavior. `Opacity`, translation, scal
 render-only properties; layout-affecting properties must use the framework's established layout
 path.
 
+Control render-transform setters retain every distinct value, including subpixel differences
+at animation endpoints. Equal values are no-ops; opacity is still clamped to `[0, 1]`.
+Changing a transform invalidates rendering and updates native presentation observers without
+changing layout bounds. This avoids leaving a tooltip or another animated control just short
+of its exact final translation, scale, rotation, or opacity. Use these setters on the UI thread.
+
 Existing helpers remain available and delegate to the shared scheduler:
 
 ```csharp

@@ -268,6 +268,30 @@ public sealed class ToolTipTransitionTests
 
     private static int ActiveCount => AnimationScheduler.Default.GetDiagnostics().ActiveAnimationCount;
 
+    [Theory]
+    [InlineData(119.6)]
+    [InlineData(119.7)]
+    [InlineData(119.8)]
+    public void NearTerminalFrameStillCommitsTheExactTooltipEndpoint(double penultimateMilliseconds)
+    {
+        using var host = ModernFormsTestHost.Create();
+        var form = new Form();
+        using var window = host.Show(form, 380, 440);
+        using var fixture = new ModernFormsNext.Validation.ToolTipCertification(form, _ => { });
+        fixture.Begin();
+
+        // Native elapsed time has sub-millisecond precision. A quadratic ease-out
+        // frame this close to 120 ms used to leave a residual below the setter epsilon.
+        var penultimateTime = TimeSpan.FromMilliseconds(penultimateMilliseconds);
+        host.Clock.Advance(penultimateTime);
+        Assert.InRange(fixture.Content.TranslationY, float.Epsilon, 0.0001f);
+        host.Clock.Advance(TimeSpan.FromMilliseconds(120) - penultimateTime);
+
+        Assert.Equal(0f, fixture.Content.TranslationY);
+        fixture.VerifySettled();
+        Assert.Equal(0, ActiveCount);
+    }
+
     [Fact]
     public void SharedNativeFixtureUsesTheSameProductionPopupAndInputLeases()
     {
