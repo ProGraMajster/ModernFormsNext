@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Drawing;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Services;
@@ -18,6 +17,9 @@ internal sealed class DesignerPagePreview : IDisposable
     internal const int MaximumPropertyTextLength = 64 * 1024;
     private readonly List<Control> owned = [];
     private readonly HashSet<DesignControlNode> authoredPlaceholders = [];
+    private DesignControlNode? activeNode;
+    private Control? layoutControl;
+    private string stage = "Construct viewport";
     internal Dictionary<DesignControlNode, Control> Controls { get; } = [];
     internal Control Root { get; private set; } = null!;
 
@@ -51,12 +53,12 @@ internal sealed class DesignerPagePreview : IDisposable
             { error = $"Page preview supports at most {MaximumNodes} authored nodes and depth {MaximumDepth}."; return null; }
             if (item.Node.Properties.TryGetValue(nameof(Control.RightToLeft), out var direction)
                 && !DesignerLayoutProperties.TryReadRightToLeft(direction, out _))
-            { error = "Runtime layout preview requires a declared RightToLeft selection."; return null; }
+            { error = $"{item.Node.Name} ({item.Node.TypeName}) requires a declared RightToLeft selection."; return null; }
             var type = DesignerSurfaceRenderer.ResolveFrameworkControlType(item.Node.TypeName);
             bool authoredPlaceholder = type is null && allowAuthoredPlaceholders;
             if (!authoredPlaceholder && (type is null || type.IsAbstract
                 || !typeof(Control).IsAssignableFrom(type) || type.GetConstructor(Type.EmptyTypes) is null))
-            { error = $"Page preview requires a known framework control: {item.Node.TypeName}."; return null; }
+            { error = $"Page preview requires a known framework control: {item.Node.Name} ({item.Node.TypeName})."; return null; }
             if (item.Node.Properties.Count > MaximumPropertyValues - values.Count)
             { error = "Page preview exceeds its property value budget."; return null; }
             values.AddRange(item.Node.Properties.Values);
@@ -67,21 +69,29 @@ internal sealed class DesignerPagePreview : IDisposable
         var preview = new DesignerPagePreview();
         try
         {
-            var viewport = new PreviewViewport { Bounds = new Rectangle(Point.Empty, size), RightToLeft = inheritedDirection };
-            viewport.Site = new PreviewSite(viewport);
+            var viewport = new PreviewViewport();
             preview.owned.Add(viewport);
+            DesignerPreviewControl.Prepare(viewport);
+            viewport.Bounds = new Rectangle(Point.Empty, size);
+            viewport.RightToLeft = inheritedDirection;
             preview.Root = preview.Create(node);
             preview.Initialize(node, imageFrame, assetDiagnostic);
+            preview.SetStage("Attach", node);
             preview.Root.Bounds = new Rectangle(Point.Empty, size);
             viewport.Controls.Add(preview.Root);
             preview.Attach(node);
-            Layout(viewport);
+            preview.Layout(viewport);
             return preview;
         }
         catch (Exception exception)
         {
-            preview.Dispose();
-            error = $"Page preview: {exception.GetType().Name}: {exception.Message}";
+            var failedNode = preview.activeNode ?? node;
+            string control = preview.layoutControl is { } layoutControl
+                ? $"{layoutControl.Name} ({layoutControl.GetType().Name})"
+                : $"{failedNode.Name} ({failedNode.TypeName})";
+            error = DesignerPreviewControl.Failure($"{preview.stage} {control}", exception);
+            if (preview.TryDispose() is { } cleanupError)
+                error += $" | {cleanupError}";
             return null;
         }
     }
@@ -90,14 +100,14 @@ internal sealed class DesignerPagePreview : IDisposable
     {
         Control? navigationRoot = DesignPageContainers.IsType(node.TypeName, "NavigationPage") && node.Children.Count == 1
             ? Create(node.Children[0]) : null;
+        SetStage("Construct", node);
         Type? type = DesignerSurfaceRenderer.ResolveFrameworkControlType(node.TypeName);
         var control = existing ?? (navigationRoot is Page page ? new NavigationPage(page)
             : type is null ? new Control() : (Control)Activator.CreateInstance(type)!);
         if (type is null) authoredPlaceholders.Add(node);
         if (existing is null) owned.Add(control);
         Controls.Add(node, control);
-        control.Site = new PreviewSite(control);
-        if (control is SearchBar search) search.SuppressSuggestionRequests = true;
+        DesignerPreviewControl.Prepare(control);
         foreach (var child in node.Children)
         {
             if (navigationRoot is not null) continue;
@@ -111,6 +121,7 @@ internal sealed class DesignerPagePreview : IDisposable
     private void Initialize(DesignControlNode node, DesignerImagePreviewFrame? imageFrame,
         Action<DesignControlNode, string>? assetDiagnostic)
     {
+        SetStage("Apply properties", node);
         var control = Controls[node];
         control.Name = node.Name;
         control.Bounds = new Rectangle(node.Bounds.X, node.Bounds.Y, node.Bounds.Width, node.Bounds.Height);
@@ -123,7 +134,7 @@ internal sealed class DesignerPagePreview : IDisposable
         // External measure/layout cannot run in metadata preview. Preserve its authored size
         // with a closed Control placeholder; known base layout properties still validate normally.
         if (authoredPlaceholder) control.AutoSize = false;
-        if (errors.Count != 0) throw new InvalidOperationException(string.Join("; ", errors));
+        if (errors.Count > 0) throw new InvalidOperationException(errors[0]);
         foreach (var child in node.Children) Initialize(child, imageFrame, assetDiagnostic);
     }
 
@@ -138,6 +149,7 @@ internal sealed class DesignerPagePreview : IDisposable
             children = children.Reverse();
         foreach (var child in children)
         {
+            SetStage("Attach", child);
             var childControl = Controls[child];
             if (control is not NavigationPage && !(control is SplitContainer && DesignerSpecialContainers.IsSpecialGeneratedPart(child)))
                 switch (control)
@@ -160,11 +172,22 @@ internal sealed class DesignerPagePreview : IDisposable
             Attach(child);
         }
         if (control is TabbedPage tabbed && node.Properties.TryGetValue("SelectedIndex", out var selected))
+        {
+            SetStage("Select page", node);
             tabbed.SelectedIndex = (int)selected.Value!;
+        }
     }
 
-    private static void Layout(Control control)
+    private void SetStage(string operation, DesignControlNode node)
     {
+        stage = operation;
+        activeNode = node;
+    }
+
+    private void Layout(Control control)
+    {
+        stage = "Layout";
+        layoutControl = control;
         control.PerformLayout();
         foreach (var child in control.Controls.GetAllControls()) Layout(child);
     }
@@ -197,21 +220,23 @@ internal sealed class DesignerPagePreview : IDisposable
 
     private static DesignBounds ToBounds(Rectangle rectangle) => new(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
 
-    public void Dispose()
-    {
-        // Ownership may include hidden retained pages and unattached controls after a failed
-        // construction. Control.Dispose is idempotent; retire all of our allocations.
-        for (int index = owned.Count - 1; index >= 0; index--) owned[index].Dispose();
-        owned.Clear();
-    }
+    public void Dispose() => TryDispose();
 
-    private sealed class PreviewSite(IComponent component) : ISite
+    internal string? TryDispose()
     {
-        public IComponent Component => component;
-        public IContainer? Container => null;
-        public bool DesignMode => true;
-        public string? Name { get; set; }
-        public object? GetService(Type serviceType) => null;
+        // Ownership also includes detached and retained pages. Keep trying after a failure
+        // so unrelated instances are retired even if their parent cannot finish disposal.
+        string? first = null;
+        int failures = 0;
+        for (int index = owned.Count - 1; index >= 0; index--)
+        {
+            if (DesignerPreviewControl.Dispose(owned[index]) is not { } error)
+                continue;
+            first ??= error;
+            failures++;
+        }
+        owned.Clear();
+        return failures <= 1 ? first : $"{first} | {failures - 1} additional dispose failures.";
     }
 
     // Detached ordinary controls inherit Visible=false from the absence of a parent.

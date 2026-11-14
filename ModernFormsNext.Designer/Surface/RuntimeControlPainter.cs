@@ -1,7 +1,5 @@
 using System.Drawing;
-using System.Reflection;
 using ModernFormsNext;
-using ModernFormsNext.Renderers;
 using SkiaSharp;
 
 namespace ModernFormsNext.Designer.Surface;
@@ -12,9 +10,6 @@ internal static class RuntimeControlPainter
     // At four bytes per pixel the admitted temporary bitmap uses at most 64 MiB.
     internal const int MaximumBitmapDimension = 8192;
     internal const int MaximumBitmapPixelCount = 16 * 1024 * 1024;
-    private static readonly BindingFlags PaintMethodFlags = BindingFlags.Instance | BindingFlags.NonPublic;
-    private static readonly MethodInfo? RaisePaintBackgroundMethod = typeof(Control).GetMethod("RaisePaintBackground", PaintMethodFlags);
-    private static readonly MethodInfo? RaisePaintMethod = typeof(Control).GetMethod("RaisePaint", PaintMethodFlags);
 
     public static bool TryPaint(
         PaintEventArgs target,
@@ -37,6 +32,7 @@ internal static class RuntimeControlPainter
             return false;
         }
 
+        string stage = "Allocate preview bitmap";
         try
         {
             var deviceImageInfo = new SKImageInfo(destination.Width, destination.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
@@ -56,13 +52,17 @@ internal static class RuntimeControlPainter
                 destination.Height / (float)logicalSize.Height);
 
             var controlPaintArgs = new PaintEventArgs(logicalImageInfo, canvas, scaling: 1d);
+            stage = "Apply preview clip";
             control.ApplyGeometryClip(canvas);
 
             // Paint into an isolated surface first. Runtime background drawing clears the
             // canvas, so doing it directly on the designer surface would erase the workspace.
-            if (!TryRaiseRuntimePaint(control, controlPaintArgs, out error))
-                return false;
+            stage = "Paint background";
+            control.RaisePaintBackground(controlPaintArgs);
+            stage = "Paint";
+            control.RaisePaint(controlPaintArgs);
 
+            stage = "Composite preview";
             canvas.Flush();
             diagnostics = AnalyzeBitmap(bitmap);
 
@@ -71,7 +71,7 @@ internal static class RuntimeControlPainter
         }
         catch (Exception ex)
         {
-            error = $"{ex.GetType().Name}: {ex.Message}";
+            error = DesignerPreviewControl.Failure(stage, ex);
             return false;
         }
     }
@@ -105,89 +105,5 @@ internal static class RuntimeControlPainter
         }
 
         return new RuntimeControlPaintDiagnostics(bitmap.Width, bitmap.Height, samples, visible, opaque);
-    }
-
-    private static bool TryRaiseRuntimePaint(Control control, PaintEventArgs e, out string? error)
-    {
-        error = null;
-
-        if (RaisePaintBackgroundMethod is null || RaisePaintMethod is null)
-        {
-            return TryRenderFallback(control, e, out error);
-        }
-
-        try
-        {
-            RaisePaintBackgroundMethod.Invoke(control, [e]);
-            RaisePaintMethod.Invoke(control, [e]);
-            return true;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            error = $"{ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
-            return false;
-        }
-        catch (Exception ex)
-        {
-            error = $"{ex.GetType().Name}: {ex.Message}";
-            return false;
-        }
-    }
-
-    private static bool TryRenderFallback(Control control, PaintEventArgs e, out string? error)
-    {
-        error = null;
-
-        var bounds = new Rectangle(0, 0, control.ScaledWidth, control.ScaledHeight);
-
-        e.Canvas.DrawBackground(bounds, control.CurrentStyle, control.BackgroundBrush);
-        e.Canvas.DrawBorder(bounds, control.CurrentStyle);
-
-        return TryRenderControl(control, e, out error);
-    }
-
-    private static bool TryRenderControl(Control control, PaintEventArgs e, out string? error)
-    {
-        error = null;
-
-        try
-        {
-            RenderManager.Render(control, e);
-            return true;
-        }
-        catch (InvalidOperationException ex) when (ex.Message.StartsWith("No renderer found", StringComparison.Ordinal))
-        {
-            return TryInvokeOnPaint(control, e, out error);
-        }
-    }
-
-    private static bool TryInvokeOnPaint(Control control, PaintEventArgs e, out string? error)
-    {
-        error = null;
-
-        try
-        {
-            var method = control.GetType().GetMethod("OnPaint", PaintMethodFlags)
-                ?? typeof(Control).GetMethod("OnPaint", PaintMethodFlags);
-
-            if (method is null)
-            {
-                error = "No renderer or OnPaint method was found.";
-                return false;
-            }
-
-            method.Invoke(control, [e]);
-            return true;
-        }
-        catch (TargetInvocationException ex) when (ex.InnerException is not null)
-        {
-            error = $"{ex.InnerException.GetType().Name}: {ex.InnerException.Message}";
-            return false;
-        }
-        catch (Exception ex)
-        {
-            error = $"{ex.GetType().Name}: {ex.Message}";
-            return false;
-        }
     }
 }

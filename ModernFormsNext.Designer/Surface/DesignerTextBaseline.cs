@@ -24,6 +24,7 @@ internal static class DesignerTextBaseline
         if (control is null) return null;
         try
         {
+            DesignerPreviewControl.Prepare(control);
             control.Bounds = new Rectangle(0, 0, (int)bounds.Width, (int)bounds.Height);
             var projection = new DesignControlNode { TypeName = node.TypeName };
             foreach (var property in node.Properties)

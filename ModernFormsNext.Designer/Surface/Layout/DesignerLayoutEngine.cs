@@ -62,12 +62,28 @@ internal sealed class DesignerLayoutEngine
             }
             var area = bounds[node];
             string? error = tableError ?? "Invalid inherited RightToLeft selection.";
-            using var preview = tableError is null && direction is { } effective
+            var preview = tableError is null && direction is { } effective
                 ? DesignerPagePreview.TryCreate(node, new System.Drawing.Size(area.Width, area.Height), out error, effective, resourcePolicy)
                 : null;
-            if (preview is null)
+            if (preview is not null)
             {
-                diagnostics[node] = error!;
+                try
+                {
+                    preview.Capture(new System.Drawing.Point(area.X, area.Y), bounds, visibleBounds);
+                }
+                catch (Exception exception)
+                {
+                    error = DesignerPreviewControl.Failure("Capture preview layout", exception);
+                }
+                finally
+                {
+                    if (preview.TryDispose() is { } cleanupError)
+                        error = error is null ? cleanupError : $"{error} | {cleanupError}";
+                }
+            }
+            if (error is not null)
+            {
+                diagnostics[node] = error;
                 // Only the diagnostic placeholder is painted. Its unavailable descendants
                 // must not become invisible hit/drop targets from generic fallback geometry.
                 var pending = new Stack<DesignControlNode>(node.Children);
@@ -76,9 +92,7 @@ internal sealed class DesignerLayoutEngine
                     visibleBounds[child] = new DesignBounds(0, 0, 0, 0);
                     foreach (var descendant in child.Children) pending.Push(descendant);
                 }
-                continue;
             }
-            preview.Capture(new System.Drawing.Point(area.X, area.Y), bounds, visibleBounds);
         }
     }
 

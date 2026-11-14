@@ -336,9 +336,11 @@ Parsing does not load application assemblies or run C#.
   the bounded contracts in [project assets](designer-project-assets.md) and
   [inherited designs](designer-inheritance.md). These features do not execute application
   constructors or provide general custom-control execution isolation.
-- Arbitrary project code is not executed for preview. Source-described UserControls use the safe
-  data-only model above; broader isolation is tracked by
-  [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40).
+- Source-described UserControls use the data-only preview above. A custom type without usable
+  design metadata shows a named runtime-only placeholder. Consult the Designer Output to see why
+  its metadata could not be used. Repair the companion design, refresh Toolbox and reopen the
+  document to retry. Application constructors, converters and event handlers remain outside the
+  preview execution boundary.
 - Revision-aware recovery autosave, startup recovery, atomic canonical writes, and external-change
   conflict handling are implemented by
   [#41](https://github.com/ProGraMajster/ModernFormsNext/issues/41). This deliberately does not add a
@@ -350,6 +352,28 @@ Parsing does not load application assemblies or run C#.
   diagnostics and are never evaluated or merged automatically.
 
 See [Known limitations](known-limitations.md) for the central classification and priorities.
+
+## Preview failures and recovery
+
+Detached framework controls have a design-mode site before authored properties, layout and paint
+run. The site is assigned after construction, supplies no runtime services, and cannot be changed
+through authored properties. Preview rendering suppresses suggestions and runtime document-image loading. Only permitted project images are read
+by the preview asset path.
+
+The Designer Output identifies the instance, type and failed operation. Exceptions include a short
+method stack and property errors name the authored property. A rejected property on an individual
+control leaves its remaining properties available. A failed paint uses a placeholder and keeps
+other authored controls available. Page and layout containers may defer the affected subtree
+when the production engine cannot build or measure it. Its hidden descendants are excluded from
+hit testing. Preview cleanup attempts all owned instances, including detached pages, and reports
+disposal failures separately from the original error. Correct the authored value and repaint or
+reopen the document to retry.
+
+The Visual Studio host process provides the existing startup, IPC and shutdown limits. The limits
+apply to the host and its messages. The Designer does not preempt a synchronous framework
+constructor, setter or paint callback inside that process. Close and reopen an unresponsive host
+through the editor pane. Recovery and the document close decision remain with the existing
+persistence coordinator. See [Designer host lifecycle](visual-studio-designer-host.md#save-reload-dirty-state-and-close).
 
 ## Visual Studio integration boundaries
 
