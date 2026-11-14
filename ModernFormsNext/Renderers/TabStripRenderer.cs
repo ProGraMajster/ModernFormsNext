@@ -48,21 +48,21 @@ namespace ModernFormsNext.Renderers
                 radius,
                 1f);
 
-            var left = bounds.Left + e.LogicalToDeviceUnits (12);
-            var centerY = bounds.Top + bounds.Height / 2;
+            var left = bounds.Left + e.LogicalToDeviceUnits (item.Padding.Left);
+            var top = bounds.Top + e.LogicalToDeviceUnits (item.Padding.Top);
+            var bottom = Math.Max(top, bounds.Bottom - e.LogicalToDeviceUnits (item.Padding.Bottom));
+            var centerY = top + (bottom - top) / 2;
 
             if (item.Icon != null && item.DisplayMode != TabDisplayMode.TextOnly) {
                 var iconSize = e.LogicalToDeviceUnits (16);
                 item.IconBounds = new Rectangle (left, centerY - iconSize / 2, iconSize, iconSize);
-                e.Canvas.DrawImage (
-    item.Icon,
-    new SKPoint (item.IconBounds.Left, item.IconBounds.Top));
+                e.Canvas.DrawImage (item.Icon, item.IconBounds.ToSKRect());
                 left += iconSize + e.LogicalToDeviceUnits (8);
             } else {
                 item.IconBounds = Rectangle.Empty;
             }
 
-            var right = bounds.Right - e.LogicalToDeviceUnits (12);
+            var right = bounds.Right - e.LogicalToDeviceUnits (item.Padding.Right);
 
             if (control.ShowCloseButtons && item.Closable && !item.Pinned) {
                 var closeSize = e.LogicalToDeviceUnits (14);
@@ -79,14 +79,17 @@ namespace ModernFormsNext.Renderers
                 item.CloseButtonBounds = Rectangle.Empty;
             }
 
-            item.TextBounds = Rectangle.FromLTRB (left, bounds.Top, right, bounds.Bottom);
+            item.TextBounds = Rectangle.FromLTRB (left, top, Math.Max(left, right), bottom);
 
             if (item.DisplayMode != TabDisplayMode.IconOnly) {
-                var fontColor = !item.Enabled ? Theme.ForegroundDisabledColor : Theme.ForegroundColor;
-                var font = item.Enabled && item.Selected ? Theme.UIFontBold : Theme.UIFont;
-                var fontSize = e.LogicalToDeviceUnits (Theme.FontSize);
-
-                e.Canvas.DrawText (item.Text, font, fontSize, item.TextBounds, fontColor, ContentAlignment.MiddleCenter);
+                var style = control.HeaderStyle;
+                var fontColor = !item.Enabled ? Theme.ForegroundDisabledColor : control.CurrentStyle.GetForegroundColor();
+                // Resolve the same borrowed typeface, flags and fractional metrics used for
+                // preferred size. Selected emphasis adds Bold without dropping other flags.
+                e.Canvas.DrawTextCore(item.Text, style.GetFont(), e.LogicalToDeviceUnits(style.GetFontSize()),
+                    item.TextBounds, fontColor, ContentAlignment.MiddleCenter, maxLines: 1, ellipsis: true,
+                    fontStyle: control.GetHeaderFontStyle(item.Enabled && item.Selected),
+                    lineHeight: style.GetLineHeight(), letterSpacing: style.GetLetterSpacing() * control.Scaling);
             }
         }
 

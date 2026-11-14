@@ -18,8 +18,16 @@ namespace ModernFormsNext
     /// It manages a collection of <see cref="TabStripItem"/> objects, each representing
     /// a visual tab.
     /// </para>
+    /// <para>
+    /// A standalone strip uses its own effective font and typography. Its default height follows
+    /// the text, with a minimum of 31 logical pixels. An explicitly changed Height is retained;
+    /// AutoSize opts back into natural sizing. MinimumSize and MaximumSize still constrain it.
+    /// Font and live typography changes request layout and painting on the UI thread. Direct
+    /// style edits require PerformLayout and Invalidate. The implicit TabControl strip instead
+    /// borrows its owner's typography. No typeface or item icon ownership is transferred.
+    /// </para>
     /// </remarks>
-    public class TabStrip : Control
+    public partial class TabStrip : Control
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="TabStrip"/> class.
@@ -68,12 +76,12 @@ namespace ModernFormsNext
         public int TabSpacing { get; set; } = 10;
 
         /// <summary>
-        /// Gets or sets the minimum width of a tab.
+        /// Gets or sets the minimum width of a tab in logical pixels.
         /// </summary>
         public int TabMinWidth { get; set; } = 56;
 
         /// <summary>
-        /// Gets or sets the maximum width of a tab.
+        /// Gets or sets the maximum width of a tab in logical pixels; zero disables the cap.
         /// </summary>
         public int TabMaxWidth { get; set; } = 220;
 
@@ -283,7 +291,7 @@ namespace ModernFormsNext
                 {
                     Tabs.SelectedIndex = value;
                     OnSelectedTabChanged(EventArgs.Empty);
-                    Invalidate();
+                    RefreshHeaderTypography();
                 }
             }
         }

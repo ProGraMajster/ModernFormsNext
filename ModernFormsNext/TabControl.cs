@@ -17,6 +17,13 @@ namespace ModernFormsNext
     /// <para>
     /// Internally, it uses a <see cref="TabStrip"/> control to render and manage tab headers.
     /// </para>
+    /// <para>
+    /// Headers use this control's effective font, line height and letter spacing, including
+    /// inherited styles. Changing <see cref="Control.Font"/> or live typography metrics on the
+    /// UI thread remeasures header height and page layout, then repaints. Direct style edits
+    /// require the normal explicit PerformLayout and Invalidate calls. Selected captions add
+    /// bold emphasis while retaining the other font flags. Fonts are borrowed, not disposed.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -41,7 +48,8 @@ namespace ModernFormsNext
         {
             tab_strip = Controls.AddImplicitControl(new TabStrip
             {
-                Dock = DockStyle.Top
+                Dock = DockStyle.Top,
+                TypographyOwner = this
             });
 
             tab_strip.SelectedTabChanged += TabStrip_SelectedTabChanged;
@@ -55,6 +63,28 @@ namespace ModernFormsNext
             var page = TabPages.FirstOrDefault(x => ReferenceEquals(x.TabStripItem, e.Item));
             if (page != null)
                 CloseTab(page);
+        }
+
+        /// <inheritdoc/>
+        protected override void OnFontChanged(EventArgs e)
+        {
+            tab_strip?.RefreshHeaderTypography();
+            base.OnFontChanged(e);
+        }
+
+        /// <inheritdoc/>
+        protected override void OnLayout(LayoutEventArgs e)
+        {
+            // Direct style edits follow the normal explicit PerformLayout/Invalidate convention.
+            // Refresh before docking pages so their content starts below the new header height.
+            tab_strip?.RefreshHeaderTypography();
+            base.OnLayout(e);
+        }
+
+        internal override void OnPresentationContentMetricsChanged()
+        {
+            base.OnPresentationContentMetricsChanged();
+            tab_strip?.RefreshHeaderTypography();
         }
 
         /// <summary>
