@@ -16495,6 +16495,1747 @@
         133
       ],
       "releaseApproved": false
+    },
+    {
+      "capturedAt": "2026-11-14T18:16:49.145653+00:00",
+      "master": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+      "projectPages": [
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA5OTAwOTkwMDk5MDA5Oc4Oa5qx",
+          "totalCount": 463
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA0OTc1MTI0Mzc4MTA5NM4QAREu",
+          "totalCount": 463
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAzMzIyMjU5MTM2MjEyNs4QaPtx",
+          "totalCount": 463
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyNDkzNzY1NTg2MDM0Oc4QqdzH",
+          "totalCount": 463
+        },
+        {
+          "count": 63,
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyMTU1MTcyNDEzNzkzMc4SL2Ey",
+          "totalCount": 463
+        }
+      ],
+      "projectFields": [
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZU",
+          "name": "Title",
+          "dataType": "TITLE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZY",
+          "name": "Assignees",
+          "dataType": "ASSIGNEES"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYVRZc",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Backlog"
+            },
+            {
+              "id": "d46bb227",
+              "name": "Planned"
+            },
+            {
+              "id": "47fc9ee4",
+              "name": "In progress"
+            },
+            {
+              "id": "54f33f8f",
+              "name": "In review"
+            },
+            {
+              "id": "04194b92",
+              "name": "Blocked"
+            },
+            {
+              "id": "98236657",
+              "name": "Done"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZg",
+          "name": "Labels",
+          "dataType": "LABELS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZk",
+          "name": "Linked pull requests",
+          "dataType": "LINKED_PULL_REQUESTS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZo",
+          "name": "Milestone",
+          "dataType": "MILESTONE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZs",
+          "name": "Repository",
+          "dataType": "REPOSITORY"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZw",
+          "name": "Reviewers",
+          "dataType": "REVIEWERS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ0",
+          "name": "Parent issue",
+          "dataType": "PARENT_ISSUE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ4",
+          "name": "Sub-issues progress",
+          "dataType": "SUB_ISSUES_PROGRESS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ8",
+          "name": "Created",
+          "dataType": "CREATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaA",
+          "name": "Updated",
+          "dataType": "UPDATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaE",
+          "name": "Closed",
+          "dataType": "CLOSED"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr8c",
+          "name": "Target version",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "311f3d16",
+              "name": "1.9.0"
+            },
+            {
+              "id": "59ed5453",
+              "name": "1.10.0"
+            },
+            {
+              "id": "f7eaf14b",
+              "name": "1.11.0"
+            },
+            {
+              "id": "ba502a65",
+              "name": "1.12.0"
+            },
+            {
+              "id": "697d2111",
+              "name": "2.0.0"
+            },
+            {
+              "id": "8105f14c",
+              "name": "Future"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9U",
+          "name": "Area",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "0abef53f",
+              "name": "Core"
+            },
+            {
+              "id": "72dbec22",
+              "name": "Graphics"
+            },
+            {
+              "id": "8a9c54fd",
+              "name": "Animations"
+            },
+            {
+              "id": "33e34416",
+              "name": "Themes"
+            },
+            {
+              "id": "ced8a83d",
+              "name": "Navigation"
+            },
+            {
+              "id": "e01b53f9",
+              "name": "Controls"
+            },
+            {
+              "id": "8bdad61f",
+              "name": "Documents"
+            },
+            {
+              "id": "d4047610",
+              "name": "Data visualization"
+            },
+            {
+              "id": "a5558334",
+              "name": "Localization"
+            },
+            {
+              "id": "c5442d9e",
+              "name": "Android"
+            },
+            {
+              "id": "29cc9209",
+              "name": "Windows"
+            },
+            {
+              "id": "990cb8c0",
+              "name": "Designer"
+            },
+            {
+              "id": "9e347eca",
+              "name": "Templates"
+            },
+            {
+              "id": "a4e80fc7",
+              "name": "Documentation"
+            },
+            {
+              "id": "d987dd8b",
+              "name": "Build and release"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9c",
+          "name": "Priority",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "8f08d0d7",
+              "name": "Critical"
+            },
+            {
+              "id": "53164825",
+              "name": "High"
+            },
+            {
+              "id": "badbd14e",
+              "name": "Medium"
+            },
+            {
+              "id": "afc4eb57",
+              "name": "Low"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9g",
+          "name": "Effort",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "465305c5",
+              "name": "S"
+            },
+            {
+              "id": "8bdcc57a",
+              "name": "M"
+            },
+            {
+              "id": "d0a63dfd",
+              "name": "L"
+            },
+            {
+              "id": "04c06343",
+              "name": "XL"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9o",
+          "name": "Start date",
+          "dataType": "DATE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9s",
+          "name": "Target date",
+          "dataType": "DATE"
+        }
+      ],
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "completed": 49,
+      "remaining": 4,
+      "classificationCounts": {
+        "V": 49,
+        "P": 2,
+        "Q": 1,
+        "B": 1
+      },
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 162,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 163,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "independentMilestoneAndLabelEndpointsMatched": true,
+      "sourceMembershipAndLabelsAndMilestonesUnchanged": true,
+      "projectScopePriorityAreaEffortUnchanged": true,
+      "issueBodiesUnchangedSinceInitialCapture": true,
+      "addedProjectItems": [
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABPMGJlw",
+          "number": 468,
+          "title": "Isolate Designer preview failures and cleanup",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/468",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-14T18:16:05Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        }
+      ],
+      "rawScopeSha256": "05a587e49d7f8e1e300a55143a62ec6ab9ba33ddcc6cbd12029e3d1dfacd6c6c",
+      "mergedPullRequests": [
+        {
+          "issue": 40,
+          "pullRequest": 468,
+          "stage": "data-only preview hardening",
+          "issueRemainsOpen": true,
+          "head": "7ab050e983b5944e8f8941e01f0a20631761c306",
+          "merge": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+          "requiredCiRun": 43624049646,
+          "requiredCi": {
+            "head": "7ab050e983b5944e8f8941e01f0a20631761c306",
+            "run": 43624049646,
+            "job": 132535870179,
+            "completedAt": "2026-11-14T18:15:10Z",
+            "passed": 6180,
+            "total": 6180,
+            "failed": 0,
+            "skipped": 0,
+            "trimDiagnostics": 60,
+            "mergeTree": "e5a37d03c42f43bf7b2d0b5b1208056aca62c97d",
+            "artifactId": 14125708608,
+            "artifactZipSha256": "cd6ee8b342329146720c8e80d214a7498af6bd09c319a1db207aa51a5f31a029",
+            "projects": [
+              {
+                "failed": 0,
+                "passed": 166,
+                "skipped": 0,
+                "total": 166,
+                "project": "ModernFormsNext.Automation.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 66,
+                "skipped": 0,
+                "total": 66,
+                "project": "ModernFormsNext.Automation.Windows.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 31,
+                "skipped": 0,
+                "total": 31,
+                "project": "ModernFormsNext.CrossPlatform.Sample.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1327,
+                "skipped": 0,
+                "total": 1327,
+                "project": "ModernFormsNext.Designer.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1492,
+                "skipped": 0,
+                "total": 1492,
+                "project": "ModernFormsNext.Testing.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 2144,
+                "skipped": 0,
+                "total": 2144,
+                "project": "ModernFormsNext.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 34,
+                "skipped": 0,
+                "total": 34,
+                "project": "ModernFormsNext.VisualStudioExtension.Vsix.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 479,
+                "skipped": 0,
+                "total": 479,
+                "project": "ModernFormsNext.WindowKit.Backend.Android.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 441,
+                "skipped": 0,
+                "total": 441,
+                "project": "ModernFormsNext.WindowKit.Backend.Windows.Tests.dll"
+              }
+            ],
+            "dynamicResourceDeployment": "PASS"
+          },
+          "localValidation": {
+            "head": "7ab050e983b5944e8f8941e01f0a20631761c306",
+            "fullRun": {
+              "started": "2026-11-14T17:59:30.4150769Z",
+              "base": "7ab050e983b5944e8f8941e01f0a20631761c306",
+              "phases": [
+                {
+                  "name": "restore",
+                  "arguments": [
+                    "restore",
+                    "ModernFormsNext.slnx"
+                  ],
+                  "started": "2026-11-14T17:59:30.4708218Z",
+                  "finished": "2026-11-14T17:59:33.6699391Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "build-Debug",
+                  "arguments": [
+                    "build",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Debug",
+                    "--no-restore",
+                    "/p:EnableWindowsTargeting=true",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false"
+                  ],
+                  "started": "2026-11-14T17:59:33.6926983Z",
+                  "finished": "2026-11-14T18:01:50.5123091Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "test-Debug",
+                  "arguments": [
+                    "test",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Debug",
+                    "--no-build",
+                    "--no-restore",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false",
+                    "--logger",
+                    "trx",
+                    "--results-directory",
+                    "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-40\\final-v2\\tests-Debug"
+                  ],
+                  "started": "2026-11-14T18:01:50.5177604Z",
+                  "finished": "2026-11-14T18:08:38.2095433Z",
+                  "exitCode": 1
+                },
+                {
+                  "name": "build-Release",
+                  "arguments": [
+                    "build",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Release",
+                    "--no-restore",
+                    "--verbosity",
+                    "normal",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false"
+                  ],
+                  "started": "2026-11-14T18:08:38.2143890Z",
+                  "finished": "2026-11-14T18:12:24.2235306Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "test-Release",
+                  "arguments": [
+                    "test",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Release",
+                    "--no-build",
+                    "--no-restore",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false",
+                    "--logger",
+                    "trx",
+                    "--results-directory",
+                    "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-40\\final-v2\\tests-Release"
+                  ],
+                  "started": "2026-11-14T18:12:24.2283346Z",
+                  "finished": "2026-11-14T18:17:58.8118855Z",
+                  "exitCode": 1
+                }
+              ]
+            },
+            "Debug": {
+              "counters": {
+                "total": 6180,
+                "passed": 6179,
+                "failed": 1,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_01_54_net10.0.trx",
+                  "sha256": "901cefc6e2e0e6f66832950b5f207288c45602b0d65cbb4102b6bd9102edbf63",
+                  "total": 166
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_01_56_net10.0.trx",
+                  "sha256": "dd08f5e13841c09f55328764157fe4a7b9784eb75db7914edb4f1d2e0cc45a1f",
+                  "total": 66
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_02_35_net10.0.trx",
+                  "sha256": "e7c33604ccc63e361e64ec1f34b9c8312f17382c90c47270e925a331ded9e0a0",
+                  "total": 31
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_02_38_net10.0.trx",
+                  "sha256": "c647edb1531a10409498829b339c1ab32a20d0d7e77d490bc6cf90d46a372440",
+                  "total": 1327
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_03_21_net10.0.trx",
+                  "sha256": "1b40b38229e090c8b13a0455b8777807494f43be4743c3453e5e87ef924cd851",
+                  "total": 1492
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_03_38_net10.0.trx",
+                  "sha256": "b2c4401e28f9c8a49ce6afe7c52d8442fd1ca1bdac7b5e28891e8b1dcce5a7c7",
+                  "total": 2144
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_03_59_net472.trx",
+                  "sha256": "d20b48225d53623f27644c26bf41fcb70bacb997cd98b49cb2399983d3be0546",
+                  "total": 34
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_04_01_net10.0.trx",
+                  "sha256": "0cfdb0da08304b8050b4ba70936bac11de1b5558ea0c04e4d5c50234a44e36d4",
+                  "total": 479
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Debug/[local-runner]_2026-11-14_19_04_05_net10.0.trx",
+                  "sha256": "2c037423639ce93f9f1ea479db23db16bc3f7b97549b92676778669252261cdc",
+                  "total": 441
+                }
+              ],
+              "failures": [
+                {
+                  "name": "ModernFormsNext.Tests.VirtualizationGeneratorTests.WarmedNormalScrollingAndStableRequestsAllocateNothing",
+                  "message": "Assert.Equal() Failure: Values differ\r\nExpected: 0\r\nActual:   1888",
+                  "stack": "   at ModernFormsNext.Tests.VirtualizationGeneratorTests.WarmedNormalScrollingAndStableRequestsAllocateNothing() in [repository]\\ModernFormsNext.Tests\\VirtualizationGeneratorTests.cs:line 55\r\n   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)\r\n   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)"
+                }
+              ]
+            },
+            "Release": {
+              "counters": {
+                "total": 6180,
+                "passed": 6179,
+                "failed": 1,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_12_28_net10.0.trx",
+                  "sha256": "bfdb618032e43feca17ce25d197c1eee7d04952955908667e9d35f7f13f9bd08",
+                  "total": 166
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_12_32_net10.0.trx",
+                  "sha256": "7efabb8fa3b02f797291649ae8d5389ecf6d3265ad954ae4047080edf6b14686",
+                  "total": 66
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_13_10_net10.0.trx",
+                  "sha256": "4a92062642709c6eb74f910c05a805aca16fbbf3bfa0905ded1ad7732fb583ad",
+                  "total": 31
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_13_14_net10.0.trx",
+                  "sha256": "9a9743631ad1049da426bb2809f06bcb5d9ebadb2862f4d22b03a0cc15383140",
+                  "total": 1327
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_14_03_net10.0.trx",
+                  "sha256": "820b25156b900fe0988205b74af78d035f9c8ce54fcdb859684ad9b231918b22",
+                  "total": 1492
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_14_17_net10.0.trx",
+                  "sha256": "af9541b883767e2254fbdfdd3cd1ea8f62bb39be75b682ec38626e8421a1b519",
+                  "total": 2144
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_14_39_net472.trx",
+                  "sha256": "9e6192f944a398f4646854315bda4ee255da3ffc3d40db6e6572b8c09c710f84",
+                  "total": 34
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_14_41_net10.0.trx",
+                  "sha256": "0c5198097c7bf7a1639cc1111f470039b9b2b0160053baacc071ff60405446fe",
+                  "total": 479
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final-v2/tests-Release/[local-runner]_2026-11-14_19_14_44_net10.0.trx",
+                  "sha256": "79228a1cb89b032c1b2bfc5f5bf7b9e18c77fc74ed5ce78052c57c9f0eac34ac",
+                  "total": 441
+                }
+              ],
+              "failures": [
+                {
+                  "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsUiaProviderTests.NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles(size: \"large\")",
+                  "message": "System.InvalidOperationException: Missing item.0\r\n   at PresentationLifetimeScenario.Find(AutomationElement root, String id) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient\\PresentationLifetimeScenario.cs:line 48\r\n   at PresentationLifetimeScenario.Run(String handle) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient\\PresentationLifetimeScenario.cs:line 33\r\n\nEvidence: [repository]\\artifacts\\native-presentation\\Release-large-b6ff46102eb54f6490dd4f93fbea0b55",
+                  "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsUiaProviderTests.NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles(String size) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsUiaProviderTests.Presentation.Native.cs:line 40\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsUiaProviderTests.NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles(String size) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsUiaProviderTests.Presentation.Native.cs:line 50\r\n--- End of stack trace from previous location ---"
+                }
+              ]
+            },
+            "targeted": {
+              "counters": {
+                "total": 306,
+                "passed": 306,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-40/targeted-v2/[local-runner]_2026-11-14_18_58_42_net10.0.trx",
+                  "sha256": "7c940014ac86ec1e635e846af325e6e6346088317e4a6c2706d344504463e3d6",
+                  "total": 306
+                }
+              ],
+              "failures": []
+            },
+            "standaloneNative": {
+              "afterSha256": "8322590418E69EB8676B440B915DC9095E16C59B62B532246AEB2F6B1689D3F2",
+              "sameProcessAndHwnd": true,
+              "beforeSha256": "7FD626A9D369CCA6F95CFFD2E396D228EFB9058C7CE4EC13C9BEB3E081775DB6",
+              "runtimeOnlyFallback": true,
+              "hostDllSha256": "B5CB0D4ED54A8C3021BF693C6BAB148A5B8F62654D26BFAD0DCC396A88E06083",
+              "pid": 24756,
+              "hwnd": "0xD40760",
+              "invalidSetters": 2,
+              "designerDllSha256": "761A829AD5F1B6A2AAF7F443C6658342C3788C6E6145AF8377B58A42D120C11F",
+              "healthySibling": true,
+              "reopenedClean": true,
+              "exit": 0
+            }
+          },
+          "earlierHeadEvidence": {
+            "head": "617f6bdfe364226c8385c76e4d6833f76804c0a4",
+            "requiredCiRun": 43621962433,
+            "ciOutcome": "FAIL",
+            "ciCause": "Repeated setter diagnostics on one test",
+            "localValidation": {
+              "head": "617f6bdfe364226c8385c76e4d6833f76804c0a4",
+              "fullRun": {
+                "started": "2026-11-14T17:35:34.1777890Z",
+                "base": "617f6bdfe364226c8385c76e4d6833f76804c0a4",
+                "phases": [
+                  {
+                    "name": "restore",
+                    "arguments": [
+                      "restore",
+                      "ModernFormsNext.slnx"
+                    ],
+                    "started": "2026-11-14T17:35:34.2466647Z",
+                    "finished": "2026-11-14T17:35:38.5578742Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "build-Debug",
+                    "arguments": [
+                      "build",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Debug",
+                      "--no-restore",
+                      "/p:EnableWindowsTargeting=true",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false"
+                    ],
+                    "started": "2026-11-14T17:35:38.5893313Z",
+                    "finished": "2026-11-14T17:38:09.5645199Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "test-Debug",
+                    "arguments": [
+                      "test",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Debug",
+                      "--no-build",
+                      "--no-restore",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false",
+                      "--logger",
+                      "trx",
+                      "--results-directory",
+                      "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-40\\final\\tests-Debug"
+                    ],
+                    "started": "2026-11-14T17:38:09.5715648Z",
+                    "finished": "2026-11-14T17:42:39.8627262Z",
+                    "exitCode": 1
+                  },
+                  {
+                    "name": "build-Release",
+                    "arguments": [
+                      "build",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Release",
+                      "--no-restore",
+                      "--verbosity",
+                      "normal",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false"
+                    ],
+                    "started": "2026-11-14T17:42:39.8672473Z",
+                    "finished": "2026-11-14T17:46:19.7316547Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "test-Release",
+                    "arguments": [
+                      "test",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Release",
+                      "--no-build",
+                      "--no-restore",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false",
+                      "--logger",
+                      "trx",
+                      "--results-directory",
+                      "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-40\\final\\tests-Release"
+                    ],
+                    "started": "2026-11-14T17:46:19.7362616Z",
+                    "finished": "2026-11-14T17:52:08.6618022Z",
+                    "exitCode": 1
+                  }
+                ]
+              },
+              "Debug": {
+                "counters": {
+                  "total": 6180,
+                  "passed": 6177,
+                  "failed": 3,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_38_13_net10.0.trx",
+                    "sha256": "c3bb7179dcd37223275ef0516d61424040203487376a04421d3fc3310b607a16",
+                    "total": 166
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_38_17_net10.0.trx",
+                    "sha256": "693903c73465f789e1f177c5830306ca31c3002aa97a16defe124c77cfdd6bbc",
+                    "total": 66
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_38_59_net10.0.trx",
+                    "sha256": "58204516dd18470337b021afc7d3389804c73140efe262c2e1c5ab933401a382",
+                    "total": 31
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_39_03_net10.0.trx",
+                    "sha256": "73d27432c886d808f598a0654b9f6715eeca6271032a1d5d85d2c8356a63622e",
+                    "total": 1327
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_39_52_net10.0.trx",
+                    "sha256": "98293e7062826eaaa9a7bff35b4cb6203c746ab3a7aa03ee59a7e9c0d79e2a03",
+                    "total": 1492
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_40_13_net10.0.trx",
+                    "sha256": "23dc9aedc132465038527527cf3e7e27c544a07836e6e0acd335fa4de1d91dd2",
+                    "total": 2144
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_40_43_net472.trx",
+                    "sha256": "bbd14c9dcda7aaf61f0642448505e195419a05a101dbef9fc647636a13fa8f4f",
+                    "total": 34
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_40_45_net10.0.trx",
+                    "sha256": "b37a98d8a4be583c852209fc81079f16aa4c58da9e4e4d99e36e0fc1d29550ee",
+                    "total": 479
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Debug/[local-runner]_2026-11-14_18_40_49_net10.0.trx",
+                    "sha256": "ef5bbcde1f32609852c8ef93b26474b893a427deca8c3c936ea3deb237319b6a",
+                    "total": 441
+                  }
+                ],
+                "failures": [
+                  {
+                    "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(argument: \"--page-composition\", marker: \"PAGE_COMPOSITION:PASS:\")",
+                    "message": "Native focus host failed: System.InvalidOperationException: PAGE_COMPOSITION native-dismiss-validation-veto\r\n   at PageCompositionScenario.Run() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost\\PageCompositionScenario.cs:line 81\r\n\nPASS PAGE_COMPOSITION actual-hosted-composition\r\nPASS PAGE_COMPOSITION canonical-native-editor\r\nPASS PAGE_COMPOSITION native-composition-start\r\nPASS PAGE_COMPOSITION tab-validation-veto\r\nPASS PAGE_COMPOSITION veto-retains-native-composition\r\nPASS PAGE_COMPOSITION tab-native-text-handoff\r\nPASS PAGE_COMPOSITION tab-remembered-editor\r\nPASS PAGE_COMPOSITION tab-move-retains-identity-lifecycle\r\nPASS PAGE_COMPOSITION tab-remove-transfers\r\nPASS PAGE_COMPOSITION tab-readmit-transferred-page\r\nPASS PAGE_COMPOSITION native-tab-semantic-select-LeftToRight\r\nPASS PAGE_COMPOSITION native-tab-reveal-LeftToRight\r\nPASS PAGE_COMPOSITION native-tab-semantic-select-RightToLeft\r\nPASS PAGE_COMPOSITION native-tab-reveal-RightToLeft\r\nPASS PAGE_COMPOSITION canonical-header-cardinality\r\nPASS PAGE_COMPOSITION actual-editor-peer-identity\r\nPASS PAGE_COMPOSITION native-editor-semantic-bounds\r\nPAGE_COMPOSITION immediate=PASS\r\nPASS PAGE_COMPOSITION native-scheduler-open-completion\r\nPASS PAGE_COMPOSITION native-flyout-opacity-lifecycle-focus\r\nPASS PAGE_COMPOSITION overlay-owned-wrapper-availability\r\nPAGE_COMPOSITION disposal=PASS\r\n",
+                    "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(String argument, String marker) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsNativeFocusTests.cs:line 61\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(String argument, String marker) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsNativeFocusTests.cs:line 97\r\n--- End of stack trace from previous location ---"
+                  },
+                  {
+                    "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsVirtualizationCertificationTests.PacedNativeHostCertifiesListMetricsAndRetainedMemory",
+                    "message": "Certification host exited 1: System.InvalidOperationException: UTILITIES native-F5-refresh\r\n   at VirtualizationCertificationScenario.Run(Boolean searchTimeOnly) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost\\VirtualizationCertificationScenario.cs:line 85\r\n\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-text-Entry\r\nPASS search-time-popup-retains-native-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nPASS search-time-native-text-Entry-\r\nPASS search-time-popup-retains-native-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nPASS search-time-native-highlight\r\nPASS search-time-native-suggestion-commit-1\r\nPASS search-time-native-memory-history-1\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-suggestion-commit-2\r\nPASS search-time-native-memory-history-2\r\nPASS search-time-time-focus-real-spinner\r\nPASS search-time-native-time-key-full-precision\r\nSEARCH_TIME pointer-time=14:31:15.1234567 spinner={X=758,Y=403,Width=300,Height=36} increase={X=1046,Y=412}\r\nPASS search-time-native-time-pointer\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1,5, Height=1,5}\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=2, Height=2}\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nSEARCH_TIME_CERTIFICATION:WINDOWS:PASS\r\nPASS search-time-owned-controls-and-rows-disposed\r\nPASS utilities-jump-realizes-page\r\nPASS utilities-insert-keeps-occurrence\r\nPASS utilities-move-keeps-occurrence\r\nPASS utilities-logical-peer-reveals-page\r\nPASS utilities-native-page-key\r\nUTILITIES key-before-F5 focused=True available=True enabled=True visible=True executions=0\r\nUTILITIES key-after-F5 focused=True available=True executions=0\r\nPASS utilities-live-pages-disposed\r\n",
+                    "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsVirtualizationCertificationTests.PacedNativeHostCertifiesListMetricsAndRetainedMemory() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsVirtualizationCertificationTests.cs:line 40\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsVirtualizationCertificationTests.PacedNativeHostCertifiesListMetricsAndRetainedMemory() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsVirtualizationCertificationTests.cs:line 53\r\n--- End of stack trace from previous location ---"
+                  },
+                  {
+                    "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsKeyboardInputTests.UnicodePacketDoesNotInheritPreviousKeyConsumption(available: True)",
+                    "message": "Assert.Equal() Failure: Strings differ\r\nExpected: \"\"\r\nActual:   \"x\"\r\n           ↑ (pos 0)",
+                    "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsKeyboardInputTests.UnicodePacketDoesNotInheritPreviousKeyConsumption(Boolean available) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsKeyboardInputTests.cs:line 69\r\n   at System.RuntimeMethodHandle.InvokeMethod(ObjectHandleOnStack target, Void** arguments, ObjectHandleOnStack sig, BOOL isConstructor, ObjectHandleOnStack result)\r\n   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)\r\n   at System.Reflection.MethodBaseInvoker.InvokeDirectByRefWithFewArgs(Object obj, Span`1 copyOfArgs, BindingFlags invokeAttr)"
+                  }
+                ]
+              },
+              "Release": {
+                "counters": {
+                  "total": 6180,
+                  "passed": 6179,
+                  "failed": 1,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_46_23_net10.0.trx",
+                    "sha256": "af7df0c92eb378e000f726050e389049ea25282dd96429ce1a7a0955938a0465",
+                    "total": 166
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_46_27_net10.0.trx",
+                    "sha256": "ff4fe9b43374a2f998708ed36016fc24c0a8cf1e8fd9b84a313bad0323a6271d",
+                    "total": 66
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_47_06_net10.0.trx",
+                    "sha256": "a1aaf90facf884170d33273717fba152ea14bc82ff6501a923c128e752b29ef3",
+                    "total": 31
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_47_10_net10.0.trx",
+                    "sha256": "32b666dabd75392dc1fe530c296374bce854ea296f7e6968998bc2aa0b8fe06a",
+                    "total": 1327
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_48_01_net10.0.trx",
+                    "sha256": "f97b6166dc21013e328d6444abdefea2aa33b6a676f60aff865373583827b155",
+                    "total": 1492
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_48_19_net10.0.trx",
+                    "sha256": "a53c0083fec4678883e06b4989f17ca63761d76a47929317d4a46b38a785c3f5",
+                    "total": 2144
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_48_43_net472.trx",
+                    "sha256": "bf3158d823d53c5fa11c74190519132777b408ac16e600082e70870a1b799ad0",
+                    "total": 34
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_48_45_net10.0.trx",
+                    "sha256": "bc5a47c1f4cd1586dba0269662aa2437518b33f25b7e004c062ded97768c7801",
+                    "total": 479
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/final/tests-Release/[local-runner]_2026-11-14_18_48_48_net10.0.trx",
+                    "sha256": "13e1bc452610446254875085c66b98bb230180a141d8504475c3dfe217924d21",
+                    "total": 441
+                  }
+                ],
+                "failures": [
+                  {
+                    "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(argument: \"--designer-groups\", marker: \"DESIGNER_GROUPS:PASS:HWND\")",
+                    "message": "Native focus host failed: System.InvalidOperationException: Arrange item did not belong to the owned native popup.\r\n   at DesignerGroupScenario.Run() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost\\DesignerGroupScenario.cs:line 210\r\n\nDESIGNER_GROUPS:NATIVE_MODIFIERS:PASS\r\nDESIGNER_GROUPS:NATIVE_DRAG_MARQUEE_PIXELS:PASS\r\n",
+                    "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(String argument, String marker) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsNativeFocusTests.cs:line 61\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(String argument, String marker) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsNativeFocusTests.cs:line 96\r\n--- End of stack trace from previous location ---"
+                  }
+                ]
+              },
+              "targeted": {
+                "counters": {
+                  "total": 306,
+                  "passed": 306,
+                  "failed": 0,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-40/targeted-final/[local-runner]_2026-11-14_18_34_10_net10.0.trx",
+                    "sha256": "e5956ad5bed89ac563f10aacbbd0766dce1aa357e1409b2a062ed7c2148065fd",
+                    "total": 306
+                  }
+                ],
+                "failures": []
+              },
+              "standaloneNative": {
+                "hostDllSha256": "30CB587FD97782E1CCDF48A8A3618E94F283E37C05C71D5CCD543C0E4278ED14",
+                "runtimeOnlyFallback": true,
+                "exit": 0,
+                "reopenedClean": true,
+                "designerDllSha256": "31F3A1EE19D0B4BB39A5896D0EDED19D7143ADF8AD56F7456ECD10DC94FDF9A0",
+                "beforeSha256": "CEAA3D7A23F35D18DA97905A6AEB22D6B6D8E5EDAF7C0D72649568DA90210ECB",
+                "healthySibling": true,
+                "afterSha256": "2DCB00ED7C95F4B3627D67ADC18E2E2EBD5314FE473A8FBB3D19E1F894C7A61E",
+                "hwnd": "0x1F9020C",
+                "pid": 26928,
+                "sameProcessAndHwnd": true,
+                "invalidSetters": 2
+              },
+              "nativePageDiagnostic": {
+                "head": "617f6bdfe364226c8385c76e4d6833f76804c0a4",
+                "exeSha256": "7A8B505B10B29C6D47156D7358FEFCB1C97540BD0DEB8B5D7628C6D8B6F4BF48",
+                "arguments": "--page-composition",
+                "configuration": "Debug",
+                "passed": true,
+                "exit": 0,
+                "assertions": 32,
+                "originalVetoCheck": true
+              }
+            },
+            "nativeAb": {
+              "changes": "Designer.dll only",
+              "baseDesignerSha256": "C8BBC2F81A283330D9C859578355565FDF93E0CB826A56E78211477D1BC4D070",
+              "patchDesignerSha256": "287A6611F77A6FA511EF87442BE1D853FF12DED2794DA0252B6636620D3D2410",
+              "runnerDllSha256": "EC0921D3C90E008803D39A29BD9BF740B59808576540C5D8E3AF38AB9019D3E0",
+              "comparisons": [
+                {
+                  "variant": "base",
+                  "exit": 0,
+                  "repetition": 1,
+                  "error": "",
+                  "stdout": "DESIGNER_GROUPS:NATIVE_MODIFIERS:PASS\r\nDESIGNER_GROUPS:NATIVE_DRAG_MARQUEE_PIXELS:PASS\r\nDESIGNER_GROUPS:NATIVE_TOOLBAR_MENU_ANCHOR_ACTION:PASS\r\nDESIGNER_GROUPS:EDITOR_STATE ownerActive=True inputActive=True client=True native=True selected=True selectable=True visible=True grid={X=670,Y=42,Width=330,Height=634} events=SessionStarted,SessionRetired,SessionStarted\r\nDESIGNER_GROUPS:NATIVE_MIXED_EDITOR_ENTER:PASS\r\nDESIGNER_GROUPS:NATIVE_ROUND_TRIP:10028872:PASS\r\nDESIGNER_GROUPS:PASS:HWND"
+                },
+                {
+                  "variant": "patch",
+                  "exit": 0,
+                  "repetition": 1,
+                  "error": "",
+                  "stdout": "DESIGNER_GROUPS:NATIVE_MODIFIERS:PASS\r\nDESIGNER_GROUPS:NATIVE_DRAG_MARQUEE_PIXELS:PASS\r\nDESIGNER_GROUPS:NATIVE_TOOLBAR_MENU_ANCHOR_ACTION:PASS\r\nDESIGNER_GROUPS:EDITOR_STATE ownerActive=True inputActive=True client=True native=True selected=True selectable=True visible=True grid={X=670,Y=42,Width=330,Height=634} events=SessionStarted,SessionRetired,SessionStarted\r\nDESIGNER_GROUPS:NATIVE_MIXED_EDITOR_ENTER:PASS\r\nDESIGNER_GROUPS:NATIVE_ROUND_TRIP:18547144:PASS\r\nDESIGNER_GROUPS:PASS:HWND"
+                },
+                {
+                  "variant": "base",
+                  "exit": 1,
+                  "repetition": 2,
+                  "error": "System.InvalidOperationException: Native drag did not retain one common delta.",
+                  "stdout": "DESIGNER_GROUPS:NATIVE_MODIFIERS:PASS"
+                },
+                {
+                  "variant": "patch",
+                  "exit": 0,
+                  "repetition": 2,
+                  "error": "",
+                  "stdout": "DESIGNER_GROUPS:NATIVE_MODIFIERS:PASS\r\nDESIGNER_GROUPS:NATIVE_DRAG_MARQUEE_PIXELS:PASS\r\nDESIGNER_GROUPS:NATIVE_TOOLBAR_MENU_ANCHOR_ACTION:PASS\r\nDESIGNER_GROUPS:EDITOR_STATE ownerActive=True inputActive=True client=True native=True selected=True selectable=True visible=True grid={X=670,Y=42,Width=330,Height=634} events=SessionStarted,SessionRetired,SessionStarted\r\nDESIGNER_GROUPS:NATIVE_MIXED_EDITOR_ENTER:PASS\r\nDESIGNER_GROUPS:NATIVE_ROUND_TRIP:25624666:PASS\r\nDESIGNER_GROUPS:PASS:HWND"
+                },
+                {
+                  "variant": "base",
+                  "exit": 0,
+                  "repetition": 3,
+                  "error": "",
+                  "stdout": "DESIGNER_GROUPS:NATIVE_MODIFIERS:PASS\r\nDESIGNER_GROUPS:NATIVE_DRAG_MARQUEE_PIXELS:PASS\r\nDESIGNER_GROUPS:NATIVE_TOOLBAR_MENU_ANCHOR_ACTION:PASS\r\nDESIGNER_GROUPS:EDITOR_STATE ownerActive=True inputActive=True client=True native=True selected=True selectable=True visible=True grid={X=670,Y=42,Width=330,Height=634} events=SessionStarted,SessionRetired,SessionStarted\r\nDESIGNER_GROUPS:NATIVE_MIXED_EDITOR_ENTER:PASS\r\nDESIGNER_GROUPS:NATIVE_ROUND_TRIP:10291016:PASS\r\nDESIGNER_GROUPS:PASS:HWND"
+                },
+                {
+                  "variant": "patch",
+                  "exit": 0,
+                  "repetition": 3,
+                  "error": "",
+                  "stdout": "DESIGNER_GROUPS:NATIVE_MODIFIERS:PASS\r\nDESIGNER_GROUPS:NATIVE_DRAG_MARQUEE_PIXELS:PASS\r\nDESIGNER_GROUPS:NATIVE_TOOLBAR_MENU_ANCHOR_ACTION:PASS\r\nDESIGNER_GROUPS:EDITOR_STATE ownerActive=True inputActive=True client=True native=True selected=True selectable=True visible=True grid={X=670,Y=42,Width=330,Height=634} events=SessionStarted,SessionRetired,SessionStarted\r\nDESIGNER_GROUPS:NATIVE_MIXED_EDITOR_ENTER:PASS\r\nDESIGNER_GROUPS:NATIVE_ROUND_TRIP:18809288:PASS\r\nDESIGNER_GROUPS:PASS:HWND"
+                }
+              ]
+            },
+            "visualStudioStartup": {
+              "evidenceKind": "local development VSIX",
+              "commit": "617f6bdfe364226c8385c76e4d6833f76804c0a4",
+              "vsixVersion": "1.11.1",
+              "vsixSha256": "a4f26ac36286f2caac17ab5337962dfff2e1a14fda28aa8efdd7acc5ee4aa5ef",
+              "status": "host-ready",
+              "idePid": 34736,
+              "designerPid": 18164,
+              "profileSuffix": "MfnSmokeb8e7b546c1f5",
+              "observedAtUtc": "2026-11-14T17:56:43.4833376Z"
+            },
+            "visualStudioRender": {
+              "hostRender": true,
+              "manualPixels": false,
+              "closed": true,
+              "hostSurvived": false
+            }
+          }
+        }
+      ],
+      "nextIssues": [
+        40,
+        168,
+        131,
+        133
+      ],
+      "releaseApproved": false,
+      "openIssueDiagnostics": [
+        {
+          "issue": 168,
+          "status": "open",
+          "sdk": "10.0.401",
+          "runtime": "10.0.12",
+          "measuredIlCounterOffsets": [
+            "0x2d",
+            "0x4e"
+          ],
+          "historicFailures": [
+            {
+              "run": 35512235500,
+              "attempt": 1,
+              "bytes": 1328
+            },
+            {
+              "run": 37206449059,
+              "attempt": 1,
+              "bytes": 3256
+            }
+          ],
+          "observations": [
+            {
+              "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+              "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+              "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+              "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+              "mode": "isolated",
+              "probeEnabled": false,
+              "countRequested": 20,
+              "processors": 32,
+              "resultSha256": "6dc4fd3c7138dd6eec8ac592fd4501913468a2af99b16943ddced637a6ff32f2",
+              "targetPass": 20,
+              "totalsPerProcess": [
+                1
+              ],
+              "nonzeroExit": []
+            },
+            {
+              "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+              "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+              "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+              "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+              "mode": "isolated",
+              "probeEnabled": true,
+              "countRequested": 20,
+              "processors": 32,
+              "resultSha256": "dac61c04dbcca513fb538be4fe9d7aeabe2461e58108f02ed159bd17b7b0da03",
+              "targetPass": 20,
+              "totalsPerProcess": [
+                1
+              ],
+              "nonzeroExit": [],
+              "mappings": [
+                {
+                  "run": 1,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 2,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 3,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 4,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 5,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 6,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 7,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 8,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 9,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 10,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 11,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 12,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 13,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 14,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 15,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 16,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 17,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 18,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 19,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 20,
+                  "outcome": "Passed",
+                  "recorded": 1137,
+                  "possibleMeasured": 0,
+                  "unclassified": 43,
+                  "setup": 1071,
+                  "postMeasure": 23,
+                  "nativeVersions": 1
+                }
+              ]
+            },
+            {
+              "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+              "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+              "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+              "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+              "mode": "project",
+              "probeEnabled": false,
+              "countRequested": 5,
+              "processors": 32,
+              "resultSha256": "f92e208e82f345eca3ce5cd76dbac0c734828b15b0a1b58354608dbd2da194f6",
+              "targetPass": 5,
+              "totalsPerProcess": [
+                2144
+              ],
+              "nonzeroExit": []
+            },
+            {
+              "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+              "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+              "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+              "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+              "mode": "project",
+              "probeEnabled": true,
+              "countRequested": 5,
+              "processors": 32,
+              "resultSha256": "516bcc23fbd83362f2284ec9f19e3357b981517289a212335e36305e6d02b38d",
+              "targetPass": 5,
+              "totalsPerProcess": [
+                2144
+              ],
+              "nonzeroExit": [
+                1
+              ],
+              "mappings": [
+                {
+                  "run": 1,
+                  "outcome": "Passed",
+                  "recorded": 418,
+                  "possibleMeasured": 0,
+                  "unclassified": 15,
+                  "setup": 387,
+                  "postMeasure": 16,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 2,
+                  "outcome": "Passed",
+                  "recorded": 420,
+                  "possibleMeasured": 0,
+                  "unclassified": 16,
+                  "setup": 388,
+                  "postMeasure": 16,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 3,
+                  "outcome": "Passed",
+                  "recorded": 425,
+                  "possibleMeasured": 0,
+                  "unclassified": 16,
+                  "setup": 393,
+                  "postMeasure": 16,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 4,
+                  "outcome": "Passed",
+                  "recorded": 418,
+                  "possibleMeasured": 0,
+                  "unclassified": 15,
+                  "setup": 387,
+                  "postMeasure": 16,
+                  "nativeVersions": 1
+                },
+                {
+                  "run": 5,
+                  "outcome": "Passed",
+                  "recorded": 425,
+                  "possibleMeasured": 0,
+                  "unclassified": 15,
+                  "setup": 394,
+                  "postMeasure": 16,
+                  "nativeVersions": 1
+                }
+              ]
+            }
+          ],
+          "separateTypographyFailureBytes": 1936,
+          "allocationOriginEstablished": false,
+          "assertionOrRuntimePolicyChanged": false
+        }
+      ]
     }
   ]
 }
