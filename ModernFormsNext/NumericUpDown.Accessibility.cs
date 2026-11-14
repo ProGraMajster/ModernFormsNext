@@ -13,7 +13,7 @@ public partial class NumericUpDown
     internal override void OnPresentationContentMetricsChanged()
     {
         base.OnPresentationContentMetricsChanged();
-        UpdateEditorBounds();
+        RefreshEditorTypography();
     }
 
     // All entry points use the existing decimal value/editor, including semantic button actions.

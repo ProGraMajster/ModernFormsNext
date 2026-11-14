@@ -7462,6 +7462,987 @@
         133
       ],
       "releaseApproved": false
+    },
+    {
+      "capturedAt": "2026-11-14T09:33:02.161524+00:00",
+      "master": "15c73c4b4adf7545542fc6a93ccabec6fe91fbd6",
+      "projectPages": [
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA5OTAwOTkwMDk5MDA5Oc4Oa5qx",
+          "totalCount": 455
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA0OTc1MTI0Mzc4MTA5NM4QAREu",
+          "totalCount": 455
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAzMzIyMjU5MTM2MjEyNs4QaPtx",
+          "totalCount": 455
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyNDkzNzY1NTg2MDM0Oc4QqdzH",
+          "totalCount": 455
+        },
+        {
+          "count": 55,
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyMTkyOTgyNDU2MTQwM84SJYfw",
+          "totalCount": 455
+        }
+      ],
+      "projectFields": [
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZU",
+          "name": "Title",
+          "dataType": "TITLE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZY",
+          "name": "Assignees",
+          "dataType": "ASSIGNEES"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYVRZc",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Backlog"
+            },
+            {
+              "id": "d46bb227",
+              "name": "Planned"
+            },
+            {
+              "id": "47fc9ee4",
+              "name": "In progress"
+            },
+            {
+              "id": "54f33f8f",
+              "name": "In review"
+            },
+            {
+              "id": "04194b92",
+              "name": "Blocked"
+            },
+            {
+              "id": "98236657",
+              "name": "Done"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZg",
+          "name": "Labels",
+          "dataType": "LABELS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZk",
+          "name": "Linked pull requests",
+          "dataType": "LINKED_PULL_REQUESTS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZo",
+          "name": "Milestone",
+          "dataType": "MILESTONE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZs",
+          "name": "Repository",
+          "dataType": "REPOSITORY"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZw",
+          "name": "Reviewers",
+          "dataType": "REVIEWERS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ0",
+          "name": "Parent issue",
+          "dataType": "PARENT_ISSUE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ4",
+          "name": "Sub-issues progress",
+          "dataType": "SUB_ISSUES_PROGRESS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ8",
+          "name": "Created",
+          "dataType": "CREATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaA",
+          "name": "Updated",
+          "dataType": "UPDATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaE",
+          "name": "Closed",
+          "dataType": "CLOSED"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr8c",
+          "name": "Target version",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "311f3d16",
+              "name": "1.9.0"
+            },
+            {
+              "id": "59ed5453",
+              "name": "1.10.0"
+            },
+            {
+              "id": "f7eaf14b",
+              "name": "1.11.0"
+            },
+            {
+              "id": "ba502a65",
+              "name": "1.12.0"
+            },
+            {
+              "id": "697d2111",
+              "name": "2.0.0"
+            },
+            {
+              "id": "8105f14c",
+              "name": "Future"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9U",
+          "name": "Area",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "0abef53f",
+              "name": "Core"
+            },
+            {
+              "id": "72dbec22",
+              "name": "Graphics"
+            },
+            {
+              "id": "8a9c54fd",
+              "name": "Animations"
+            },
+            {
+              "id": "33e34416",
+              "name": "Themes"
+            },
+            {
+              "id": "ced8a83d",
+              "name": "Navigation"
+            },
+            {
+              "id": "e01b53f9",
+              "name": "Controls"
+            },
+            {
+              "id": "8bdad61f",
+              "name": "Documents"
+            },
+            {
+              "id": "d4047610",
+              "name": "Data visualization"
+            },
+            {
+              "id": "a5558334",
+              "name": "Localization"
+            },
+            {
+              "id": "c5442d9e",
+              "name": "Android"
+            },
+            {
+              "id": "29cc9209",
+              "name": "Windows"
+            },
+            {
+              "id": "990cb8c0",
+              "name": "Designer"
+            },
+            {
+              "id": "9e347eca",
+              "name": "Templates"
+            },
+            {
+              "id": "a4e80fc7",
+              "name": "Documentation"
+            },
+            {
+              "id": "d987dd8b",
+              "name": "Build and release"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9c",
+          "name": "Priority",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "8f08d0d7",
+              "name": "Critical"
+            },
+            {
+              "id": "53164825",
+              "name": "High"
+            },
+            {
+              "id": "badbd14e",
+              "name": "Medium"
+            },
+            {
+              "id": "afc4eb57",
+              "name": "Low"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9g",
+          "name": "Effort",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "465305c5",
+              "name": "S"
+            },
+            {
+              "id": "8bdcc57a",
+              "name": "M"
+            },
+            {
+              "id": "d0a63dfd",
+              "name": "L"
+            },
+            {
+              "id": "04c06343",
+              "name": "XL"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9o",
+          "name": "Start date",
+          "dataType": "DATE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9s",
+          "name": "Target date",
+          "dataType": "DATE"
+        }
+      ],
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "completed": 43,
+      "remaining": 10,
+      "classificationCounts": {
+        "V": 43,
+        "P": 4,
+        "Q": 1,
+        "B": 2,
+        "N": 2,
+        "I": 1
+      },
+      "independentMilestoneAndLabelEndpointsMatched": true,
+      "sourceMembershipAndLabelsAndMilestonesUnchanged": true,
+      "projectScopePriorityAreaEffortUnchanged": true,
+      "addedProjectItems": [
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABOtMCPQ",
+          "number": 443,
+          "title": "docs: correct 1.12.0 scope to 53 issues and resume the remaining queue",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/443",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-12T17:29:59Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABOtc3Rw",
+          "number": 444,
+          "title": "fix: avoid duplicate ParentChanged notifications from property assignment",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/444",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-12T17:48:34Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABOt1znA",
+          "number": 445,
+          "title": "fix: notify both coerced Form size constraints without stale callbacks",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/445",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-12T19:05:44Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABOuGhIQ",
+          "number": 446,
+          "title": "Preserve exact control animation endpoints after near-terminal frames",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/446",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-12T18:41:46Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABOu0qOw",
+          "number": 447,
+          "title": "docs: update 1.12.0 audit after verified constraint and animation fixes",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/447",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-12T19:34:32Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABOvNeug",
+          "number": 448,
+          "title": "Use effective font metrics for tab headers (#204)",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/448",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-14T09:28:55Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFAmHQ",
+          "number": 449,
+          "title": "[Scrolling] Smooth Scrolling 2.0 — cross-platform motion and UX tracking",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/449",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFBTJw",
+          "number": 450,
+          "title": "[Android][Scrolling] Implement touch fling and optional elastic overscroll",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/450",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFBU2Q",
+          "number": 451,
+          "title": "[Windows][Scrolling] Add smooth high-resolution wheel and precision touchpad input",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/451",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFBWoQ",
+          "number": 452,
+          "title": "[Scrolling] Add cancellable animated ScrollTo and ScrollIntoView operations",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/452",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFBniA",
+          "number": 453,
+          "title": "[Scrolling] Define nested scroll ownership, edge handoff and interruption policies",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/453",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFBo_w",
+          "number": 454,
+          "title": "[Scrolling][Testing] Qualify 60–144 Hz smooth scrolling, virtualization and accessibility",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/454",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFRK9A",
+          "number": 455,
+          "title": "[Images] Add reusable async image source/loading pipeline with cancellation and decode limits",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/455",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFRMJw",
+          "number": 456,
+          "title": "[Controls] Add general-purpose ContentStatePresenter for Content, Loading, Empty and Error",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/456",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFRNjw",
+          "number": 457,
+          "title": "[Scrolling] Add reusable opt-in sticky/pinned header behavior for scrollable viewports",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/457",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFRz0g",
+          "number": 458,
+          "title": "[Images] Add bounded decoded-image memory cache and opt-in persistent thumbnail cache",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/458",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFR0_A",
+          "number": 459,
+          "title": "[CollectionView] Add virtualized section metadata and sticky group headers",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/459",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        },
+        {
+          "__typename": "Issue",
+          "id": "I_kwDORoxfY88AAAABfFSIZw",
+          "number": 460,
+          "title": "[PictureBox] Integrate shared image loading/cache with explicit lifecycle and viewport-aware loading",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/460",
+          "state": "OPEN",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        }
+      ],
+      "rawScopeSha256": "fbb33dbd5a1877d475d326668c526c040616d0d3f15ecb4138aac97d398ef5a3",
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "N"
+        },
+        {
+          "number": 162,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "N"
+        },
+        {
+          "number": 163,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "In progress",
+          "classification": "I"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "mergedPullRequests": [
+        {
+          "issue": 204,
+          "pullRequest": 448,
+          "head": "4c9eeb2636eef35e0b0a7801b265de20baa961e7",
+          "merge": "15c73c4b4adf7545542fc6a93ccabec6fe91fbd6",
+          "requiredCiRun": 43292117091,
+          "localDebug": {
+            "total": 5987,
+            "passed": 5987,
+            "failed": 0,
+            "skipped": 0
+          },
+          "localRelease": {
+            "total": 5987,
+            "passed": 5987,
+            "failed": 0,
+            "skipped": 0
+          },
+          "requiredCi": {
+            "total": 5987,
+            "passed": 5987,
+            "failed": 0,
+            "skipped": 0,
+            "dynamicResourceDeployment": "PASS"
+          },
+          "nativeGallery": "Owned Windows UIA, software renderer, original PrintWindow screenshots inspected; not human multi-monitor or physical Android testing"
+        }
+      ],
+      "nextIssues": [
+        205,
+        138,
+        272,
+        162,
+        163,
+        132,
+        40,
+        168,
+        131,
+        133
+      ],
+      "releaseApproved": false,
+      "inProgress205Validation": {
+        "pullRequest": 461,
+        "testedReleaseHead": "ed92595726eff1da53b53df3867aed9b0d6791de",
+        "localDebug": {
+          "total": 6024,
+          "passed": 6024,
+          "failed": 0,
+          "skipped": 0
+        },
+        "localRelease": {
+          "total": 6024,
+          "passed": 6023,
+          "failed": 1,
+          "notExecuted": 0
+        },
+        "failures": [
+          {
+            "test": "ModernFormsNext.WindowKit.Backend.Windows.Tests.PlatformPerformanceTransportTests.DisabledIngressDoesNotAllocateOrRetainAFrame",
+            "message": "Assert.Equal() Failure: Values differ\r\nExpected: 0\r\nActual:   1752",
+            "rawTrx": "Marcin_DESKTOP-U97OBPG_2026-11-14_10_51_38_net10.0.trx",
+            "sha256": "1744a6741c66b28e97e3f201022700cb19d7370f5a4565fdea2812cf251c237c"
+          }
+        ],
+        "historicalSameTest": {
+          "date": "2026-09-26",
+          "bytes": 7216,
+          "rawTrx": "artifacts/msbuild-audit/tests/after-Release-1/after-Release-1_net10.0_20260926185430.trx"
+        },
+        "owningTestAndProductionUnchangedSince": "50756a11533848a45ed69e7ad903fcaba252828b",
+        "allocationOrigin": "Unknown; distinct from the profiler test in issue 168",
+        "rerunPerformed": false
+      }
     }
   ]
 }
