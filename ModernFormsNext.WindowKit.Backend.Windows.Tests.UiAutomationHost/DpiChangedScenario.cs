@@ -1,7 +1,9 @@
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using ModernFormsNext;
 using ModernFormsNext.WindowKit.Threading;
+using SkiaSharp;
 
 // Synthetic WM_DPICHANGED on an owned real HWND exercises the production native message path.
 // This is not evidence of physically moving a window between monitors with different DPI.
@@ -34,8 +36,10 @@ internal static class DpiChangedScenario
 
     private static void Transitions(bool systemChrome)
     {
+        using var icon = new SKBitmap(64, 64);
+        icon.Erase(SKColors.Magenta);
         using var form = new Form { UseSystemDecorations = systemChrome, StartPosition = FormStartPosition.Manual,
-            Size = new Size(400, 300) };
+            Size = new Size(400, 300), Image = icon };
         using var parent = form.Controls.Add(new Panel { Dock = DockStyle.Fill });
         using var child = parent.Controls.Add(new TextBox { Dock = DockStyle.Fill, Text = "DPI cache" });
         form.Show();
@@ -66,7 +70,7 @@ internal static class DpiChangedScenario
                 Require(parent.Size == form.ClientSize, "Window DPI event preceded final client layout.");
             });
         };
-        foreach (int dpi in new[] { 96, 120, 144, 192, 216 }) {
+        foreach (int dpi in new[] { 96, 120, 144, 168, 192, 216, 144, 96 }) {
             oldScale = form.Scaling; expectedScale = dpi / 96d;
             order.Clear(); controls = windows = 0;
             ApplyDpi(hwnd, dpi);
@@ -77,12 +81,38 @@ internal static class DpiChangedScenario
                 Require(order.IndexOf("parent") < order.IndexOf("child") && order.IndexOf("child") < order.IndexOf("window"), "Parent/child/window order changed.");
             ApplyDpi(hwnd, dpi, move: true);
             Require(controls == expected && windows == expected, "Same DPI at a different location emitted an event.");
+            VerifyManagedIcon(form, hwnd, systemChrome, dpi);
         }
         form.Close();
         Console.WriteLine("DPI_CHANGED:NATIVE:" + systemChrome);
 
         // Keep assertions outside reverse P/Invoke; exception propagation is covered headlessly.
         void Capture(Action assertion) { try { assertion(); } catch (Exception error) { observerFailure ??= error; } }
+    }
+
+    private static void VerifyManagedIcon(Form form, nint hwnd, bool systemChrome, int dpi)
+    {
+        Require(form.TitleBar.Visible == !systemChrome, "Managed icon overlaps native chrome.");
+        if (systemChrome) return;
+        // Force the production WM_PAINT path, then inspect its existing managed-chrome cache.
+        // This proves native DPI -> layout -> raster integration, not physical display scanout.
+        form.TitleBar.Invalidate();
+        _ = UpdateWindow(hwnd);
+        var pixels = (SKBitmap?)typeof(Control).GetField("back_buffer", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form.TitleBar);
+        Require(pixels is not null, "Native titlebar was not painted.");
+        int left = int.MaxValue, top = int.MaxValue, right = -1, bottom = -1;
+        for (int y = 0; y < pixels!.Height; y++)
+            for (int x = 0; x < pixels.Width; x++)
+                if (pixels.GetPixel(x, y) == SKColors.Magenta) {
+                    left = Math.Min(left, x); top = Math.Min(top, y);
+                    right = Math.Max(right, x); bottom = Math.Max(bottom, y);
+                }
+        int edge = 16 * dpi / 96, slot = 34 * dpi / 96;
+        Require(right - left + 1 == edge && bottom - top + 1 == edge,
+            $"Native titlebar icon size differs at {dpi} DPI: {right-left+1}x{bottom-top+1}, expected {edge}.");
+        Require(Math.Abs(left - (slot - edge) / 2) <= 1 && Math.Abs(top - (slot - edge) / 2) <= 1,
+            "Native titlebar icon lost centered margins.");
+        Console.WriteLine($"DPI_CHANGED:ICON:{dpi}:{edge}");
     }
 
     private static void Reentrancy(bool systemChrome)
@@ -135,6 +165,7 @@ internal static class DpiChangedScenario
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("user32.dll")] private static extern nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool UpdateWindow(nint hwnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetWindowRect(nint hwnd, out NativeRect rectangle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(nint hwnd);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint hwnd);

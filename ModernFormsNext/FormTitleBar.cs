@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
 using SkiaSharp;
 
@@ -13,7 +14,7 @@ namespace ModernFormsNext
         private readonly TitleBarButton minimize_button;
         private readonly TitleBarButton maximize_button;
         private readonly TitleBarButton close_button;
-        private readonly PictureBox form_image;
+        private readonly TitleBarImage form_image;
 
         private bool show_image = true;
 
@@ -52,12 +53,11 @@ namespace ModernFormsNext
             close_button = Controls.AddImplicitControl(new TitleBarButton(TitleBarButton.TitleBarButtonGlyph.Close));
             close_button.Click += (o, e) => { FindForm()?.Close(); };
 
-            form_image = Controls.AddImplicitControl(new PictureBox
+            form_image = Controls.AddImplicitControl(new TitleBarImage
             {
                 Width = DefaultSize.Height,
                 Dock = DockStyle.Left,
-                Visible = false,
-                SizeMode = PictureBoxSizeMode.CenterImage
+                Visible = false
             });
 
             // It's ok to hardcode SKColors.Transparent here.
@@ -102,6 +102,16 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the image used as the upper-left icon of the titlebar.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. The bitmap is borrowed: keep it alive while assigned, and
+        /// dispose it after replacement or title-bar disposal. Assignment invalidates painting
+        /// and updates the icon slot's visibility/layout. The image fits a centered 16-logical-
+        /// pixel square (or the available smaller slot), preserving its aspect ratio. Monitor
+        /// DPI is applied once when painting. Supply a sufficiently detailed bitmap for high
+        /// DPI; this property receives decoded pixels and cannot select another ICO frame or
+        /// recover detail absent from a low-resolution source. This managed title-bar image
+        /// is separate from the platform's native window/launcher icon.
+        /// </remarks>
         public SKBitmap? Image
         {
             get => form_image.Image;
@@ -179,6 +189,51 @@ namespace ModernFormsNext
             maximize_button.Glyph = form.WindowState == FormWindowState.Maximized
                 ? TitleBarButton.TitleBarButtonGlyph.Restore
                 : TitleBarButton.TitleBarButtonGlyph.Maximize;
+        }
+
+        // Keep icon destination sizing local to managed chrome. Ordinary PictureBox.CenterImage
+        // intentionally uses source device pixels, so changing that renderer would affect apps.
+        private sealed class TitleBarImage : Control
+        {
+            private SKBitmap? image;
+
+            internal TitleBarImage()
+            {
+                SetControlBehavior(ControlBehaviors.Selectable, false);
+                // Preserve the former PictureBox's image semantics even though destination
+                // sizing is now private to chrome. Visibility still controls the exposed view.
+                AccessibleRole = AccessibleRole.Graphic;
+                AccessibleControlType = AccessibleControlType.Image;
+                AccessibilityView = AccessibilityView.Content;
+            }
+
+            internal SKBitmap? Image
+            {
+                get => image;
+                set
+                {
+                    if (image == value) return;
+                    image = value;
+                    Invalidate();
+                }
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (image is null || image.Width <= 0 || image.Height <= 0) return;
+
+                // Child bounds and this client rectangle are already in device pixels. Scale
+                // only the intended 100%-DPI icon edge, not the bitmap's decoded dimensions.
+                var client = PaddedClientRectangle;
+                int edge = Math.Min(LogicalToDeviceUnits(16), Math.Min(client.Width, client.Height));
+                if (edge <= 0) return;
+                int width = image.Width >= image.Height ? edge : Math.Max(1, (int)(edge * (double)image.Width / image.Height));
+                int height = image.Height >= image.Width ? edge : Math.Max(1, (int)(edge * (double)image.Height / image.Width));
+                var destination = new Rectangle(client.Left + (client.Width - width) / 2,
+                    client.Top + (client.Height - height) / 2, width, height);
+                e.Canvas.DrawBitmap(image, destination, !Enabled);
+            }
         }
 
         internal sealed class TitleBarButton : Button

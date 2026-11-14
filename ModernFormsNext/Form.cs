@@ -364,6 +364,19 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the icon for the form.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. The managed <see cref="TitleBar"/> borrows this bitmap;
+        /// keep it alive until it is replaced or the form is disposed. Its image fits a
+        /// centered 16-logical-pixel square at the current DPI. Supply a larger source bitmap
+        /// for high-DPI detail; this decoded-pixel API does not select frames from ICO files.
+        /// The platform backend receives the same source independently for its native icon.
+        /// Backend support varies; Android does not support a per-Form launcher icon.
+        /// </remarks>
+        /// <example><code>
+        /// using var icon = SKBitmap.Decode("application-icon-64.png");
+        /// using var form = new Form { Image = icon };
+        /// Application.Run(form);
+        /// </code></example>
         public SKBitmap? Image {
             get => TitleBar.Image;
             set {

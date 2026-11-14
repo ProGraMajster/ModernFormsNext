@@ -24,6 +24,7 @@ fresh result for the current checkout. For application guidance, use the documen
 - [Rendering backend foundation: issue 46](issue-46-rendering-foundation-report.md)
 - [High DPI: issue 120](issue-120-high-dpi.md)
 - [Snap/maximize geometry: issue 137](issue-137-snap-maximize.md)
+- [Managed title-bar icon sizing and DPI (#138)](issue-138-titlebar-icon-dpi.md)
 - [Scroll layout consistency: issue 130](scroll-layout-regression.md)
 - [Partial redraw regression](partial-redraw-regression.md)
 - [Exact animation endpoints: issue 88 follow-up](issue-88-animation-endpoints.md)
