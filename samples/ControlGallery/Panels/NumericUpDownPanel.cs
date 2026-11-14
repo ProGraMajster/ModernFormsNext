@@ -57,7 +57,7 @@ namespace ControlGallery.Panels
             });
             textSize.Click += (_, _) => {
                 scaleIndex = (scaleIndex + 1) % textScales.Length;
-                var font = new Font(originalFont.FamilyName, (float)(originalFont.SizeInPoints * textScales[scaleIndex]));
+                var font = new ModernFormsNext.Font(originalFont.FamilyName, (float)(originalFont.SizeInPoints * textScales[scaleIndex]));
                 typographyNumber.Font = readOnlyNumber.Font = font;
                 textSize.Text = $"Text size: {textScales[scaleIndex]:P0}";
             };
