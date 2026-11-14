@@ -540,6 +540,35 @@ lifecycle, last activation **kind**, open/active Form counts, and at most 64 rec
 It excludes activation arguments, file names, URIs, and saved-state values. `LastActivation` and
 explicit state delivery do expose payloads by design; avoid writing them into general logs.
 
+On built-in providers, `RecentStateDeliveries` adds up to 64 completed save and restore
+notifications. Each entry includes the sequence shared with activation and lifecycle
+events, the operation, reason, final schema version and count of provider subscriptions
+that threw. A save without data has a null schema. The entry becomes visible after its
+callbacks finish and before the next queued operation runs. A forwarding subscription
+counts once even if several application handlers failed inside it. Custom providers can
+implement the optional `IPlatformApplicationStateDiagnostics` interface. A null history
+means the provider lacks that capability. An empty history means it has no records.
+
+The diagnostic reports callback delivery. The application still decides which versions
+to accept and whether to persist or apply state. Keys, values, activation locations and
+exception text are excluded. Android restores the first Activity's retained Bundle in a
+new process before delivering initial activation. Ordinary recreation retains the live
+process state. To exercise process restoration on an available emulator or device, build
+and sign the cross-platform sample APK locally, then run the dedicated probe:
+
+```powershell
+./scripts/android/Test-ProcessStateRestoration.ps1 -DeviceId $serial -ApkPath $apk `
+    -OutputDirectory artifacts/android-release/process-restoration
+```
+
+The probe starts a separate sample task, prepares one synthetic value, waits for the
+Activity to stop with saved state, and uses Activity Manager to retire the background
+sample process. Success requires a different PID in the same task, a saved Bundle,
+the restored fixture value and a restore sequence before launch activation. The probe
+does not verify restoration after dismissing the task. See
+[Android saved state](https://developer.android.com/topic/libraries/architecture/saving-states)
+and [ADB Activity Manager commands](https://developer.android.com/tools/adb#am).
+
 The [headless TestHost](testing/testhost.md) uses this same publisher and production dispatcher.
 It supports deterministic phase/activation/restoration tests and real `Application.Run` lifetime
 tests. Host disposal revokes its facade and restores the borrowed application runtime; keep

@@ -53,6 +53,11 @@ public sealed class WindowsNativeApplicationLifecycleTests
             Assert.True(root.GetProperty("InactiveAnimationContinues").GetBoolean());
             Assert.True(root.GetProperty("SuspendPausesAnimation").GetBoolean());
             Assert.True(root.GetProperty("ResumeRestartsAnimation").GetBoolean());
+            Assert.Equal(8, root.GetProperty("StressCycles").GetInt32());
+            Assert.Equal(8, root.GetProperty("RetiredCompositionClients").GetInt32());
+            Assert.True(root.GetProperty("DispatcherResumed").GetBoolean());
+            Assert.Equal(new[] { "Uri", "Files", "Protocol" }, root.GetProperty("ExplicitActivations")
+                .EnumerateArray().Select(item => item.GetString()));
             Assert.Equal("Exited", root.GetProperty("FinalPhase").GetString());
             Assert.Equal(new[] { "Phase:Exiting", "OnExit", "Phase:Exited" },
                 root.GetProperty("ExitOrder").EnumerateArray().Select(item => item.GetString()));

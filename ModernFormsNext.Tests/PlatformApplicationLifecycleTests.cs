@@ -204,6 +204,61 @@ public sealed class PlatformApplicationLifecycleTests
     }
 
     [Fact]
+    public void StateHistoryRecordsFinalSchemaAndFailuresBeforeLaterQueuedDelivery()
+    {
+        using var publisher = CreatePublisher(Running());
+        const PlatformApplicationStateReason reason = PlatformApplicationStateReason.Recreation;
+        var order = new List<string>();
+        publisher.StateSaving += (_, e) => {
+            e.Data = new PlatformApplicationStateData(1);
+            publisher.RestoreState(new PlatformApplicationStateData(77,
+                new Dictionary<string, string> { ["private"] = "incoming secret" }), reason);
+            publisher.Activate(new PlatformApplicationActivation(PlatformActivationKind.Files, files: ["private file"]));
+            throw new ApplicationException("private save exception");
+        };
+        publisher.StateSaving += (_, e) => { order.Add("last save"); e.Data = new PlatformApplicationStateData(2); };
+        publisher.StateRestoring += (_, _) => {
+            order.Add("restore first");
+            Assert.Equal(new PlatformApplicationStateDelivery(1, PlatformApplicationStateOperation.Save, reason, 2, 1),
+                Assert.Single(publisher.GetRecentStateDeliveries()));
+            throw new InvalidOperationException("private restore exception");
+        };
+        publisher.StateRestoring += (_, _) => order.Add("restore second");
+        publisher.ActivationReceived += (_, e) => {
+            order.Add("activate");
+            Assert.Equal(3, e.Sequence);
+            Assert.Equal(2, publisher.GetRecentStateDeliveries().Count);
+        };
+
+        var failures = Assert.Throws<AggregateException>(() => publisher.RequestSaveState(reason));
+
+        Assert.Equal(new[] { "last save", "restore first", "restore second", "activate" }, order);
+        Assert.Collection(failures.InnerExceptions,
+            e => Assert.IsType<ApplicationException>(e), e => Assert.IsType<InvalidOperationException>(e));
+        Assert.Equal(new[] { new PlatformApplicationStateDelivery(1, PlatformApplicationStateOperation.Save, reason, 2, 1),
+            new PlatformApplicationStateDelivery(2, PlatformApplicationStateOperation.Restore, reason, 77, 1) },
+            publisher.GetRecentStateDeliveries());
+        Assert.False(publisher.IsPublishing);
+    }
+
+    [Fact]
+    public void StateHistoryKeepsOnlyRecentCompletedNotificationsAndDetachesSnapshots()
+    {
+        using var publisher = CreatePublisher(Running());
+        const PlatformApplicationStateReason reason = PlatformApplicationStateReason.Suspend;
+        Assert.Empty(publisher.GetRecentStateDeliveries());
+        Assert.Null(publisher.RequestSaveState(reason));
+        var first = publisher.GetRecentStateDeliveries();
+        Assert.Equal(new PlatformApplicationStateDelivery(1, PlatformApplicationStateOperation.Save, reason, null, 0),
+            Assert.Single(first));
+        for (int version = 1; version <= 80; version++)
+            publisher.RestoreState(new PlatformApplicationStateData(version), reason);
+        Assert.Equal(Enumerable.Range(17, 64), publisher.GetRecentStateDeliveries().Select(e => e.SchemaVersion!.Value));
+        Assert.Equal(1, Assert.Single(first).Sequence);
+        Assert.True(Assert.IsAssignableFrom<IList<PlatformApplicationStateDelivery>>(first).IsReadOnly);
+    }
+
+    [Fact]
     public void SelfReplenishingNotificationsAreBoundedAndLeaveThePublisherRecoverable()
     {
         using var publisher = CreatePublisher(Running());

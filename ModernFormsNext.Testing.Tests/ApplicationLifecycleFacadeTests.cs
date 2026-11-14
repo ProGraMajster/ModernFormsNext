@@ -249,6 +249,26 @@ public sealed class ApplicationLifecycleFacadeTests
     }
 
     [Fact]
+    public void DiagnosticsIncludeBackendStateDeliveryAndExcludePrivateValues()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var publisher = host.Services.Lifecycle;
+        publisher.StateSaving += (_, e) => e.Data = new PlatformApplicationStateData(1,
+            new Dictionary<string, string> { ["private-state-key"] = "private-state-value" });
+        publisher.StateRestoring += (_, _) => throw new ApplicationException("private-observer-message");
+        var state = publisher.RequestSaveState(PlatformApplicationStateReason.Suspend)!;
+        var before = Application.Lifecycle.GetDiagnostics();
+        Assert.Throws<ApplicationException>(() => publisher.RestoreState(state, PlatformApplicationStateReason.Recreation));
+        var after = Application.Lifecycle.GetDiagnostics();
+        Assert.Single(before.RecentStateDeliveries!);
+        Assert.Collection(after.RecentStateDeliveries!,
+            save => { Assert.Equal(1, save.SchemaVersion); Assert.Equal(0, save.FailedObserverCount); },
+            restore => { Assert.Equal(1, restore.SchemaVersion); Assert.Equal(1, restore.FailedObserverCount); });
+        string serialized = System.Text.Json.JsonSerializer.Serialize(after);
+        Assert.DoesNotContain("private-", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WindowDiagnosticsRemainDistinctFromPlatformApplicationActivity()
     {
         using var host = ModernFormsTestHost.Create();

@@ -8,6 +8,7 @@ using ModernFormsNext.Diagnostics;
 using ModernFormsNext.Drawing;
 using ModernFormsNext.WindowKit.Backend.Android;
 using ModernFormsNext.WindowKit.Backend.Android.Rendering;
+using ModernFormsNext.WindowKit.Backend.Lifecycle;
 using SkiaSharp;
 using System.Drawing;
 using System.Text;
@@ -122,6 +123,9 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
             using (var protocol = new Intent(Intent.ActionView, global::Android.Net.Uri.Parse("modernformsnext-sample://release-validation")!, TargetContext!, typeof(MainActivity)))
                 OnUi(() => { activity.StartActivity(protocol); return true; });
             WaitFor(() => OnUi(() => ModernFormsNext.Application.Lifecycle.GetDiagnostics().LastActivationKind?.ToString() == "Protocol"), "native-protocol-activation");
+            stage = "uri-and-file-activation";
+            ObserveIntent("https://example.invalid/lifecycle-fixture", PlatformActivationKind.Uri);
+            ObserveIntent("content://com.programajster.lifecycle-fixture/document/42", PlatformActivationKind.Files);
             stage = "reduced-motion";
             OnUi(() =>
             {
@@ -135,6 +139,16 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
             Check(OnUi(() => AnimationScheduler.Default.GetDiagnostics().FaultedCount == 0), "scheduler-no-faults");
             Capture("final.png");
             success = true;
+
+            void ObserveIntent(string address, PlatformActivationKind expected)
+            {
+                // Use an explicit Intent for the sample so Android does not open a browser,
+                // file provider, or another app. Only the normalized activation is observed.
+                using var intent = new Intent(Intent.ActionView, global::Android.Net.Uri.Parse(address)!, TargetContext!, typeof(MainActivity));
+                OnUi(() => { activity.StartActivity(intent); return true; });
+                WaitFor(() => OnUi(() => ModernFormsNext.Application.Lifecycle.GetDiagnostics().LastActivationKind == expected),
+                    $"native-{expected.ToString().ToLowerInvariant()}-activation");
+            }
         }
         catch (Exception error)
         {

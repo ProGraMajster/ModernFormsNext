@@ -210,7 +210,8 @@ public sealed class ApplicationLifecycle
     public ApplicationLifecycleDiagnostics GetDiagnostics()
     {
         EnsureBound();
-        return new(snapshot, lastActivationKind, openWindowCount, activeWindowCount, history.ToArray());
+        return new(snapshot, lastActivationKind, openWindowCount, activeWindowCount, history.ToArray(),
+            (provider as IPlatformApplicationStateDiagnostics)?.GetRecentStateDeliveries());
     }
 
     internal IPlatformApplicationLifecycleController? Controller
