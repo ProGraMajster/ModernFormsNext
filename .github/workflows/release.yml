@@ -164,7 +164,6 @@ jobs:
       PREPARE_RUN_ID: ${{ inputs.prepare_run_id }}
       APPROVAL_COMMENT_ID: ${{ inputs.approval_comment_id }}
       REPOSITORY: ${{ github.repository }}
-      APPROVAL_FILE: ${{ runner.temp }}/release-owner-approval.json
 
     steps:
       - name: Checkout exact publication tag
@@ -177,6 +176,8 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          # runner is available in step env, but not in jobs.<job_id>.env.
+          APPROVAL_FILE: ${{ runner.temp }}/release-owner-approval.json
         run: .\scripts\Confirm-ReleaseHandoff.ps1 -Repository $env:REPOSITORY -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -PrepareRunId $env:PREPARE_RUN_ID -ApprovalCommentId $env:APPROVAL_COMMENT_ID -ApprovalFile $env:APPROVAL_FILE
 
       - name: Retrieve the exact prepared candidate
@@ -189,6 +190,8 @@ jobs:
 
       - name: Verify all release gates
         shell: pwsh
+        env:
+          APPROVAL_FILE: ${{ runner.temp }}/release-owner-approval.json
         run: .\scripts\ReleaseEvidence.ps1 -CandidateDirectory artifacts/candidate -Tag $env:RELEASE_TAG -Commit $env:RELEASE_COMMIT -PrepareRunId $env:PREPARE_RUN_ID -Repository $env:REPOSITORY -ApprovalFile $env:APPROVAL_FILE -ApprovalCommentId $env:APPROVAL_COMMENT_ID -VerifiedEvidenceFile artifacts/verified-release-evidence.json
 
       - name: Retain verified publication evidence

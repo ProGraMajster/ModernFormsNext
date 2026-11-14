@@ -8,6 +8,13 @@ There are no workflow path filters or job-level conditions. Classification happe
 inside the job; a light documentation run still executes and succeeds/fails as
 `build`. Do not use `[skip ci]` on a PR that needs this required check.
 
+Before classification, `scripts/Test-WorkflowSyntax.ps1` validates every workflow's
+YAML and expression contexts with pinned, SHA-256-verified actionlint. This also runs
+on the documentation path. The Windows x64 wrapper downloads a portable tool into
+its own temporary directory and removes it afterwards; PowerShell script behavior
+is covered separately by the release-script tests. Run the wrapper locally before
+changing workflows or preparing a release.
+
 The default checkout is GitHub's PR merge revision, with full history. The classifier
 compares the event's exact base SHA with that checked-out merge SHA, including all
 commits in the PR. It uses NUL-delimited local Git raw records without rename
@@ -74,12 +81,19 @@ or merge methods change, revisit this policy. The final merge/rebase commit need
 not have the same SHA as the checked PR merge revision, and it will not receive a
 new push check. Do not describe it as a separately validated exact-SHA artifact.
 
-Tags matching `v*.*.*` continue to run the independent release workflow. It has no
-PR cancellation group or NuGet cache action. The workflow checks out the tag,
+Tags matching `v*.*.*` run the independent release **preparation** job. It has no
+PR cancellation group or NuGet cache action. Preparation checks out the tag,
 restores, builds Release, runs all tests, packs and validates NuGet, restores DocFX,
-tests documentation scripts, builds and validates versioned bundles, then creates
-the GitHub Release and publishes NuGet. The documentation gate verifies the exact
-tag/commit before publication. No earlier run's branch-labelled artifacts are used.
+tests documentation scripts, builds and validates versioned bundles, and runs the
+offline browser smoke. It retains the exact candidate and evidence manifest.
+
+Publication requires a separate manual dispatch on that same tag with the successful
+preparation run and repository owner's approval comment. The serialized publication
+job verifies provenance, exact candidate bytes and required manual evidence before
+creating the GitHub Release and publishing NuGet. Marketplace upload remains an
+operator handoff. See [release preparation and publication](releasing/release-smoke-and-handoff.md)
+for the approval schema and physical Android/Visual Studio evidence requirements.
+No earlier run's branch-labelled artifacts are used.
 
 Explicit `--no-restore` on release tests documents that the preceding restore/build
 is authoritative; `--no-build` already implies it in the .NET CLI. This clarification
