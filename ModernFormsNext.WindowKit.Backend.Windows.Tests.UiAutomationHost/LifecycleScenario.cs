@@ -19,6 +19,7 @@ internal static class LifecycleScenario
             Form? secondary = null;
             Exception? scenarioFailure = null;
             var events = new List<string>();
+            var explicitActivations = new List<PlatformActivationKind>();
             int activations = 0;
             int exitCalls = 0;
             bool inactiveAnimationContinues = false;
@@ -26,11 +27,23 @@ internal static class LifecycleScenario
             bool resumeRestartsAnimation = false;
             bool twoWindowsObserved = false;
             bool windowActivationObserved = false;
+            int stressCycles = 0;
+            int retiredCompositionClients = 0;
+            bool dispatcherResumed = false;
+            int drainedDispatcherOperations = 0;
+            bool countInitialActivation = true;
             var lifecycle = Application.Lifecycle;
             lifecycle.LifecycleChanged += (_, e) => events.Add($"Phase:{e.Current.Phase}");
-            lifecycle.ActivationReceived += (_, _) => activations++;
-            lifecycle.StateSaving += (_, e) => events.Add($"Save:{e.Reason}");
+            lifecycle.ActivationReceived += (_, e) => {
+                if (countInitialActivation) activations++;
+                else explicitActivations.Add(e.Activation.Kind);
+            };
+            lifecycle.StateSaving += (_, e) => {
+                events.Add($"Save:{e.Reason}");
+                e.Data = new PlatformApplicationStateData(1);
+            };
             Application.OnExit += (_, _) => { exitCalls++; events.Add("OnExit"); };
+            var editor = main.Controls.Add(new TextBox { Bounds = new Rectangle(20, 12, 150, 32) });
 
             // Post from Shown so the scenario executes after the real native message loop
             // starts; simulated session end must cancel that loop, not merely skip startup.
@@ -73,6 +86,39 @@ internal static class LifecycleScenario
                     Require(resumeRestartsAnimation, "Native resume did not resume the registered scheduler.");
                     Require(events.Count(item => item == "Phase:Running") == 1, "Duplicate native resume was not normalized.");
 
+                    countInitialActivation = false;
+                    lifecycle.DeliverActivation(new(PlatformActivationKind.Uri, uri: new Uri("https://example.invalid/lifecycle")));
+                    lifecycle.DeliverActivation(new(PlatformActivationKind.Files, files: ["lifecycle-fixture.txt"]));
+                    lifecycle.DeliverActivation(new(PlatformActivationKind.Protocol, uri: new Uri("lifecycle-fixture://open/")));
+                    Require(explicitActivations.SequenceEqual([PlatformActivationKind.Uri, PlatformActivationKind.Files,
+                        PlatformActivationKind.Protocol]), "Explicit lifecycle activation order changed.");
+                    for (int cycle = 0; cycle < 8; cycle++)
+                    {
+                        editor.Select();
+                        SendOwned(main.PlatformHandle.Handle, 0x0006, 1); // Activate our main HWND.
+                        var client = main.TextInputClient;
+                        Require(client?.SetComposingText("fixture") == true, "No active canonical text composition.");
+                        SendOwned(main.PlatformHandle.Handle, 0x0006, 0);
+                        Require(client!.GetState() is null && !client.CommitText("retired"), "Deactivation retained a stale text client.");
+                        retiredCompositionClients++;
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            if (lifecycle.Snapshot.Phase == PlatformApplicationPhase.Running)
+                                drainedDispatcherOperations++;
+                        });
+                        SendOwned(messageWindow, 0x0218, 4);
+                        Require(scheduler.GetDiagnostics().IsPaused, "Cycle did not suspend animation.");
+                        SendOwned(messageWindow, 0x0218, 18);
+                        Require(!scheduler.GetDiagnostics().IsPaused, "Cycle did not resume animation.");
+                        stressCycles++;
+                    }
+                    var saves = lifecycle.GetDiagnostics().RecentStateDeliveries;
+                    Require(saves is { Count: 9 } && saves.All(record =>
+                        record.Operation == PlatformApplicationStateOperation.Save &&
+                        record.Reason == PlatformApplicationStateReason.Suspend &&
+                        record.SchemaVersion == 1 && record.FailedObserverCount == 0),
+                        "Native save diagnostics do not match the suspend cycles.");
+
                     secondary.Close();
                     Require(lifecycle.Snapshot.HostCount == 1, "Closing the secondary window lost the main native host.");
                     events.Clear();
@@ -82,11 +128,20 @@ internal static class LifecycleScenario
                         "Canceled native shutdown ended Application.Run.");
                     Require(events.SequenceEqual(["Save:Exit"]), "Native shutdown query did not request explicit state.");
                     events.Clear();
-                    // This is a direct message to our own hidden window. It never asks Windows
-                    // to log off, shut down, suspend, or broadcast a message to other applications.
-                    SendOwned(messageWindow, 0x0016, 1);
-                    Require(lifecycle.Snapshot.Phase == PlatformApplicationPhase.Exiting,
-                        "Native session end did not publish managed exit intent.");
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            dispatcherResumed = drainedDispatcherOperations == stressCycles &&
+                                lifecycle.Snapshot.Phase == PlatformApplicationPhase.Running;
+                            Require(dispatcherResumed, "Queued dispatcher work did not run in the resumed application.");
+                            // Send a message to this process's own hidden window.
+                            SendOwned(messageWindow, 0x0016, 1);
+                            Require(lifecycle.Snapshot.Phase == PlatformApplicationPhase.Exiting,
+                                "Native session end did not publish managed exit intent.");
+                        }
+                        catch (Exception exception) { scenarioFailure = exception; Application.Exit(); }
+                    });
                 }
                 catch (Exception exception)
                 {
@@ -108,6 +163,8 @@ internal static class LifecycleScenario
                 WindowActivationObserved = windowActivationObserved,
                 InactiveAnimationContinues = inactiveAnimationContinues,
                 SuspendPausesAnimation = suspendPausesAnimation, ResumeRestartsAnimation = resumeRestartsAnimation,
+                StressCycles = stressCycles, RetiredCompositionClients = retiredCompositionClients,
+                DispatcherResumed = dispatcherResumed, ExplicitActivations = explicitActivations.Select(kind => kind.ToString()),
                 FinalPhase = lifecycle.Snapshot.Phase.ToString(), ExitOrder = events
             }));
             return 0;

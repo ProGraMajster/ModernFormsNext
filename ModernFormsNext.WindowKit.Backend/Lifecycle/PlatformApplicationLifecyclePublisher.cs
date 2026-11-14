@@ -31,12 +31,14 @@ namespace ModernFormsNext.WindowKit.Backend.Lifecycle;
 ///     isActive: true, hostCount: 1, hostGeneration: 1));
 /// </code>
 /// </example>
-public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecycleController, IDisposable
+public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecycleController, IPlatformApplicationStateDiagnostics, IDisposable
 {
     /// <summary>Gets the maximum queued notifications and the maximum operations in one drain.</summary>
     public const int MaximumNotificationsPerDrain = 256;
 
     private readonly Queue<Action<List<Exception>>> pending = new();
+    private const int StateHistoryLimit = 64;
+    private Queue<PlatformApplicationStateDelivery>? stateHistory;
     private Action? verifyAccess;
     private PlatformApplicationLifecycleSnapshot snapshot;
     private PlatformApplicationActivation? lastActivation;
@@ -79,6 +81,16 @@ public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecyc
     public PlatformApplicationActivation? LastActivation
     {
         get { ThrowIfDisposed(); return Volatile.Read(ref lastActivation); }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>At most 64 entries are retained. The current notification becomes visible when
+    /// its observers return, before later queued notifications run.</remarks>
+    public IReadOnlyList<PlatformApplicationStateDelivery> GetRecentStateDeliveries()
+    {
+        VerifyAccess();
+        return stateHistory is null ? Array.Empty<PlatformApplicationStateDelivery>()
+            : Array.AsReadOnly(stateHistory.ToArray());
     }
     /// <inheritdoc/>
     public event EventHandler<PlatformApplicationLifecycleChangedEventArgs>? StateChanged
@@ -161,8 +173,15 @@ public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecyc
         {
             if (snapshot.Phase == PlatformApplicationPhase.Exited) return;
             var args = new PlatformApplicationStateSavingEventArgs(reason, NextSequence());
+            int failuresBefore = failures.Count;
             try { Invoke(stateSaving, args, failures); }
-            finally { args.Seal(); result = args.Data; }
+            finally
+            {
+                args.Seal();
+                result = args.Data;
+                RecordStateDelivery(new(args.Sequence, PlatformApplicationStateOperation.Save,
+                    reason, result?.Version, failures.Count - failuresBefore));
+            }
         });
         return result;
     }
@@ -176,7 +195,11 @@ public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecyc
         Enqueue(failures =>
         {
             if (IsTerminating) return;
-            Invoke(stateRestoring, new PlatformApplicationStateRestoringEventArgs(data, reason, NextSequence()), failures);
+            var args = new PlatformApplicationStateRestoringEventArgs(data, reason, NextSequence());
+            int failuresBefore = failures.Count;
+            Invoke(stateRestoring, args, failures);
+            RecordStateDelivery(new(args.Sequence, PlatformApplicationStateOperation.Restore,
+                reason, data.Version, failures.Count - failuresBefore));
         });
     }
 
@@ -188,6 +211,7 @@ public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecyc
         VerifyAccess();
         disposed = true;
         pending.Clear();
+        stateHistory = null;
         stateChanged = null;
         lifecycleChanged = null;
         activationReceived = null;
@@ -199,6 +223,17 @@ public class PlatformApplicationLifecyclePublisher : IPlatformApplicationLifecyc
     }
 
     private bool IsTerminating => snapshot.Phase is PlatformApplicationPhase.Exiting or PlatformApplicationPhase.Exited;
+
+    private void RecordStateDelivery(PlatformApplicationStateDelivery delivery)
+    {
+        // An observer can dispose the publisher while it is delivering the state.
+        // Disposal retires the history as well as queued work and subscribers.
+        if (disposed) return;
+        var history = stateHistory ??= new Queue<PlatformApplicationStateDelivery>(StateHistoryLimit);
+        if (history.Count == StateHistoryLimit) history.Dequeue();
+        history.Enqueue(delivery);
+    }
+
     private long NextSequence() => checked(++sequence);
     private static void ValidateReason(PlatformApplicationStateReason reason)
     {
