@@ -8,6 +8,7 @@ using ModernFormsNext.Drawing;
 using ModernFormsNext.Rendering.Skia;
 using SkiaSharp;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace ModernFormsNext.Designer.Surface;
 
@@ -15,8 +16,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
 {
     private readonly DesignerCoordinateMapper coordinateMapper = new();
     private readonly DesignerLayoutEngine layoutEngine = new();
-    private readonly HashSet<string> loggedRuntimeRenderFailures = [];
-    private readonly HashSet<string> loggedRuntimePropertyFailures = [];
+    private readonly ConditionalWeakTable<DesignControlNode, PreviewFailureLog> previewFailures = new();
+    private DesignDocument? activeFailureDocument;
     private readonly HashSet<string> loggedEmbeddedPreviewMessages = [];
     private readonly Dictionary<DesignControlNode, string> runtimeRenderDiagnostics = [];
     private readonly Dictionary<DesignControlNode, string> placeholderRenderDiagnostics = [];
@@ -70,6 +71,11 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         IReadOnlyList<DesignerSnapGuide>? guides)
     {
         using var performance = PerformanceRecorder.Measure(PerformanceActivityKind.DesignerRender);
+        if (!ReferenceEquals(activeFailureDocument, state.Document))
+        {
+            activeFailureDocument = state.Document;
+            previewFailures.Clear();
+        }
         LogFrameDiagnostics(state, width, height);
         selectedNodes.Clear();
         selectedNodes.UnionWith(state.SelectedNodes);
@@ -226,7 +232,7 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
                 previewStack))
             {
                 LogPlaceholderRenderDiagnostics(state, node, bounds);
-                DrawPlaceholder(previewPaintArgs, node, bounds);
+                DrawUnavailablePreview(previewPaintArgs, node, bounds, "runtime only");
             }
         }
         else if (ShouldUseSpecialDesignerRendering(node))
@@ -656,26 +662,44 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         if (DesignerPagePreview.IsPageContainer(node))
         {
             var size = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
-            using var pagePreview = DesignerPagePreview.TryCreate(node, size, out var pageError,
+            var pagePreview = DesignerPagePreview.TryCreate(node, size, out var pageError,
                 resourcePolicy: state.PreviewResourcePolicy, imageFrame: imageFrame,
                 assetDiagnostic: (child, message) => LogRuntimePropertyFailure(state, child, message));
-            if (pagePreview is null || !RuntimeControlPainter.TryPaint(surfacePaintArgs, pagePreview.Root, size,
-                deviceBounds, out _, out pageError))
+            if (pagePreview is not null)
             {
-                LogRuntimeRenderFailure(state, node, pageError ?? "Page preview unavailable.");
-                DrawUnknown(previewPaintArgs, node, deviceBounds);
+                try
+                {
+                    RuntimeControlPainter.TryPaint(surfacePaintArgs, pagePreview.Root, size,
+                        deviceBounds, out _, out pageError);
+                }
+                finally
+                {
+                    LogRuntimeCleanup(state, node, pagePreview.TryDispose());
+                }
+            }
+            if (pageError is not null)
+            {
+                LogRuntimeRenderFailure(state, node, pageError);
+                DrawUnavailablePreview(previewPaintArgs, node, deviceBounds, "preview unavailable");
+            }
+            else
+            {
+                ClearRuntimeRenderFailure(node);
             }
             return; // The production paint pass already includes authored and implicit children.
         }
-        var saved = false;
 
+        string stage = "Construct";
+        Control? control = null;
+        var canvas = surfacePaintArgs.Canvas;
+        int saveCount = canvas.SaveCount;
         try
         {
             if (ResolveFrameworkControlType(node.TypeName) is not { } controlType
                 || !typeof(Control).IsAssignableFrom(controlType))
             {
                 LogRuntimeRenderFailure(state, node, $"Could not safely create framework control for type '{node.TypeName}'.");
-                DrawUnknown(previewPaintArgs, node, deviceBounds);
+                DrawUnavailablePreview(previewPaintArgs, node, deviceBounds, "preview unavailable");
                 return;
             }
 
@@ -685,50 +709,48 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
                 && !DesignerTablePreviewAdmission.TryValidate([node], state.PreviewResourcePolicy, out string? tableError))
             {
                 LogRuntimeRenderFailure(state, node, tableError!);
-                DrawUnknown(previewPaintArgs, node, deviceBounds);
+                DrawUnavailablePreview(previewPaintArgs, node, deviceBounds, "preview deferred");
                 return;
             }
-            if (Activator.CreateInstance(controlType) is not Control control)
-                throw new InvalidOperationException("Framework preview control construction failed.");
-
-            // Runtime previews own their temporary framework controls, including recycled rows
-            // and cached paint resources. Retire them even when applying a value or painting fails.
-            using var previewLifetime = control;
-            if (control is SearchBar searchPreview) searchPreview.SuppressSuggestionRequests = true;
+            control = (Control)Activator.CreateInstance(controlType)!;
+            stage = "Apply properties";
+            DesignerPreviewControl.Prepare(control);
             control.Name = node.Name;
             var logicalSize = new System.Drawing.Size(Math.Max(1, logicalBounds.Width), Math.Max(1, logicalBounds.Height));
             control.Bounds = new System.Drawing.Rectangle(System.Drawing.Point.Empty, logicalSize);
             var propertyErrors = new List<string>();
             var appliedPropertyCount = ApplyPreviewProperties(control, node, propertyErrors, includeLayout: false, imageFrame: imageFrame);
             ApplyDesignTimePreviewState(control, node);
+            if (propertyErrors.Count > 0)
+                LogRuntimePropertyFailure(state, node, string.Join(" | ", propertyErrors),
+                    string.Join(" | ", propertyErrors.Select(DesignerPreviewControl.FailureSignature)));
+            else if (previewFailures.TryGetValue(node, out var previous))
+                previous.Property = null;
 
-            surfacePaintArgs.Canvas.Save();
-            saved = true;
-            surfacePaintArgs.Canvas.ClipRect(deviceBounds.ToSKRect());
-
+            stage = "Paint";
+            canvas.Save();
+            canvas.ClipRect(deviceBounds.ToSKRect());
             if (!RuntimeControlPainter.TryPaint(surfacePaintArgs, control, logicalSize, deviceBounds, out var diagnostics, out var error))
             {
                 LogRuntimeRenderFailure(state, node, error ?? "Unknown renderer failure.");
-                DrawUnknown(previewPaintArgs, node, deviceBounds);
+                DrawUnavailablePreview(previewPaintArgs, node, deviceBounds, "preview unavailable");
             }
             else
             {
+                ClearRuntimeRenderFailure(node);
                 LogRuntimeRenderDiagnostics(state, node, control, diagnostics, appliedPropertyCount, propertyErrors.Count);
             }
-
-            foreach (var propertyError in propertyErrors)
-                LogRuntimePropertyFailure(state, node, propertyError);
-
-            surfacePaintArgs.Canvas.Restore();
-            saved = false;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
-            if (saved)
-                surfacePaintArgs.Canvas.Restore();
-
-            LogRuntimeRenderFailure(state, node, $"{ex.GetType().Name}: {ex.Message}");
-            DrawUnknown(previewPaintArgs, node, deviceBounds);
+            LogRuntimeRenderFailure(state, node, DesignerPreviewControl.Failure(stage, exception));
+            DrawUnavailablePreview(previewPaintArgs, node, deviceBounds, "preview unavailable");
+        }
+        finally
+        {
+            canvas.RestoreToCount(saveCount);
+            if (control is not null)
+                LogRuntimeCleanup(state, node, DesignerPreviewControl.Dispose(control));
         }
     }
 
@@ -759,14 +781,16 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
             ((NavigationPage)control).EnableNavigationBarPreview();
         else if (control.GetType() == typeof(AppShell))
             ((AppShell)control).EnableNavigationBarPreview();
-        if (control is DocumentViewer documentViewer)
-            documentViewer.SuppressDesignTimeImageLoading();
-        else if (control is MarkdownEditor markdownEditor)
-            markdownEditor.PreviewViewer.SuppressDesignTimeImageLoading();
-
         foreach (var property in node.Properties)
         {
             var propertyPath = NormalizeRuntimePropertyPath(property.Key);
+
+            // Keep the design context installed for the entire detached instance lifetime.
+            if (propertyPath is nameof(Control.Site) || propertyPath.StartsWith("Site.", StringComparison.Ordinal))
+            {
+                propertyErrors.Add("Site is managed by the Designer.");
+                continue;
+            }
 
             // Recipe playback belongs to the opt-in editor sample. A normal surface frame
             // neither applies this metadata through reflection nor parses or schedules it.
@@ -842,11 +866,17 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
 
             if (propertyPath.Contains('.', StringComparison.Ordinal))
             {
-                if (ApplyNestedProperty(control, propertyPath, property.Value, out var error))
-                    appliedCount++;
-                else
-                    propertyErrors.Add($"{property.Key}: {error}");
-
+                try
+                {
+                    if (ApplyNestedProperty(control, propertyPath, property.Value, out var error))
+                        appliedCount++;
+                    else
+                        propertyErrors.Add($"{property.Key}: {error}");
+                }
+                catch (Exception exception)
+                {
+                    propertyErrors.Add($"{property.Key}: {DesignerPreviewControl.Failure("Read preview property", exception)}");
+                }
                 continue;
             }
 
@@ -932,10 +962,42 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
 
     private void LogRuntimeRenderFailure(DesignerSession state, DesignControlNode node, string message)
     {
-        var key = $"{node.TypeName}:{message}";
+        var history = previewFailures.GetOrCreateValue(node);
+        string signature = DesignerPreviewControl.FailureSignature(message);
+        if (history.Render == signature)
+            return;
 
-        if (loggedRuntimeRenderFailures.Add(key))
-            state.Log($"Runtime rendering failed for {node.Name} ({node.TypeName}): {message}");
+        history.Render = signature;
+        state.Log($"Runtime rendering failed for {node.Name} ({node.TypeName}): {message}");
+    }
+
+    private void ClearRuntimeRenderFailure(DesignControlNode node)
+    {
+        if (previewFailures.TryGetValue(node, out var history))
+            history.Render = null;
+    }
+
+    private void LogRuntimeCleanup(DesignerSession state, DesignControlNode node, string? message)
+    {
+        if (message is null && !previewFailures.TryGetValue(node, out _))
+            return;
+        var history = previewFailures.GetOrCreateValue(node);
+        string? signature = message is null ? null : DesignerPreviewControl.FailureSignature(message);
+        if (history.Cleanup == signature)
+            return;
+
+        history.Cleanup = signature;
+        if (message is not null)
+            state.Log($"Runtime preview cleanup failed for {node.Name} ({node.TypeName}): {message}");
+    }
+
+    // At most one current message per phase, for live nodes only. Replacing an instance
+    // or dropping a preview projection cannot keep the old document alive through the log.
+    private sealed class PreviewFailureLog
+    {
+        internal string? Render;
+        internal string? Property;
+        internal string? Cleanup;
     }
 
     private void LogFrameDiagnostics(DesignerSession state, int width, int height)
@@ -972,12 +1034,15 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         state.LogDiagnostic($"Placeholder rendered {node.Name} ({node.TypeName}) at {bounds.X},{bounds.Y},{bounds.Width}x{bounds.Height}.");
     }
 
-    private void LogRuntimePropertyFailure(DesignerSession state, DesignControlNode node, string message)
+    private void LogRuntimePropertyFailure(DesignerSession state, DesignControlNode node, string message, string? signature = null)
     {
-        var key = $"{node.Name}:{message}";
+        var history = previewFailures.GetOrCreateValue(node);
+        signature ??= DesignerPreviewControl.FailureSignature(message);
+        if (history.Property == signature)
+            return;
 
-        if (loggedRuntimePropertyFailures.Add(key))
-            state.Log($"Runtime property skipped for {node.Name}: {message}");
+        history.Property = signature;
+        state.Log($"Runtime property skipped for {node.Name} ({node.TypeName}): {message}");
     }
 
     private void LogRuntimeRenderDiagnostics(
@@ -1097,7 +1162,7 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         {
             // Designer documents can carry values for properties whose runtime surface is not
             // ready yet. Rendering should stay resilient and fall back to the remaining values.
-            error = $"{ex.GetType().Name}: {ex.Message}";
+            error = DesignerPreviewControl.Failure("Apply preview property", ex);
             return false;
         }
     }
@@ -1156,10 +1221,16 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
     }
 
     private static void DrawUnknown(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds)
+        => DrawPreviewPlaceholder(e, node.Name, bounds);
+
+    private static void DrawUnavailablePreview(PaintEventArgs e, DesignControlNode node, System.Drawing.Rectangle bounds,
+        string reason) => DrawPreviewPlaceholder(e, $"{node.Name} ({reason})", bounds);
+
+    private static void DrawPreviewPlaceholder(PaintEventArgs e, string text, System.Drawing.Rectangle bounds)
     {
         e.Canvas.FillRectangle(bounds, new SKColor(232, 237, 242));
         e.Canvas.DrawRectangle(bounds, new SKColor(121, 133, 148));
-        DrawCenteredText(e, node.Name, bounds, new SKColor(32, 38, 46));
+        DrawCenteredText(e, text, bounds, new SKColor(32, 38, 46));
     }
 
     private static void DrawCenteredText(PaintEventArgs e, string text, System.Drawing.Rectangle bounds, SKColor color)

@@ -70,6 +70,37 @@ public sealed class RuntimeControlPainterTests
         Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
     }
 
+    [Fact]
+    public void PaintFailureReportsOriginWithoutCompositingAPartialBitmap()
+    {
+        var info = new SKImageInfo(24, 24);
+        using var bitmap = new SKBitmap(info);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        using var control = new FailingPaintControl { Bounds = new Rectangle(0, 0, 24, 24) };
+        DesignerPreviewControl.Prepare(control);
+
+        Assert.False(RuntimeControlPainter.TryPaint(new PaintEventArgs(info, canvas, 1), control,
+            control.Size, control.Bounds, out _, out var error));
+
+        Assert.True(control.ObservedDesignMode);
+        Assert.Contains("Paint: InvalidOperationException: Paint fault", error);
+        Assert.Contains("FailingPaintControl.OnPaint", error);
+        Assert.Equal(0, bitmap.GetPixel(12, 12).Alpha);
+    }
+
+    private sealed class FailingPaintControl : Control
+    {
+        internal bool ObservedDesignMode { get; private set; }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            ObservedDesignMode = DesignMode;
+            e.Canvas.FillRectangle(ClientRectangle, SKColors.Red);
+            throw new InvalidOperationException("Paint fault");
+        }
+    }
+
     private sealed class LogicalFillControl : Control
     {
         public int PaintCount { get; private set; }
