@@ -26,7 +26,7 @@ namespace ModernFormsNext
             }
 
             var tb = new TextBlock {
-                MaxWidth = maxLines.GetValueOrDefault () == 1 ? (float?)null : maxSize.Width,
+                MaxWidth = maxLines.GetValueOrDefault () == 1 || maxSize.Width == int.MaxValue ? (float?)null : maxSize.Width,
                 MaxHeight = maxSize.Height == int.MaxValue ? (int?)null : maxSize.Height,
                 Alignment = alignment,
                 MaxLines = maxLines,
@@ -51,7 +51,9 @@ namespace ModernFormsNext
             // - If it fits, we need to set MaxWidth so Left/Center/Right alignment will work
             // - If it doesn't fit and we need an ellipsis, set MaxWidth to trigger the ellipsis
             if (maxLines.GetValueOrDefault () == 1) {
-                if (tb.MeasuredWidth <= maxSize.Width || ellipsis)
+                // An unlimited measurement has no field to align against. Passing the sentinel
+                // through as a float would move centered/right-aligned text billions of pixels.
+                if (maxSize.Width != int.MaxValue && (tb.MeasuredWidth <= maxSize.Width || ellipsis))
                     tb.MaxWidth = maxSize.Width;
             } else if (maxLines.GetValueOrDefault () == 0) {
                 if (tb.Lines.LastOrDefault ()?.Runs.Count > 1 && !ellipsis)
@@ -217,12 +219,21 @@ namespace ModernFormsNext
         /// <summary>
         /// Measures the specified text using font characteristics from the provided control.
         /// </summary>
+        /// <remarks>
+        /// Returns the natural size in device pixels, with explicit line breaks but no width or
+        /// height constraint. Uses the control's current style and DPI; call on its UI thread.
+        /// To measure wrapping inside a field, use the overload accepting a maximum size.
+        /// </remarks>
         public static SKSize MeasureText (string text, Control control)
-            => MeasureText (text, control, new Size (1000, 1000));
+            => MeasureText (text, control, new Size (int.MaxValue, int.MaxValue));
 
         /// <summary>
         /// Measures the specified text using font characteristics from the provided control.
         /// </summary>
+        /// <remarks>
+        /// <paramref name="maxSize"/> is in device pixels; <see cref="int.MaxValue"/> means
+        /// unlimited in that dimension. Uses the current style and DPI on the control's UI thread.
+        /// </remarks>
         public static SKSize MeasureText (string text, Control control, Size maxSize)
         {
             if (!text.HasValue()) return SKSize.Empty;
@@ -245,12 +256,21 @@ namespace ModernFormsNext
         /// <summary>
         /// Measures the specified text using the provided font characteristics.
         /// </summary>
+        /// <remarks>
+        /// Returns the natural size in device pixels, with explicit line breaks but no width or
+        /// height constraint. <paramref name="fontSize"/> is in device pixels. The caller retains
+        /// ownership of <paramref name="font"/>. Use the maximum-size overload for wrapping.
+        /// </remarks>
         public static SKSize MeasureText (string text, SKTypeface font, int fontSize)
-            => MeasureText (text, font, fontSize, new Size (1000, 1000));
+            => MeasureText (text, font, fontSize, new Size (int.MaxValue, int.MaxValue));
 
         /// <summary>
         /// Measures the specified text using the provided font characteristics.
         /// </summary>
+        /// <remarks>
+        /// The font size and maximum size are in device pixels. <see cref="int.MaxValue"/> means
+        /// unlimited in that dimension. The caller retains ownership of <paramref name="font"/>.
+        /// </remarks>
         public static SKSize MeasureText (string text, SKTypeface font, int fontSize, Size maxSize, FontStyle fontStyle = FontStyle.Regular)
         {
             if (!text.HasValue ())
