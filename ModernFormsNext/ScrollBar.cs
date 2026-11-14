@@ -21,6 +21,9 @@ namespace ModernFormsNext
         
         private readonly bool vertical;
         internal Orientation AccessibilityOrientation => vertical ? Orientation.Vertical : Orientation.Horizontal;
+        // Scoped to the committed ValueChanged dispatch. A nested public Value assignment
+        // supplies its own neutral cause instead of inheriting the outer input operation.
+        internal ScrollEventType ValueChangeType { get; private set; } = ScrollEventType.ThumbPosition;
 
         internal int thumb_drag_position;     // Current pixel of the midpoint of the thumb drag 
 
@@ -98,8 +101,14 @@ namespace ModernFormsNext
         }
 
         /// <summary>
-        /// Raised when the ScrollBar is scrolled.
+        /// Raised after input changes the scrollbar value, following <see cref="ValueChanged"/>.
         /// </summary>
+        /// <remarks>
+        /// Arrows and wheel report small increments/decrements, the track reports large changes,
+        /// and dragging reports ThumbTrack. Values use the raw scrollbar range. No event is raised
+        /// for a no-op or a public Value/range assignment; observe ValueChanged for those changes.
+        /// A reentrant ValueChanged observer that replaces the value retires the obsolete input event.
+        /// </remarks>
         public event EventHandler<ScrollEventArgs>? Scroll;
 
         /// <summary>
@@ -191,20 +200,20 @@ namespace ModernFormsNext
 
             switch (GetElementAtLocation (e.Location)) {
                 case ScrollBarElement.DecrementArrow:
-                    Value = (int)Math.Max ((long)Value - SmallChange, Minimum);
+                    SetValue((int)Math.Max ((long)Value - SmallChange, Minimum), ScrollEventType.SmallDecrement);
                     break;
                 case ScrollBarElement.DecrementTrack:
-                    Value = (int)Math.Max ((long)Value - LargeChange, Minimum);
+                    SetValue((int)Math.Max ((long)Value - LargeChange, Minimum), ScrollEventType.LargeDecrement);
                     break;
                 case ScrollBarElement.Thumb:
                     thumb_pressed = true;
                     thumbclick_offset = (vertical ? e.Y : e.X) - thumb_drag_position;
                     break;
                 case ScrollBarElement.IncrementTrack:
-                    Value = (int)Math.Min ((long)Value + LargeChange, Maximum);
+                    SetValue((int)Math.Min ((long)Value + LargeChange, Maximum), ScrollEventType.LargeIncrement);
                     break;
                 case ScrollBarElement.IncrementArrow:
-                    Value = (int)Math.Min ((long)Value + SmallChange, Maximum);
+                    SetValue((int)Math.Min ((long)Value + SmallChange, Maximum), ScrollEventType.SmallIncrement);
                     break;
             }
         }
@@ -216,7 +225,6 @@ namespace ModernFormsNext
 
             if (thumb_pressed) {
                 UpdateFromPoint ((vertical ? e.Y : e.X) - thumbclick_offset);
-                OnScroll (new ScrollEventArgs (ScrollEventType.ThumbTrack, Value));
             }
         }
 
@@ -247,7 +255,8 @@ namespace ModernFormsNext
                 return;
 
             var previousValue = Value;
-            UpdateFromValue ((int)Math.Clamp((long)Value - ((long)delta * SmallChange), Minimum, Maximum));
+            SetValue((int)Math.Clamp((long)Value - ((long)delta * SmallChange), Minimum, Maximum),
+                delta < 0 ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement);
             e.Handled = Value != previousValue;
         }
 
@@ -322,14 +331,14 @@ namespace ModernFormsNext
 
             thumb_drag_position = pixel;
 
-            bool changed = current_value != new_value;
+            int previous = current_value;
             current_value = new_value;
             // The position can change within one value; repaint even without ValueChanged.
-            PublishValueChange(changed);
+            PublishValueChange(previous, ScrollEventType.ThumbTrack);
         }
 
         // Updates thumb drag position from a ScrollBar value.
-        private void UpdateFromValue (int value)
+        private void UpdateFromValue (int value, ScrollEventType type = ScrollEventType.ThumbPosition)
         {
             value = Math.Max (value, minimum);
             value = Math.Min (value, maximum);
@@ -345,17 +354,35 @@ namespace ModernFormsNext
 
             thumb_drag_position = (int)new_pos;
 
-            bool changed = current_value != value;
+            int previous = current_value;
             current_value = value;
             // Commit before invalidation, whose observers may synchronously read or change Value.
-            PublishValueChange(changed);
+            PublishValueChange(previous, type);
         }
 
-        private void PublishValueChange(bool changed)
+        // Internal input adapters use the same clamp, thumb geometry and ValueChanged path.
+        internal void SetValue(int value, ScrollEventType type) => UpdateFromValue(value, type);
+
+        private long valueChangeVersion;
+
+        private void PublishValueChange(int previous, ScrollEventType type)
         {
             Exception? failure = null;
-            try { if (changed) OnValueChanged(EventArgs.Empty); }
-            catch (Exception exception) { failure = exception; }
+            int committed = current_value;
+            if (previous != committed) {
+                long version = ++valueChangeVersion;
+                var previousType = ValueChangeType;
+                ValueChangeType = type;
+                try { OnValueChanged(EventArgs.Empty); }
+                catch (Exception exception) { failure = exception; }
+                finally { ValueChangeType = previousType; }
+                try {
+                    if (type != ScrollEventType.ThumbPosition && version == valueChangeVersion && !IsDisposed && !Disposing)
+                        OnScroll(new ScrollEventArgs(type, previous, committed,
+                            vertical ? ScrollOrientation.VerticalScroll : ScrollOrientation.HorizontalScroll));
+                }
+                catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
+            }
             try { if (!IsDisposed && !Disposing) Invalidate(); }
             catch (Exception exception) { failure = failure is null ? exception : new AggregateException(failure, exception); }
             if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();

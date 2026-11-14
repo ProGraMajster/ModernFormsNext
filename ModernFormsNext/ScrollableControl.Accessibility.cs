@@ -12,6 +12,11 @@ public partial class ScrollableControl
     private AccessibleScrollInfo? published_scroll;
     private Point publishedViewportPosition;
     private Size publishedViewportSize;
+    // Notification history only. Movement remains owned by scroll_position/ScrollWindow.
+    private Point publishedScrollPosition;
+    private long scrollPositionVersion;
+    private ScrollEventType pendingHorizontalType = ScrollEventType.ThumbPosition;
+    private ScrollEventType pendingVerticalType = ScrollEventType.ThumbPosition;
 
     /// <summary>Refreshes derived content after the canonical logical scroll position or viewport size changes.</summary>
     /// <param name="e">The event data.</param>
@@ -25,8 +30,15 @@ public partial class ScrollableControl
     private void HandleScrollMetadata(object? sender, EventArgs e)
     {
         scroll_update_depth++;
-        try { HandleScroll(sender, e); }
-        finally { EndScrollUpdate(); }
+        Exception? failure = null;
+        try {
+            if (sender == hscrollbar && hscrollbar.DesiredVisibility)
+                ScrollWindow(hscrollbar.Value - hscrollbar.Minimum - scroll_position.X, 0);
+            else if (sender == vscrollbar && vscrollbar.DesiredVisibility)
+                ScrollWindow(0, vscrollbar.Value - vscrollbar.Minimum - scroll_position.Y);
+        }
+        catch (Exception exception) { failure = exception; throw; }
+        finally { EndScrollUpdate(failure); }
     }
 
     internal Rectangle LogicalScrollViewport
@@ -59,54 +71,95 @@ public partial class ScrollableControl
         if (!request.TryGetOffset(info.Horizontal, true, out var horizontal)
             || !request.TryGetOffset(info.Vertical, false, out var vertical)
             || horizontal.HasValue && !hscrollbar.Enabled || vertical.HasValue && !vscrollbar.Enabled) return false;
-        scroll_update_depth++;
-        try {
-            if (horizontal.HasValue && !SetAxis(hscrollbar, horizontal.Value)) return false;
-            if (!lifetime.IsCurrent || !Enabled || !Visible || !AutoScroll) return false;
-            if (vertical.HasValue && !SetAxis(vscrollbar, vertical.Value)) return false;
-            return lifetime.IsCurrent && Enabled && Visible;
-        } finally { EndScrollUpdate(); }
+        // Validate both axes before movement, then finish each canonical commit. Public and
+        // accessibility observers of H can retire the target before V: retain that established
+        // action/lifetime boundary instead of evaluating success before a deferred finally flush.
+        if (horizontal.HasValue && !SetAxis(hscrollbar, horizontal.Value)) return false;
+        if (!lifetime.IsCurrent || !Enabled || !Visible || !AutoScroll) return false;
+        if (vertical.HasValue && !SetAxis(vscrollbar, vertical.Value)) return false;
+        return lifetime.IsCurrent && Enabled && Visible && AutoScroll;
 
         bool SetAxis(ScrollBar bar, double value)
         {
             if (!lifetime.IsCurrent || bar.IsDisposed || !bar.Visible || !bar.Enabled) return false;
             int target = (int)Math.Clamp(Math.Round(value, MidpointRounding.AwayFromZero), bar.Minimum, bar.Maximum);
             if (bar.Value == target) return true;
-            bar.Value = target;
+            bool isHorizontal = ReferenceEquals(bar, hscrollbar);
+            var amount = isHorizontal ? request.HorizontalAmount : request.VerticalAmount;
+            var type = request.Kind switch {
+                AccessibleScrollRequestKind.Amount => amount switch {
+                    AccessibleScrollAmount.SmallDecrement => ScrollEventType.SmallDecrement,
+                    AccessibleScrollAmount.SmallIncrement => ScrollEventType.SmallIncrement,
+                    AccessibleScrollAmount.LargeDecrement => ScrollEventType.LargeDecrement,
+                    AccessibleScrollAmount.LargeIncrement => ScrollEventType.LargeIncrement,
+                    _ => ScrollEventType.ThumbPosition
+                },
+                AccessibleScrollRequestKind.Viewport => target < bar.Value
+                    ? ScrollEventType.LargeDecrement : ScrollEventType.LargeIncrement,
+                _ => ScrollEventType.ThumbPosition
+            };
+            bar.SetValue(target, type);
             if (!lifetime.IsCurrent || !Enabled || !Visible) return false;
-            OnScroll(new ScrollEventArgs(ScrollEventType.ThumbTrack, target));
             return lifetime.IsCurrent;
+        }
+    }
+
+    // A publication failure must not replace the exception from movement/layout which caused
+    // the finally block to run. Successful publication lets that original exception propagate.
+    private void EndScrollUpdate(Exception? precedingFailure)
+    {
+        try { EndScrollUpdate(); }
+        catch (Exception exception) when (precedingFailure is not null) {
+            throw new AggregateException(precedingFailure, exception);
         }
     }
 
     private void EndScrollUpdate()
     {
-        if (--scroll_update_depth != 0 || publishing_scroll || IsDisposed) return;
+        if (--scroll_update_depth != 0 || publishing_scroll || IsDisposed || Disposing) return;
         publishing_scroll = true;
+        List<Exception>? failures = null;
         try {
-            for (int pass = 0; pass < 64; pass++) {
-                if (IsDisposed) return;
+            var lifetime = new AccessibilityControlLifetime(this);
+            int pass = 0;
+            for (; pass < 64; pass++) {
+                if (!lifetime.IsCurrent) break;
                 var viewport = LogicalScrollViewport;
                 if (publishedViewportPosition != scroll_position || publishedViewportSize != viewport.Size)
                 {
                     publishedViewportPosition = scroll_position;
                     publishedViewportSize = viewport.Size;
-                    OnScrollViewportChanged(EventArgs.Empty);
-                    if (IsDisposed) return;
+                    try { OnScrollViewportChanged(EventArgs.Empty); }
+                    catch (Exception exception) { (failures ??= []).Add(exception); }
+                    if (!lifetime.IsCurrent) break;
+                    if (publishedViewportPosition != scroll_position || publishedViewportSize != LogicalScrollViewport.Size)
+                        continue;
                 }
                 var current = GetAccessibleScrollInfo();
-                if (published_scroll == current)
-                {
-                    // Hidden axes may have identical semantic metadata even when a reentrant
-                    // callback clamps the logical offset again. Finish that viewport hook too.
-                    if (publishedViewportPosition == scroll_position && publishedViewportSize == LogicalScrollViewport.Size) return;
+                if (published_scroll != current) {
+                    published_scroll = current;
+                    try { NotifyAccessibilityClients(AccessibleEvents.ScrollChanged); }
+                    catch (Exception exception) { (failures ??= []).Add(exception); }
                     continue;
                 }
-                published_scroll = current;
-                NotifyAccessibilityClients(AccessibleEvents.ScrollChanged);
+                // Publish one current axis per pass. An H callback can replace V (or H itself);
+                // refresh derived content before dispatching another event, never reuse stale args.
+                ScrollEventArgs? change = null;
+                if (publishedScrollPosition.X != scroll_position.X) {
+                    change = new(pendingHorizontalType, publishedScrollPosition.X, scroll_position.X, ScrollOrientation.HorizontalScroll);
+                    publishedScrollPosition.X = scroll_position.X;
+                } else if (publishedScrollPosition.Y != scroll_position.Y) {
+                    change = new(pendingVerticalType, publishedScrollPosition.Y, scroll_position.Y, ScrollOrientation.VerticalScroll);
+                    publishedScrollPosition.Y = scroll_position.Y;
+                }
+                if (change is null) break;
+                try { OnScroll(change); }
+                catch (Exception exception) { (failures ??= []).Add(exception); }
             }
-            throw new InvalidOperationException("Viewport notifications did not stabilize after 64 changes.");
+            if (pass == 64)
+                (failures ??= []).Add(new InvalidOperationException("Viewport notifications did not stabilize after 64 changes."));
         } finally { publishing_scroll = false; }
+        if (failures is not null) throw new AggregateException(failures);
     }
 }
 

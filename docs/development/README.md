@@ -27,6 +27,7 @@ fresh result for the current checkout. For application guidance, use the documen
 - [Snap/maximize geometry: issue 137](issue-137-snap-maximize.md)
 - [Managed title-bar icon sizing and DPI (#138)](issue-138-titlebar-icon-dpi.md)
 - [Scroll layout consistency: issue 130](scroll-layout-regression.md)
+- [Committed viewport Scroll notifications (#162)](scroll-events.md)
 - [Partial redraw regression](partial-redraw-regression.md)
 - [Exact animation endpoints: issue 88 follow-up](issue-88-animation-endpoints.md)
 - [Performance diagnostics plan: issue 58](issue-58-performance-diagnostics-plan.md)

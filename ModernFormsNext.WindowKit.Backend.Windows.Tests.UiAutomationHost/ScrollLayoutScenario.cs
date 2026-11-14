@@ -39,8 +39,24 @@ internal static class ScrollLayoutScenario
                     var scrollbar = (VerticalScrollBar)typeof(ScrollableControl).GetField("vscrollbar", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(list)!;
                     var renderer = RenderManager.GetRenderer<ScrollBarRenderer>()!;
                     var errors = new List<string>();
+                    var events = new List<ScrollEventArgs>();
+                    int notifiedOffset = 0;
+                    list.Scroll += (_, e) => {
+                        Require(e.ScrollOrientation == ScrollOrientation.VerticalScroll, "Native Scroll reported the wrong axis.");
+                        Require(e.OldValue == notifiedOffset && e.NewValue == scrollbar.Value - scrollbar.Minimum,
+                            "Native Scroll did not report consecutive committed logical offsets.");
+                        Require(e.OldValue != e.NewValue, "Native Scroll reported a no-op.");
+                        notifiedOffset = e.NewValue;
+                        events.Add(e);
+                        // Observe the original #130 geometry inside the public callback, not only
+                        // after the input transaction has returned to the native test driver.
+                        Check("Scroll callback");
+                        Console.WriteLine("SCROLL_EVENT:" + JsonSerializer.Serialize(e));
+                    };
                     Check("initial");
                     list.VerticalScrollProperties.Value = 480;
+                    Require(events.Count == 1 && events[^1].Type == ScrollEventType.ThumbPosition,
+                        "Programmatic native scroll must publish exactly one neutral event.");
                     Check("scrolled");
                     secondView.Visible = true;
                     secondView.BringToFront();
@@ -52,7 +68,10 @@ internal static class ScrollLayoutScenario
                     Check("shown");
                     list.PerformLayout();
                     Check("PerformLayout");
+                    Require(events.Count == 1, "Hide/show/layout without movement invented a Scroll event.");
                     Wheel(-120);
+                    Require(events.Count == 2 && events[^1].Type == ScrollEventType.SmallIncrement,
+                        "Native wheel must publish exactly one small-increment event.");
                     Require(scrollbar.Value == 480 + scrollbar.SmallChange, "Native wheel did not advance by SmallChange.");
                     Check("wheel after show");
 
@@ -61,15 +80,19 @@ internal static class ScrollLayoutScenario
                     Mouse(scrollbar, drag, 0x0200);
                     Mouse(scrollbar, drag, 0x0201, 1);
                     int previous = scrollbar.Value;
+                    int beforeDragEvents = events.Count;
                     for (int step = 1; step <= 3; step++)
                     {
                         Mouse(scrollbar, new Point(drag.X, drag.Y + step * 12), 0x0200, 1);
                         Require(scrollbar.Value > previous, "Native thumb drag did not advance.");
                         previous = scrollbar.Value;
+                        Require(events.Count == beforeDragEvents + step && events[^1].Type == ScrollEventType.ThumbTrack,
+                            "Each native thumb movement must publish one tracking event.");
                         Check($"thumb move {step}");
                     }
                     Mouse(scrollbar, new Point(drag.X, drag.Y + 36), 0x0202);
                     int beforeTrack = scrollbar.Value;
+                    int beforeTrackEvents = events.Count;
                     Point track = Center(renderer.GetIncrementTrackBounds(scrollbar));
                     Mouse(scrollbar, track, 0x0200);
                     Mouse(scrollbar, track, 0x0201, 1);
@@ -77,11 +100,16 @@ internal static class ScrollLayoutScenario
                     Require(scrollbar.Value == Math.Min(scrollbar.Maximum, beforeTrack + scrollbar.LargeChange),
                         "Native track click did not advance by LargeChange.");
                     Check("track page");
+                    Require(events.Count == beforeTrackEvents + 1 && events[^1].Type == ScrollEventType.LargeIncrement,
+                        "Native track click must publish one page event.");
 
+                    int beforeAccessibleEvents = events.Count;
                     Require(list.AccessibilityObject.PerformAction(AccessibleActions.Scroll,
                         AccessibleScrollRequest.ToPercent(null, 50)), "Native-host accessible scroll failed.");
                     Require(scrollbar.Value == scrollbar.Maximum / 2, "Accessible scroll did not reach the requested offset.");
                     Check("accessible scroll");
+                    Require(events.Count == beforeAccessibleEvents + 1 && events[^1].Type == ScrollEventType.ThumbPosition,
+                        "Accessible percentage must publish one neutral event.");
                     var target = list.Controls[^1].AccessibilityObject;
                     long targetId = target.RuntimeId;
                     Require(target.PerformAction(AccessibleActions.ScrollIntoView), "Native-host ScrollIntoView failed.");
@@ -117,7 +145,9 @@ internal static class ScrollLayoutScenario
                             }
                         }
                     }
+                    int beforeClampedWheel = events.Count;
                     Wheel(-120);
+                    Require(events.Count == beforeClampedWheel, "Clamped native wheel invented a Scroll event.");
                     Require(scrollbar.Value == scrollbar.Maximum, "Wheel at Maximum must stay clamped.");
                     Check("wheel at maximum");
                     Wheel(120);

@@ -37,7 +37,6 @@ namespace ModernFormsNext
 
             hscrollbar.ValueChanged += HandleScroll;
             hscrollbar.RangeMetadataChanged += HandleScrollMetadata;
-            hscrollbar.Scroll += (o, e) => OnScroll (e);
 
             vscrollbar = Controls.AddImplicitControl (new VerticalScrollBar {
                 Visible = false
@@ -45,7 +44,6 @@ namespace ModernFormsNext
 
             vscrollbar.ValueChanged += HandleScroll;
             vscrollbar.RangeMetadataChanged += HandleScrollMetadata;
-            vscrollbar.Scroll += (o, e) => OnScroll (e);
 
             sizegrip = Controls.AddImplicitControl (new SizeGrip {
                 Visible = false
@@ -99,29 +97,29 @@ namespace ModernFormsNext
         // scrollbar values keeps their thumbs and the existing ScrollWindow path synchronized.
         internal bool ScrollByTouchDelta (Point delta)
         {
-            if (!AutoScroll)
+            if (!AutoScroll || !Enabled || !Visible || IsDisposed || Disposing)
                 return false;
 
             var oldHorizontal = hscrollbar.Value;
             var oldVertical = vscrollbar.Value;
             var newHorizontal = hscrollbar.Visible
-                ? Math.Clamp (oldHorizontal - delta.X, hscrollbar.Minimum, hscrollbar.Maximum)
+                ? (int)Math.Clamp ((long)oldHorizontal - delta.X, hscrollbar.Minimum, hscrollbar.Maximum)
                 : oldHorizontal;
             var newVertical = vscrollbar.Visible
-                ? Math.Clamp (oldVertical - delta.Y, vscrollbar.Minimum, vscrollbar.Maximum)
+                ? (int)Math.Clamp ((long)oldVertical - delta.Y, vscrollbar.Minimum, vscrollbar.Maximum)
                 : oldVertical;
 
-            if (newHorizontal != oldHorizontal) {
-                hscrollbar.Value = newHorizontal;
-                OnScroll (new ScrollEventArgs (ScrollEventType.ThumbTrack, newHorizontal));
-            }
-
-            if (newVertical != oldVertical) {
-                vscrollbar.Value = newVertical;
-                OnScroll (new ScrollEventArgs (ScrollEventType.ThumbTrack, newVertical));
-            }
-
-            return newHorizontal != oldHorizontal || newVertical != oldVertical;
+            var lifetime = new AccessibilityControlLifetime(this);
+            scroll_update_depth++;
+            Exception? failure = null;
+            try {
+                if (newHorizontal != oldHorizontal)
+                    hscrollbar.SetValue(newHorizontal, ScrollEventType.ThumbTrack);
+                if (lifetime.IsCurrent && Enabled && Visible && AutoScroll && newVertical != oldVertical)
+                    vscrollbar.SetValue(newVertical, ScrollEventType.ThumbTrack);
+                return hscrollbar.Value != oldHorizontal || vscrollbar.Value != oldVertical;
+            } catch (Exception exception) { failure = exception; throw; }
+            finally { EndScrollUpdate(failure); }
         }
 
         // Calculates and sets the current canvas size.
@@ -238,9 +236,9 @@ namespace ModernFormsNext
             // Range clamping also occurs under a hidden ancestor. Use the scrollbar's
             // local state so Value changes still move children and the canonical offset.
             if (sender == vscrollbar && vscrollbar.DesiredVisibility)
-                ScrollWindow (0, vscrollbar.Value - vscrollbar.Minimum - scroll_position.Y);
+                ScrollWindow (0, vscrollbar.Value - vscrollbar.Minimum - scroll_position.Y, vscrollbar.ValueChangeType);
             else if (sender == hscrollbar && hscrollbar.DesiredVisibility)
-                ScrollWindow (hscrollbar.Value - hscrollbar.Minimum - scroll_position.X, 0);
+                ScrollWindow (hscrollbar.Value - hscrollbar.Minimum - scroll_position.X, 0, hscrollbar.ValueChangeType);
         }
 
         /// <summary>
@@ -311,12 +309,35 @@ namespace ModernFormsNext
         /// <summary>
         /// Raises the Scroll event.
         /// </summary>
-        protected virtual void OnScroll (ScrollEventArgs e) => Scroll?.Invoke (this, e);
+        /// <param name="e">The committed logical offsets and their cause.</param>
+        /// <remarks>
+        /// Called on the UI thread after child displacement and OnScrollViewportChanged. Call base.
+        /// Subscribers are invoked from a snapshot; failures are collected, and callbacks for an
+        /// obsolete position or removed/disposed viewport stop. NewValue is informational, not a
+        /// cancellation or replacement request, and is restored before each subscriber.
+        /// </remarks>
+        protected virtual void OnScroll (ScrollEventArgs e)
+        {
+            if (Scroll is not { } handlers) return;
+            var lifetime = new AccessibilityControlLifetime(this);
+            long version = scrollPositionVersion;
+            int committed = e.NewValue;
+            List<Exception>? failures = null;
+            foreach (EventHandler<ScrollEventArgs> handler in handlers.GetInvocationList()) {
+                if (!lifetime.IsCurrent || version != scrollPositionVersion) break;
+                e.NewValue = committed;
+                try { handler(this, e); }
+                catch (Exception exception) { (failures ??= []).Add(exception); }
+            }
+            e.NewValue = committed;
+            if (failures is not null) throw new AggregateException(failures);
+        }
 
         // Recalculates all components of the ScrollableControl.
         private void Recalculate (bool doLayout)
         {
             scroll_update_depth++;
+            Exception? failure = null;
             try {
             var canvas = canvas_size;
             // Canvas, child Bounds and scrollbar SetBounds all use logical layout units.
@@ -414,16 +435,31 @@ namespace ModernFormsNext
             sizegrip.Visible = sizegrip_visible;
 
             } finally { ResumeLayout (doLayout); }
-            } finally { EndScrollUpdate(); }
+            } catch (Exception exception) { failure = exception; throw; }
+            finally { EndScrollUpdate(failure); }
         }
 
         /// <summary>
-        /// Raised when the ScrollableControl is scrolled.
+        /// Raised after an actual change to the committed logical viewport offset.
         /// </summary>
+        /// <remarks>
+        /// OldValue/NewValue are logical pixels relative to the axis minimum, not raw scrollbar
+        /// values. Programmatic changes, range clamps and resets report ThumbPosition; arrows/wheel
+        /// report small changes, track/page requests report large changes, and thumb/touch report
+        /// ThumbTrack. No-op changes and visibility changes without movement emit nothing.
+        /// Batched movement coalesces each axis and publishes horizontal before vertical, after
+        /// child geometry and the derived viewport hook are current. Reentrant changes are drained
+        /// without recursive notification; each next event uses the latest committed position.
+        /// </remarks>
+        /// <example><code>
+        /// panel.Scroll += (_, e) =&gt; Console.WriteLine(
+        ///     $"{e.ScrollOrientation}: {e.OldValue} -&gt; {e.NewValue} ({e.Type})");
+        /// panel.VerticalScrollProperties.Value = 40;
+        /// </code></example>
         public event EventHandler<ScrollEventArgs>? Scroll;
 
         // Scrolls the control by the requested offsets.
-        private void ScrollWindow (int xOffset, int yOffset)
+        private void ScrollWindow (int xOffset, int yOffset, ScrollEventType type = ScrollEventType.ThumbPosition)
         {
             if (xOffset == 0 && yOffset == 0)
                 return;
@@ -435,12 +471,15 @@ namespace ModernFormsNext
                 && LayoutEngine == DefaultLayout.Instance;
             scroll_update_depth++;
             SuspendLayout ();
+            List<Exception>? failures = null;
             try {
                 // Commit first: a LocationChanged callback can scroll again. Its delta must be
                 // measured from this position, and must not be overwritten when it returns.
                 scroll_position.Offset (xOffset, yOffset);
+                scrollPositionVersion++;
+                if (xOffset != 0) pendingHorizontalType = type;
+                if (yOffset != 0) pendingVerticalType = type;
                 var lifetime = new AccessibilityControlLifetime(this);
-                List<Exception>? failures = null;
                 foreach (var c in Controls.ToArray()) {
                     if (!lifetime.IsCurrent || IsDisposed) break;
                     if (IsInternalScrollControl (c) || c.IsDisposed || !ReferenceEquals(c.Parent, this)) continue;
@@ -455,11 +494,14 @@ namespace ModernFormsNext
                     }
                     catch (Exception error) { (failures ??= []).Add(error); }
                 }
-                if (failures is not null) throw new AggregateException(failures);
-            } finally {
+            } catch (Exception exception) { (failures ??= []).Add(exception); }
+            finally {
                 try { ResumeLayout (preserveAnchors); }
-                finally { EndScrollUpdate(); }
+                catch (Exception exception) { (failures ??= []).Add(exception); }
+                try { EndScrollUpdate(); }
+                catch (Exception exception) { (failures ??= []).Add(exception); }
             }
+            if (failures is not null) throw new AggregateException(failures);
         }
 
         /// <summary>
