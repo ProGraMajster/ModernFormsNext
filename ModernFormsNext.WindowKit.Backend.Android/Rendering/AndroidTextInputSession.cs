@@ -96,7 +96,7 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
 
     internal string? GetBefore(int length)
     {
-        if (length < 0 || GetState(0) is not { } state) return null;
+        if (length < 0 || GetReadableTextState() is not { } state) return null;
         var cursor = Math.Min(state.SelectionStart, state.SelectionEnd);
         var count = Math.Min(Math.Min(length, TextInputState.MaximumTextLength), cursor);
         return ReadRange(state, cursor - count, cursor, requireComplete: false)?.Text;
@@ -104,7 +104,7 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
 
     internal string? GetAfter(int length)
     {
-        if (length < 0 || GetState(0) is not { } state) return null;
+        if (length < 0 || GetReadableTextState() is not { } state) return null;
         var cursor = Math.Max(state.SelectionStart, state.SelectionEnd);
         var count = Math.Min(Math.Min(length, TextInputState.MaximumTextLength), state.DocumentLength - cursor);
         return ReadRange(state, cursor, cursor + count, requireComplete: false)?.Text;
@@ -112,7 +112,7 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
 
     internal string? GetSelected()
     {
-        if (GetState(0) is not { } state) return null;
+        if (GetReadableTextState() is not { } state) return null;
         var start = Math.Min(state.SelectionStart, state.SelectionEnd);
         var end = Math.Max(state.SelectionStart, state.SelectionEnd);
         if (start == end || end - start > TextInputState.MaximumTextLength) return null;
@@ -121,7 +121,7 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
 
     internal TextInputState? GetSurrounding(int beforeLength, int afterLength)
     {
-        if (beforeLength < 0 || afterLength < 0 || GetState(0) is not { } state) return null;
+        if (beforeLength < 0 || afterLength < 0 || GetReadableTextState() is not { } state) return null;
         var start = Math.Min(state.SelectionStart, state.SelectionEnd);
         var end = Math.Max(state.SelectionStart, state.SelectionEnd);
         var budget = TextInputState.MaximumTextLength - (end - start);
@@ -137,9 +137,16 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
 
     internal TextInputState? GetExtracted(int maximumLength)
     {
+        if (GetReadableTextState() is not { } metadata) return null;
         var state = GetState(NormalizeLimit(maximumLength));
-        return state is not null && ContainsSelection(state) ? state : null;
+        return state is not null && state.Options.Scope != TextInputScope.Password &&
+            state.Revision == metadata.Revision && ContainsSelection(state) ? state : null;
     }
+
+    // A password editor remains editable through this connection. Only queries that expose
+    // document text to the IME require an ordinary scope. Check metadata before requesting text.
+    private TextInputState? GetReadableTextState()
+        => GetState(0) is { Options.Scope: not TextInputScope.Password } state ? state : null;
 
     internal static int NormalizeLimit(int requested)
         => requested <= 0 ? 4096 : Math.Min(requested, TextInputState.MaximumTextLength);
@@ -147,7 +154,7 @@ internal sealed class AndroidTextInputSession(ITextInputClient initialClient)
     private TextInputState? ReadRange(TextInputState observed, int start, int end, bool requireComplete)
     {
         var state = GetState(end - start, start);
-        if (state is null || state.Revision != observed.Revision ||
+        if (state is null || state.Options.Scope == TextInputScope.Password || state.Revision != observed.Revision ||
             state.SelectionStart != observed.SelectionStart || state.SelectionEnd != observed.SelectionEnd)
             return null;
         var actualStart = Math.Max(start, state.TextStart);

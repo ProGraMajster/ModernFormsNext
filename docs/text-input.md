@@ -238,8 +238,9 @@ and [input-scope password limits](https://learn.microsoft.com/en-us/windows/win3
 Android uses a captured InputConnection session with bounded before/after/selected/extracted
 queries, selection notifications, EditorInfo hints/actions, batch coalescing and connection
 retirement. API-specific calls are guarded. Surrounding/extracted results preserve their
-document origin; an oversized selected range that cannot fit the supported bounded protocol
-returns unavailable instead of invented clipped selection. CursorAnchorInfo reports the
+document origin. Oversized selected ranges return unavailable. A password connection keeps
+native editing and selection available, but withholds text from before/after/selected/surrounding
+and extracted-text queries. Password metadata and keyboard options are still sent to Android. CursorAnchorInfo reports the
 insertion marker/selection; unsupported character/editor/line-bound filters return false.
 IME-synthetic editing keys retain selection modifiers such as Shift while remaining excluded
 from command bindings. The native SelectAll context action selects the captured client's full
@@ -278,6 +279,13 @@ TestHost's `Input.SetComposingText`, `CommitComposition`, `FinishComposition` an
 `CancelComposition` call the production session/editor. `Input.TextInputClient` can be retained
 to test rejected late callbacks. `Input.TextInput` remains the ordinary raw-text test helper.
 These tests do not emulate OS IME candidate selection, physical keyboards or vendor behavior.
+
+The Android [IME compatibility scenario](android-release-validation.md#repeatable-commands)
+uses calls on the native InputConnection for Japanese, Chinese and Korean fixture text. It verifies
+the shared editors, surrounding text and selection, password redaction, stale-session rejection
+and Activity recreation. These scripted calls do not choose a candidate in a provider's UI.
+The Windows IMM32 tests verify the device-pixel caret and candidate exclusion rectangle at
+96, 120, 144, 168 and 216 DPI. The real candidate window remains a separate observation.
 
 The evolving [issue run report](development/codex-autonomous-issue-run.md) records exact
 validated source, builds, tests and native observations. Until those observations are recorded,

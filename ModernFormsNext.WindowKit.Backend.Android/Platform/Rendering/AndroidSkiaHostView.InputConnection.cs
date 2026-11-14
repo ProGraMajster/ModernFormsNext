@@ -251,8 +251,10 @@ public sealed partial class AndroidSkiaHostView
             => Trace<global::Android.Text.CapitalizationMode>("GetCursorCapsMode", "ImeInputConnection", string.Empty, () =>
             {
                 if (session is null) return base.GetCursorCapsMode(reqModes);
-                if (session.GetState() is not { } state || state.Options.Scope == TextInputScope.Password ||
-                    state.Options.Capitalization == TextInputCapitalization.None) return 0;
+                if (session.GetState(0) is not { Options.Scope: not TextInputScope.Password } metadata ||
+                    metadata.Options.Capitalization == TextInputCapitalization.None) return 0;
+                if (session.GetState() is not { Options.Scope: not TextInputScope.Password } state ||
+                    state.Revision != metadata.Revision) return 0;
                 var offset = state.SelectionEnd - state.TextStart;
                 if (offset < 0 || offset > state.Text.Length) return 0;
                 return global::Android.Text.TextUtils.GetCapsMode(state.Text, offset, reqModes);

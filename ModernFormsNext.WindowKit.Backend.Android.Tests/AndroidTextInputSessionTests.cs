@@ -66,6 +66,33 @@ public sealed class AndroidTextInputSessionTests
     }
 
     [Fact]
+    public void PasswordQueriesDoNotReadTextAndEditingRemainsAvailable()
+    {
+        var client = new Client("fixture secret", 2, 6) { Scope = TextInputScope.Password };
+        var session = new AndroidTextInputSession(client);
+
+        Assert.Null(session.GetBefore(20));
+        Assert.Null(session.GetAfter(20));
+        Assert.Null(session.GetSelected());
+        Assert.Null(session.GetSurrounding(20, 20));
+        Assert.Null(session.GetExtracted(40));
+        Assert.Equal(0, client.LargestRead);
+        Assert.True(session.Edit(target => target.CommitText("x")));
+        Assert.Equal(1, client.Edits);
+    }
+
+    [Fact]
+    public void ScopeChangeDuringRangeReadCannotExposePasswordText()
+    {
+        var client = new Client("fixture secret", 4, 4);
+        var session = new AndroidTextInputSession(client);
+        int reads = 0;
+        client.OnRead = () => { if (++reads == 2) client.Scope = TextInputScope.Password; };
+
+        Assert.Null(session.GetBefore(4));
+    }
+
+    [Fact]
     public void OversizedSelectionIsUnavailableRatherThanMisreportedAsClipped()
     {
         var client = new Client(new string('x', 80_000), 0, 70_000);
@@ -221,6 +248,7 @@ public sealed class AndroidTextInputSessionTests
         public Action? OnRead { get; set; }
         public int LargestRead { get; private set; }
         public long Revision { get; set; }
+        public TextInputScope Scope { get; set; }
         public int Edits { get; private set; }
         public (int Start, int End)? LastSelection { get; private set; }
         public event EventHandler? StateChanged { add { } remove { } }
@@ -238,7 +266,7 @@ public sealed class AndroidTextInputSessionTests
             if (end > start && char.IsHighSurrogate(text[end - 1])) end--;
             end = Math.Max(start, end);
             return new TextInputState(text[start..end], start, text.Length, selectionStart, selectionEnd,
-                -1, -1, Revision, new Rect(4, 5, 1, 20), new TextInputOptions(), caretBaseline: 21);
+                -1, -1, Revision, new Rect(4, 5, 1, 20), new TextInputOptions { Scope = Scope }, caretBaseline: 21);
         }
         public bool CommitText(string value, int newCursorPosition = 1) { Edits++; return true; }
         public bool SetComposingText(string value, int newCursorPosition = 1) { Edits++; return true; }
