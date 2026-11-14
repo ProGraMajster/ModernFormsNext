@@ -9227,6 +9227,547 @@
         133
       ],
       "releaseApproved": false
+    },
+    {
+      "capturedAt": "2026-11-14T10:35:22.458615+00:00",
+      "master": "661c7a864ea3a1597029fafa6d5984fa54f36689",
+      "kind": "Verified correction after full scope capture",
+      "fullProjectRecaptured": false,
+      "sourceCaptureAt": "2026-11-14T10:23:29.139831+00:00",
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "verifiedChangedIssues": [
+        82
+      ],
+      "completed": 43,
+      "remaining": 10,
+      "classificationCounts": {
+        "V": 43,
+        "P": 5,
+        "Q": 1,
+        "B": 2,
+        "I": 1,
+        "N": 1
+      },
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "open",
+          "stateReason": "reopened",
+          "projectStatus": "Planned",
+          "classification": "P"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "In progress",
+          "classification": "I"
+        },
+        {
+          "number": 162,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "N"
+        },
+        {
+          "number": 163,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "sourceMembershipChanged": false,
+      "labelsMilestonesAndTargetVersionChanged": false,
+      "finding": {
+        "issue": 82,
+        "workflow": ".github/workflows/release.yml",
+        "line": 167,
+        "workflowSha256": "b0215952f0a9453596e6ddaa73cfd5a98bfeee0b848f1f7791906115f09f5225",
+        "unchangedSince": "b3372ec7",
+        "run": 43585669232,
+        "event": "push",
+        "head": "aabbc61e583c53035d6519f38d87dbd3e5dc1bff",
+        "runUrl": "https://github.com/ProGraMajster/ModernFormsNext/actions/runs/43585669232",
+        "jobsStarted": 0,
+        "annotation": "Unrecognized named-value: 'runner'",
+        "expression": "runner.temp",
+        "context": "jobs.publish.env.APPROVAL_FILE",
+        "officialContextReference": "https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability",
+        "priorAuditMissedWorkflowValidation": true,
+        "productionPublicationTriggered": false
+      },
+      "nextIssues": [
+        138,
+        82,
+        272,
+        162,
+        163,
+        132,
+        40,
+        168,
+        131,
+        133
+      ],
+      "releaseApproved": false,
+      "qualificationObservations": [
+        {
+          "issue": 138,
+          "head": "aabbc61e583c53035d6519f38d87dbd3e5dc1bff",
+          "configuration": "Debug",
+          "totals": {
+            "total": 6060,
+            "passed": 6059,
+            "failed": 1,
+            "notExecuted": 0
+          },
+          "failedTest": "ModernFormsNext.Tests.BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame",
+          "bytes": 496,
+          "existingLimit": [
+            0,
+            256
+          ],
+          "evidence": [
+            {
+              "checkout": "audit worktree",
+              "path": "artifacts/scope-reaudit-2026-11-12/issue-138/tests-debug-final/Marcin_DESKTOP-U97OBPG_2026-11-14_11_34_32_net10.0.trx",
+              "sha256": "eb4b7160cbc209297f8a2fac313085044b5ea1b5c132c6405c71e61d18f8d800",
+              "result": {
+                "executionId": "4905a7f7-0ff2-4ecd-9edd-9d4505ec81f8",
+                "testId": "a9f00ee6-cd93-4db6-5391-a8f61c5092b2",
+                "testName": "ModernFormsNext.Tests.BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame",
+                "computerName": "DESKTOP-U97OBPG",
+                "duration": "00:00:00.0593282",
+                "startTime": "2026-11-14T11:34:32.5171323+01:00",
+                "endTime": "2026-11-14T11:34:32.5805193+01:00",
+                "testType": "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b",
+                "outcome": "Failed",
+                "testListId": "8c84fa94-04c1-424b-9868-57a2d4851a1d",
+                "relativeResultsDirectory": "4905a7f7-0ff2-4ecd-9edd-9d4505ec81f8"
+              },
+              "message": "Assert.InRange() Failure: Value not in range\r\nRange:  (0 - 256)\r\nActual: 496"
+            },
+            {
+              "checkout": "primary historical artifacts",
+              "path": "artifacts/release-1.12.0/issue-99/qualification-vs-save-1/full-Windows-Debug-repeat-3/Marcin_DESKTOP-U97OBPG_2026-11-08_15_42_25_net10.0.trx",
+              "sha256": "0748ea74063eb57ea4606cf7d9c10e12ef917bc0fc2f06d0055207786a5e20c4",
+              "result": {
+                "executionId": "3b85c2dd-cdc7-454e-8a9a-876cc37f7859",
+                "testId": "a9f00ee6-cd93-4db6-5391-a8f61c5092b2",
+                "testName": "ModernFormsNext.Tests.BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame",
+                "computerName": "DESKTOP-U97OBPG",
+                "duration": "00:00:00.0273185",
+                "startTime": "2026-11-08T15:42:25.4375452+01:00",
+                "endTime": "2026-11-08T15:42:25.4603565+01:00",
+                "testType": "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b",
+                "outcome": "Failed",
+                "testListId": "8c84fa94-04c1-424b-9868-57a2d4851a1d",
+                "relativeResultsDirectory": "3b85c2dd-cdc7-454e-8a9a-876cc37f7859"
+              },
+              "message": "Assert.InRange() Failure: Value not in range\r\nRange:  (0 - 256)\r\nActual: 496"
+            },
+            {
+              "checkout": "primary historical artifacts",
+              "path": "artifacts/release-1.12.0/issue-70/qualification-vector-1/full-Windows-Release/Marcin_DESKTOP-U97OBPG_2026-11-04_21_24_43_net10.0.trx",
+              "sha256": "1531732a8c90a3a2ad0864c72db7fa150226c15acd811c626cb1e7660ceb41b7",
+              "result": {
+                "executionId": "25f145db-dc81-4907-a3ce-b6763f1e6f00",
+                "testId": "a9f00ee6-cd93-4db6-5391-a8f61c5092b2",
+                "testName": "ModernFormsNext.Tests.BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame",
+                "computerName": "DESKTOP-U97OBPG",
+                "duration": "00:00:00.0254639",
+                "startTime": "2026-11-04T21:24:43.4831126+01:00",
+                "endTime": "2026-11-04T21:24:43.4974912+01:00",
+                "testType": "13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b",
+                "outcome": "Failed",
+                "testListId": "8c84fa94-04c1-424b-9868-57a2d4851a1d",
+                "relativeResultsDirectory": "25f145db-dc81-4907-a3ce-b6763f1e6f00"
+              },
+              "message": "Assert.InRange() Failure: Value not in range\r\nRange:  (0 - 256)\r\nActual: 496"
+            }
+          ],
+          "testAndMeasuredCodeUnchangedSince": "30e2570ce0b125a5ae012faf61693d922534b9f1",
+          "titleBarOnMeasuredPath": false,
+          "rootCauseEstablished": false,
+          "indirectTimingEffectExcluded": false,
+          "retryPerformed": false,
+          "warmupToleranceOrSkipChanged": false,
+          "failurePrecededEnvironmentPause": true,
+          "passingCi": {
+            "run": 43585706233,
+            "passed": 6060,
+            "total": 6060
+          },
+          "nativeGallery": {
+            "evidence": "gallery-native-cwd.json",
+            "monitorsDpi": [
+              96,
+              216
+            ],
+            "imagesInspected": [
+              "gallery-cwd-icon-100.png",
+              "gallery-cwd-icon-200.png",
+              "gallery-cwd-monitor-1-dpi-216.png",
+              "gallery-cwd-icon-hidden.png"
+            ],
+            "manualHumanReview": false,
+            "displaySettingsChanged": false,
+            "excludedAttempts": [
+              "gallery-native.json",
+              "gallery-native-final.json"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

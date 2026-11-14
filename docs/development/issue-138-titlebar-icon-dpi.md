@@ -83,3 +83,37 @@ The earlier green suite does not substitute for qualification after this correct
 One follow-up fixture call used TestInput.Focus on implicit Form chrome, outside that
 helper's admitted public tree. The test uses the same canonical Control.Select operation
 directly, then verifies that neither the child nor the window's focus owner changed to it.
+
+## Qualification observations — 2026-11-14
+
+The final focused set passes **36/36**, and CI run
+[43585706233](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/43585706233)
+on `aabbc61e583c53035d6519f38d87dbd3e5dc1bff` passes **6060/6060** plus the
+DynamicResource JIT/trimmed deployment checks (60 retained diagnostics).
+The local full Debug build succeeds, but its suite remains **6059/6060**:
+`BrushInterpolationCompatibilityTests.PreparedPlanDoesNotAllocatePerIntermediateFrame`
+measured **496 B** against its existing **0–256 B** limit. Archived runs from November 4
+(Release, issue-70 qualification) and November 8 (Debug, issue-99 qualification) contain
+the same test failure and the same 496 B result. The test and measured BrushAnimationPlan
+code have no changes since `30e2570ce0b125a5ae012faf61693d922534b9f1`; that measured path
+does not render title bars. Allocation type/stack and root cause remain unknown, and an
+indirect timing effect is not excluded. No retry, tolerance, warmup or skip change was used
+to erase this result. The later environment pause occurred after the failed test.
+
+The owned software-rendered Gallery window was moved programmatically between the actual
+1920×1080 and 5120×2880 monitors; `GetDpiForWindow` changed **96 → 216 → 96**.
+Additional injected DPI messages covered 100/125/150/175/200% and return to 100%.
+The 100%, 200%, physical 216-DPI and hidden-image captures were inspected: the icon keeps
+its margins/proportions and responds to ShowImage. The Search example leaves the icon slot
+free. This is automated native interaction and image inspection, not a human sharpness
+assessment, GPU scanout measurement, or new display configuration. The 200% synthetic
+window extends below the desktop; its off-screen lower area is black in PrintWindow, so
+only the visible title/header region is evidence for that capture.
+
+Two earlier Gallery attempts are retained but excluded as icon evidence: the driver first
+used virtualized monitor coordinates, and both attempts launched from the repository root.
+The existing sample ImageLoader resolves `Images` relative to the working directory, so
+those launches loaded no sample icons. The corrected driver uses thread-scoped per-monitor
+DPI awareness (restored on exit) and launches from `samples/ControlGallery`. No ImageLoader
+behavior or machine display setting was changed. Raw logs, PNGs, TRX hashes and observations
+are retained under `artifacts/scope-reaudit-2026-11-12/issue-138/`.

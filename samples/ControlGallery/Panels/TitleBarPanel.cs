@@ -17,7 +17,8 @@ namespace ControlGallery.Panels
             titlebar.Controls.Add (
                 new TextBox {
                     Placeholder = "Search",
-                    Dock = DockStyle.Left
+                    // Leave the managed icon slot visible in this chrome example.
+                    Left = 44, Top = 3, Width = 140, Height = 28
                 }
             );
 
