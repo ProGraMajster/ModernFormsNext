@@ -40,6 +40,9 @@ namespace ControlGallery.Panels
                 alignment_labels.ForEach (label => label.TextImageRelation = relation);
             };
 
+            var ellipsisExamples = Controls.Add (new Button { Text = "Open ellipsis examples", Left = 470, Top = 110, Width = 210 });
+            ellipsisExamples.Click += (_, _) => ShowEllipsisExamples (image1);
+
             // Other examples
             var lbl10 = new Label {
                 Text = "Border",
@@ -110,6 +113,49 @@ namespace ControlGallery.Panels
 
             Controls.Add (new Label { Text = "Image", Image = image1, Left = 10, Top = 310, Height = 35, ImageAlign = ContentAlignment.MiddleLeft, TextAlign = ContentAlignment.MiddleCenter });
             Controls.Add (new Label { Text = "Image", Image = image1, Left = 10, Top = 350, Height = 35, Enabled = false });
+        }
+
+        private static void ShowEllipsisExamples (SKBitmap image)
+        {
+            // A separate gallery window preserves the original 1506 x 48 dashboard recipe and
+            // permits real monitor moves independently of the application's text-size selector.
+            var form = new Form { Text = "Label ellipsis examples", Size = new System.Drawing.Size (1700, 760) };
+            var examples = form.Controls.Add (new Panel { Dock = DockStyle.Fill, AutoScroll = true });
+            var textSize = examples.Controls.Add (new Button { Text = "Label text: 100%", Left = 24, Top = 12, Width = 190 });
+            var alignment = examples.Controls.Add (new Button { Text = "Align: Left", Left = 230, Top = 12, Width = 190 });
+            examples.Controls.Add (new Label { Text = "Rows: ellipsis on / off / long fitting caption / real overflow / image. Move this window between monitors.", Left = 440, Top = 12, Width = 1100 });
+            var labels = new List<Label>();
+            string[] captions = ["Integration Sample", "Integration Sample",
+                "Integration Sample: a long caption with enough space", "This long caption must overflow the narrow field",
+                "An image leaves less space for this caption"];
+            for (int i = 0; i < captions.Length; i++) {
+                labels.Add (examples.Controls.Add (new Label {
+                    Left = 24, Top = 60 + i * 120, Width = i < 3 ? 1506 : 420, Height = 48,
+                    Text = captions[i], AutoEllipsis = i != 1, Font = new Font ("Segoe UI", 27, FontStyle.Bold),
+                    TextAlign = ContentAlignment.MiddleLeft, Image = i == 4 ? image : null,
+                    ImageAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText
+                }));
+            }
+            int scaleIndex = 0;
+            double[] scales = [1, 1.5, 2];
+            textSize.Click += (_, _) => {
+                scaleIndex = (scaleIndex + 1) % scales.Length;
+                foreach (var label in labels) {
+                    label.Font = new Font ("Segoe UI", (float)(27 * scales[scaleIndex]), FontStyle.Bold);
+                    label.Height = (int)(48 * scales[scaleIndex]);
+                }
+                textSize.Text = $"Label text: {scales[scaleIndex]:P0}";
+            };
+            int alignmentIndex = 0;
+            ContentAlignment[] alignments = [ContentAlignment.MiddleLeft, ContentAlignment.MiddleCenter, ContentAlignment.MiddleRight];
+            string[] names = ["Left", "Center", "Right"];
+            alignment.Click += (_, _) => {
+                alignmentIndex = (alignmentIndex + 1) % alignments.Length;
+                labels.ForEach (label => label.TextAlign = alignments[alignmentIndex]);
+                alignment.Text = $"Align: {names[alignmentIndex]}";
+            };
+            form.Closed += (_, _) => form.Dispose ();
+            form.Show ();
         }
 
         private List<Label> CreateAlignmentLabels ()

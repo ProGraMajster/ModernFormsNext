@@ -181,8 +181,34 @@ internal static class TextImageLayoutEngine
 
         var max_combined_bounds = maxBounds;
 
+        var renderer = RenderManager.GetRenderer<Renderer> (control);
+        var margin = 0;
+
+        if (renderer is IRenderTextAndImage text_image_renderer)
+            margin = control.LogicalToDeviceUnits (text_image_renderer.ImageTextMargin);
+
+        if (text_image_control.AutoEllipsis) {
+            // Ellipsis must use the field left after reserving the image and its gap. Otherwise
+            // the union below grows beyond the client field and the ellipsis is clipped away.
+            var available = LayoutUtils.SubAlignedRegion (maxBounds.Size, image_size, text_image_relation);
+            if (LayoutUtils.IsVerticalRelation (text_image_relation)) {
+                margin = Math.Min (margin, Math.Max (0, available.Height));
+                available.Height = Math.Max (0, available.Height - margin);
+            } else {
+                margin = Math.Min (margin, Math.Max (0, available.Width));
+                available.Width = Math.Max (0, available.Width - margin);
+            }
+            text_size = text_size.Clamp (available);
+        }
+
         // Combine text & image into one rectangle that we center within maxBounds.
         var combined_size = LayoutUtils.AddAlignedRegion (text_size, image_size, text_image_relation);
+        if (text_image_control.AutoEllipsis) {
+            if (LayoutUtils.IsVerticalRelation (text_image_relation))
+                combined_size.Height += margin;
+            else
+                combined_size.Width += margin;
+        }
         max_combined_bounds.Size = LayoutUtils.UnionSizes (max_combined_bounds.Size, combined_size);
         var combined_bounds = LayoutUtils.Align (combined_size, max_combined_bounds, ContentAlignment.MiddleCenter);
 
@@ -193,12 +219,6 @@ internal static class TextImageLayoutEngine
         // TextEdge indicates whether the combination of TextAlign and TextImageRelation place
         // the text along the edge of the control.  If so, we can increase the space for image.
         var text_edge = (AnchorStyles)(TextAlignToRelation (text_align) & text_image_relation) != AnchorStyles.None;
-
-        var renderer = RenderManager.GetRenderer<Renderer> (control);
-        var margin = 0;
-
-        if (renderer is IRenderTextAndImage text_image_renderer)
-            margin = control.LogicalToDeviceUnits (text_image_renderer.ImageTextMargin);
 
         Rectangle text_bounds;
         Rectangle image_bounds;
@@ -228,7 +248,7 @@ internal static class TextImageLayoutEngine
                 combined_bounds,
                 image_size,
                 (AnchorStyles)text_image_relation,
-                margin,
+                0,
                 out image_bounds,
                 out text_bounds);
             LayoutUtils.ExpandRegionsToFillBounds (
@@ -236,6 +256,24 @@ internal static class TextImageLayoutEngine
                 (AnchorStyles)text_image_relation,
                 ref image_bounds,
                 ref text_bounds);
+            // Expansion requires adjacent regions. Reserve the image/text gap afterwards,
+            // on the text edge facing the image, so it is not mistaken for a layout gap.
+            switch (text_image_relation) {
+                case TextImageRelation.ImageBeforeText:
+                    text_bounds.X += margin;
+                    text_bounds.Width -= margin;
+                    break;
+                case TextImageRelation.TextBeforeImage:
+                    text_bounds.Width -= margin;
+                    break;
+                case TextImageRelation.ImageAboveText:
+                    text_bounds.Y += margin;
+                    text_bounds.Height -= margin;
+                    break;
+                case TextImageRelation.TextAboveImage:
+                    text_bounds.Height -= margin;
+                    break;
+            }
         }
 
         // Align text/image within their regions.
@@ -275,6 +313,8 @@ internal static class TextImageLayoutEngine
         // The renderer consumes CurrentStyle, including transient text metrics. Measuring
         // the persistent style can leave a growing single line with a too-short MaxHeight,
         // causing the shaper to omit it entirely even when the control has enough space.
-        return TextMeasurer.MeasureText (control.Text, control, new Size(1000, 1000));
+        // Measure the natural extent before the image/text regions are allocated. An arbitrary
+        // measurement width wraps long captions early and can trigger ellipsis in a fitting field.
+        return TextMeasurer.MeasureText (control.Text, control);
     }
 }

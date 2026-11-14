@@ -7,9 +7,6 @@ using SkiaSharp;
 
 namespace ModernFormsNext
 {
-    // TODO:
-    // AutoEllipsis
-
     /// <summary>
     /// Represents a Label control.
     /// </summary>
@@ -48,6 +45,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets a value indicating if text will be truncated with an ellipsis if it cannot fully fit in the Label.
         /// </summary>
+        /// <remarks>
+        /// Text is measured using the current style and DPI. A fitting single line keeps its full
+        /// text; overflow is evaluated within the text region remaining after border, padding and
+        /// image layout. Multiline text also respects the available height. Changing this property
+        /// invalidates rendering and requests parent layout when auto-sizing is enabled. Set it on
+        /// the UI thread; it does not alter <see cref="Control.Text"/> or the accessible name.
+        /// </remarks>
         public bool AutoEllipsis {
             get => _labelState[s_stateAutoEllipsis] != 0;
             set {
