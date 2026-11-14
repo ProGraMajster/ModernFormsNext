@@ -157,7 +157,7 @@ public sealed partial class AndroidSkiaHostView
     private IInputConnection? CreateClientInputConnection(EditorInfo attributes)
     {
         var client = textInputClient;
-        var snapshot = client?.GetState();
+        var snapshot = client?.GetState(0);
         if (snapshot is null || snapshot.Options.ReadOnly || !ReferenceEquals(client, textInputClient)) return null;
         var options = snapshot.Options;
         attributes.InputType = options.Scope switch
@@ -197,9 +197,13 @@ public sealed partial class AndroidSkiaHostView
             attributes.ImeOptions |= ImeFlags.NoPersonalizedLearning;
         attributes.InitialSelStart = snapshot.SelectionStart;
         attributes.InitialSelEnd = snapshot.SelectionEnd;
-        if (OperatingSystem.IsAndroidVersionAtLeast(30))
-            attributes.SetInitialSurroundingSubText(options.Scope == TextInputScope.Password ? string.Empty : snapshot.Text,
-                options.Scope == TextInputScope.Password ? 0 : snapshot.TextStart);
+        if (OperatingSystem.IsAndroidVersionAtLeast(30) && options.Scope != TextInputScope.Password)
+        {
+            var surrounding = client!.GetState();
+            if (!ReferenceEquals(client, textInputClient)) return null;
+            if (surrounding is { Options.Scope: not TextInputScope.Password } && surrounding.Revision == snapshot.Revision)
+                attributes.SetInitialSurroundingSubText(surrounding.Text, surrounding.TextStart);
+        }
         lastTextInputOptions = options;
         lastTextInputRevision = snapshot.Revision;
         activeInputConnection = new SharedInputConnection(this, client);

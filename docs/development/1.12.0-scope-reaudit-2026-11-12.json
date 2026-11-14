@@ -18236,6 +18236,1257 @@
           "assertionOrRuntimePolicyChanged": false
         }
       ]
+    },
+    {
+      "capturedAt": "2026-11-14T18:49:55.787515+00:00",
+      "master": "5393d9f1ebd4477537bc13b1647fb082c5417bc8",
+      "projectPages": [
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA5OTAwOTkwMDk5MDA5Oc4Oa5qx",
+          "totalCount": 464
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA0OTc1MTI0Mzc4MTA5NM4QAREu",
+          "totalCount": 464
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAzMzIyMjU5MTM2MjEyNs4QaPtx",
+          "totalCount": 464
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyNDkzNzY1NTg2MDM0Oc4QqdzH",
+          "totalCount": 464
+        },
+        {
+          "count": 64,
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyMTUwNTM3NjM0NDA4Ns4SL-VS",
+          "totalCount": 464
+        }
+      ],
+      "projectFields": [
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZU",
+          "name": "Title",
+          "dataType": "TITLE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZY",
+          "name": "Assignees",
+          "dataType": "ASSIGNEES"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYVRZc",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Backlog"
+            },
+            {
+              "id": "d46bb227",
+              "name": "Planned"
+            },
+            {
+              "id": "47fc9ee4",
+              "name": "In progress"
+            },
+            {
+              "id": "54f33f8f",
+              "name": "In review"
+            },
+            {
+              "id": "04194b92",
+              "name": "Blocked"
+            },
+            {
+              "id": "98236657",
+              "name": "Done"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZg",
+          "name": "Labels",
+          "dataType": "LABELS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZk",
+          "name": "Linked pull requests",
+          "dataType": "LINKED_PULL_REQUESTS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZo",
+          "name": "Milestone",
+          "dataType": "MILESTONE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZs",
+          "name": "Repository",
+          "dataType": "REPOSITORY"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZw",
+          "name": "Reviewers",
+          "dataType": "REVIEWERS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ0",
+          "name": "Parent issue",
+          "dataType": "PARENT_ISSUE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ4",
+          "name": "Sub-issues progress",
+          "dataType": "SUB_ISSUES_PROGRESS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ8",
+          "name": "Created",
+          "dataType": "CREATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaA",
+          "name": "Updated",
+          "dataType": "UPDATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaE",
+          "name": "Closed",
+          "dataType": "CLOSED"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr8c",
+          "name": "Target version",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "311f3d16",
+              "name": "1.9.0"
+            },
+            {
+              "id": "59ed5453",
+              "name": "1.10.0"
+            },
+            {
+              "id": "f7eaf14b",
+              "name": "1.11.0"
+            },
+            {
+              "id": "ba502a65",
+              "name": "1.12.0"
+            },
+            {
+              "id": "697d2111",
+              "name": "2.0.0"
+            },
+            {
+              "id": "8105f14c",
+              "name": "Future"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9U",
+          "name": "Area",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "0abef53f",
+              "name": "Core"
+            },
+            {
+              "id": "72dbec22",
+              "name": "Graphics"
+            },
+            {
+              "id": "8a9c54fd",
+              "name": "Animations"
+            },
+            {
+              "id": "33e34416",
+              "name": "Themes"
+            },
+            {
+              "id": "ced8a83d",
+              "name": "Navigation"
+            },
+            {
+              "id": "e01b53f9",
+              "name": "Controls"
+            },
+            {
+              "id": "8bdad61f",
+              "name": "Documents"
+            },
+            {
+              "id": "d4047610",
+              "name": "Data visualization"
+            },
+            {
+              "id": "a5558334",
+              "name": "Localization"
+            },
+            {
+              "id": "c5442d9e",
+              "name": "Android"
+            },
+            {
+              "id": "29cc9209",
+              "name": "Windows"
+            },
+            {
+              "id": "990cb8c0",
+              "name": "Designer"
+            },
+            {
+              "id": "9e347eca",
+              "name": "Templates"
+            },
+            {
+              "id": "a4e80fc7",
+              "name": "Documentation"
+            },
+            {
+              "id": "d987dd8b",
+              "name": "Build and release"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9c",
+          "name": "Priority",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "8f08d0d7",
+              "name": "Critical"
+            },
+            {
+              "id": "53164825",
+              "name": "High"
+            },
+            {
+              "id": "badbd14e",
+              "name": "Medium"
+            },
+            {
+              "id": "afc4eb57",
+              "name": "Low"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9g",
+          "name": "Effort",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "465305c5",
+              "name": "S"
+            },
+            {
+              "id": "8bdcc57a",
+              "name": "M"
+            },
+            {
+              "id": "d0a63dfd",
+              "name": "L"
+            },
+            {
+              "id": "04c06343",
+              "name": "XL"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9o",
+          "name": "Start date",
+          "dataType": "DATE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9s",
+          "name": "Target date",
+          "dataType": "DATE"
+        }
+      ],
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "completed": 49,
+      "remaining": 4,
+      "classificationCounts": {
+        "V": 49,
+        "P": 2,
+        "Q": 1,
+        "B": 1
+      },
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 162,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 163,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "independentMilestoneAndLabelEndpointsMatched": true,
+      "sourceMembershipAndLabelsAndMilestonesUnchanged": true,
+      "projectScopePriorityAreaEffortUnchanged": true,
+      "issueBodiesUnchangedSinceInitialCapture": true,
+      "addedProjectItems": [
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABPMi-tA",
+          "number": 469,
+          "title": "Record Designer and profiler validation in the 1.12.0 audit",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/469",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-14T18:49:19Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        }
+      ],
+      "rawScopeSha256": "93b3fac877e4e7c6fa226472012c812deee08dc3f32b4fc54c7abfa6a51813ac",
+      "mergedPullRequests": [
+        {
+          "issue": 168,
+          "pullRequest": 469,
+          "stage": "audit and profiler evidence",
+          "issueRemainsOpen": true,
+          "head": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+          "merge": "5393d9f1ebd4477537bc13b1647fb082c5417bc8",
+          "requiredCiRun": 43626442981,
+          "requiredCi": {
+            "head": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+            "run": 43626442981,
+            "job": 132543212168,
+            "completedAt": "2026-11-14T18:48:17Z",
+            "passed": 6180,
+            "total": 6180,
+            "failed": 0,
+            "skipped": 0,
+            "trimDiagnostics": 60,
+            "mergeTree": "6106263f3bf299b43907a81d3246a18cf8785106",
+            "artifactId": 14126524833,
+            "artifactZipSha256": "6a304cd750c410c3d01c18ea18c61a7e009573cce803af978251d719d5d6fcc9",
+            "projects": [
+              {
+                "failed": 0,
+                "passed": 166,
+                "skipped": 0,
+                "total": 166,
+                "project": "ModernFormsNext.Automation.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 66,
+                "skipped": 0,
+                "total": 66,
+                "project": "ModernFormsNext.Automation.Windows.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 31,
+                "skipped": 0,
+                "total": 31,
+                "project": "ModernFormsNext.CrossPlatform.Sample.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1327,
+                "skipped": 0,
+                "total": 1327,
+                "project": "ModernFormsNext.Designer.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1492,
+                "skipped": 0,
+                "total": 1492,
+                "project": "ModernFormsNext.Testing.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 2144,
+                "skipped": 0,
+                "total": 2144,
+                "project": "ModernFormsNext.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 34,
+                "skipped": 0,
+                "total": 34,
+                "project": "ModernFormsNext.VisualStudioExtension.Vsix.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 479,
+                "skipped": 0,
+                "total": 479,
+                "project": "ModernFormsNext.WindowKit.Backend.Android.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 441,
+                "skipped": 0,
+                "total": 441,
+                "project": "ModernFormsNext.WindowKit.Backend.Windows.Tests.dll"
+              }
+            ],
+            "dynamicResourceDeployment": "PASS"
+          },
+          "diagnosticEvidence": {
+            "issue": 168,
+            "status": "open",
+            "sdk": "10.0.401",
+            "runtime": "10.0.12",
+            "measuredIlCounterOffsets": [
+              "0x2d",
+              "0x4e"
+            ],
+            "historicFailures": [
+              {
+                "run": 35512235500,
+                "attempt": 1,
+                "bytes": 1328
+              },
+              {
+                "run": 37206449059,
+                "attempt": 1,
+                "bytes": 3256
+              }
+            ],
+            "observations": [
+              {
+                "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+                "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+                "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+                "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+                "mode": "isolated",
+                "probeEnabled": false,
+                "countRequested": 20,
+                "processors": 32,
+                "resultSha256": "6dc4fd3c7138dd6eec8ac592fd4501913468a2af99b16943ddced637a6ff32f2",
+                "targetPass": 20,
+                "totalsPerProcess": [
+                  1
+                ],
+                "nonzeroExit": []
+              },
+              {
+                "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+                "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+                "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+                "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+                "mode": "isolated",
+                "probeEnabled": true,
+                "countRequested": 20,
+                "processors": 32,
+                "resultSha256": "dac61c04dbcca513fb538be4fe9d7aeabe2461e58108f02ed159bd17b7b0da03",
+                "targetPass": 20,
+                "totalsPerProcess": [
+                  1
+                ],
+                "nonzeroExit": [],
+                "mappings": [
+                  {
+                    "run": 1,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 2,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 3,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 4,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 5,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 6,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 7,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 8,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 9,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 10,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 11,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 12,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 13,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 14,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 15,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 16,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 17,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 18,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 19,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 20,
+                    "outcome": "Passed",
+                    "recorded": 1137,
+                    "possibleMeasured": 0,
+                    "unclassified": 43,
+                    "setup": 1071,
+                    "postMeasure": 23,
+                    "nativeVersions": 1
+                  }
+                ]
+              },
+              {
+                "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+                "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+                "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+                "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+                "mode": "project",
+                "probeEnabled": false,
+                "countRequested": 5,
+                "processors": 32,
+                "resultSha256": "f92e208e82f345eca3ce5cd76dbac0c734828b15b0a1b58354608dbd2da194f6",
+                "targetPass": 5,
+                "totalsPerProcess": [
+                  2144
+                ],
+                "nonzeroExit": []
+              },
+              {
+                "head": "943509df161e729c05b01d8fca94cdd6dfbc6d12",
+                "testSourceBlob": "8bde250d5cab406afe4f54d6a11d15ed67fe8609",
+                "testAssemblySha256": "8bac547f133860afcd5dd9aa792846b7097d95425d63f9410cf763715608e24a",
+                "frameworkAssemblySha256": "ff909be8471e5b997ece45b231b557100ed4a2b46815f2b74e7c72ec0a9af4fc",
+                "mode": "project",
+                "probeEnabled": true,
+                "countRequested": 5,
+                "processors": 32,
+                "resultSha256": "516bcc23fbd83362f2284ec9f19e3357b981517289a212335e36305e6d02b38d",
+                "targetPass": 5,
+                "totalsPerProcess": [
+                  2144
+                ],
+                "nonzeroExit": [
+                  1
+                ],
+                "mappings": [
+                  {
+                    "run": 1,
+                    "outcome": "Passed",
+                    "recorded": 418,
+                    "possibleMeasured": 0,
+                    "unclassified": 15,
+                    "setup": 387,
+                    "postMeasure": 16,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 2,
+                    "outcome": "Passed",
+                    "recorded": 420,
+                    "possibleMeasured": 0,
+                    "unclassified": 16,
+                    "setup": 388,
+                    "postMeasure": 16,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 3,
+                    "outcome": "Passed",
+                    "recorded": 425,
+                    "possibleMeasured": 0,
+                    "unclassified": 16,
+                    "setup": 393,
+                    "postMeasure": 16,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 4,
+                    "outcome": "Passed",
+                    "recorded": 418,
+                    "possibleMeasured": 0,
+                    "unclassified": 15,
+                    "setup": 387,
+                    "postMeasure": 16,
+                    "nativeVersions": 1
+                  },
+                  {
+                    "run": 5,
+                    "outcome": "Passed",
+                    "recorded": 425,
+                    "possibleMeasured": 0,
+                    "unclassified": 15,
+                    "setup": 394,
+                    "postMeasure": 16,
+                    "nativeVersions": 1
+                  }
+                ]
+              }
+            ],
+            "separateTypographyFailureBytes": 1936,
+            "allocationOriginEstablished": false,
+            "assertionOrRuntimePolicyChanged": false
+          }
+        }
+      ],
+      "nextIssues": [
+        40,
+        168,
+        131,
+        133
+      ],
+      "releaseApproved": false,
+      "openIssueDiagnostics": [
+        {
+          "issue": 131,
+          "status": "open",
+          "imm32": 20,
+          "androidUnit": 19,
+          "native": [
+            {
+              "kind": "Emulator",
+              "api": 34,
+              "model": "sdk_gphone64_x86_64",
+              "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+              "invocationHead": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "apkBuiltWithWorkingChanges": true,
+              "assertions": 82,
+              "settingsEqual": true,
+              "logSha256": "ee2374aa18134c42c1f6c0e801259cb06607da2b2cb76d72d7149a812ac11d87",
+              "runnerSha256": "c8a47e8e289b7753967646655b511d594a6987e74aba05ee7fdfdbfa7760e649"
+            },
+            {
+              "kind": "Emulator",
+              "api": 36,
+              "model": "sdk_gphone64_x86_64",
+              "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+              "invocationHead": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "apkBuiltWithWorkingChanges": true,
+              "assertions": 82,
+              "settingsEqual": true,
+              "logSha256": "1513e0ff1fce1990dfa44489996f9ca03b699fa51fc145e5eb212194ac07897f",
+              "runnerSha256": "c8a47e8e289b7753967646655b511d594a6987e74aba05ee7fdfdbfa7760e649"
+            },
+            {
+              "kind": "Physical",
+              "api": 36,
+              "model": "NX769J",
+              "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+              "invocationHead": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "apkBuiltWithWorkingChanges": true,
+              "assertions": 82,
+              "settingsEqual": true,
+              "logSha256": "dafd8b19f1a60ecc4fd409ea90740cb577fb687b0bea7f9167fa78c840fa2dae",
+              "runnerSha256": "c8a47e8e289b7753967646655b511d594a6987e74aba05ee7fdfdbfa7760e649"
+            }
+          ],
+          "baseline": [
+            {
+              "scenario": "PageComposition",
+              "api": 36,
+              "emulator": "Codex_Issue62_API36",
+              "assertions": 24,
+              "apkSha256": "1f313a03252cdf12471fe2d3d57e9ea293bdcb875ab375ce6ea7036662ec15fd",
+              "invocationHead": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "scriptSha256": "ccd9b1a3f4e1940676ad2391404811b00b9682d022d9d74edfbcd81b31611d2c",
+              "settingsEqual": true,
+              "sourceGeneratedApkBeforeInvocation": false,
+              "nativeFiles": {
+                "page-composition-overlay.png": "ac5e0228f031dd0317693df3a59ba22446dc65c4e627a97e87a23863ecd1de11",
+                "page-composition-recreated.png": "e08b7937c46a1164c33511b5493c9721bbac8c3b84009805741bad6290765c88",
+                "page-composition-validation.txt": "6985adc9df2c26fcfcd14b4e56223b8d0dda946e2dfa36c6ea3e97868303858b"
+              },
+              "instrumentationLogSha256": "9d803fbbcaa203a455d7d7c512e1c295be30a2c299fcbcec7c3184fd1394b4df"
+            },
+            {
+              "scenario": "PageNavigation",
+              "api": 36,
+              "emulator": "Codex_Issue62_API36",
+              "assertions": 21,
+              "apkSha256": "1f313a03252cdf12471fe2d3d57e9ea293bdcb875ab375ce6ea7036662ec15fd",
+              "invocationHead": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "scriptSha256": "ccd9b1a3f4e1940676ad2391404811b00b9682d022d9d74edfbcd81b31611d2c",
+              "settingsEqual": true,
+              "sourceGeneratedApkBeforeInvocation": false,
+              "nativeFiles": {
+                "page-navigation-details.png": "48269e519c9b42c386e6fd56d2e0449bdbdb8becfe84435cf5cb79b67ad5bf8d",
+                "page-navigation-recreated.png": "5f4b947c6573539f7d4baf1653adbc375f3287777c824b519999ac7365cc4af3",
+                "page-navigation-validation.txt": "5a2e7dac5d16ccce48cfaf4963036476559a1bb6040d2c5d26913ea3d4111cb0"
+              },
+              "instrumentationLogSha256": "ee5a3344d9d7e757003758568cd280877f8c87b2f7d6db552b2a9c60d9d31152"
+            }
+          ],
+          "externalCjkAndHardware": "NOT EXECUTED",
+          "earlierNativeRuns": [
+            {
+              "path": "api36-ime-first",
+              "logSha256": "a70e9a11ab8a1e5cd7509c8c3320862b67fc3437cdfce13caed73a63176c3e1c"
+            },
+            {
+              "path": "api36-ime-second",
+              "logSha256": "7a6948ec081a74783249013fc1ca77f9435340ba8d302e62fcbaaed71423bbf6"
+            },
+            {
+              "path": "api36-ime-third",
+              "logSha256": "e690b4e49cba4900fc76ab428884b3f8a5db2d253259d4bc10908b2a30802914"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

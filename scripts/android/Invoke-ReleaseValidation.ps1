@@ -18,7 +18,7 @@ param(
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [string]$SdkRoot,
     [ValidateRange(30, 1800)][int]$TimeoutSeconds = 180,
-    [ValidateSet('ReleaseMatrix', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')][string]$Scenario = 'ReleaseMatrix'
+    [ValidateSet('ReleaseMatrix', 'ImeCompatibility', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')][string]$Scenario = 'ReleaseMatrix'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -109,6 +109,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'APK installation failed; existing sample data was not removed.' }
     $instrumentationArguments = @('shell', 'am', 'instrument', '-w')
     if ($Scenario -eq 'SystemReducedMotion') { $instrumentationArguments += @('-e', 'systemReducedMotionOnly', 'true') }
+    if ($Scenario -eq 'ImeCompatibility') { $instrumentationArguments += @('-e', 'imeOnly', 'true') }
     $instrumentationArguments += "$package/$package.$runner"
     # Bound even native instrumentation calls whose Android implementation can wait forever.
     # Only the explicitly selected sample is stopped on timeout; no app data is removed.
@@ -151,6 +152,7 @@ try {
         throw 'Appearance runner must declare its current-run artifact directory; static files cannot qualify this run.'
     }
     $marker = switch ($Scenario) {
+        'ImeCompatibility' { 'ANDROID_IME_COMPATIBILITY_PASS' }
         'AccessibilityPhase4' { 'ANDROID_ACCESSIBILITY_PHASE4_PASS' }
         'PageNavigation' { 'ANDROID_PAGE_NAVIGATION_PASS' }
         'PageComposition' { 'ANDROID_PAGE_COMPOSITION_PASS' }
@@ -203,7 +205,7 @@ try {
         throw "BindingNavigator certification markers missing. Inspect $destination/instrumentation.log."
     }
     if ($instrumentationExit -ne 0 -or $result -notmatch $marker -or
-        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|ANDROID_BRUSH_MORPH_FAIL|INSTRUMENTATION_FAILED)') {
+        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_IME_COMPATIBILITY_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|ANDROID_BRUSH_MORPH_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."
     }
 }

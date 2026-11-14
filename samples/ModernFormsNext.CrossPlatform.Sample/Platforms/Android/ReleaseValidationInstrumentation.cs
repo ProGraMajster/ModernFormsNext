@@ -39,6 +39,7 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     private AnimationRun? animation;
     private int firstClicks, secondClicks;
     private bool systemReducedMotionOnly;
+    private bool imeOnly;
     private readonly List<WeakReference> retiredViews = [];
 
     /// <summary>Creates the explicit release validation runner.</summary>
@@ -52,6 +53,7 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     public override void OnCreate(Bundle? arguments)
     {
         systemReducedMotionOnly = arguments?.GetString("systemReducedMotionOnly") == "true";
+        imeOnly = arguments?.GetString("imeOnly") == "true";
         base.OnCreate(arguments);
         Start();
     }
@@ -68,6 +70,8 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
         int originalMode = 0;
         try
         {
+            if (imeOnly && systemReducedMotionOnly)
+                throw new ArgumentException("Select only one opt-in validation scenario.");
             _ = UiAutomation; // Connect before launch; release by Instrumentation.Finish.
             using var intent = LaunchIntent();
             activity = (MainActivity)StartActivitySync(intent)!;
@@ -106,6 +110,12 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
             }
             stage = "composition";
             CheckComposition();
+            if (imeOnly)
+            {
+                CheckImeRetirement();
+                success = true;
+                return;
+            }
             OnUi(() => { fixture.Controls.OfType<Button>().First().Select(); View().HideSoftKeyboard(); return true; });
             WaitFor(() => OnUi(() => app.Root.Height > 500), "keyboard-dismissed-viewport-restored");
             Capture("fixture.png");
@@ -177,7 +187,8 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
                 });
             }
             catch (Exception error) { success = false; report.AppendLine($"FAIL cleanup={error.GetType().Name}"); }
-            report.AppendLine($"ANDROID_RELEASE_MATRIX_{(success ? "PASS" : "FAIL")} assertions={assertions}");
+            string lane = imeOnly ? "IME_COMPATIBILITY" : "RELEASE_MATRIX";
+            report.AppendLine($"ANDROID_{lane}_{(success ? "PASS" : "FAIL")} assertions={assertions}");
             if (output.Length > 0) File.WriteAllText(FilePath.Combine(output, "result.txt"), report.ToString());
             result.PutString("stream", report.ToString());
             Finish(success ? Result.Ok : Result.Canceled, result);
@@ -234,6 +245,29 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
                     ? connection.DeleteSurroundingTextInCodePoints(1, 0)
                     : connection.DeleteSurroundingText(2, 0), "native-surrogate-delete");
                 Check(editor.Text == "zażółć ", "surrogate-pair-deleted-once");
+                if (imeOnly)
+                {
+                    // Application-side revision changes restart Android's connection. Keep the
+                    // fixture's replacement in the native edit path and test that restart elsewhere.
+                    Check(connection.SetSelection(0, editor.Text.Length), "native-select-all");
+                    using var fixtureText = new Java.Lang.String("前かな後");
+                    Check(connection.CommitText(fixtureText, 1), "native-selection-fixture-installed");
+                    Check(connection.SetSelection(1, 3), "native-selection-admitted");
+                    using var before = connection.GetTextBeforeCursorFormatted(1, 0);
+                    using var selected = connection.GetSelectedTextFormatted(0);
+                    using var after = connection.GetTextAfterCursorFormatted(1, 0);
+                    Check(before?.ToString() == "前" && selected?.ToString() == "かな" && after?.ToString() == "後",
+                        "native-surrounding-and-selection");
+                    foreach (string text in new[] { "漢字", "한글", "かな" })
+                    {
+                        using var preedit = new Java.Lang.String(text);
+                        Check(connection.SetComposingText(preedit, 1) && app.Root.TextInputClientProvider!()!.GetState()!.HasComposition,
+                            "synthetic-cjk-preedit");
+                    }
+                    using var committedCjk = new Java.Lang.String("漢字한글かな");
+                    Check(connection.CommitText(committedCjk, 1) && editor.Text == "前漢字한글かな後", "synthetic-cjk-commit");
+                    Check(connection.RequestCursorUpdates(1), "native-cursor-update-admitted");
+                }
                 if (index > 0)
                 {
                     using var newline = new Java.Lang.String("\nnext");
@@ -243,6 +277,96 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
             });
         }
         report.AppendLine("IME=native-InputConnection-synthetic; editors=4; vendor-keyboard-observation=NOT_EXECUTED");
+    }
+
+    private void CheckImeRetirement()
+    {
+        stage = "ime-handoff-and-privacy";
+        var first = (TextBox)editors[0];
+        var next = (TextBox)editors[1];
+        OnUi(() =>
+        {
+            first.Text = "start";
+            first.Select();
+            using var info = new EditorInfo();
+            var connection = View().OnCreateInputConnection(info)!;
+            using var preedit = new Java.Lang.String("かな");
+            Check(connection.SetComposingText(preedit, 1), "handoff-composition-start");
+            var retired = app.Root.TextInputClientProvider!()!;
+            next.Select();
+            Check(retired.GetState() is null && !connection.CommitText("stale", 1), "handoff-rejects-stale-client-and-connection");
+            Check(!next.Text.Contains("stale", StringComparison.Ordinal), "handoff-preserves-successor-document");
+
+            var password = fixture.Controls.Add(new TextBox
+            {
+                PasswordCharacter = '*',
+                Text = "synthetic-private-value",
+                Bounds = new Rectangle(12, 308, 160, 25)
+            });
+            try
+            {
+                password.Select();
+                var privateClient = app.Root.TextInputClientProvider!()!;
+                using var privateInfo = new EditorInfo();
+                var privateConnection = View().OnCreateInputConnection(privateInfo)!;
+                Check(privateConnection.SetSelection(2, 6), "password-native-selection-admitted");
+                using var before = privateConnection.GetTextBeforeCursorFormatted(100, 0);
+                using var selected = privateConnection.GetSelectedTextFormatted(0);
+                using var after = privateConnection.GetTextAfterCursorFormatted(100, 0);
+                using var extracted = privateConnection.GetExtractedText(null, 0);
+                Check(before is null && selected is null && after is null && extracted is null,
+                    "password-native-text-queries-redacted");
+                if (OperatingSystem.IsAndroidVersionAtLeast(31))
+                {
+                    using var surrounding = privateConnection.GetSurroundingText(100, 100, 0);
+                    Check(surrounding is null, "password-android31-surrounding-redacted");
+                }
+                Check(privateConnection.CommitText("accepted", 1) && password.Text.Contains("accepted", StringComparison.Ordinal),
+                    "password-native-editing-available");
+                Check(!OperatingSystem.IsAndroidVersionAtLeast(26) ||
+                    (privateInfo.ImeOptions & ImeFlags.NoPersonalizedLearning) != 0, "password-private-ime-options");
+                password.Dispose();
+                Check(privateClient.GetState() is null && !privateConnection.CommitText("stale", 1),
+                    "disposal-revokes-password-connection");
+            }
+            finally
+            {
+                fixture.Controls.Remove(password);
+                password.Dispose();
+            }
+            return true;
+        });
+
+        stage = "ime-activity-recreation";
+        var old = activity;
+        var snapshot = OnUi(() =>
+        {
+            first.Select();
+            using var info = new EditorInfo();
+            var connection = View().OnCreateInputConnection(info)!;
+            using var text = new Java.Lang.String("編集中");
+            Check(connection.SetComposingText(text, 1), "recreation-composition-start");
+            var client = app.Root.TextInputClientProvider!()!;
+            Check(client.GetState()!.HasComposition, "recreation-has-active-composition");
+            old.Recreate();
+            return (Client: client, Connection: connection);
+        });
+        WaitFor(() => OnUi(() => AndroidWindowKit.Current.ActivityTracker.CurrentActivity is MainActivity current
+            && !ReferenceEquals(current, old) && Runtime().ActiveSurfaceCount == 1 && current.HasWindowFocus),
+            "ime-activity-recreated");
+        OnUi(() =>
+        {
+            activity = (MainActivity)AndroidWindowKit.Current.ActivityTracker.CurrentActivity!;
+            activity.Window!.AddFlags(WindowManagerFlags.KeepScreenOn);
+            Check(snapshot.Client.GetState() is null && !snapshot.Connection.CommitText("stale", 1),
+                "recreation-rejects-old-session");
+            first.Select();
+            using var info = new EditorInfo();
+            var connection = View().OnCreateInputConnection(info)!;
+            Check(!ReferenceEquals(snapshot.Connection, connection) && connection.CommitText("fresh", 1)
+                && first.Text.Contains("fresh", StringComparison.Ordinal), "recreation-fresh-connection-commits");
+            return true;
+        });
     }
 
     private void CheckPointers()

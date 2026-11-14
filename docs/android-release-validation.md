@@ -113,6 +113,13 @@ accepting the run. Other scenarios do not write global settings.
 Instrumentation has a 180-second host deadline (`-TimeoutSeconds` can explicitly adjust it). A timeout
 fails the run and stops only the selected sample process before checking/restoring settings.
 
+The opt-in ImeCompatibility scenario uses the same Release APK and device selector. Pass
+`-Scenario ImeCompatibility` with a fresh output directory. The scenario runs the four editor
+fixtures through native InputConnection methods with Polish and CJK data, verifies surrounding
+text and selection and checks stale-connection rejection on focus handoff, disposal and
+Activity recreation. Its marker is `ANDROID_IME_COMPATIBILITY_PASS` and requires a successful
+scenario-specific run. The default release matrix continues to report its own marker.
+
 ## Scenario boundaries
 
 | Lane | What the runner exercises | What it does not establish |

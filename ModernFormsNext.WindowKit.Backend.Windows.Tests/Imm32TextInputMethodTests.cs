@@ -237,6 +237,43 @@ public sealed class Imm32TextInputMethodTests
     }
 
     [Fact]
+    public void CompositionRepositionsTheSameCandidateListAcrossDpiChanges()
+    {
+        using var editor = new Editor { Visible = true };
+        var native = new Native();
+        double scale = 1;
+        using var method = new Imm32TextInputMethod(1, () => scale, native);
+        method.SetClient(new GeometryClient(editor.Client, new TextRect(10.25, 20.5, 1, 15)));
+        Start(method);
+        native.Text[GCS.GCS_COMPSTR] = "かな";
+        native.Cursor = 2;
+        Send(method, GCS.GCS_COMPSTR | GCS.GCS_CURSORPOS);
+
+        // Device rectangles have conservative rounding at both edges. SetClient with the
+        // same client isn't needed because window DPI changes use the existing Refresh path.
+        foreach (var (dpi, left, top, right, bottom) in new[]
+        {
+            (96, 10, 20, 12, 36),
+            (120, 12, 25, 15, 45),
+            (144, 15, 30, 17, 54),
+            (168, 17, 35, 20, 63),
+            (216, 23, 46, 26, 80)
+        })
+        {
+            scale = dpi / 96d;
+            native.Candidates.Clear();
+            method.Refresh();
+            var candidate = Assert.Single(native.Candidates);
+            Assert.Equal(CFS_EXCLUDE, candidate.dwStyle);
+            Assert.Equal((left, top, right, bottom),
+                (candidate.rcArea.left, candidate.rcArea.top, candidate.rcArea.right, candidate.rcArea.bottom));
+            Assert.Equal((left, top), native.CaretPosition);
+            Assert.True(editor.Client.GetState()!.HasComposition);
+        }
+        Assert.Equal(native.Acquired, native.Released);
+    }
+
+    [Fact]
     public void DefaultCompositionUiIsSuppressedOnlyForAnEligibleInlineClient()
     {
         using var editor = new Editor { Visible = true };
