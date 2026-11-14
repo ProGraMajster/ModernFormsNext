@@ -8410,7 +8410,39 @@
         131,
         133
       ],
-      "releaseApproved": false
+      "releaseApproved": false,
+      "inProgress205Validation": {
+        "pullRequest": 461,
+        "testedReleaseHead": "ed92595726eff1da53b53df3867aed9b0d6791de",
+        "localDebug": {
+          "total": 6024,
+          "passed": 6024,
+          "failed": 0,
+          "skipped": 0
+        },
+        "localRelease": {
+          "total": 6024,
+          "passed": 6023,
+          "failed": 1,
+          "notExecuted": 0
+        },
+        "failures": [
+          {
+            "test": "ModernFormsNext.WindowKit.Backend.Windows.Tests.PlatformPerformanceTransportTests.DisabledIngressDoesNotAllocateOrRetainAFrame",
+            "message": "Assert.Equal() Failure: Values differ\r\nExpected: 0\r\nActual:   1752",
+            "rawTrx": "Marcin_DESKTOP-U97OBPG_2026-11-14_10_51_38_net10.0.trx",
+            "sha256": "1744a6741c66b28e97e3f201022700cb19d7370f5a4565fdea2812cf251c237c"
+          }
+        ],
+        "historicalSameTest": {
+          "date": "2026-09-26",
+          "bytes": 7216,
+          "rawTrx": "artifacts/msbuild-audit/tests/after-Release-1/after-Release-1_net10.0_20260926185430.trx"
+        },
+        "owningTestAndProductionUnchangedSince": "50756a11533848a45ed69e7ad903fcaba252828b",
+        "allocationOrigin": "Unknown; distinct from the profiler test in issue 168",
+        "rerunPerformed": false
+      }
     }
   ]
 }

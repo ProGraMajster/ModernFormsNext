@@ -18,7 +18,7 @@ amount.Font = original;
 
 Use the UI thread. Font and live metric changes refresh layout, the text document's
 shaping cache, accessibility ranges and native caret geometry. The same editor/document
-and text-input session remain in place: value, selection, undo state and composition are
+and text-input session remain in place: value, selection and composition are
 not reset. Font and accessibility observers may reenter or dispose the owner; a nested
 font change is reconciled after its callback.
 
@@ -78,3 +78,14 @@ and read-only editors grew without clipping, with aligned spinner halves. The ex
 caption was shortened after inspection exposed truncation. The app closed normally.
 This is automated native interaction and image inspection with the software renderer,
 not human monitor-switching, GPU scanout or physical-device qualification.
+
+The full local Release build passed, but the suite was **6023/6024**, not green:
+`PlatformPerformanceTransportTests.DisabledIngressDoesNotAllocateOrRetainAFrame` measured
+**1752 B instead of zero**. All 37 new cases and the other 440 Windows tests passed.
+An archived September 26 TRX (`artifacts/msbuild-audit/tests/after-Release-1/`) records the
+same test failing with **7216 B**. The test and `PlatformPerformanceDiagnostics` have no
+changes since their introduction in `50756a1` (#58), and their measured path does not
+call NumericUpDown. This proves earlier occurrence, not the allocation origin or absence
+of an indirect timing effect. No test rerun, extra warmup, tolerance or skip was used.
+The type/stack of the allocation remains unknown alongside the audit's earlier observations;
+this is a different test from the profiler case owned by #168.
