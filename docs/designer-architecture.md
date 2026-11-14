@@ -375,6 +375,9 @@ constructor, setter or paint callback inside that process. Close and reopen an u
 through the editor pane. Recovery and the document close decision remain with the existing
 persistence coordinator. See [Designer host lifecycle](visual-studio-designer-host.md#save-reload-dirty-state-and-close).
 
+The [executable custom-control proposal](development/designer-executable-preview-isolation.md)
+records the remaining work in #40 and the required proof of process confinement.
+
 ## Visual Studio integration boundaries
 
 The Visual Studio extension hosts the shared shell in an owned modern .NET child process. A small

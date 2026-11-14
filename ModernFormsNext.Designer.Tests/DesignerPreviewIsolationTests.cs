@@ -29,7 +29,8 @@ public sealed class DesignerPreviewIsolationTests
         using var renderer = new DesignerSurfaceRenderer();
         session.LoadDocument(document);
         var firstPixels = Render(renderer, session, valid.Bounds);
-        Render(renderer, session, valid.Bounds);
+        for (int frame = 0; frame < 8; frame++)
+            Render(renderer, session, valid.Bounds);
         Assert.Equal(new SKColor(213, 0, 70), firstPixels);
         Assert.Single(session.OutputLines, m => m.Contains("Runtime property skipped for badSlider (TrackBar)")
             && m.Contains("TickFrequency") && m.Contains("TrackBar.set_TickFrequency"));

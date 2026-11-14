@@ -8,6 +8,7 @@ namespace ModernFormsNext.Designer.Surface;
 // available to property setters, layout and paint after the trusted constructor returns.
 internal static class DesignerPreviewControl
 {
+    private const string StackSeparator = " | stack: ";
     internal static void Prepare(Control control)
     {
         control.Site = new PreviewSite(control);
@@ -41,7 +42,15 @@ internal static class DesignerPreviewControl
             methods.Add($"{owner.FullName}.{method.Name}");
         }
         string failure = $"{stage}: {exception.GetType().Name}: {message}";
-        return methods.Count == 0 ? failure : $"{failure} | stack: {string.Join(" ← ", methods)}";
+        return methods.Count == 0 ? failure : $"{failure}{StackSeparator}{string.Join(" ← ", methods)}";
+    }
+
+    // JIT and reflection can change the frames for the exact same stage and exception.
+    // Keep those details in Output, but compare the deterministic part of the diagnostic.
+    internal static string FailureSignature(string diagnostic)
+    {
+        int separator = diagnostic.IndexOf(StackSeparator, StringComparison.Ordinal);
+        return separator < 0 ? diagnostic : diagnostic[..separator];
     }
 
     internal static string? Dispose(Control control)

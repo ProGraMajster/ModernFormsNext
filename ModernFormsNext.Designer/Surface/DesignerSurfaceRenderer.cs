@@ -722,7 +722,8 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
             var appliedPropertyCount = ApplyPreviewProperties(control, node, propertyErrors, includeLayout: false, imageFrame: imageFrame);
             ApplyDesignTimePreviewState(control, node);
             if (propertyErrors.Count > 0)
-                LogRuntimePropertyFailure(state, node, string.Join(" | ", propertyErrors));
+                LogRuntimePropertyFailure(state, node, string.Join(" | ", propertyErrors),
+                    string.Join(" | ", propertyErrors.Select(DesignerPreviewControl.FailureSignature)));
             else if (previewFailures.TryGetValue(node, out var previous))
                 previous.Property = null;
 
@@ -962,10 +963,11 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
     private void LogRuntimeRenderFailure(DesignerSession state, DesignControlNode node, string message)
     {
         var history = previewFailures.GetOrCreateValue(node);
-        if (history.Render == message)
+        string signature = DesignerPreviewControl.FailureSignature(message);
+        if (history.Render == signature)
             return;
 
-        history.Render = message;
+        history.Render = signature;
         state.Log($"Runtime rendering failed for {node.Name} ({node.TypeName}): {message}");
     }
 
@@ -980,10 +982,11 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         if (message is null && !previewFailures.TryGetValue(node, out _))
             return;
         var history = previewFailures.GetOrCreateValue(node);
-        if (history.Cleanup == message)
+        string? signature = message is null ? null : DesignerPreviewControl.FailureSignature(message);
+        if (history.Cleanup == signature)
             return;
 
-        history.Cleanup = message;
+        history.Cleanup = signature;
         if (message is not null)
             state.Log($"Runtime preview cleanup failed for {node.Name} ({node.TypeName}): {message}");
     }
@@ -1031,13 +1034,14 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
         state.LogDiagnostic($"Placeholder rendered {node.Name} ({node.TypeName}) at {bounds.X},{bounds.Y},{bounds.Width}x{bounds.Height}.");
     }
 
-    private void LogRuntimePropertyFailure(DesignerSession state, DesignControlNode node, string message)
+    private void LogRuntimePropertyFailure(DesignerSession state, DesignControlNode node, string message, string? signature = null)
     {
         var history = previewFailures.GetOrCreateValue(node);
-        if (history.Property == message)
+        signature ??= DesignerPreviewControl.FailureSignature(message);
+        if (history.Property == signature)
             return;
 
-        history.Property = message;
+        history.Property = signature;
         state.Log($"Runtime property skipped for {node.Name} ({node.TypeName}): {message}");
     }
 
