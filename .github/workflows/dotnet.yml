@@ -27,6 +27,10 @@ jobs:
           # pagination/file limits and includes both sides of renames/deletions.
           fetch-depth: 0
 
+      - name: Validate workflow syntax and expression contexts
+        shell: pwsh
+        run: ./scripts/Test-WorkflowSyntax.ps1
+
       - name: Classify changes
         id: changes
         shell: pwsh
