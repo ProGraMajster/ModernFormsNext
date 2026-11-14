@@ -40,6 +40,10 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     private int firstClicks, secondClicks;
     private bool systemReducedMotionOnly;
     private bool imeOnly;
+    private bool lifecycleStress;
+    private int backgroundSeconds = 20;
+    private int recreationCycles = 12;
+    private bool invalidStressArguments;
     private readonly List<WeakReference> retiredViews = [];
 
     /// <summary>Creates the explicit release validation runner.</summary>
@@ -54,6 +58,11 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     {
         systemReducedMotionOnly = arguments?.GetString("systemReducedMotionOnly") == "true";
         imeOnly = arguments?.GetString("imeOnly") == "true";
+        lifecycleStress = arguments?.GetString("lifecycleStress") == "true";
+        if (lifecycleStress && (!int.TryParse(arguments?.GetString("backgroundSeconds"), out backgroundSeconds) ||
+            backgroundSeconds is < 20 or > 600 || !int.TryParse(arguments?.GetString("recreationCycles"), out recreationCycles) ||
+            recreationCycles is < 12 or > 100))
+            invalidStressArguments = true;
         base.OnCreate(arguments);
         Start();
     }
@@ -70,14 +79,16 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
         int originalMode = 0;
         try
         {
-            if (imeOnly && systemReducedMotionOnly)
-                throw new ArgumentException("Select only one opt-in validation scenario.");
+            int optInCount = (imeOnly ? 1 : 0) + (systemReducedMotionOnly ? 1 : 0) + (lifecycleStress ? 1 : 0);
+            if (optInCount > 1 || invalidStressArguments)
+                throw new ArgumentException("Select one opt-in scenario with valid bounded parameters.");
             _ = UiAutomation; // Connect before launch; release by Instrumentation.Finish.
             using var intent = LaunchIntent();
             activity = (MainActivity)StartActivitySync(intent)!;
             WaitFor(() => OnUi(() => View().Width > 0 && Runtime().ActiveSurfaceCount == 1), "host-ready");
             output = FilePath.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, "release-validation",
-                DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture) + "-" + Environment.ProcessId);
+                lifecycleStress ? "lifecycle-stress-" + Guid.NewGuid().ToString("N")
+                    : DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture) + "-" + Environment.ProcessId);
             Directory.CreateDirectory(output);
             report.AppendLine("ARTIFACT_DIRECTORY=" + output);
             OnUi(() =>
@@ -105,6 +116,20 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
                 Check(OnUi(() => Math.Abs(shape.Rotation - 37) < .001), "system-reduced-motion-exact-target");
                 WaitFor(() => OnUi(() => !Runtime().FrameCallbackPending && !Runtime().SchedulerDemand), "system-reduced-motion-idle");
                 report.AppendLine("SYSTEM_REDUCED_MOTION=PASS; source=animator_duration_scale; application_preference=False");
+                success = true;
+                return;
+            }
+            if (lifecycleStress)
+            {
+                report.AppendLine($"STRESS background_seconds={backgroundSeconds} recreation_cycles={recreationCycles}; memory_sampling=forced_GC");
+                stage = "stress-baseline";
+                CheckComposition();
+                OnUi(() => { fixture.Controls.OfType<Button>().First().Select(); View().HideSoftKeyboard(); return true; });
+                WaitFor(() => OnUi(() => app.Root.Height > 500), "keyboard-dismissed-viewport-restored");
+                stage = "stress-background";
+                CheckBackground();
+                stage = "stress-recreation";
+                CheckRecreation();
                 success = true;
                 return;
             }
@@ -187,7 +212,7 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
                 });
             }
             catch (Exception error) { success = false; report.AppendLine($"FAIL cleanup={error.GetType().Name}"); }
-            string lane = imeOnly ? "IME_COMPATIBILITY" : "RELEASE_MATRIX";
+            string lane = imeOnly ? "IME_COMPATIBILITY" : lifecycleStress ? "LIFECYCLE_STRESS" : "RELEASE_MATRIX";
             report.AppendLine($"ANDROID_{lane}_{(success ? "PASS" : "FAIL")} assertions={assertions}");
             if (output.Length > 0) File.WriteAllText(FilePath.Combine(output, "result.txt"), report.ToString());
             result.PutString("stream", report.ToString());
@@ -469,10 +494,21 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     {
         OnUi(() => { shape.Rotation = 0; animation = shape.RotateTo(180, Options(5000)).Start(AnimationScheduler.Default); return true; });
         Thread.Sleep(150);
-        SendKeyDownUpSync(Keycode.Home);
+        if (lifecycleStress)
+        {
+            // Request a real task transition. The minimum API image can ignore injected Home keys.
+            Check(OnUi(() => activity.MoveTaskToBack(true)), "background-task-move-accepted");
+        }
+        else
+        {
+            SendKeyDownUpSync(Keycode.Home);
+        }
         WaitFor(() => OnUi(() => Runtime().ActiveSurfaceCount == 0 && !Runtime().FrameCallbackPending), "background-no-surface");
         var paused = OnUi(() => (shape.Rotation, Runtime().DeliveredFrameCallbackCount));
-        Thread.Sleep(20000); // Explicit background observation, on instrumentation thread only.
+        var dwell = System.Diagnostics.Stopwatch.StartNew();
+        // This delay is on the instrumentation thread, while Android owns the hidden Activity.
+        Thread.Sleep(TimeSpan.FromSeconds(backgroundSeconds));
+        long dwellMilliseconds = dwell.ElapsedMilliseconds;
         Check(OnUi(() => shape.Rotation == paused.Rotation && Runtime().DeliveredFrameCallbackCount == paused.DeliveredFrameCallbackCount), "background-no-animation-or-frame-work");
         using var intent = LaunchIntent();
         // SingleTop resumes the existing Activity; StartActivitySync waits for a newly created
@@ -481,7 +517,7 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
         WaitFor(() => OnUi(() => Runtime().ActiveSurfaceCount == 1), "foreground-rebound");
         Check(OnUi(() => shape.Rotation < 175), "resume-does-not-consume-background-time");
         WaitFor(() => animation!.Completion.IsCompleted, "resumed-animation-completed", 20000);
-        report.AppendLine("BACKGROUND seconds=20 callbacks_stopped=True state_retained=True");
+        report.AppendLine($"BACKGROUND seconds={backgroundSeconds} callbacks_stopped=True state_retained=True actual_ms={dwellMilliseconds}");
     }
 
     private void CheckOrientation()
@@ -508,7 +544,10 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
     private void CheckRecreation()
     {
         string[] values = OnUi(() => editors.Select(editor => editor.Text).ToArray());
-        for (int cycle = 0; cycle < 12; cycle++)
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        if (lifecycleStress)
+            RecordMemory(0, elapsed);
+        for (int cycle = 0; cycle < recreationCycles; cycle++)
         {
             OnUi(() => { retiredViews.Add(new WeakReference(View())); activity.Recreate(); return true; });
             var previous = activity;
@@ -518,10 +557,23 @@ public sealed class ReleaseValidationInstrumentation : Instrumentation
             Check(OnUi(() => ReferenceEquals(((SampleApplication)activity.Application!).SharedApp, app)
                 && editors.Select(editor => editor.Text).SequenceEqual(values)), "recreation-retains-shared-editor-state");
             Check(OnUi(() => Runtime().ActiveSurfaceCount == 1), "recreation-exactly-one-active-surface");
-            GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
-            long pss = global::Android.OS.Debug.Pss;
-            report.AppendLine($"MEMORY cycle={cycle + 1} managed_bytes={GC.GetTotalMemory(false)} pss_kib={pss} retired_views_alive={retiredViews.Count(reference => reference.IsAlive)}");
+            RecordMemory(cycle + 1, elapsed);
         }
+    }
+
+    private void RecordMemory(int cycle, System.Diagnostics.Stopwatch elapsed)
+    {
+        // Forced collection is an observation point. PSS still includes native/runtime caches.
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        long pss = global::Android.OS.Debug.Pss;
+        string thermal = "UNAVAILABLE";
+        if (lifecycleStress && OperatingSystem.IsAndroidVersionAtLeast(29))
+        {
+            using var power = TargetContext?.GetSystemService(Context.PowerService) as PowerManager;
+            if (power is not null) thermal = power.CurrentThermalStatus.ToString();
+        }
+        int retired = retiredViews.Count(reference => reference.IsAlive);
+        report.AppendLine($"MEMORY cycle={cycle} managed_bytes={GC.GetTotalMemory(false)} pss_kib={pss} retired_views_alive={retired} elapsed_ms={elapsed.ElapsedMilliseconds} thermal={thermal}");
     }
 
     private Intent LaunchIntent() => new Intent(TargetContext!, typeof(MainActivity)).AddFlags(ActivityFlags.NewTask);
