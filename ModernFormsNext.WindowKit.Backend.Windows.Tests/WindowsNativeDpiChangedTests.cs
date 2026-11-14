@@ -39,6 +39,8 @@ public sealed class WindowsNativeDpiChangedTests
             Assert.True(host.ExitCode == 0, $"Native DPI host exited with {host.ExitCode}: {errors}\n{output}");
             Assert.Contains("DPI_CHANGED:NATIVE:False", output);
             Assert.Contains("DPI_CHANGED:NATIVE:True", output);
+            foreach (int dpi in new[] { 96, 120, 144, 168, 192, 216 })
+                Assert.Contains($"DPI_CHANGED:ICON:{dpi}:{16 * dpi / 96}", output);
             Assert.Contains("DPI_CHANGED:REENTRANCY:True", output);
             Assert.Contains("DPI_CHANGED:RETIRE:False", output);
             Assert.Contains("DPI_CHANGED:RETIRE:True", output);
