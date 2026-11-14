@@ -124,6 +124,17 @@ internal static class ScrollLayoutScenario
                         "Reveal/layout changed accessible identity, geometry or visibility.");
                     Check("accessible reveal relayout");
 
+                    // Run the public primitive through the existing HWND under the same
+                    // layout/visibility checks while keeping the semantic action above intact.
+                    int beforePublicReveal = events.Count;
+                    Require(list.ScrollControlIntoView(list.Controls[0]) && scrollbar.Value == 0,
+                        "Public reveal did not return the first row to the native viewport.");
+                    Require(events.Count == beforePublicReveal + 1 && events[^1].Type == ScrollEventType.ThumbPosition,
+                        "Public reveal must publish a single neutral event for actual movement.");
+                    Require(list.ScrollControlIntoView(list.Controls[0]) && events.Count == beforePublicReveal + 1,
+                        "Repeating public reveal of a visible native row must stay quiet.");
+                    Check("public reveal");
+
                     foreach (int value in new[] { 0, 480, scrollbar.Maximum - scrollbar.SmallChange, scrollbar.Maximum })
                     {
                         scrollbar.Value = value;

@@ -66,48 +66,6 @@ public partial class Control
         // Its private hit/focus container may be Hidden to avoid duplicate semantic peers; the
         // logical peer already checked its own supported actions before invoking this operation.
         internal static bool RevealControlIntoView(Control owner)
-        {
-            if (owner.IsDisposed || !owner.Visible || !owner.Enabled) return false;
-            var lifetime = new AccessibilityControlLifetime(owner);
-            bool found = false;
-            // The item remains the same throughout nested reveal; moving does not select/focus it.
-            for (var current = owner.Parent; current is not null; current = current.Parent)
-            {
-                if (!lifetime.IsCurrent || !owner.Visible || !owner.Enabled) return false;
-                if (current is not ScrollableControl { AutoScroll: true } viewport) continue;
-                found = true;
-                var bounds = BoundsInAncestor(owner, viewport);
-                var rect = viewport.LogicalScrollViewport;
-                var dx = RevealDelta(bounds.Left, bounds.Right, rect.Left, rect.Right);
-                var dy = RevealDelta(bounds.Top, bounds.Bottom, rect.Top, rect.Bottom);
-                if (!viewport.PerformAccessibleScroll(AccessibleScrollRequest.ByViewport(
-                    rect.Width > 0 ? dx / rect.Width : 0, rect.Height > 0 ? dy / rect.Height : 0))) return false;
-            }
-            return found && lifetime.IsCurrent;
-        }
-
-        private static double RevealDelta(double start, double end, double viewStart, double viewEnd)
-        {
-            // A target larger than the viewport aligns its leading edge once; already covering
-            // the complete view does not oscillate between its two edges on repeated requests.
-            if (start <= viewStart && end >= viewEnd) return 0;
-            if (start < viewStart) return start - viewStart;
-            if (end > viewEnd) return Math.Min(start - viewStart, end - viewEnd);
-            return 0;
-        }
-
-        private static RectangleF BoundsInAncestor(Control owner, Control ancestor)
-        {
-            var points = new[] { new PointF(0, 0), new PointF(owner.ScaledWidth, 0),
-                new PointF(0, owner.ScaledHeight), new PointF(owner.ScaledWidth, owner.ScaledHeight) };
-            for (Control? current = owner; !ReferenceEquals(current, ancestor); current = current.Parent)
-            {
-                if (current is null) return RectangleF.Empty;
-                for (int i = 0; i < points.Length; i++) points[i] = current.ClientPointToParentPresentation(points[i]);
-            }
-            return RectangleF.FromLTRB(points.Min(p => p.X) / ancestor.ScaleFactor.Width,
-                points.Min(p => p.Y) / ancestor.ScaleFactor.Height, points.Max(p => p.X) / ancestor.ScaleFactor.Width,
-                points.Max(p => p.Y) / ancestor.ScaleFactor.Height);
-        }
+            => ScrollableControl.RevealThroughAncestors(owner);
     }
 }
