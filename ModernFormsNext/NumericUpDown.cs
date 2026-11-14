@@ -10,6 +10,20 @@ namespace ModernFormsNext
     /// Represents a control that displays a numeric value and allows the user
     /// to increment, decrement, or manually edit the value.
     /// </summary>
+    /// <remarks>
+    /// The embedded editor follows this control's effective font, line height and letter spacing,
+    /// including active-state typography. Change Font or live metrics on the UI thread to refresh
+    /// text, layout, native caret and accessibility geometry without replacing the editor or its
+    /// selection/composition. Direct style edits require PerformLayout and Invalidate. The default
+    /// height grows with text; a changed explicit Height is retained unless AutoSize is enabled.
+    /// Size constraints and vertical dock/anchor layout retain ownership of the bounds. Borrowed
+    /// typefaces are not disposed by this control. Normal typography remains a minimum height
+    /// preference when an active style uses smaller text, keeping spinner targets stable.
+    /// </remarks>
+    /// <example><code>
+    /// var quantity = new NumericUpDown { Width = 240, DecimalPlaces = 2, Value = 12.5m };
+    /// quantity.Font = new Font(quantity.Font.FamilyName, 24);
+    /// </code></example>
     public partial class NumericUpDown : Control
     {
         private decimal currentValue;
@@ -74,6 +88,7 @@ namespace ModernFormsNext
             UpdateEditorBounds ();
             UpdateIncrementFromSettings ();
             UpdateEditText ();
+            RefreshEditorTypography();
         }
 
         /// <summary>
@@ -836,6 +851,14 @@ namespace ModernFormsNext
             public NumericUpDownTextBox (NumericUpDown owner)
             {
                 this.owner = owner;
+            }
+
+            // Reuse the canonical TextBox cache/accessibility invalidation without replacing
+            // text or resetting its document. The native caret shares the updated geometry.
+            internal void NotifyOwnerTypographyChanged()
+            {
+                OnFontChanged(EventArgs.Empty);
+                if (!IsDisposed && !Disposing) NotifyTextInputStateChanged();
             }
 
             protected override AccessibleObject CreateAccessibilityInstance()
