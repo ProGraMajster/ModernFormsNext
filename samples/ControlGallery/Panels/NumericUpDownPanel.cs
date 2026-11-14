@@ -63,7 +63,7 @@ namespace ControlGallery.Panels
             };
             Controls.Add(new Label {
                 Location = new Point(10, 280), Size = new Size(650, 50),
-                Text = "Editable decimal / read-only editor. Both keep active spinner buttons. Text size and monitor DPI are independent."
+                Text = "Editable decimal / read-only. Both keep active spinner buttons."
             });
         }
     }

@@ -68,3 +68,13 @@ IsDisposed property; the final test observes the public unavailable accessibilit
 Full builds, solution suites, CI and native Gallery results are recorded in the implementing
 PR. Headless composition is not physical IME/CJK/TalkBack qualification. Existing historical
 allocation/Designer timeout observations in the scope audit remain unresolved.
+
+Full Debug on the implementing source passed **6024/6024**, including all 441 Windows
+tests. The first full build exposed an ambiguous `Font` name in the new Gallery example;
+qualifying `ModernFormsNext.Font` corrected compilation, and the failed log is retained.
+The owned native Gallery window was then driven through all five text sizes with Windows
+UI Automation. Original PrintWindow images at 100% and 200% were inspected: both decimal
+and read-only editors grew without clipping, with aligned spinner halves. The explanatory
+caption was shortened after inspection exposed truncation. The app closed normally.
+This is automated native interaction and image inspection with the software renderer,
+not human monitor-switching, GPU scanout or physical-device qualification.
