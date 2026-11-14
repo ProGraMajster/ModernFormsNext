@@ -98,6 +98,58 @@ Primary platform references
 - [Named-pipe access rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights)
 - [.NET AssemblyLoadContext](https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-runtime-loader-assemblyloadcontext)
 
+## Windows feasibility probe — 2026-11-14
+
+A synthetic x64 worker rendered a ModernFormsNext control into a Skia raster on
+Windows build 26300.9711 and .NET 10.0.12. This local fixture was launched from
+a staged self-contained copy and an empty-capability LPAC. Its control verified a
+design site and an authored property before painting. A normal process ran the
+same fixture as a positive control. No project assembly or editor ran inside the worker.
+
+The broker configured the token and a job on the suspended process. Win32
+`TokenIsLessPrivilegedAppContainer` returned error 87. The probe instead
+compared two `AccessCheck` results with ACLs that differed only in their
+package group. The ordinary AppContainer matched both S-1-15-2-1 and
+S-1-15-2-2. The LPAC matched only S-1-15-2-2. The worker used just two
+inherited anonymous-pipe ends. A third intentionally unlisted pipe was
+unreadable. The run before and after a deliberately hung worker returned the
+expected reply byte and raster. Closing the timed-out job ended the process and
+closed its pipe. The temporary profile was deleted.
+
+The probe could read the staged file and write to private scratch. Its read and
+write attempts against a synthetic outside file and its write to the read-only
+snapshot returned access denied. `File.Exists` could see outside file metadata.
+The privileged handle attempt against the broker returned error 5, and child
+creation returned error 367. TCP to a test listener via loopback and a local
+non-loopback interface failed with Winsock 10107 under LPAC. Both addresses
+worked in the ordinary process. An earlier ordinary AppContainer comparison
+accepted a UDP send call to a test address, with delivery unobserved. The LPAC
+result covers these local TCP paths. Remote network,
+registry, brokered operations and broader filesystem access still require
+paired positive and negative controls.
+
+Two initial launches failed during process initialization with
+`0xc0000142`. The managed worker ran after removing `CREATE_NO_WINDOW`
+from the broker launch. Validate window visibility and startup behavior with the
+packaged VSIX host. Complete hostile frame parsing, per-node constructor/setter/
+paint/disposal diagnostics, timeouts, restart, resource ceilings and editor
+recovery on supported Windows versions before enabling project code. Keep the
+default data preview when admission checks fail.
+
+The same scratch-only synthetic fixture also injected constructor, setter,
+paint and disposal exceptions. It recorded the node, type, phase and originating
+method for each one. The instances acquired before setter and paint exceptions
+were disposed. The broker received end-of-stream after exceptions, abrupt exit
+and a hung worker. The later healthy launch rendered again.
+Production integration still needs to correlate those failures with the
+editor's document revision and preserve the other controls and selection.
+
+The local reproduction and raw transcript are retained in the audit workspace
+under `artifacts/scope-reaudit-2026-11-12/issue-40/os-probe`.
+
+- [AccessCheck](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheck)
+- [Process handle inheritance](https://learn.microsoft.com/en-us/windows/win32/procthread/inheritance)
+
 ## Proposed issue structure
 
 The existing #40 acceptance bullets cover document survival after a failing
