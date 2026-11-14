@@ -96,3 +96,43 @@ bounded log outside the scrolling viewports. DemoApp/template startup is unaffec
 
 This notification change adds no smooth scrolling, fling physics, native backend dependency,
 or claim of physical Android touch/IME qualification.
+
+## Revealing a control
+
+`ScrollControlIntoView(target)` is available on `ScrollableControl` and its derived containers.
+Use it when choosing a search result or showing a field from a validation summary.
+
+```csharp
+resultsList.SelectedIndexChanged += (_, _) =>
+{
+    if (resultsList.SelectedItem is SearchResult result)
+        detailsPanel.ScrollControlIntoView(result.Field);
+};
+
+void ShowFirstValidationError(Control firstInvalidField)
+{
+    if (detailsPanel.ScrollControlIntoView(firstInvalidField))
+        validationSummary.Text = "Check the highlighted field.";
+}
+```
+
+The receiver must have AutoScroll enabled and a nonempty padded viewport. The target must be
+a visible explicit descendant, including through ordinary nested containers. Null throws
+`ArgumentNullException`. Self, detached, foreign, hidden, disposed, zero-size and implicit
+targets return false. A disabled but visible field can still be revealed programmatically.
+The method uses the owning UI thread and leaves keyboard focus and selection with their owners.
+
+The method moves the nearest scrollable ancestor first, continues outward through the
+receiver, and leaves ancestors above that receiver to the caller. Each movement follows the
+existing clamp and publishes one neutral Scroll per changed axis. A fitting target moves the
+minimum distance on each axis. An oversized target aligns its leading edge unless its bounds
+already cover the viewport. A fitting viewport or an endpoint can produce a successful
+request with zero movement. True means the request completed within the available ranges.
+
+Coordinates use current logical viewport geometry after subtracting borders, padding and
+scrollbars. Presentation transforms are mapped through the existing ancestor pipeline and
+compared using an axis-aligned rectangle. Clipping by other controls, occlusion and the
+visibility of individual transformed pixels are outside this rectangle calculation.
+Observers can change layout after one axis. The next axis reads the fresh geometry.
+Removing or reparenting the target during a callback stops further movement and returns false,
+with previously committed scroll offsets still applied.

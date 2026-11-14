@@ -12834,6 +12834,1253 @@
         133
       ],
       "releaseApproved": false
+    },
+    {
+      "capturedAt": "2026-11-14T16:17:29.832066+00:00",
+      "master": "2dd9ad53894fd4a181d57529cea3c831fcd21263",
+      "projectPages": [
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA5OTAwOTkwMDk5MDA5Oc4Oa5qx",
+          "totalCount": 460
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA0OTc1MTI0Mzc4MTA5NM4QAREu",
+          "totalCount": 460
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAzMzIyMjU5MTM2MjEyNs4QaPtx",
+          "totalCount": 460
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyNDkzNzY1NTg2MDM0Oc4QqdzH",
+          "totalCount": 460
+        },
+        {
+          "count": 60,
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyMTY5MTk3Mzk2OTYzMc4SLmTD",
+          "totalCount": 460
+        }
+      ],
+      "projectFields": [
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZU",
+          "name": "Title",
+          "dataType": "TITLE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZY",
+          "name": "Assignees",
+          "dataType": "ASSIGNEES"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYVRZc",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Backlog"
+            },
+            {
+              "id": "d46bb227",
+              "name": "Planned"
+            },
+            {
+              "id": "47fc9ee4",
+              "name": "In progress"
+            },
+            {
+              "id": "54f33f8f",
+              "name": "In review"
+            },
+            {
+              "id": "04194b92",
+              "name": "Blocked"
+            },
+            {
+              "id": "98236657",
+              "name": "Done"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZg",
+          "name": "Labels",
+          "dataType": "LABELS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZk",
+          "name": "Linked pull requests",
+          "dataType": "LINKED_PULL_REQUESTS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZo",
+          "name": "Milestone",
+          "dataType": "MILESTONE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZs",
+          "name": "Repository",
+          "dataType": "REPOSITORY"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZw",
+          "name": "Reviewers",
+          "dataType": "REVIEWERS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ0",
+          "name": "Parent issue",
+          "dataType": "PARENT_ISSUE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ4",
+          "name": "Sub-issues progress",
+          "dataType": "SUB_ISSUES_PROGRESS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ8",
+          "name": "Created",
+          "dataType": "CREATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaA",
+          "name": "Updated",
+          "dataType": "UPDATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaE",
+          "name": "Closed",
+          "dataType": "CLOSED"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr8c",
+          "name": "Target version",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "311f3d16",
+              "name": "1.9.0"
+            },
+            {
+              "id": "59ed5453",
+              "name": "1.10.0"
+            },
+            {
+              "id": "f7eaf14b",
+              "name": "1.11.0"
+            },
+            {
+              "id": "ba502a65",
+              "name": "1.12.0"
+            },
+            {
+              "id": "697d2111",
+              "name": "2.0.0"
+            },
+            {
+              "id": "8105f14c",
+              "name": "Future"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9U",
+          "name": "Area",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "0abef53f",
+              "name": "Core"
+            },
+            {
+              "id": "72dbec22",
+              "name": "Graphics"
+            },
+            {
+              "id": "8a9c54fd",
+              "name": "Animations"
+            },
+            {
+              "id": "33e34416",
+              "name": "Themes"
+            },
+            {
+              "id": "ced8a83d",
+              "name": "Navigation"
+            },
+            {
+              "id": "e01b53f9",
+              "name": "Controls"
+            },
+            {
+              "id": "8bdad61f",
+              "name": "Documents"
+            },
+            {
+              "id": "d4047610",
+              "name": "Data visualization"
+            },
+            {
+              "id": "a5558334",
+              "name": "Localization"
+            },
+            {
+              "id": "c5442d9e",
+              "name": "Android"
+            },
+            {
+              "id": "29cc9209",
+              "name": "Windows"
+            },
+            {
+              "id": "990cb8c0",
+              "name": "Designer"
+            },
+            {
+              "id": "9e347eca",
+              "name": "Templates"
+            },
+            {
+              "id": "a4e80fc7",
+              "name": "Documentation"
+            },
+            {
+              "id": "d987dd8b",
+              "name": "Build and release"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9c",
+          "name": "Priority",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "8f08d0d7",
+              "name": "Critical"
+            },
+            {
+              "id": "53164825",
+              "name": "High"
+            },
+            {
+              "id": "badbd14e",
+              "name": "Medium"
+            },
+            {
+              "id": "afc4eb57",
+              "name": "Low"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9g",
+          "name": "Effort",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "465305c5",
+              "name": "S"
+            },
+            {
+              "id": "8bdcc57a",
+              "name": "M"
+            },
+            {
+              "id": "d0a63dfd",
+              "name": "L"
+            },
+            {
+              "id": "04c06343",
+              "name": "XL"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9o",
+          "name": "Start date",
+          "dataType": "DATE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9s",
+          "name": "Target date",
+          "dataType": "DATE"
+        }
+      ],
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "completed": 47,
+      "remaining": 6,
+      "classificationCounts": {
+        "V": 47,
+        "P": 3,
+        "Q": 1,
+        "B": 1,
+        "I": 1
+      },
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 162,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 163,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "In progress",
+          "classification": "I"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "independentMilestoneAndLabelEndpointsMatched": true,
+      "sourceMembershipAndLabelsAndMilestonesUnchanged": true,
+      "projectScopePriorityAreaEffortUnchanged": true,
+      "issueBodiesUnchangedSinceInitialCapture": true,
+      "addedProjectItems": [
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABPLJaWQ",
+          "number": 465,
+          "title": "Report committed viewport Scroll events on both axes",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/465",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-14T16:16:40Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        }
+      ],
+      "rawScopeSha256": "c08b4f5e4d555f8f1680d5ca8519b8ee27a6b18be46ee2befa7c3807ed92cbb9",
+      "mergedPullRequests": [
+        {
+          "issue": 162,
+          "pullRequest": 465,
+          "head": "29d79fc3eedb47b77dcfcd2843f224607d514063",
+          "merge": "2dd9ad53894fd4a181d57529cea3c831fcd21263",
+          "requiredCiRun": 43613069963,
+          "requiredCi": {
+            "run": 43613069963,
+            "job": 132502148355,
+            "head": "29d79fc3eedb47b77dcfcd2843f224607d514063",
+            "completedAt": "2026-11-14T16:15:21Z",
+            "total": 6158,
+            "passed": 6158,
+            "failed": 0,
+            "skipped": 0,
+            "trimDiagnostics": 60,
+            "artifactId": 14121542909,
+            "artifactZipSha256": "5df4f6c92114acb7cb32791230d7ec72679c51be77162ec37cc7d8df21ca1e5f",
+            "projects": [
+              {
+                "failed": 0,
+                "passed": 166,
+                "skipped": 0,
+                "total": 166,
+                "project": "ModernFormsNext.Automation.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 66,
+                "skipped": 0,
+                "total": 66,
+                "project": "ModernFormsNext.Automation.Windows.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 31,
+                "skipped": 0,
+                "total": 31,
+                "project": "ModernFormsNext.CrossPlatform.Sample.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1322,
+                "skipped": 0,
+                "total": 1322,
+                "project": "ModernFormsNext.Designer.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1477,
+                "skipped": 0,
+                "total": 1477,
+                "project": "ModernFormsNext.Testing.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 2142,
+                "skipped": 0,
+                "total": 2142,
+                "project": "ModernFormsNext.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 34,
+                "skipped": 0,
+                "total": 34,
+                "project": "ModernFormsNext.VisualStudioExtension.Vsix.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 479,
+                "skipped": 0,
+                "total": 479,
+                "project": "ModernFormsNext.WindowKit.Backend.Android.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 441,
+                "skipped": 0,
+                "total": 441,
+                "project": "ModernFormsNext.WindowKit.Backend.Windows.Tests.dll"
+              }
+            ],
+            "dynamicResourceDeployment": "PASS"
+          },
+          "localValidation": {
+            "head": "29d79fc3eedb47b77dcfcd2843f224607d514063",
+            "initialAttempt": {
+              "started": "2026-11-14T15:55:09.2764022Z",
+              "base": "f1da273541eab7812591de7063f8546c04baac54",
+              "phases": [
+                {
+                  "name": "restore",
+                  "arguments": [
+                    "restore",
+                    "ModernFormsNext.slnx"
+                  ],
+                  "started": "2026-11-14T15:55:09.3038850Z",
+                  "finished": "2026-11-14T15:55:11.6404134Z",
+                  "exitCode": 0
+                }
+              ]
+            },
+            "initialAttemptInterruptedByDesktopRestart": true,
+            "fullRun": {
+              "started": "2026-11-14T15:56:43.3913492Z",
+              "base": "f1da273541eab7812591de7063f8546c04baac54",
+              "phases": [
+                {
+                  "name": "restore",
+                  "started": "2026-11-14T15:56:43.4272524Z",
+                  "finished": "2026-11-14T15:56:45.7117890Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "build-Debug",
+                  "started": "2026-11-14T15:56:45.7279148Z",
+                  "finished": "2026-11-14T15:57:59.3298672Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "test-Debug",
+                  "started": "2026-11-14T15:57:59.3348390Z",
+                  "finished": "2026-11-14T16:04:00.7733896Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "build-Release",
+                  "started": "2026-11-14T16:04:00.7768442Z",
+                  "finished": "2026-11-14T16:07:42.7601779Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "test-Release",
+                  "started": "2026-11-14T16:07:42.7638813Z",
+                  "finished": "2026-11-14T16:11:10.6943644Z",
+                  "exitCode": 1
+                }
+              ]
+            },
+            "Debug": {
+              "counters": {
+                "total": 6158,
+                "passed": 6158,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_58_01_net10.0.trx",
+                  "sha256": "840cd2bf27840a6af4fb80c4539cd4d953447120e8b08d5151d50323ae93a4bc",
+                  "total": 166,
+                  "outcomes": {
+                    "Passed": 166
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_58_04_net10.0.trx",
+                  "sha256": "8e441be9c86ef08f1b82cd7782ae3d1029f44b000b54bbf396da67216200934c",
+                  "total": 66,
+                  "outcomes": {
+                    "Passed": 66
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_58_32_net10.0.trx",
+                  "sha256": "0e799125903aa3c46eabbdf2e615d37e3de7bd1f3b3c27947ebd2555c705c30f",
+                  "total": 31,
+                  "outcomes": {
+                    "Passed": 31
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_58_35_net10.0.trx",
+                  "sha256": "dc9ff3aa0dd9976bcca956dadfd68b732cc5dfa621773d1d68c341adfd56f960",
+                  "total": 1322,
+                  "outcomes": {
+                    "Passed": 1322
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_59_14_net10.0.trx",
+                  "sha256": "b39fbcce91e6a61a33298972b776641428a4cb70b3a14968ed7aa248f4a7a148",
+                  "total": 1477,
+                  "outcomes": {
+                    "Passed": 1477
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_59_30_net10.0.trx",
+                  "sha256": "8c23f332dcc896d089d405340c570c6e26b4c0181c4bda894fea11d46b6e5bfa",
+                  "total": 2142,
+                  "outcomes": {
+                    "Passed": 2142
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_59_55_net472.trx",
+                  "sha256": "7dbd7e0537b14aed54a45726ea68035aaaac213f68a13e75fb304e4f2eb9db72",
+                  "total": 34,
+                  "outcomes": {
+                    "Passed": 34
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_16_59_57_net10.0.trx",
+                  "sha256": "e3aec8132b4589589e7b3dc4905240f26ed8ffc5821d02a599f5cdaac393a3ca",
+                  "total": 479,
+                  "outcomes": {
+                    "Passed": 479
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Debug/[local-runner]_2026-11-14_17_00_00_net10.0.trx",
+                  "sha256": "534cc369a182e7e0324fb5dc0fad89e10a62630f0051f1cd52541e47d02ec244",
+                  "total": 441,
+                  "outcomes": {
+                    "Passed": 441
+                  }
+                }
+              ],
+              "failures": [],
+              "newRegressionCount": 51,
+              "targetedEvidence": [
+                {
+                  "name": "ModernFormsNext.Testing.Tests.ViewportAccessibilityTests.TwoAxisActionStopsAfterAncestorRemovalAndReinsertion",
+                  "outcome": "Passed"
+                },
+                {
+                  "name": "ModernFormsNext.Tests.CarouselViewTests.ResizingAndChangingAxisKeepSelectedPageRealized",
+                  "outcome": "Passed"
+                },
+                {
+                  "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeScrollLayoutTests.NativeFlowLayoutPreservesScrollGeometryAcrossVisibilityAndInput",
+                  "outcome": "Passed"
+                }
+              ]
+            },
+            "Release": {
+              "counters": {
+                "total": 6158,
+                "passed": 6156,
+                "failed": 2,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_07_45_net10.0.trx",
+                  "sha256": "f990d2d258889b11a29ab2e7693f96e461098326df1fe8cc7264c5ad701a9495",
+                  "total": 166,
+                  "outcomes": {
+                    "Passed": 166
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_07_50_net10.0.trx",
+                  "sha256": "0c618936830910aa36e729f755ad8a09f0f249187572c4c8a4fcd0a0e856e875",
+                  "total": 66,
+                  "outcomes": {
+                    "Passed": 66
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_08_25_net10.0.trx",
+                  "sha256": "c2a8c0ee96fcca56ebb9c541d9f4c5e21de0863b9f3d25b337f41269a6526f75",
+                  "total": 31,
+                  "outcomes": {
+                    "Passed": 31
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_08_28_net10.0.trx",
+                  "sha256": "63eea04dcd644920ab5fc38eca6fef1429ba504105ab69cc1d69e1353c950cc3",
+                  "total": 1322,
+                  "outcomes": {
+                    "Passed": 1322
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_09_18_net10.0.trx",
+                  "sha256": "34a03632118ec347c7c5f2d92dff73e6545184be77551bca111c58b8bc1303fd",
+                  "total": 1477,
+                  "outcomes": {
+                    "Passed": 1477
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_09_33_net10.0.trx",
+                  "sha256": "27e0f183cfbca2cd09f1814e3402b94460c5e87e2d8ac6ff8e83bdf72217d73e",
+                  "total": 2142,
+                  "outcomes": {
+                    "Passed": 2142
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_10_00_net472.trx",
+                  "sha256": "cfca5bbb88b2dd9413e0d75053c5d924524e1a5b80ebdb95427e8009a86ce1fd",
+                  "total": 34,
+                  "outcomes": {
+                    "Passed": 34
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_10_02_net10.0.trx",
+                  "sha256": "da676988489e5f0fa569d27f208380860ded524c385ae17e85c0cf78d87c662e",
+                  "total": 479,
+                  "outcomes": {
+                    "Passed": 479
+                  }
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/final-after-restart/tests-Release/[local-runner]_2026-11-14_17_10_05_net10.0.trx",
+                  "sha256": "03dcef7116692067be6b59c4b07553f1f03f71adb1298ae8612fe4ae560ab553",
+                  "total": 441,
+                  "outcomes": {
+                    "Passed": 439,
+                    "Failed": 2
+                  }
+                }
+              ],
+              "failures": [
+                {
+                  "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(argument: \"--native-view\", marker: \"NATIVE_VIEW:PASS:\")",
+                  "start": "2026-11-14T17:10:49.3696429+01:00",
+                  "end": "2026-11-14T17:10:49.8944253+01:00",
+                  "message": "Native focus host failed: System.InvalidOperationException: native Tab leaves through existing order\r\n   at NativeViewScenario.Run() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost\\NativeViewScenario.cs:line 23\r\n\n",
+                  "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(String argument, String marker) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsNativeFocusTests.cs:line 61\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeFocusTests.CanonicalFocusAndTextHandoffUseRealHwndAndRetireOnHideAndClose(String argument, String marker) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsNativeFocusTests.cs:line 96\r\n--- End of stack trace from previous location ---"
+                },
+                {
+                  "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsVirtualizationCertificationTests.PacedNativeHostCertifiesListMetricsAndRetainedMemory",
+                  "start": "2026-11-14T17:10:35.2184556+01:00",
+                  "end": "2026-11-14T17:10:35.9402115+01:00",
+                  "message": "Certification host exited 1: System.InvalidOperationException: UTILITIES native-F5-refresh\r\n   at VirtualizationCertificationScenario.Run(Boolean searchTimeOnly) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationHost\\VirtualizationCertificationScenario.cs:line 85\r\n\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-text-Entry\r\nPASS search-time-popup-retains-native-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nPASS search-time-native-text-Entry-\r\nPASS search-time-popup-retains-native-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nPASS search-time-native-highlight\r\nPASS search-time-native-suggestion-commit-1\r\nPASS search-time-native-memory-history-1\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-suggestion-commit-2\r\nPASS search-time-native-memory-history-2\r\nPASS search-time-time-focus-real-spinner\r\nPASS search-time-native-time-key-full-precision\r\nSEARCH_TIME pointer-time=14:31:15.1234567 spinner={X=758,Y=403,Width=300,Height=36} increase={X=1046,Y=412}\r\nPASS search-time-native-time-pointer\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1,5, Height=1,5}\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=2, Height=2}\r\nPASS search-time-native-time-peer-bounds\r\nPASS search-time-native-time-accessible-parser\r\nPASS search-time-native-time-null\r\nPASS search-time-native-null-range-preserved\r\nPASS search-time-native-time-12-hour\r\nPASS search-time-focus-real-editor\r\nPASS search-time-parent-text-client\r\nPASS search-time-native-large-source-popup\r\nPASS search-time-native-bounded-suggestions\r\nPASS search-time-native-suggestions-no-horizontal-overflow\r\nSEARCH_TIME rows=8 pool=0 scale={Width=1, Height=1}\r\nSEARCH_TIME_CERTIFICATION:WINDOWS:PASS\r\nPASS search-time-owned-controls-and-rows-disposed\r\nPASS utilities-jump-realizes-page\r\nPASS utilities-insert-keeps-occurrence\r\nPASS utilities-move-keeps-occurrence\r\nPASS utilities-logical-peer-reveals-page\r\nPASS utilities-native-page-key\r\nUTILITIES key-before-F5 focused=True available=True enabled=True visible=True executions=0\r\nUTILITIES key-after-F5 focused=True available=True executions=0\r\nPASS utilities-live-pages-disposed\r\n",
+                  "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsVirtualizationCertificationTests.PacedNativeHostCertifiesListMetricsAndRetainedMemory() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsVirtualizationCertificationTests.cs:line 40\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsVirtualizationCertificationTests.PacedNativeHostCertifiesListMetricsAndRetainedMemory() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsVirtualizationCertificationTests.cs:line 52\r\n--- End of stack trace from previous location ---"
+                }
+              ],
+              "newRegressionCount": 51,
+              "targetedEvidence": [
+                {
+                  "name": "ModernFormsNext.Testing.Tests.ViewportAccessibilityTests.TwoAxisActionStopsAfterAncestorRemovalAndReinsertion",
+                  "outcome": "Passed"
+                },
+                {
+                  "name": "ModernFormsNext.Tests.CarouselViewTests.ResizingAndChangingAxisKeepSelectedPageRealized",
+                  "outcome": "Passed"
+                },
+                {
+                  "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsNativeScrollLayoutTests.NativeFlowLayoutPreservesScrollGeometryAcrossVisibilityAndInput",
+                  "outcome": "Passed"
+                }
+              ]
+            },
+            "redBaseline": {
+              "counters": {
+                "total": 26,
+                "passed": 0,
+                "failed": 26,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-162/red-1/[local-runner]_2026-11-14_16_44_20_net10.0.trx",
+                  "sha256": "a2ef2ee492072872c6ae45936ee5a92ff4818ea15572e8e36fad8b21990279c3",
+                  "total": 26,
+                  "outcomes": {
+                    "Failed": 26
+                  }
+                }
+              ]
+            },
+            "focused": {
+              "green-1": {
+                "total": 70,
+                "passed": 70,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "green-2": {
+                "total": 87,
+                "passed": 85,
+                "failed": 2,
+                "notExecuted": 0
+              },
+              "green-3": {
+                "total": 95,
+                "passed": 95,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "green-4": {
+                "total": 71,
+                "passed": 71,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "shared-all": {
+                "total": 2142,
+                "passed": 2141,
+                "failed": 1,
+                "notExecuted": 0
+              },
+              "accessibility": {
+                "total": 51,
+                "passed": 51,
+                "failed": 0,
+                "notExecuted": 0
+              }
+            },
+            "correctedCarouselBeforeFinalRun": [
+              {
+                "name": "ModernFormsNext.Tests.CarouselViewTests.ResizingAndChangingAxisKeepSelectedPageRealized",
+                "start": "2026-11-14T16:51:01.7175594+01:00",
+                "end": "2026-11-14T16:51:01.7182638+01:00",
+                "message": "Assert.Equal() Failure: Values differ\r\nExpected: 75000\r\nActual:   0",
+                "stack": "   at ModernFormsNext.Tests.CarouselViewTests.ResizingAndChangingAxisKeepSelectedPageRealized() in [repository]\\ModernFormsNext.Tests\\CarouselViewTests.cs:line 136\r\n   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)\r\n   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)"
+              }
+            ],
+            "gallery": {
+              "pid": 22956,
+              "hwnd": 8258314,
+              "renderer": "software",
+              "dpi": 216,
+              "observations": [
+                {
+                  "button": "Scroll V +40",
+                  "log": "Vertical: VerticalScroll 0 -> 40, ThumbPosition"
+                },
+                {
+                  "button": "Scroll H +40",
+                  "log": "Vertical: VerticalScroll 0 -> 40, ThumbPosition\r\nHorizontal: HorizontalScroll 0 -> 40, ThumbPosition"
+                },
+                {
+                  "button": "Toggle scrolling",
+                  "log": "Vertical: VerticalScroll 0 -> 40, ThumbPosition\r\nHorizontal: HorizontalScroll 0 -> 40, ThumbPosition\r\nVertical: VerticalScroll 40 -> 0, ThumbPosition\r\nHorizontal: HorizontalScroll 40 -> 0, ThumbPosition"
+                }
+              ],
+              "screenshots": [
+                "gallery-programmatic.png",
+                "gallery-resets.png"
+              ]
+            }
+          },
+          "nativeInputDiagnostic": {
+            "head": "29d79fc3eedb47b77dcfcd2843f224607d514063",
+            "historicalMatchingFailures": {
+              "tab": {
+                "path": "issue-202/qualification-final-head/test-Release.log",
+                "sha256": "6c64378af5cf51e2a72710cb903c1c5559e62857680ad48b94aa621471239ac7"
+              },
+              "f5": {
+                "path": "issue-99/qualification-vs-save-1/full-Windows-Release/full-test.log",
+                "sha256": "ebc8d5a3f7992a773dcc2d5e74f4e3802149eb86835f0a9455bb28606d783950"
+              }
+            },
+            "diagnostic": {
+              "originalHostSha256": "4b464be3e7eb8fb65eb8dd4f990c7558bc8d6b2a7314815b469738fb9202c3bc",
+              "records": [
+                {
+                  "exitCode": 0,
+                  "scenario": "NativeViewScenario",
+                  "pid": 4848
+                },
+                {
+                  "exitCode": 1,
+                  "scenario": "VirtualizationCertificationScenario",
+                  "pid": 6156
+                }
+              ],
+              "instrumentationMayAffectTiming": true,
+              "testsAndAssertionsUnchanged": true,
+              "replacesFullRun": false
+            },
+            "f5Diagnostic": {
+              "reproduced": true,
+              "modifierObserved": "Shift",
+              "bindingRequires": "F5 without modifiers",
+              "sameCauseEstablishedForOriginalFullRun": false,
+              "whyShiftWasSetEstablished": false
+            },
+            "tabDiagnostic": {
+              "reproduced": false,
+              "assertions": 88,
+              "causeEstablished": false
+            },
+            "assertionsThresholdsTimeoutsOrSkipChanges": false,
+            "fullSuiteReRunAfterLocalFailures": false,
+            "evidence": [
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/KeyboardProbe.cs",
+                "sha256": "7acfbcc7a30314717858fe84332a6eec80ec529fadc76207907284b91540c616"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/keyboard-diagnostic/result.json",
+                "sha256": "c0c1453f75855c29d84486f95cd016fd36ba27579036d4153ef2f19e27a8a17e"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/keyboard-diagnostic/NativeViewScenario.stdout.log",
+                "sha256": "60b2d65c5e02d27e35ee9c2db10d477f436c718bd76be88e4b326194a0706e06"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/keyboard-diagnostic/NativeViewScenario.stderr.log",
+                "sha256": "c2966ddeda7b41dbb4ac6afa7221b6439b9e1cc74ffcd1bec8da5a79c88f3235"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/keyboard-diagnostic/VirtualizationCertificationScenario.stdout.log",
+                "sha256": "c49d191f74a89597f7dfecffee2aa9da62666caa7bc4f49ed1e6918d79645f60"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/keyboard-diagnostic/VirtualizationCertificationScenario.stderr.log",
+                "sha256": "dd54901c2af2d24c3df96dfe740675eb4cdeab3c1174c299b03f7192f1001409"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/gallery-native.json",
+                "sha256": "a4ab7816bd45af8e775d362fb1053169a4b458695708d1451d02e8ed110ffe1d"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/gallery-programmatic.png",
+                "sha256": "78016d1f8fa20c5a1edb66b137855f004dbf0c0c01600aa60cceda93ad15313e"
+              },
+              {
+                "path": "artifacts/scope-reaudit-2026-11-12/issue-162/gallery-resets.png",
+                "sha256": "f38dd40ae64df3308c75d3f58d5511bb8b15e58549e7a8b082bbac8a6a4c7679"
+              }
+            ]
+          }
+        }
+      ],
+      "nextIssues": [
+        163,
+        132,
+        40,
+        168,
+        131,
+        133
+      ],
+      "releaseApproved": false
     }
   ]
 }

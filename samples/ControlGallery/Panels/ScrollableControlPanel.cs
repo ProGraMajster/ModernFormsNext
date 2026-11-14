@@ -108,6 +108,15 @@ namespace ControlGallery.Panels
                 sc3.HorizontalScrollProperties.Value = sc3.HorizontalScrollProperties.Minimum;
             });
             AddAction("Toggle scrolling", 564, () => { sc.AutoScroll = !sc.AutoScroll; sc3.AutoScroll = sc.AutoScroll; });
+            var reveal = Controls.Add(new Button { Bounds = new Rectangle(620, 106, 180, 32),
+                Text = "Show last inner result" });
+            var revealStatus = Controls.Add(new Label { Bounds = new Rectangle(620, 144, 185, 80), Multiline = true,
+                AccessibleAutomationId = "scroll-reveal-status", Text = "The result is in the nested panel." });
+            reveal.Click += (_, _) => {
+                revealStatus.Text = sc2.ScrollControlIntoView(nested.Controls[^1])
+                    ? "Last result revealed. Focus stays here."
+                    : "The last result is unavailable.";
+            };
 
             void AddAction(string text, int left, Action action)
             {
