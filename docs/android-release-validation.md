@@ -57,10 +57,14 @@ from the existing `PerformanceProfiler` cover software callbacks, not GPU comple
 An unhonored preferred-mode request leaves that requested cadence **NOT EXECUTED**. Emulator
 SwiftShader measurements cannot be compared directly with a phone's GPU or used as a hardware SLA.
 
-The bounded stress records managed heap, process PSS and weak references to retired native views
-after collection on each of 12 Activity recreations. Review growth and retained objects; a short
-plateau or zero retired wrappers does not prove long-run leak freedom or native cache health.
-No cache/GPU counters are invented when the production profiler does not expose them.
+The default matrix records managed heap, process PSS and weak references to retired native views
+after forced collection on each of 12 Activity recreations. The optional `LifecycleStress` profile
+uses the same lifecycle gates with a configurable 20–600-second background dwell and 12–100
+recreations. The Activity requests an actual task transition before measuring background work.
+The runner records a baseline and per-cycle values, elapsed duration and the OS thermal status
+when API 29+ exposes it. Use the actual dwell and samples to review growth and retained objects.
+A bounded run with zero live retired wrappers establishes that observation for its sample points.
+PSS includes managed and native memory, including runtime and rendering caches.
 
 ## Repeatable commands
 
@@ -89,6 +93,11 @@ $device = '<explicit adb serial>'
   -Scenario SystemReducedMotion -OutputDirectory artifacts/android-release/system-motion
 ./scripts/android/Invoke-ReleaseValidation.ps1 -DeviceId $device -ApkPath $apk `
   -Scenario VisualStateMetrics -OutputDirectory artifacts/android-release/visual-state-metrics
+./scripts/android/Invoke-ReleaseValidation.ps1 -DeviceId $device -ApkPath $apk `
+  -Scenario NativeView -OutputDirectory artifacts/android-release/native-view
+./scripts/android/Invoke-ReleaseValidation.ps1 -DeviceId $device -ApkPath $apk `
+  -Scenario LifecycleStress -BackgroundSeconds 90 -RecreationCycles 36 -TimeoutSeconds 300 `
+  -OutputDirectory artifacts/android-release/lifecycle-stress
 
 # Packaging evidence only: installing the APK above is a separate gate.
 dotnet publish samples/ModernFormsNext.CrossPlatform.Sample/ModernFormsNext.CrossPlatform.Sample.csproj `
@@ -102,16 +111,20 @@ a fresh per-run directory with screenshots and profiler CSVs. Retain artifacts l
 device serials, local paths, user data or package binaries. A dirty source record must not be presented
 as an exact clean-commit build.
 
-Installation uses `adb install --no-streaming -r`: sample data stays in place and vendor incremental
-installation is avoided. UiAutomation temporarily owns the accessibility connection. The full matrix
+Installation preserves sample data and avoids incremental deployment. The minimum API 23 uses
+an explicit staged APK and `pm install -r`. Other images and devices use `adb install --no-streaming -r`.
+UiAutomation temporarily owns the accessibility connection. The full matrix
 requests modes and orientation only for its own window, keeps that window awake, and restores its
 flags, orientation, animation preference and control visibility. The optional `SystemReducedMotion`
 scenario temporarily writes only `global/animator_duration_scale=0`; PowerShell restores its original
 value, including an absent setting, in `finally`. Keep the script running until restoration completes.
 If interrupted externally, compare the archived settings and restore that one original value before
 accepting the run. Other scenarios do not write global settings.
-Instrumentation has a 180-second host deadline (`-TimeoutSeconds` can explicitly adjust it). A timeout
-fails the run and stops only the selected sample process before checking/restoring settings.
+Instrumentation has a 180-second host deadline. Set `-TimeoutSeconds` to cover the entire run when
+using a longer stress profile, including startup, background dwell, foreground resume and all
+recreation cycles. A timeout fails the run and stops only the selected sample process before
+checking/restoring settings. The NativeView and LifecycleStress runs each supply a unique
+artifact directory with a current-run `result.txt` and a scenario-specific success marker.
 
 The opt-in ImeCompatibility scenario uses the same Release APK and device selector. Pass
 `-Scenario ImeCompatibility` with a fresh output directory. The scenario runs the four editor
@@ -127,12 +140,12 @@ scenario-specific run. The default release matrix continues to report its own ma
 | IME / #62 | Native `InputConnection` composition/commit, Polish Unicode, emoji deletion, four canonical editors, multiline input | Gboard interaction, CJK composition, vendor spans, handwriting, physical keyboard layouts |
 | Multi-touch | Real synthetic `MotionEvent` pointer IDs through the native view; independent release and cancel, using native accessibility bounds including insets | Physical finger ergonomics, every drag/scroll gesture |
 | Rendering | Ellipse and Bezier path beside text; parallel rotation/scale; native screenshots and production frame snapshots | Pixel-perfect raster quality, GPU timing, every theme/control, native scanout smoothness |
-| Lifecycle / #63 | Home, 20 seconds background with no frame work, foreground time rebasing, landscape/portrait viewport update, 12 Activity recreations, protocol Intent | OS process death, reboot persistence, screen-off matrix, multi-window/native host integration |
+| Lifecycle / #63 | Home, 20 seconds background with no frame work, foreground time rebasing, landscape/portrait viewport update, 12 Activity recreations, protocol Intent. The opt-in stress runs the extended background and recreation profile. | OS process death, reboot persistence, screen-off matrix, multi-window |
 | Accessibility / #59 | Existing Phase 4 native virtual-node/action/text/grid fixture | New manual TalkBack speech or gesture evidence |
 | Reduced motion | Application preference and a separate actual Android zero-scale startup probe | Hot toggles/fractional scales through Settings UI or every vendor's accessibility controls |
-| Reliability | Bounded frame counters, heap/PSS and retired-view observations | Overnight/thermal/battery stress or proof of leak freedom |
+| Reliability | Bounded frame counters, heap/PSS, retired-view and optional thermal observations | Overnight and battery-discharge stress, native cache attribution and proof of leak freedom |
 | Packaging | Standalone APK runtime and AAB construction, declared AOT/trim properties | Play submission, distribution signing, full trimming, NativeAOT or arbitrary application trim safety |
-| Future hosts | **BLOCKED** by #60 (native views/WebView/media); optional GPU backend belongs to #46 | These deferred lanes must not be implemented just to complete this matrix |
+| NativeViewHost / #60 | Native EditText and Android View through the existing fixture. Checks ownership, nested scroll, focus/IME handoff, popup/modal, background, Activity recreation and disposal. | WebView, media surfaces, GPU completion and scanout. GPU backend qualification belongs to #46. |
 
 The fixed-position instrumentation fixture is portrait-sized. Rotation assertions check native/shared
 viewport and retained state; they do not claim that the fixture becomes a responsive landscape UI.
@@ -146,7 +159,10 @@ Repeat on the minimum declared API 23, intermediate API/device classes, addition
 environment that actually grants 90/120 Hz. Exercise Gboard/CJK and vendor keyboards manually,
 TalkBack speech/gestures, hardware keyboards, font scaling, screen off/on, process death and longer
 thermal/cache/lifecycle stress. Preserve earlier historical evidence with its original date and scope.
-Unsupported future-host lanes remain blocked, rather than passing by omission.
+For each attempt, record the target/API/ABI, package hash, source and dirty status, profile,
+assertion totals and settings comparison. Keep fixture-based native host results distinct from
+external WebView and media host cases. For a physical stress run, record the charging state
+when observable because USB power can affect the results.
 
 Current dated results and their exact source/PR provenance are recorded in the
 [1.11.0 roadmap completion report](development/1.11.0-roadmap-completion.md#issue-69--android-release-validation-matrix).

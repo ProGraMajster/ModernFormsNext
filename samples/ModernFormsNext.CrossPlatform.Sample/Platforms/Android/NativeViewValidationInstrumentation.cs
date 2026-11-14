@@ -38,14 +38,27 @@ public sealed class NativeViewValidationInstrumentation : Instrumentation
         base.OnStart();
         using var result = new Bundle();
         bool success = false;
+        string? output = null;
+        bool originalKeepScreenOn = false;
+        ScreenOrientation? originalOrientation = null;
         try
         {
+            output = System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath,
+                "release-validation", "native-view-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(output);
+            report.AppendLine("ARTIFACT_DIRECTORY=" + output);
             using var intent = new Intent(TargetContext!, typeof(MainActivity));
             intent.AddFlags(ActivityFlags.NewTask);
             activity = (MainActivity)StartActivitySync(intent)!;
             Wait(() => Ui(() => ModernFormsNext.Application.OpenForms.Any() &&
                 AndroidWindowKit.Current.GetWindowingDiagnostics().Windows.Any(w => w.Main && w.Active && w.PaintCount > 0)), "Application-Run-real-presentation");
-            main = Ui(() => ModernFormsNext.Application.OpenForms.Single());
+            main = Ui(() =>
+            {
+                originalOrientation = activity.RequestedOrientation;
+                originalKeepScreenOn = activity.Window!.Attributes!.Flags.HasFlag(WindowManagerFlags.KeepScreenOn);
+                activity.Window.AddFlags(WindowManagerFlags.KeepScreenOn);
+                return ModernFormsNext.Application.OpenForms.Single();
+            });
             var first = new Factory(editable: true);
             var second = new Factory(editable: false);
             var fixture = Ui(() =>
@@ -199,7 +212,6 @@ public sealed class NativeViewValidationInstrumentation : Instrumentation
                 return true;
             });
             // Native config delivery exercises production geometry, without mutating shared bounds.
-            var originalOrientation = Ui(() => activity.RequestedOrientation);
             Ui(() => { activity.RequestedOrientation = ScreenOrientation.Landscape; return true; });
             Wait(() => Ui(() => NativeValidationViews.Main(activity).Width > NativeValidationViews.Main(activity).Height), "configuration-geometry");
             var oldSite = first.Sites.Last();
@@ -214,7 +226,8 @@ public sealed class NativeViewValidationInstrumentation : Instrumentation
                 Check(!oldSite.IsCurrent && !oldSite.TryFocus(), "stale-Activity-site-rejected");
                 Check(ReferenceEquals(main, ModernFormsNext.Application.OpenForms.Single()), "shared-Form-survives-recreation");
                 Check(first.Views[created - 1].Handle == IntPtr.Zero, "old-owned-View-released");
-                activity.RequestedOrientation = originalOrientation;
+                activity.Window!.AddFlags(WindowManagerFlags.KeepScreenOn);
+                activity.RequestedOrientation = originalOrientation!.Value;
                 activity.MoveTaskToBack(true);
                 return true;
             });
@@ -236,8 +249,26 @@ public sealed class NativeViewValidationInstrumentation : Instrumentation
         catch (Exception error) { report.AppendLine($"FAIL {error.GetType().Name}: {error.Message}; {error.StackTrace}"); }
         finally
         {
+            try
+            {
+                if (originalOrientation is { } orientation)
+                    Ui(() =>
+                    {
+                        if (AndroidWindowKit.Current.ActivityTracker.CurrentActivity is MainActivity current)
+                        {
+                            current.RequestedOrientation = orientation;
+                            if (originalKeepScreenOn)
+                                current.Window!.AddFlags(WindowManagerFlags.KeepScreenOn);
+                            else
+                                current.Window!.ClearFlags(WindowManagerFlags.KeepScreenOn);
+                        }
+                        return true;
+                    });
+            }
+            catch (Exception error) { success = false; report.AppendLine($"FAIL cleanup={error.GetType().Name}"); }
             report.AppendLine($"ANDROID_NATIVE_VIEW_{(success ? "PASS" : "FAIL")} assertions={assertions}");
-            File.WriteAllText(System.IO.Path.Combine(TargetContext!.GetExternalFilesDir(null)!.AbsolutePath, "native-view-validation.txt"), report.ToString());
+            if (output is not null)
+                File.WriteAllText(System.IO.Path.Combine(output, "result.txt"), report.ToString());
             result.PutString("stream", report.ToString());
             Finish(success ? Result.Ok : Result.Canceled, result);
         }

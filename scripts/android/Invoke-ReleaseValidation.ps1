@@ -8,8 +8,8 @@ original/final setting values are recorded and compared. This is synthetic nativ
 manual gesture, vendor-IME, TalkBack speech or GPU/scanout validation.
 SystemReducedMotion temporarily sets animator_duration_scale to zero, restoring the original
 value (including an absent setting) in finally. Other scenarios do not write device settings.
-ShadowTypography uses the existing ARTIFACT_DIRECTORY protocol with a fresh owned directory;
-missing current-run captures cannot be supplied by files left by a previous instrumentation run.
+ShadowTypography, NativeView and LifecycleStress use a fresh owned artifact directory.
+LifecycleStress takes BackgroundSeconds and RecreationCycles. Allow enough TimeoutSeconds for both.
 #>
 [CmdletBinding()]
 param(
@@ -17,8 +17,10 @@ param(
     [Parameter(Mandatory = $true)][string]$ApkPath,
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [string]$SdkRoot,
+    [ValidateRange(20, 600)][int]$BackgroundSeconds = 90,
+    [ValidateRange(12, 100)][int]$RecreationCycles = 36,
     [ValidateRange(30, 1800)][int]$TimeoutSeconds = 180,
-    [ValidateSet('ReleaseMatrix', 'ImeCompatibility', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')][string]$Scenario = 'ReleaseMatrix'
+    [ValidateSet('ReleaseMatrix', 'ImeCompatibility', 'NativeView', 'LifecycleStress', 'AccessibilityPhase4', 'SystemReducedMotion', 'PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')][string]$Scenario = 'ReleaseMatrix'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,6 +35,7 @@ if (Test-Path -LiteralPath $destination) { throw 'Choose a new output directory 
 New-Item -ItemType Directory -Path $destination | Out-Null
 $package = 'com.programajster.modernformsnext.sample'
 $runner = switch ($Scenario) {
+    'NativeView' { 'NativeViewValidationInstrumentation' }
     'AccessibilityPhase4' { 'AccessibilityPhase4Instrumentation' }
     'PageNavigation' { 'PageNavigationValidationInstrumentation' }
     'PageComposition' { 'PageCompositionValidationInstrumentation' }
@@ -49,6 +52,30 @@ function Invoke-AdbRead {
     $value = & $adb -s $DeviceId @Arguments
     if ($LASTEXITCODE -ne 0) { throw "adb read failed: $($Arguments[0])" }
     return ($value -join "`n").Trim()
+}
+
+function Invoke-BoundedAdb {
+    param([string[]]$Arguments, [string]$Log, [int]$DeadlineSeconds = 120)
+    $start = [Diagnostics.ProcessStartInfo]::new($adb)
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    foreach ($argument in (@('-s', $DeviceId) + $Arguments)) { $start.ArgumentList.Add($argument) }
+    $process = [Diagnostics.Process]::Start($start)
+    try {
+        $process.StandardInput.Close()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        $timedOut = -not $process.WaitForExit($DeadlineSeconds * 1000)
+        if ($timedOut) { $process.Kill(); $process.WaitForExit() }
+        $output = $stdout.GetAwaiter().GetResult()
+        $output, $stderr.GetAwaiter().GetResult() | Add-Content -LiteralPath $Log
+        if ($timedOut) { throw "adb $($Arguments[0]) timed out. Inspect $Log." }
+        if ($process.ExitCode -ne 0) { throw "adb $($Arguments[0]) failed. Inspect $Log." }
+        return $output
+    } finally { $process.Dispose() }
 }
 
 function Read-Settings {
@@ -70,12 +97,14 @@ $facts = [ordered]@{
     EvidenceKind = $device[0].Kind
     Device = $device[0]
     Scenario = $Scenario
+    LifecycleStressProfile = if ($Scenario -eq 'LifecycleStress') { @{ BackgroundSeconds = $BackgroundSeconds; RecreationCycles = $RecreationCycles } } else { $null }
     TimeoutSeconds = $TimeoutSeconds
     SourceBase = (& git -C (Join-Path $PSScriptRoot '../..') rev-parse HEAD)
     WorkingTree = @(& git -C (Join-Path $PSScriptRoot '../..') status --porcelain)
     ApkSha256 = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash
     Apk = $apk
     RunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs')).Hash
+    NativeViewRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/NativeViewValidationInstrumentation.cs')).Hash
     AccessibilityRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/AccessibilityPhase4Instrumentation.cs')).Hash
     PageNavigationRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/PageNavigationValidationInstrumentation.cs')).Hash
     PageCompositionRunnerSourceSha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../../samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/PageCompositionValidationInstrumentation.cs')).Hash
@@ -103,13 +132,30 @@ try {
     if ($Scenario -eq 'SystemReducedMotion') {
         Invoke-AdbRead @('shell', 'settings', 'put', 'global', 'animator_duration_scale', '0') | Out-Null
     }
-    # Separate transfer from installation: adb's optional incremental deployment can stall on
-    # vendor devices, and is not the standalone-package path this matrix intends to validate.
-    & $adb -s $DeviceId install --no-streaming -r $apk > (Join-Path $destination 'install.log') 2>&1
-    if ($LASTEXITCODE -ne 0) { throw 'APK installation failed; existing sample data was not removed.' }
-    $instrumentationArguments = @('shell', 'am', 'instrument', '-w')
+    $installLog = Join-Path $destination 'install.log'
+    $api = [int]$facts.Properties['ro.build.version.sdk']
+    if ($api -eq 23) {
+        # On the minimum API image, the combined adb legacy install stalled after transfer.
+        # Use the legacy package manager directly and remove only this invocation's staging file.
+        $stagedApk = '/data/local/tmp/mfn-release-validation-' + [guid]::NewGuid().ToString('N') + '.apk'
+        try {
+            Invoke-BoundedAdb -Arguments @('push', $apk, $stagedApk) -Log $installLog | Out-Null
+            $installed = Invoke-BoundedAdb -Arguments @('shell', '-n', 'pm', 'install', '-r', $stagedApk) -Log $installLog
+        } finally {
+            Invoke-BoundedAdb -Arguments @('shell', '-n', 'rm', '-f', $stagedApk) -Log $installLog -DeadlineSeconds 10 | Out-Null
+        }
+    } else {
+        # Avoid incremental deployment, which can stall on vendor devices.
+        $installed = Invoke-BoundedAdb -Arguments @('install', '--no-streaming', '-r', $apk) -Log $installLog
+    }
+    if ($installed -notmatch '(?m)^Success\s*$') { throw "APK installation did not report success. Inspect $installLog." }
+    $instrumentationArguments = @('shell', '-n', 'am', 'instrument', '-w')
     if ($Scenario -eq 'SystemReducedMotion') { $instrumentationArguments += @('-e', 'systemReducedMotionOnly', 'true') }
     if ($Scenario -eq 'ImeCompatibility') { $instrumentationArguments += @('-e', 'imeOnly', 'true') }
+    if ($Scenario -eq 'LifecycleStress') {
+        $instrumentationArguments += @('-e', 'lifecycleStress', 'true',
+            '-e', 'backgroundSeconds', [string]$BackgroundSeconds, '-e', 'recreationCycles', [string]$RecreationCycles)
+    }
     $instrumentationArguments += "$package/$package.$runner"
     # Bound even native instrumentation calls whose Android implementation can wait forever.
     # Only the explicitly selected sample is stopped on timeout; no app data is removed.
@@ -144,15 +190,29 @@ try {
             $remote -notmatch ('^/storage/emulated/0/Android/data/' + [regex]::Escape($package) + '/files/release-validation/shadow-typography-[0-9a-f]{32}$')) {
             throw 'Appearance runner did not declare a unique bounded artifact directory.'
         }
+        if ($Scenario -eq 'NativeView' -and
+            $remote -notmatch ('^/storage/emulated/0/Android/data/' + [regex]::Escape($package) + '/files/release-validation/native-view-[0-9a-f]{32}$')) {
+            throw 'NativeView runner did not declare a unique artifact directory.'
+        }
+        if ($Scenario -eq 'LifecycleStress' -and
+            $remote -notmatch ('^/storage/emulated/0/Android/data/' + [regex]::Escape($package) + '/files/release-validation/lifecycle-stress-[0-9a-f]{32}$')) {
+            throw 'LifecycleStress runner did not declare a unique artifact directory.'
+        }
         $artifactDirectory = $remote
         & $adb -s $DeviceId pull $remote (Join-Path $destination 'native') > (Join-Path $destination 'pull.log')
         if ($LASTEXITCODE -ne 0) { throw 'Native artifact retrieval failed.' }
+    }
+    if ($Scenario -in @('NativeView', 'LifecycleStress') -and
+        ($null -eq $artifactDirectory -or -not (Test-Path -LiteralPath (Join-Path $destination 'native/result.txt') -PathType Leaf))) {
+        throw 'The selected runner did not provide its current-run result file.'
     }
     if ($Scenario -eq 'ShadowTypography' -and $null -eq $artifactDirectory) {
         throw 'Appearance runner must declare its current-run artifact directory; static files cannot qualify this run.'
     }
     $marker = switch ($Scenario) {
         'ImeCompatibility' { 'ANDROID_IME_COMPATIBILITY_PASS' }
+        'NativeView' { 'ANDROID_NATIVE_VIEW_PASS' }
+        'LifecycleStress' { 'ANDROID_LIFECYCLE_STRESS_PASS' }
         'AccessibilityPhase4' { 'ANDROID_ACCESSIBILITY_PHASE4_PASS' }
         'PageNavigation' { 'ANDROID_PAGE_NAVIGATION_PASS' }
         'PageComposition' { 'ANDROID_PAGE_COMPOSITION_PASS' }
@@ -165,7 +225,7 @@ try {
     }
     if ($Scenario -in @('PageNavigation', 'PageComposition', 'AppShell', 'ShadowTypography', 'LayoutPolicy', 'VisualStateMetrics', 'BrushMorph')) {
         $nativeDirectory = Join-Path $destination 'native'
-        if (-not(Test-Path -LiteralPath $nativeDirectory)) { New-Item -ItemType Directory -Path $nativeDirectory | Out-Null }
+        if (-not (Test-Path -LiteralPath $nativeDirectory)) { New-Item -ItemType Directory -Path $nativeDirectory | Out-Null }
         $pageArtifacts = if ($Scenario -eq 'PageNavigation') {
             @('page-navigation-validation.txt', 'page-navigation-details.png', 'page-navigation-recreated.png')
         } elseif ($Scenario -eq 'PageComposition') {
@@ -186,7 +246,7 @@ try {
         }
         foreach ($name in $pageArtifacts) {
             if ($null -ne $artifactDirectory) {
-                if ($result -match $marker -and -not(Test-Path -LiteralPath (Join-Path $nativeDirectory $name))) {
+                if ($result -match $marker -and -not (Test-Path -LiteralPath (Join-Path $nativeDirectory $name))) {
                     throw "Passing runner did not provide required current-run artifact: $name"
                 }
                 continue
@@ -205,7 +265,7 @@ try {
         throw "BindingNavigator certification markers missing. Inspect $destination/instrumentation.log."
     }
     if ($instrumentationExit -ne 0 -or $result -notmatch $marker -or
-        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_IME_COMPATIBILITY_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|ANDROID_BRUSH_MORPH_FAIL|INSTRUMENTATION_FAILED)') {
+        $result -match '(?m)^(FAIL(?:\s|$)|ANDROID_RELEASE_MATRIX_FAIL|ANDROID_IME_COMPATIBILITY_FAIL|ANDROID_NATIVE_VIEW_FAIL|ANDROID_LIFECYCLE_STRESS_FAIL|ANDROID_ACCESSIBILITY_PHASE4_FAIL|ANDROID_PAGE_NAVIGATION_FAIL|ANDROID_PAGE_COMPOSITION_FAIL|ANDROID_APP_SHELL_FAIL|ANDROID_SHADOW_TYPOGRAPHY_FAIL|ANDROID_LAYOUT_POLICY_FAIL|ANDROID_VISUAL_STATE_METRICS_FAIL|ANDROID_BRUSH_MORPH_FAIL|INSTRUMENTATION_FAILED)') {
         throw "Native validation failed. Inspect $destination/instrumentation.log."
     }
 }

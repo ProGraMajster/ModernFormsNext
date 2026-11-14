@@ -19487,6 +19487,1447 @@
           ]
         }
       ]
+    },
+    {
+      "capturedAt": "2026-11-14T19:13:40.659151+00:00",
+      "master": "994688acb769777c6f8bc410ceafd0e978a949c2",
+      "projectPages": [
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA5OTAwOTkwMDk5MDA5Oc4Oa5qx",
+          "totalCount": 465
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA0OTc1MTI0Mzc4MTA5NM4QAREu",
+          "totalCount": 465
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAzMzIyMjU5MTM2MjEyNs4QaPtx",
+          "totalCount": 465
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyNDkzNzY1NTg2MDM0Oc4QqdzH",
+          "totalCount": 465
+        },
+        {
+          "count": 65,
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyMTQ1OTIyNzQ2NzgxMc4SMC9Y",
+          "totalCount": 465
+        }
+      ],
+      "projectFields": [
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZU",
+          "name": "Title",
+          "dataType": "TITLE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZY",
+          "name": "Assignees",
+          "dataType": "ASSIGNEES"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYVRZc",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Backlog"
+            },
+            {
+              "id": "d46bb227",
+              "name": "Planned"
+            },
+            {
+              "id": "47fc9ee4",
+              "name": "In progress"
+            },
+            {
+              "id": "54f33f8f",
+              "name": "In review"
+            },
+            {
+              "id": "04194b92",
+              "name": "Blocked"
+            },
+            {
+              "id": "98236657",
+              "name": "Done"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZg",
+          "name": "Labels",
+          "dataType": "LABELS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZk",
+          "name": "Linked pull requests",
+          "dataType": "LINKED_PULL_REQUESTS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZo",
+          "name": "Milestone",
+          "dataType": "MILESTONE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZs",
+          "name": "Repository",
+          "dataType": "REPOSITORY"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZw",
+          "name": "Reviewers",
+          "dataType": "REVIEWERS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ0",
+          "name": "Parent issue",
+          "dataType": "PARENT_ISSUE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ4",
+          "name": "Sub-issues progress",
+          "dataType": "SUB_ISSUES_PROGRESS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ8",
+          "name": "Created",
+          "dataType": "CREATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaA",
+          "name": "Updated",
+          "dataType": "UPDATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaE",
+          "name": "Closed",
+          "dataType": "CLOSED"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr8c",
+          "name": "Target version",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "311f3d16",
+              "name": "1.9.0"
+            },
+            {
+              "id": "59ed5453",
+              "name": "1.10.0"
+            },
+            {
+              "id": "f7eaf14b",
+              "name": "1.11.0"
+            },
+            {
+              "id": "ba502a65",
+              "name": "1.12.0"
+            },
+            {
+              "id": "697d2111",
+              "name": "2.0.0"
+            },
+            {
+              "id": "8105f14c",
+              "name": "Future"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9U",
+          "name": "Area",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "0abef53f",
+              "name": "Core"
+            },
+            {
+              "id": "72dbec22",
+              "name": "Graphics"
+            },
+            {
+              "id": "8a9c54fd",
+              "name": "Animations"
+            },
+            {
+              "id": "33e34416",
+              "name": "Themes"
+            },
+            {
+              "id": "ced8a83d",
+              "name": "Navigation"
+            },
+            {
+              "id": "e01b53f9",
+              "name": "Controls"
+            },
+            {
+              "id": "8bdad61f",
+              "name": "Documents"
+            },
+            {
+              "id": "d4047610",
+              "name": "Data visualization"
+            },
+            {
+              "id": "a5558334",
+              "name": "Localization"
+            },
+            {
+              "id": "c5442d9e",
+              "name": "Android"
+            },
+            {
+              "id": "29cc9209",
+              "name": "Windows"
+            },
+            {
+              "id": "990cb8c0",
+              "name": "Designer"
+            },
+            {
+              "id": "9e347eca",
+              "name": "Templates"
+            },
+            {
+              "id": "a4e80fc7",
+              "name": "Documentation"
+            },
+            {
+              "id": "d987dd8b",
+              "name": "Build and release"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9c",
+          "name": "Priority",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "8f08d0d7",
+              "name": "Critical"
+            },
+            {
+              "id": "53164825",
+              "name": "High"
+            },
+            {
+              "id": "badbd14e",
+              "name": "Medium"
+            },
+            {
+              "id": "afc4eb57",
+              "name": "Low"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9g",
+          "name": "Effort",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "465305c5",
+              "name": "S"
+            },
+            {
+              "id": "8bdcc57a",
+              "name": "M"
+            },
+            {
+              "id": "d0a63dfd",
+              "name": "L"
+            },
+            {
+              "id": "04c06343",
+              "name": "XL"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9o",
+          "name": "Start date",
+          "dataType": "DATE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9s",
+          "name": "Target date",
+          "dataType": "DATE"
+        }
+      ],
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "completed": 49,
+      "remaining": 4,
+      "classificationCounts": {
+        "V": 49,
+        "P": 2,
+        "Q": 1,
+        "B": 1
+      },
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 162,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 163,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "independentMilestoneAndLabelEndpointsMatched": true,
+      "sourceMembershipAndLabelsAndMilestonesUnchanged": true,
+      "projectScopePriorityAreaEffortUnchanged": true,
+      "issueBodiesUnchangedSinceInitialCapture": true,
+      "addedProjectItems": [
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABPMz_zA",
+          "number": 470,
+          "title": "Qualify IME lifetimes and protect Android password text",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/470",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-14T19:13:07Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        }
+      ],
+      "rawScopeSha256": "b9e6803466f640ec424f6b2a9519a15d0cc81d77ba07745ffbdc2f483f0a20ba",
+      "mergedPullRequests": [
+        {
+          "issue": 131,
+          "pullRequest": 470,
+          "stage": "protect Android password text and exercise canonical Windows and Android IME paths",
+          "issueRemainsOpen": true,
+          "head": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+          "merge": "994688acb769777c6f8bc410ceafd0e978a949c2",
+          "requiredCiRun": 43628937166,
+          "requiredCi": {
+            "head": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+            "run": 43628937166,
+            "job": 132550990866,
+            "completedAt": "2026-11-14T19:12:06Z",
+            "passed": 6183,
+            "total": 6183,
+            "failed": 0,
+            "skipped": 0,
+            "trimDiagnostics": 60,
+            "mergeTree": "3bd3a62c72366eeb907881e2022636c74ff6ae45",
+            "artifactId": 14127986649,
+            "artifactZipSha256": "84f2f9c4cd9dbde3656d9e4702913eb098ae69a656bbf3552beb23ba3d2dcafd",
+            "projects": [
+              {
+                "failed": 0,
+                "passed": 166,
+                "skipped": 0,
+                "total": 166,
+                "project": "ModernFormsNext.Automation.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 66,
+                "skipped": 0,
+                "total": 66,
+                "project": "ModernFormsNext.Automation.Windows.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 31,
+                "skipped": 0,
+                "total": 31,
+                "project": "ModernFormsNext.CrossPlatform.Sample.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1327,
+                "skipped": 0,
+                "total": 1327,
+                "project": "ModernFormsNext.Designer.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 1492,
+                "skipped": 0,
+                "total": 1492,
+                "project": "ModernFormsNext.Testing.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 2144,
+                "skipped": 0,
+                "total": 2144,
+                "project": "ModernFormsNext.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 34,
+                "skipped": 0,
+                "total": 34,
+                "project": "ModernFormsNext.VisualStudioExtension.Vsix.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 481,
+                "skipped": 0,
+                "total": 481,
+                "project": "ModernFormsNext.WindowKit.Backend.Android.Tests.dll"
+              },
+              {
+                "failed": 0,
+                "passed": 442,
+                "skipped": 0,
+                "total": 442,
+                "project": "ModernFormsNext.WindowKit.Backend.Windows.Tests.dll"
+              }
+            ],
+            "dynamicResourceDeployment": "PASS"
+          },
+          "diagnosticEvidence": {
+            "issue": 131,
+            "android": [
+              {
+                "sourceBase": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+                "workingTree": [
+                  " M ModernFormsNext.WindowKit.Backend.Android.Tests/AndroidTextInputSessionTests.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.InputConnection.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.TextInput.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Rendering/AndroidTextInputSession.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Windows.Tests/Imm32TextInputMethodTests.cs",
+                  " M docs/android-release-validation.md",
+                  " M docs/text-input.md",
+                  " M samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs",
+                  " M scripts/android/Invoke-ReleaseValidation.ps1"
+                ],
+                "device": "emulator",
+                "api": 34,
+                "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+                "passedAssertions": 82,
+                "settingsPreserved": true
+              },
+              {
+                "sourceBase": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+                "workingTree": [
+                  " M ModernFormsNext.WindowKit.Backend.Android.Tests/AndroidTextInputSessionTests.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.InputConnection.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.TextInput.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Rendering/AndroidTextInputSession.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Windows.Tests/Imm32TextInputMethodTests.cs",
+                  " M docs/android-release-validation.md",
+                  " M docs/text-input.md",
+                  " M samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs",
+                  " M scripts/android/Invoke-ReleaseValidation.ps1"
+                ],
+                "device": "emulator",
+                "api": 36,
+                "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+                "passedAssertions": 82,
+                "settingsPreserved": true
+              },
+              {
+                "sourceBase": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+                "workingTree": [
+                  " M ModernFormsNext.WindowKit.Backend.Android.Tests/AndroidTextInputSessionTests.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.InputConnection.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.TextInput.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Android/Rendering/AndroidTextInputSession.cs",
+                  " M ModernFormsNext.WindowKit.Backend.Windows.Tests/Imm32TextInputMethodTests.cs",
+                  " M docs/android-release-validation.md",
+                  " M docs/text-input.md",
+                  " M samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs",
+                  " M scripts/android/Invoke-ReleaseValidation.ps1"
+                ],
+                "device": "nubia NX769J physical",
+                "api": 36,
+                "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+                "passedAssertions": 82,
+                "settingsPreserved": true
+              },
+              {
+                "sourceHead": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+                "device": "emulator",
+                "api": 23,
+                "apkSha256": "0e254b1df9836784b168d73817fc99ce7974ac2a61ad3b231999dc6d2cd2dfdb",
+                "passedAssertions": 81,
+                "settingsPreserved": true,
+                "installation": "explicit ADB push and pm install with installed SHA comparison",
+                "combinedInstallProbe": "STALLED"
+              }
+            ],
+            "localValidation": {
+              "head": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+              "fullRun": {
+                "started": "2026-11-14T18:51:46.9089444Z",
+                "base": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+                "phases": [
+                  {
+                    "name": "restore",
+                    "arguments": [
+                      "restore",
+                      "ModernFormsNext.slnx"
+                    ],
+                    "started": "2026-11-14T18:51:46.9649807Z",
+                    "finished": "2026-11-14T18:51:50.1436739Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "build-Debug",
+                    "arguments": [
+                      "build",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Debug",
+                      "--no-restore",
+                      "/p:EnableWindowsTargeting=true",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false"
+                    ],
+                    "started": "2026-11-14T18:51:50.1709903Z",
+                    "finished": "2026-11-14T18:54:11.5750818Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "test-Debug",
+                    "arguments": [
+                      "test",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Debug",
+                      "--no-build",
+                      "--no-restore",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false",
+                      "--logger",
+                      "trx",
+                      "--results-directory",
+                      "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-131\\final\\tests-Debug"
+                    ],
+                    "started": "2026-11-14T18:54:11.5823837Z",
+                    "finished": "2026-11-14T19:00:31.2882805Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "build-Release",
+                    "arguments": [
+                      "build",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Release",
+                      "--no-restore",
+                      "--verbosity",
+                      "normal",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false"
+                    ],
+                    "started": "2026-11-14T19:00:31.2908830Z",
+                    "finished": "2026-11-14T19:03:16.1245377Z",
+                    "exitCode": 0
+                  },
+                  {
+                    "name": "test-Release",
+                    "arguments": [
+                      "test",
+                      "ModernFormsNext.slnx",
+                      "--configuration",
+                      "Release",
+                      "--no-build",
+                      "--no-restore",
+                      "-m:1",
+                      "/p:UseSharedCompilation=false",
+                      "--logger",
+                      "trx",
+                      "--results-directory",
+                      "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-131\\final\\tests-Release"
+                    ],
+                    "started": "2026-11-14T19:03:16.1271940Z",
+                    "finished": "2026-11-14T19:08:24.6665933Z",
+                    "exitCode": 0
+                  }
+                ]
+              },
+              "Debug": {
+                "counters": {
+                  "total": 6183,
+                  "passed": 6183,
+                  "failed": 0,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_54_14_net10.0.trx",
+                    "sha256": "c62c094a6bae4c549256cb1cc9749ef5b2b179c00787b554946f489ecfd95266",
+                    "total": 166
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_54_19_net10.0.trx",
+                    "sha256": "e08de4de23728c8cb9804b7c016705d613716df9a62af6ae60395893fa8adcc3",
+                    "total": 66
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_01_net10.0.trx",
+                    "sha256": "8de8cf74811bd2da55b96d8c72cf4076b3e3abfaba7525fd267679d19f82c80a",
+                    "total": 31
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_03_net10.0.trx",
+                    "sha256": "7e076105af5c8a178a7c09b87ac520258271be6ac8a686dcde3da8c33e2ac8c8",
+                    "total": 1327
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_45_net10.0.trx",
+                    "sha256": "e23572dd3df7919acc08934cf32dc4b53a4a82e6249a578c3f43fc2f775e9144",
+                    "total": 1492
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_56_net10.0.trx",
+                    "sha256": "fd62636c4e3b4f5f32da7730b31b2bc55cd9227848fa124eacb16da444bfcffc",
+                    "total": 2144
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_56_10_net472.trx",
+                    "sha256": "169027d86a420bbf99f1338c59d5ca358945f63239206312ec4ae518514b5e52",
+                    "total": 34
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_56_12_net10.0.trx",
+                    "sha256": "1977cb6d75fe9277875f730bad1d41186cae3296f30986f0396c326c96a9fed5",
+                    "total": 481
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_56_15_net10.0.trx",
+                    "sha256": "b3722ca07d07ed4f9d883ec6f610044e2e814833252ce93a779ba1a3563fd644",
+                    "total": 442
+                  }
+                ],
+                "failures": []
+              },
+              "Release": {
+                "counters": {
+                  "total": 6183,
+                  "passed": 6183,
+                  "failed": 0,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_18_net10.0.trx",
+                    "sha256": "9652c456ca0498b7bb96156422554bc5b6466d104e1f1118035386afc247ac67",
+                    "total": 166
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_20_net10.0.trx",
+                    "sha256": "2330cc237159d91efb567f33d086a8def53283c4dcc50126f1affcccf3f6a4c9",
+                    "total": 66
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_49_net10.0.trx",
+                    "sha256": "1ad434790d41aa427e62e8360596676106828c1fd5258cfabbba3bc1f97878f1",
+                    "total": 31
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_52_net10.0.trx",
+                    "sha256": "6eb0c444ddd0168405be7afb5c3bb0ca04f176a58cbd3f97c3c80fae04723cac",
+                    "total": 1327
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_04_36_net10.0.trx",
+                    "sha256": "a3539e02f71fee2733dddc5d4fc821c38ca913b8611e3eb2bfc3ec0ef9a4f20a",
+                    "total": 1492
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_04_50_net10.0.trx",
+                    "sha256": "aba70900bc0b85684c6518ec2ab5bcd748b114b8ae5ebca1a1f58d0d613728d1",
+                    "total": 2144
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_05_14_net472.trx",
+                    "sha256": "12e035880067ee0abb4274549d37065d1f335cb5440eac1093b039a707e956aa",
+                    "total": 34
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_05_15_net10.0.trx",
+                    "sha256": "cba06f4d989950ae2cc6730513ab39f94d46baa65e50ff4d596da6dbd8b759e3",
+                    "total": 481
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_05_18_net10.0.trx",
+                    "sha256": "9797ebd30a8d854237fef247382d557f1c811f62627fd045f949ebafc9f0a312",
+                    "total": 442
+                  }
+                ],
+                "failures": []
+              },
+              "targeted": {
+                "android-text-unit": {
+                  "counters": {
+                    "total": 19,
+                    "passed": 19,
+                    "failed": 0,
+                    "notExecuted": 0
+                  },
+                  "resultFiles": [
+                    {
+                      "path": "artifacts/scope-reaudit-2026-11-12/issue-131/android-text-unit/[local-runner]_2026-11-14_19_44_05_net10.0.trx",
+                      "sha256": "c1783ca038df111713fa330a53f8cf73448ec23a703dd85d171d3e70ce4920ba",
+                      "total": 19
+                    }
+                  ],
+                  "failures": []
+                },
+                "windows-imm32": {
+                  "counters": {
+                    "total": 20,
+                    "passed": 20,
+                    "failed": 0,
+                    "notExecuted": 0
+                  },
+                  "resultFiles": [
+                    {
+                      "path": "artifacts/scope-reaudit-2026-11-12/issue-131/windows-imm32/[local-runner]_2026-11-14_19_37_28_net10.0.trx",
+                      "sha256": "b985e0847a395c726f0f3fdec013585f70b7be912fc57f8dffb5df4117ec1607",
+                      "total": 20
+                    }
+                  ],
+                  "failures": []
+                }
+              }
+            },
+            "unevaluated": [
+              "observed vendor CJK candidates and composition",
+              "additional Windows DPI native candidate-window observation and keyboard layouts",
+              "hardware keyboard",
+              "additional physical Android vendors"
+            ]
+          }
+        }
+      ],
+      "openIssueDiagnostics": [
+        {
+          "issue": 131,
+          "android": [
+            {
+              "sourceBase": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "workingTree": [
+                " M ModernFormsNext.WindowKit.Backend.Android.Tests/AndroidTextInputSessionTests.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.InputConnection.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.TextInput.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Rendering/AndroidTextInputSession.cs",
+                " M ModernFormsNext.WindowKit.Backend.Windows.Tests/Imm32TextInputMethodTests.cs",
+                " M docs/android-release-validation.md",
+                " M docs/text-input.md",
+                " M samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs",
+                " M scripts/android/Invoke-ReleaseValidation.ps1"
+              ],
+              "device": "emulator",
+              "api": 34,
+              "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+              "passedAssertions": 82,
+              "settingsPreserved": true
+            },
+            {
+              "sourceBase": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "workingTree": [
+                " M ModernFormsNext.WindowKit.Backend.Android.Tests/AndroidTextInputSessionTests.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.InputConnection.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.TextInput.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Rendering/AndroidTextInputSession.cs",
+                " M ModernFormsNext.WindowKit.Backend.Windows.Tests/Imm32TextInputMethodTests.cs",
+                " M docs/android-release-validation.md",
+                " M docs/text-input.md",
+                " M samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs",
+                " M scripts/android/Invoke-ReleaseValidation.ps1"
+              ],
+              "device": "emulator",
+              "api": 36,
+              "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+              "passedAssertions": 82,
+              "settingsPreserved": true
+            },
+            {
+              "sourceBase": "baeb0db7dfd6b58e9771ea1b8f4a62447dc0132c",
+              "workingTree": [
+                " M ModernFormsNext.WindowKit.Backend.Android.Tests/AndroidTextInputSessionTests.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.InputConnection.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Platform/Rendering/AndroidSkiaHostView.TextInput.cs",
+                " M ModernFormsNext.WindowKit.Backend.Android/Rendering/AndroidTextInputSession.cs",
+                " M ModernFormsNext.WindowKit.Backend.Windows.Tests/Imm32TextInputMethodTests.cs",
+                " M docs/android-release-validation.md",
+                " M docs/text-input.md",
+                " M samples/ModernFormsNext.CrossPlatform.Sample/Platforms/Android/ReleaseValidationInstrumentation.cs",
+                " M scripts/android/Invoke-ReleaseValidation.ps1"
+              ],
+              "device": "nubia NX769J physical",
+              "api": 36,
+              "apkSha256": "4383917abab06c306cbb313fe33ca058ff2d53588c8601cea4b1c8072b03dee5",
+              "passedAssertions": 82,
+              "settingsPreserved": true
+            },
+            {
+              "sourceHead": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+              "device": "emulator",
+              "api": 23,
+              "apkSha256": "0e254b1df9836784b168d73817fc99ce7974ac2a61ad3b231999dc6d2cd2dfdb",
+              "passedAssertions": 81,
+              "settingsPreserved": true,
+              "installation": "explicit ADB push and pm install with installed SHA comparison",
+              "combinedInstallProbe": "STALLED"
+            }
+          ],
+          "localValidation": {
+            "head": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+            "fullRun": {
+              "started": "2026-11-14T18:51:46.9089444Z",
+              "base": "1d6ffa92b2fa6012d30d4f4b0e4340e7619ac5f3",
+              "phases": [
+                {
+                  "name": "restore",
+                  "arguments": [
+                    "restore",
+                    "ModernFormsNext.slnx"
+                  ],
+                  "started": "2026-11-14T18:51:46.9649807Z",
+                  "finished": "2026-11-14T18:51:50.1436739Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "build-Debug",
+                  "arguments": [
+                    "build",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Debug",
+                    "--no-restore",
+                    "/p:EnableWindowsTargeting=true",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false"
+                  ],
+                  "started": "2026-11-14T18:51:50.1709903Z",
+                  "finished": "2026-11-14T18:54:11.5750818Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "test-Debug",
+                  "arguments": [
+                    "test",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Debug",
+                    "--no-build",
+                    "--no-restore",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false",
+                    "--logger",
+                    "trx",
+                    "--results-directory",
+                    "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-131\\final\\tests-Debug"
+                  ],
+                  "started": "2026-11-14T18:54:11.5823837Z",
+                  "finished": "2026-11-14T19:00:31.2882805Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "build-Release",
+                  "arguments": [
+                    "build",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Release",
+                    "--no-restore",
+                    "--verbosity",
+                    "normal",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false"
+                  ],
+                  "started": "2026-11-14T19:00:31.2908830Z",
+                  "finished": "2026-11-14T19:03:16.1245377Z",
+                  "exitCode": 0
+                },
+                {
+                  "name": "test-Release",
+                  "arguments": [
+                    "test",
+                    "ModernFormsNext.slnx",
+                    "--configuration",
+                    "Release",
+                    "--no-build",
+                    "--no-restore",
+                    "-m:1",
+                    "/p:UseSharedCompilation=false",
+                    "--logger",
+                    "trx",
+                    "--results-directory",
+                    "[repository]\\artifacts\\scope-reaudit-2026-11-12\\issue-131\\final\\tests-Release"
+                  ],
+                  "started": "2026-11-14T19:03:16.1271940Z",
+                  "finished": "2026-11-14T19:08:24.6665933Z",
+                  "exitCode": 0
+                }
+              ]
+            },
+            "Debug": {
+              "counters": {
+                "total": 6183,
+                "passed": 6183,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_54_14_net10.0.trx",
+                  "sha256": "c62c094a6bae4c549256cb1cc9749ef5b2b179c00787b554946f489ecfd95266",
+                  "total": 166
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_54_19_net10.0.trx",
+                  "sha256": "e08de4de23728c8cb9804b7c016705d613716df9a62af6ae60395893fa8adcc3",
+                  "total": 66
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_01_net10.0.trx",
+                  "sha256": "8de8cf74811bd2da55b96d8c72cf4076b3e3abfaba7525fd267679d19f82c80a",
+                  "total": 31
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_03_net10.0.trx",
+                  "sha256": "7e076105af5c8a178a7c09b87ac520258271be6ac8a686dcde3da8c33e2ac8c8",
+                  "total": 1327
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_45_net10.0.trx",
+                  "sha256": "e23572dd3df7919acc08934cf32dc4b53a4a82e6249a578c3f43fc2f775e9144",
+                  "total": 1492
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_55_56_net10.0.trx",
+                  "sha256": "fd62636c4e3b4f5f32da7730b31b2bc55cd9227848fa124eacb16da444bfcffc",
+                  "total": 2144
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_56_10_net472.trx",
+                  "sha256": "169027d86a420bbf99f1338c59d5ca358945f63239206312ec4ae518514b5e52",
+                  "total": 34
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_56_12_net10.0.trx",
+                  "sha256": "1977cb6d75fe9277875f730bad1d41186cae3296f30986f0396c326c96a9fed5",
+                  "total": 481
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Debug/[local-runner]_2026-11-14_19_56_15_net10.0.trx",
+                  "sha256": "b3722ca07d07ed4f9d883ec6f610044e2e814833252ce93a779ba1a3563fd644",
+                  "total": 442
+                }
+              ],
+              "failures": []
+            },
+            "Release": {
+              "counters": {
+                "total": 6183,
+                "passed": 6183,
+                "failed": 0,
+                "notExecuted": 0
+              },
+              "resultFiles": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_18_net10.0.trx",
+                  "sha256": "9652c456ca0498b7bb96156422554bc5b6466d104e1f1118035386afc247ac67",
+                  "total": 166
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_20_net10.0.trx",
+                  "sha256": "2330cc237159d91efb567f33d086a8def53283c4dcc50126f1affcccf3f6a4c9",
+                  "total": 66
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_49_net10.0.trx",
+                  "sha256": "1ad434790d41aa427e62e8360596676106828c1fd5258cfabbba3bc1f97878f1",
+                  "total": 31
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_03_52_net10.0.trx",
+                  "sha256": "6eb0c444ddd0168405be7afb5c3bb0ca04f176a58cbd3f97c3c80fae04723cac",
+                  "total": 1327
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_04_36_net10.0.trx",
+                  "sha256": "a3539e02f71fee2733dddc5d4fc821c38ca913b8611e3eb2bfc3ec0ef9a4f20a",
+                  "total": 1492
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_04_50_net10.0.trx",
+                  "sha256": "aba70900bc0b85684c6518ec2ab5bcd748b114b8ae5ebca1a1f58d0d613728d1",
+                  "total": 2144
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_05_14_net472.trx",
+                  "sha256": "12e035880067ee0abb4274549d37065d1f335cb5440eac1093b039a707e956aa",
+                  "total": 34
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_05_15_net10.0.trx",
+                  "sha256": "cba06f4d989950ae2cc6730513ab39f94d46baa65e50ff4d596da6dbd8b759e3",
+                  "total": 481
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-131/final/tests-Release/[local-runner]_2026-11-14_20_05_18_net10.0.trx",
+                  "sha256": "9797ebd30a8d854237fef247382d557f1c811f62627fd045f949ebafc9f0a312",
+                  "total": 442
+                }
+              ],
+              "failures": []
+            },
+            "targeted": {
+              "android-text-unit": {
+                "counters": {
+                  "total": 19,
+                  "passed": 19,
+                  "failed": 0,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/android-text-unit/[local-runner]_2026-11-14_19_44_05_net10.0.trx",
+                    "sha256": "c1783ca038df111713fa330a53f8cf73448ec23a703dd85d171d3e70ce4920ba",
+                    "total": 19
+                  }
+                ],
+                "failures": []
+              },
+              "windows-imm32": {
+                "counters": {
+                  "total": 20,
+                  "passed": 20,
+                  "failed": 0,
+                  "notExecuted": 0
+                },
+                "resultFiles": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-131/windows-imm32/[local-runner]_2026-11-14_19_37_28_net10.0.trx",
+                    "sha256": "b985e0847a395c726f0f3fdec013585f70b7be912fc57f8dffb5df4117ec1607",
+                    "total": 20
+                  }
+                ],
+                "failures": []
+              }
+            }
+          },
+          "unevaluated": [
+            "observed vendor CJK candidates and composition",
+            "additional Windows DPI native candidate-window observation and keyboard layouts",
+            "hardware keyboard",
+            "additional physical Android vendors"
+          ]
+        }
+      ],
+      "nextIssues": [
+        133,
+        40,
+        168,
+        131
+      ],
+      "releaseApproved": false
     }
   ]
 }
