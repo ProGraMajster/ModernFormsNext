@@ -59,6 +59,12 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the value of the scrollbar.
         /// </summary>
+        /// <remarks>
+        /// Set on the UI thread. An actual viewport movement synchronously raises
+        /// <see cref="ScrollableControl.Scroll"/> after child displacement, with ThumbPosition.
+        /// Event offsets are relative to Minimum; this property retains the raw scrollbar value.
+        /// Values outside Minimum/Maximum throw; assigning the current value emits no Scroll event.
+        /// </remarks>
         public int Value {
             get => scrollbar.Value;
             set => scrollbar.Value = value;

@@ -7,8 +7,14 @@ using System;
 namespace ModernFormsNext
 {
     /// <summary>
-    ///  Provides data for the ScrollBar.Scroll event.
+    /// Provides committed movement data for ScrollBar.Scroll and ScrollableControl.Scroll.
     /// </summary>
+    /// <remarks>
+    /// ScrollBar uses raw range values; ScrollableControl uses logical-pixel offsets relative
+    /// to the axis minimum. Constructors without an old value retain the legacy -1 sentinel,
+    /// and constructors without an orientation retain HorizontalScroll. Framework viewport
+    /// notifications supply both values and the actual orientation explicitly.
+    /// </remarks>
     public class ScrollEventArgs : EventArgs
     {
         /// <summary>
@@ -59,17 +65,21 @@ namespace ModernFormsNext
         public ScrollEventType Type { get; }
 
         /// <summary>
-        ///  Specifies the new location of the scroll box within the scroll bar.
+        /// Gets or sets the reported new value, in the units of the event's owner.
         /// </summary>
+        /// <remarks>
+        /// For ScrollableControl.Scroll this describes already committed movement. Changing it
+        /// does not cancel scrolling or change the offset; it is restored before the next subscriber.
+        /// </remarks>
         public int NewValue { get; set; }
 
         /// <summary>
-        ///  Specifies the last position  within the scroll bar.
+        /// Gets the previous reported value, in the units of the event's owner.
         /// </summary>
         public int OldValue { get; }
 
         /// <summary>
-        ///  Specifies the type of scroll event that occurred.
+        /// Gets the axis whose committed value changed.
         /// </summary>
         public ScrollOrientation ScrollOrientation { get; }
     }

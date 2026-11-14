@@ -2,13 +2,19 @@
 using System.Collections.Generic;
 using System.Text;
 using ModernFormsNext;
+using System.Drawing;
 
 namespace ControlGallery.Panels
 {
+    /// <summary>Demonstrates wheel routing and committed viewport Scroll notifications.</summary>
     public class ScrollableControlPanel : Panel
     {
+        /// <summary>Creates scrolling examples and a bounded event log outside their viewports.</summary>
         public ScrollableControlPanel ()
         {
+            AutoScroll = true;
+            Controls.Add(new Label { Bounds = new Rectangle(24, 12, 780, 36),
+                Text = "Scroll by wheel, arrows, track or thumb. The log also follows programmatic changes and resets." });
             var sc = new ScrollableControl {
                 Left = 100,
                 Top = 100,
@@ -85,6 +91,30 @@ namespace ControlGallery.Panels
             sc4.Controls.Add (CreateButton ("1", 0, 0));
 
             Controls.Add (sc4);
+
+            var log = Controls.Add(new Label { Bounds = new Rectangle(24, 570, 800, 150), Multiline = true,
+                AccessibleAutomationId = "scroll-event-log", Text = "No viewport movement yet." });
+            var entries = new Queue<string>();
+            foreach (var (viewport, name) in new[] { (sc, "Vertical"), (sc2, "Outer"), (nested, "Inner"), (sc3, "Horizontal") })
+                viewport.Scroll += (_, e) => {
+                    entries.Enqueue($"{name}: {e.ScrollOrientation} {e.OldValue} -> {e.NewValue}, {e.Type}");
+                    while (entries.Count > 5) entries.Dequeue();
+                    log.Text = string.Join(Environment.NewLine, entries);
+                };
+            AddAction("Scroll V +40", 24, () => Advance(sc.VerticalScrollProperties));
+            AddAction("Scroll H +40", 204, () => Advance(sc3.HorizontalScrollProperties));
+            AddAction("Reset offsets", 384, () => {
+                sc.VerticalScrollProperties.Value = sc.VerticalScrollProperties.Minimum;
+                sc3.HorizontalScrollProperties.Value = sc3.HorizontalScrollProperties.Minimum;
+            });
+            AddAction("Toggle scrolling", 564, () => { sc.AutoScroll = !sc.AutoScroll; sc3.AutoScroll = sc.AutoScroll; });
+
+            void AddAction(string text, int left, Action action)
+            {
+                var button = Controls.Add(new Button { Bounds = new Rectangle(left, 55, 170, 32), Text = text });
+                button.Click += (_, _) => action();
+            }
+            static void Advance(ScrollProperties axis) => axis.Value = (int)Math.Min((long)axis.Value + 40, axis.Maximum);
         }
 
         private Button CreateButton (string text, int x, int y)

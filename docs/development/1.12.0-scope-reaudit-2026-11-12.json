@@ -11475,6 +11475,1365 @@
         133
       ],
       "releaseApproved": false
+    },
+    {
+      "capturedAt": "2026-11-14T15:38:42.464939+00:00",
+      "master": "f1da273541eab7812591de7063f8546c04baac54",
+      "projectPages": [
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA5OTAwOTkwMDk5MDA5Oc4Oa5qx",
+          "totalCount": 459
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDA0OTc1MTI0Mzc4MTA5NM4QAREu",
+          "totalCount": 459
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAzMzIyMjU5MTM2MjEyNs4QaPtx",
+          "totalCount": 459
+        },
+        {
+          "count": 100,
+          "hasNextPage": true,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyNDkzNzY1NTg2MDM0Oc4QqdzH",
+          "totalCount": 459
+        },
+        {
+          "count": 59,
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDAyMTczOTEzMDQzNDc4Ms4SLfLz",
+          "totalCount": 459
+        }
+      ],
+      "projectFields": [
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZU",
+          "name": "Title",
+          "dataType": "TITLE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZY",
+          "name": "Assignees",
+          "dataType": "ASSIGNEES"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYVRZc",
+          "name": "Status",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "f75ad846",
+              "name": "Backlog"
+            },
+            {
+              "id": "d46bb227",
+              "name": "Planned"
+            },
+            {
+              "id": "47fc9ee4",
+              "name": "In progress"
+            },
+            {
+              "id": "54f33f8f",
+              "name": "In review"
+            },
+            {
+              "id": "04194b92",
+              "name": "Blocked"
+            },
+            {
+              "id": "98236657",
+              "name": "Done"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZg",
+          "name": "Labels",
+          "dataType": "LABELS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZk",
+          "name": "Linked pull requests",
+          "dataType": "LINKED_PULL_REQUESTS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZo",
+          "name": "Milestone",
+          "dataType": "MILESTONE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZs",
+          "name": "Repository",
+          "dataType": "REPOSITORY"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZw",
+          "name": "Reviewers",
+          "dataType": "REVIEWERS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ0",
+          "name": "Parent issue",
+          "dataType": "PARENT_ISSUE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ4",
+          "name": "Sub-issues progress",
+          "dataType": "SUB_ISSUES_PROGRESS"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRZ8",
+          "name": "Created",
+          "dataType": "CREATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaA",
+          "name": "Updated",
+          "dataType": "UPDATED"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYVRaE",
+          "name": "Closed",
+          "dataType": "CLOSED"
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr8c",
+          "name": "Target version",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "311f3d16",
+              "name": "1.9.0"
+            },
+            {
+              "id": "59ed5453",
+              "name": "1.10.0"
+            },
+            {
+              "id": "f7eaf14b",
+              "name": "1.11.0"
+            },
+            {
+              "id": "ba502a65",
+              "name": "1.12.0"
+            },
+            {
+              "id": "697d2111",
+              "name": "2.0.0"
+            },
+            {
+              "id": "8105f14c",
+              "name": "Future"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9U",
+          "name": "Area",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "0abef53f",
+              "name": "Core"
+            },
+            {
+              "id": "72dbec22",
+              "name": "Graphics"
+            },
+            {
+              "id": "8a9c54fd",
+              "name": "Animations"
+            },
+            {
+              "id": "33e34416",
+              "name": "Themes"
+            },
+            {
+              "id": "ced8a83d",
+              "name": "Navigation"
+            },
+            {
+              "id": "e01b53f9",
+              "name": "Controls"
+            },
+            {
+              "id": "8bdad61f",
+              "name": "Documents"
+            },
+            {
+              "id": "d4047610",
+              "name": "Data visualization"
+            },
+            {
+              "id": "a5558334",
+              "name": "Localization"
+            },
+            {
+              "id": "c5442d9e",
+              "name": "Android"
+            },
+            {
+              "id": "29cc9209",
+              "name": "Windows"
+            },
+            {
+              "id": "990cb8c0",
+              "name": "Designer"
+            },
+            {
+              "id": "9e347eca",
+              "name": "Templates"
+            },
+            {
+              "id": "a4e80fc7",
+              "name": "Documentation"
+            },
+            {
+              "id": "d987dd8b",
+              "name": "Build and release"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9c",
+          "name": "Priority",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "8f08d0d7",
+              "name": "Critical"
+            },
+            {
+              "id": "53164825",
+              "name": "High"
+            },
+            {
+              "id": "badbd14e",
+              "name": "Medium"
+            },
+            {
+              "id": "afc4eb57",
+              "name": "Low"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2SingleSelectField",
+          "id": "PVTSSF_lAHOAxSZSs4Bd20dzhYZr9g",
+          "name": "Effort",
+          "dataType": "SINGLE_SELECT",
+          "options": [
+            {
+              "id": "465305c5",
+              "name": "S"
+            },
+            {
+              "id": "8bdcc57a",
+              "name": "M"
+            },
+            {
+              "id": "d0a63dfd",
+              "name": "L"
+            },
+            {
+              "id": "04c06343",
+              "name": "XL"
+            }
+          ]
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9o",
+          "name": "Start date",
+          "dataType": "DATE"
+        },
+        {
+          "__typename": "ProjectV2Field",
+          "id": "PVTF_lAHOAxSZSs4Bd20dzhYZr9s",
+          "name": "Target date",
+          "dataType": "DATE"
+        }
+      ],
+      "sourceCounts": {
+        "A": 53,
+        "B": 45,
+        "C": 24
+      },
+      "unionCount": 53,
+      "completed": 46,
+      "remaining": 7,
+      "classificationCounts": {
+        "V": 46,
+        "P": 3,
+        "Q": 1,
+        "B": 2,
+        "I": 1
+      },
+      "issues": [
+        {
+          "number": 12,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 13,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 34,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 35,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 36,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 37,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 38,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 39,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 40,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 55,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 56,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 60,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 70,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 72,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 74,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 73,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 75,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 76,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 77,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 78,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 81,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 82,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 85,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 84,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 88,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 89,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 99,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 131,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "Q"
+        },
+        {
+          "number": 132,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 133,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 138,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 162,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "In progress",
+          "classification": "I"
+        },
+        {
+          "number": 163,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "B"
+        },
+        {
+          "number": 164,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 165,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 168,
+          "issueState": "open",
+          "stateReason": null,
+          "projectStatus": "Backlog",
+          "classification": "P"
+        },
+        {
+          "number": 199,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 200,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 202,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 203,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 204,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 205,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 269,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 270,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 272,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 274,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 275,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 276,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 302,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 303,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 304,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 305,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        },
+        {
+          "number": 413,
+          "issueState": "closed",
+          "stateReason": "completed",
+          "projectStatus": "Done",
+          "classification": "V"
+        }
+      ],
+      "independentMilestoneAndLabelEndpointsMatched": true,
+      "sourceMembershipAndLabelsAndMilestonesUnchanged": true,
+      "projectScopePriorityAreaEffortUnchanged": true,
+      "issueBodiesUnchangedSinceInitialCapture": true,
+      "addedProjectItems": [
+        {
+          "__typename": "PullRequest",
+          "id": "PR_kwDORoxfY88AAAABPKrt-w",
+          "number": 464,
+          "title": "Fix natural label measurement and bounded ellipsis layout (#272)",
+          "url": "https://github.com/ProGraMajster/ModernFormsNext/pull/464",
+          "state": "MERGED",
+          "merged": true,
+          "mergedAt": "2026-11-14T15:37:34Z",
+          "repository": {
+            "nameWithOwner": "ProGraMajster/ModernFormsNext"
+          }
+        }
+      ],
+      "rawScopeSha256": "d7279fd5c6421ea4c74db6bee73c59c1c9aae6f0698150ca082a54daf6ffb413",
+      "mergedPullRequests": [
+        {
+          "issue": 272,
+          "pullRequest": 464,
+          "head": "9cc73b2419598e022e351596f3e5f47846ea18a2",
+          "merge": "f1da273541eab7812591de7063f8546c04baac54",
+          "requiredCiRun": 43609183744,
+          "requiredCi": {
+            "run": 43609183744,
+            "head": "9cc73b2419598e022e351596f3e5f47846ea18a2",
+            "failed": 0,
+            "passed": 6107,
+            "skipped": 0,
+            "total": 6107,
+            "trimDiagnostics": 60,
+            "artifactId": "14120057361",
+            "artifactZipSha256": "0b754a3e7d23114e61dd9490a2428c5ea9482df1ec01ac0f33e203cc0a5880b8",
+            "dynamicResourceDeployment": "PASS"
+          },
+          "localValidation": {
+            "head": "9cc73b2419598e022e351596f3e5f47846ea18a2",
+            "configurations": {
+              "Debug": {
+                "counters": {
+                  "total": 6107,
+                  "passed": 6106,
+                  "failed": 1,
+                  "notExecuted": 0
+                },
+                "failures": [
+                  {
+                    "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsUiaProviderTests.NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles(size: \"small\")",
+                    "start": "2026-11-14T16:09:30.2145758+01:00",
+                    "end": "2026-11-14T16:09:31.1725403+01:00",
+                    "message": "System.InvalidOperationException: Missing item.0\r\n   at PresentationLifetimeScenario.Find(AutomationElement root, String id) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient\\PresentationLifetimeScenario.cs:line 48\r\n   at PresentationLifetimeScenario.Run(String handle) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests.UiAutomationClient\\PresentationLifetimeScenario.cs:line 33\r\n\nEvidence: [repository]\\artifacts\\native-presentation\\Debug-small-846c30b5e66b4f56848a962d9a3af8d3",
+                    "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsUiaProviderTests.NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles(String size) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsUiaProviderTests.Presentation.Native.cs:line 40\r\n   at ModernFormsNext.WindowKit.Backend.Windows.Tests.WindowsUiaProviderTests.NativePresentationPreservesIdentityBuffersAndExternalEventsFor100Cycles(String size) in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\WindowsUiaProviderTests.Presentation.Native.cs:line 50\r\n--- End of stack trace from previous location ---"
+                  }
+                ],
+                "evidence": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_06_59_net10.0.trx",
+                    "sha256": "a70d886b77b1ec71a105d2ddd3e736aa6ceb95724ef0e34f7b777b0798b9e5d8"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_07_03_net10.0.trx",
+                    "sha256": "79328dcdddb5e77afdaeb3dd9bb4123ba2671da5739d4f4fbff0e1fcb7fc5f62"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_07_41_net10.0.trx",
+                    "sha256": "88acf07a4558a40205a607ff3a5456f8bcbaacc73285092c646b03ab7c68855f"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_07_44_net10.0.trx",
+                    "sha256": "d7ed407f413c19f4ef4c6624ba1ad036570595ef6885485717bf695af91499cc"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_08_32_net10.0.trx",
+                    "sha256": "e36bbfcd4821b6a2fffd243a8189c4c7ad7e41e066d3fb9ad1ce287b628419b8"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_08_52_net10.0.trx",
+                    "sha256": "f1c44b80129e6541849e3e1002df9cba15a62fafceae5bbec7f2140266326772"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_09_20_net472.trx",
+                    "sha256": "3c2bab157decc20d7cecb73e8a24e7b1c08e7a1d9786c2ddd4c74158cee1ecbc"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_09_22_net10.0.trx",
+                    "sha256": "e2421ad725612b05eec525a3d1bf8502cce3f3d169cd45186708839e13af48b1"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Debug/[local-runner]_2026-11-14_16_09_26_net10.0.trx",
+                    "sha256": "af3b5652800f6a674809ea6e88463cb52fc32784fecee54408ee5ab8c5d54f6b"
+                  }
+                ]
+              },
+              "Release": {
+                "counters": {
+                  "total": 6107,
+                  "passed": 6106,
+                  "failed": 1,
+                  "notExecuted": 0
+                },
+                "failures": [
+                  {
+                    "name": "ModernFormsNext.WindowKit.Backend.Windows.Tests.PlatformPerformanceTransportTests.DisabledIngressDoesNotAllocateOrRetainAFrame",
+                    "start": "2026-11-14T16:20:18.7070422+01:00",
+                    "end": "2026-11-14T16:20:18.7088884+01:00",
+                    "message": "Assert.Equal() Failure: Values differ\r\nExpected: 0\r\nActual:   1752",
+                    "stack": "   at ModernFormsNext.WindowKit.Backend.Windows.Tests.PlatformPerformanceTransportTests.DisabledIngressDoesNotAllocateOrRetainAFrame() in [repository]\\ModernFormsNext.WindowKit.Backend.Windows.Tests\\PlatformPerformanceTransportTests.cs:line 26\r\n   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)\r\n   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)"
+                  }
+                ],
+                "evidence": [
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_18_00_net10.0.trx",
+                    "sha256": "0ee3481660b18867151a1bf2c5c7a569365964f8e8f918e466c398fa01bba42a"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_18_04_net10.0.trx",
+                    "sha256": "ab1c6cf7154ddc8f4fc6c2d1de89061a3bcca6418d003b5a94ccdcffcdb39fe4"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_18_38_net10.0.trx",
+                    "sha256": "194b97eaf98fd7ade81408660ae0e5ed4bc52e42b0ee1e70af973db07382db5c"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_18_41_net10.0.trx",
+                    "sha256": "0ca84534158138b77d1673ce11a584687b5998168ae4411440b03a2283df5687"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_19_31_net10.0.trx",
+                    "sha256": "babe7aef730ffcb088f9c85a0da5f9a73660e327c332278570029937d4d4cd45"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_19_48_net10.0.trx",
+                    "sha256": "88d09a9052bac5b2a922bc09f614ca29c4df1789d9a8bc9f857d918a61d98ca3"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_20_14_net472.trx",
+                    "sha256": "6ec3b8d4b4ff223d25563a63bb61771e4bc327b6f7f09ee1d95fbb67d687b71f"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_20_15_net10.0.trx",
+                    "sha256": "b6784a16b40c116d45f05582ab98706a6e62711edc4c3a03a0f1349ddb70310a"
+                  },
+                  {
+                    "path": "artifacts/scope-reaudit-2026-11-12/issue-272/final/tests-Release/[local-runner]_2026-11-14_16_20_18_net10.0.trx",
+                    "sha256": "975a98186eb5c32509f0d41bdb977163360c6285966050135844f513240f4ced"
+                  }
+                ]
+              }
+            },
+            "originalNativeFailure": {
+              "evidence": [
+                {
+                  "path": "artifacts/native-presentation/Debug-small-846c30b5e66b4f56848a962d9a3af8d3/client.json",
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                {
+                  "path": "artifacts/native-presentation/Debug-small-846c30b5e66b4f56848a962d9a3af8d3/client.stderr.log",
+                  "sha256": "1edd9c783005f378a405d64ac899ddbf649e12f9bd2a070a5d67245a47793b72"
+                },
+                {
+                  "path": "artifacts/native-presentation/Debug-small-846c30b5e66b4f56848a962d9a3af8d3/host.samples.log",
+                  "sha256": "52db1420e4ce44c1bae1a44e988933fafa2a65ce5dbd9b3ac0a4b5a0e5e045d8"
+                },
+                {
+                  "path": "artifacts/native-presentation/Debug-small-846c30b5e66b4f56848a962d9a3af8d3/host.stderr.log",
+                  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              ],
+              "sampleCount": 17,
+              "lastSample": {
+                "step": 17,
+                "count": 8,
+                "visible": false,
+                "bitmapCount": 0,
+                "bitmapBytes": 0,
+                "privateBytes": 30105600,
+                "managedBytes": 4931256,
+                "maxHeartbeatMs": 121.6507,
+                "actionMs": 8.7417
+              },
+              "hostAndClientLastChange": "c675b1b6984463c1af15a49249031460cfff4e5f",
+              "causeEstablished": false,
+              "humanDesktopInterferenceEstablished": false,
+              "noHistoricalMatchFoundInSearchedPrimaryArtifacts": true,
+              "retriesOrAssertionOrTimeoutOrSkipChanges": false,
+              "fullSuiteRerunToObtainPass": false
+            },
+            "separateDiagnostic": {
+              "hostPid": 13020,
+              "clientPid": 49172,
+              "clientExit": 0,
+              "configuration": "Debug",
+              "cycleCount": 100,
+              "assertionsAndTimeoutsUnchanged": true,
+              "instrumentationMayAffectTiming": true,
+              "replacesOriginalFailedRun": false,
+              "failureReproduced": false,
+              "causeEstablished": false,
+              "result": {
+                "cycles": 100,
+                "delivered": 200,
+                "elapsedMs": 2515.1291,
+                "stableIdentity": true,
+                "msaaHidden": 100,
+                "msaaShown": 200,
+                "rootHidden": 0
+              },
+              "evidence": [
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-272/presentation-diagnostic/client.json",
+                  "sha256": "78e72c35adec43a9cfa656f3f6b3bbdba280b92756f3eeef0bb252aa6d097b87"
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-272/presentation-diagnostic/client.trace.log",
+                  "sha256": "a08bd8f75d6a334bb8d178dbdb7ab135bbac2d2cef74920585a08e2cc3bad604"
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-272/presentation-diagnostic/compile.log",
+                  "sha256": "6c10b61c40c7cd66859ab55b775394e45181c7ec32c57cff64b83147cade01f9"
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-272/presentation-diagnostic/host.samples.log",
+                  "sha256": "4ac21b920747c589a22facc7c705cab57f99b9478330fb5e49815dec4a36f590"
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-272/presentation-diagnostic/host.stderr.log",
+                  "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+                },
+                {
+                  "path": "artifacts/scope-reaudit-2026-11-12/issue-272/presentation-diagnostic/result.json",
+                  "sha256": "31d7752543c4e90f5abb44837ad38c17d82f47184f4afb86c20d3f4c4c016f07"
+                }
+              ]
+            },
+            "releaseAllocationObservation": {
+              "test": "PlatformPerformanceTransportTests.DisabledIngressDoesNotAllocateOrRetainAFrame",
+              "bytes": 1752,
+              "expectedBytes": 0,
+              "identicalEarlierObservation": "issue-205/release-observation.json",
+              "earlierTrxSha256": "1744a6741c66b28e97e3f201022700cb19d7370f5a4565fdea2812cf251c237c",
+              "owningTestAndProductionUnchangedSince": "50756a11533848a45ed69e7ad903fcaba252828b",
+              "causeEstablished": false,
+              "measuredCodeIsSeparateFromIssue168": true
+            },
+            "nativeGallery": {
+              "pid": 32592,
+              "path": "[repository]\\samples\\ControlGallery\\bin\\Debug\\net10.0-windows\\ControlGallery.exe",
+              "exampleHwnd": 37356140,
+              "renderer": "software",
+              "physicalMonitors": [
+                {
+                  "index": 0,
+                  "dpi": 96,
+                  "work": {
+                    "Left": 0,
+                    "Top": 0,
+                    "Right": 1920,
+                    "Bottom": 1080
+                  }
+                },
+                {
+                  "index": 1,
+                  "dpi": 216,
+                  "work": {
+                    "Left": 1920,
+                    "Top": 0,
+                    "Right": 7040,
+                    "Bottom": 2880
+                  }
+                }
+              ],
+              "matrix": [
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;48"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;48"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;48"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;72"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;72"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;72"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;96"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;96"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 96,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1955;105;1506;96"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;60"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;60"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;60"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;90"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;90"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;90"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;120"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;120"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 120,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1961;128;1882;120"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;72"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;72"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;72"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;108"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;108"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;108"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;144"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;144"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 144,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1968;153;2259;144"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;84"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;84"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;84"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;126"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;126"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;126"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;168"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;168"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 168,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1974;176;2635;168"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;96"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;96"
+                },
+                {
+                  "textPercent": 100,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;96"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;144"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;144"
+                },
+                {
+                  "textPercent": 150,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;144"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Left",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;192"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Center",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;192"
+                },
+                {
+                  "textPercent": 200,
+                  "nativeDpi": 216,
+                  "alignment": "Right",
+                  "injectedDpi": 192,
+                  "caption": "Integration Sample",
+                  "captionBounds": "1980;200;3012;192"
+                }
+              ],
+              "screenshots": [
+                "gallery-physical-0-dpi-96.png",
+                "gallery-physical-1-dpi-216.png",
+                "gallery-dpi-100-text-100-Left.png",
+                "gallery-dpi-100-text-100-Center.png",
+                "gallery-dpi-100-text-100-Right.png",
+                "gallery-dpi-200-text-200-Left.png",
+                "gallery-dpi-200-text-200-Center.png",
+                "gallery-dpi-200-text-200-Right.png"
+              ],
+              "manualHumanReview": false,
+              "displaySettingsChanged": false,
+              "visuallyInspectedByAgent": [
+                "gallery-dpi-100-text-100-Left.png",
+                "gallery-dpi-200-text-200-Right.png",
+                "gallery-physical-1-dpi-216.png"
+              ],
+              "inspection": "Full fitting titles and long caption; ellipsis in narrow/image fields. Software capture, no human physical-monitor review."
+            }
+          }
+        }
+      ],
+      "nextIssues": [
+        162,
+        163,
+        132,
+        40,
+        168,
+        131,
+        133
+      ],
+      "releaseApproved": false
     }
   ]
 }

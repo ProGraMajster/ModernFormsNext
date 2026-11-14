@@ -338,7 +338,14 @@ public class CarouselView : Control
             var lifetime = owner is null ? null : new AccessibilityControlLifetime(owner);
             long request = owner?.requestVersion ?? 0, version = ItemsGeneration;
             base.OnScroll(e);
-            if (owner is not null && !owner.snapping && !DirectScroll && ActiveGesture is null &&
+            // Scroll now also reports layout/range resets and programmatic navigation. Those
+            // preserve the selected occurrence; only current input on the page axis selects a
+            // nearest page. In particular an orientation change resets the former axis first.
+            bool pageAxis = e.ScrollOrientation == (ItemOrientation == Orientation.Horizontal
+                ? ScrollOrientation.HorizontalScroll : ScrollOrientation.VerticalScroll);
+            int position = ItemOrientation == Orientation.Horizontal ? TouchScrollPosition.X : TouchScrollPosition.Y;
+            if (pageAxis && e.Type != ScrollEventType.ThumbPosition && e.NewValue == position &&
+                owner is not null && !owner.snapping && !DirectScroll && ActiveGesture is null &&
                 lifetime?.IsCurrent == true && request == owner.requestVersion &&
                 version == ItemsGeneration && ItemCount > 0 && SelectedIndex >= 0)
                 owner.SelectedIndex = NearestPage(e.NewValue);
