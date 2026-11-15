@@ -192,7 +192,7 @@ internal sealed class DesignerSettingsDialog : Form
                 return;
 
             candidate = await preview.CaptureAsync(project, picker.FileNames.ToArray());
-            if (dialogClosed)
+            if (candidate is null || dialogClosed)
                 return;
             using var consent = new ExecutablePreviewApprovalDialog(T("ApproveExecutablePreview"), T("PreviewApprovalNotice"),
                 T("ApproveBuild"), T("Cancel"), candidate.Digest, candidate.Summary);

@@ -104,7 +104,9 @@ public sealed class ExecutablePreviewTests
         // The test owns this thread and has no synchronization context. The modeled editor
         // callbacks below must run here to exercise the transaction manager's thread contract.
 #pragma warning disable VSTHRD002
-        controller.EnableAsync(environment.CurrentProjectPath, snapshot).WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        var candidate = controller.CaptureAsync(environment.CurrentProjectPath, []).WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        controller.EnableAsync(environment.CurrentProjectPath, Assert.IsType<ControlledSnapshot>(candidate))
+            .WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
         Assert.Null(controller.GetRaster(node, 1, 1, 1));
         Assert.True(snapshot.Started.Wait(TimeSpan.FromSeconds(5)));
@@ -137,6 +139,47 @@ public sealed class ExecutablePreviewTests
         Assert.Null(controller.GetRaster(node, 1, 1, 1));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClosingRetiresAnUnapprovedSnapshotExactlyOnce(bool captureInFlight)
+        => await Task.Run(() => CheckCaptureCleanup(captureInFlight));
+
+    private static void CheckCaptureCleanup(bool captureInFlight)
+    {
+        var environment = new ProjectEnvironment();
+        using var session = new DesignerSession(environment);
+        var snapshot = new ControlledSnapshot();
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim(!captureInFlight);
+        var backend = new Backend(snapshot, () =>
+        {
+            started.Set();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(5)));
+        });
+        using var controller = new ExecutablePreviewController(session, backend, new QueuedDispatcher());
+        var capture = controller.CaptureAsync(environment.CurrentProjectPath, []);
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+
+        // Both the dialog and shutdown normally run on the same Designer thread.
+#pragma warning disable VSTHRD002
+        if (!captureInFlight)
+            Assert.Same(snapshot, capture.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult());
+
+        controller.Dispose();
+        release.Set();
+        if (captureInFlight)
+            Assert.Null(capture.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult());
+
+        // A dialog can also finish closing after the Designer has already taken ownership.
+        controller.Discard(snapshot);
+        controller.EnableAsync(environment.CurrentProjectPath, snapshot).GetAwaiter().GetResult();
+        controller.Cleanup.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+        Assert.False(controller.IsEnabled);
+        Assert.Equal(1, snapshot.DisposeCount);
+    }
+
     private sealed class QueuedDispatcher : IDesignerUiDispatcher
     {
         private readonly ConcurrentQueue<Action> callbacks = new();
@@ -165,9 +208,13 @@ public sealed class ExecutablePreviewTests
         public void ReportOutput(string message) => Output.Add(message);
     }
 
-    private sealed class Backend(ControlledSnapshot snapshot) : IExecutablePreviewBackend
+    private sealed class Backend(ControlledSnapshot snapshot, Action? beforeCapture = null) : IExecutablePreviewBackend
     {
-        public IExecutablePreviewSnapshot Capture(string project, IReadOnlyList<string> files) => snapshot;
+        public IExecutablePreviewSnapshot Capture(string project, IReadOnlyList<string> files)
+        {
+            beforeCapture?.Invoke();
+            return snapshot;
+        }
     }
 
     private sealed class ControlledSnapshot : IExecutablePreviewSnapshot
@@ -176,6 +223,8 @@ public sealed class ExecutablePreviewTests
         public IReadOnlyList<string> Summary => [];
         public event Action? SourcesChanged { add { } remove { } }
         internal int RenderCount { get; private set; }
+        private int disposeCount;
+        internal int DisposeCount => Volatile.Read(ref disposeCount);
         internal ManualResetEventSlim Started { get; } = new();
         internal TaskCompletionSource<PreviewOutcome> Result { get; private set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task VerifyAsync(CancellationToken ct) => Task.CompletedTask;
@@ -193,7 +242,11 @@ public sealed class ExecutablePreviewTests
             Started.Reset();
             Result = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
-        public void Dispose() => Started.Dispose();
+        public void Dispose()
+        {
+            Interlocked.Increment(ref disposeCount);
+            Started.Dispose();
+        }
     }
 
     private static PreviewRequest Request()

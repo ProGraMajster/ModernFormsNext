@@ -181,7 +181,8 @@ timeout and check that the button remains selected and can be undone and redone.
 Modify the fixture, rebuild, observe revocation and reapprove. On close or
 revocation, confirm that the owned worker, profile and staging data are retired.
 Check the Visual Studio output and per-process Designer host log in the temporary
-directory.
+directory. Repeat while the artifact copy is in progress and while the consent
+review is open. Closing must retire the staged copy in both cases.
 
 Every frame has a session, request number, document revision and node number.
 The request also carries the approved SHA-256 digest. A request is limited to

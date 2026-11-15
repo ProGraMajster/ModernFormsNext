@@ -32,6 +32,7 @@ internal sealed class ExecutablePreviewController : IDisposable
     private readonly IDesignerUiDispatcher dispatcher;
     private readonly Dictionary<DesignControlNode, Entry> entries = new(ReferenceEqualityComparer.Instance);
     private Approval? approval;
+    private Task<IExecutablePreviewSnapshot>? pendingCapture;
     private Task? activeTask;
     private Task cleanup = Task.CompletedTask;
     private CancellationTokenSource? activeRender;
@@ -52,14 +53,35 @@ internal sealed class ExecutablePreviewController : IDisposable
     internal bool IsEnabled => approval is not null;
     internal event Action? Changed;
 
-    internal Task<IExecutablePreviewSnapshot> CaptureAsync(string project, IReadOnlyList<string> files)
-        => Task.Run(() => backend.Capture(project, files));
+    internal async Task<IExecutablePreviewSnapshot?> CaptureAsync(string project, IReadOnlyList<string> files)
+    {
+        if (disposed || pendingCapture is not null)
+            return null;
+
+        // The controller owns the staged copy from the moment capture starts. Closing the UI can
+        // abandon a dialog continuation while the copy is in flight or consent is still pending.
+        var work = Task.Run(() => backend.Capture(project, files));
+        pendingCapture = work;
+        try
+        {
+            var candidate = await work;
+            return ReferenceEquals(pendingCapture, work) ? candidate : null;
+        }
+        catch
+        {
+            if (ReferenceEquals(pendingCapture, work))
+                pendingCapture = null;
+            throw;
+        }
+    }
 
     // Must be called only after confirmation in DesignerSettingsDialog. A captured
     // snapshot contains exactly the bytes shown in the approval dialog.
     internal async Task EnableAsync(string project, IExecutablePreviewSnapshot candidate)
     {
-        if (disposed || !string.Equals(project, session.CurrentProjectPath, StringComparison.OrdinalIgnoreCase))
+        if (!DetachCapture(candidate))
+            return;
+        if (!string.Equals(project, session.CurrentProjectPath, StringComparison.OrdinalIgnoreCase))
         {
             Retire(candidate);
             return;
@@ -116,9 +138,24 @@ internal sealed class ExecutablePreviewController : IDisposable
 
     internal Task Cleanup => cleanup;
 
-    internal void Discard(IExecutablePreviewSnapshot snapshot) => Retire(snapshot);
+    internal void Discard(IExecutablePreviewSnapshot snapshot)
+    {
+        if (DetachCapture(snapshot))
+            Retire(snapshot);
+    }
+
+    private bool DetachCapture(IExecutablePreviewSnapshot snapshot)
+    {
+        if (pendingCapture is not { IsCompletedSuccessfully: true } work || !ReferenceEquals(work.Result, snapshot))
+            return false;
+        pendingCapture = null;
+        return true;
+    }
 
     private void Retire(IExecutablePreviewSnapshot snapshot, Task? work = null, CancellationTokenSource? lifetime = null)
+        => Retire(Task.FromResult(snapshot), work, lifetime);
+
+    private void Retire(Task<IExecutablePreviewSnapshot> staged, Task? work = null, CancellationTokenSource? lifetime = null)
     {
         lifetime?.Cancel();
         var removal = Task.Run(async () =>
@@ -129,6 +166,13 @@ internal sealed class ExecutablePreviewController : IDisposable
                 {
                     try { await work.ConfigureAwait(false); }
                     catch (Exception error) when (error is not OutOfMemoryException) { }
+                }
+                IExecutablePreviewSnapshot snapshot;
+                try { snapshot = await staged.ConfigureAwait(false); }
+                catch (Exception error) when (error is not OutOfMemoryException)
+                {
+                    // The backend owns cleanup after a failed capture.
+                    return;
                 }
                 snapshot.Dispose();
             }
@@ -255,6 +299,11 @@ internal sealed class ExecutablePreviewController : IDisposable
         session.DocumentChanged -= OnDocumentChanged;
         session.DocumentTabsChanged -= OnTabsChanged;
         Changed = null;
+        if (pendingCapture is { } staged)
+        {
+            pendingCapture = null;
+            Retire(staged);
+        }
         Disable();
     }
 
