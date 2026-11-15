@@ -39,6 +39,7 @@ internal static class Program
 
             Write(output, key, PreviewMessage.Ready, []);
             var packet = PreviewWire.ReadAsync(input, key, PreviewMessage.Request, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            PreviewWire.RequireEndOfStreamAsync(input, CancellationToken.None).AsTask().GetAwaiter().GetResult();
             Render(PreviewWire.Decode(packet.Payload), key, output);
             return 0;
         }

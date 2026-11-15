@@ -47,6 +47,29 @@ public sealed class ExecutablePreviewTests
     }
 
     [Fact]
+    public async Task RejectsAnInRangeRasterWithTheWrongSizeBeforeReadingItsPayload()
+    {
+        var key = new PreviewKey(Guid.NewGuid(), 1, 0, 1);
+        using var serialized = new MemoryStream();
+        await PreviewWire.WriteAsync(serialized, key, PreviewMessage.Result, new byte[8], default);
+        using var headerOnly = new MemoryStream(serialized.ToArray()[..64]);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            PreviewWire.ReadAsync(headerOnly, key, PreviewMessage.Result, default, expectedResultLength: 4).AsTask());
+    }
+
+    [Fact]
+    public async Task RejectsAnAdditionalFrameAfterACompleteResult()
+    {
+        var key = new PreviewKey(Guid.NewGuid(), 1, 0, 1);
+        using var stream = new MemoryStream();
+        await PreviewWire.WriteAsync(stream, key, PreviewMessage.Result, new byte[4], default);
+        await PreviewWire.WriteAsync(stream, key, PreviewMessage.Result, new byte[4], default);
+        stream.Position = 0;
+        await PreviewWire.ReadAsync(stream, key, PreviewMessage.Result, default, expectedResultLength: 4);
+        await Assert.ThrowsAsync<InvalidDataException>(() => PreviewWire.RequireEndOfStreamAsync(stream, default).AsTask());
+    }
+
+    [Fact]
     public async Task HostRejectsARequestOrASecondReadyAsAReply()
     {
         var key = new PreviewKey(Guid.NewGuid(), 1, 0, 1);
@@ -82,8 +105,8 @@ public sealed class ExecutablePreviewTests
     }
 
     [Fact]
-    public async Task FailureAndStaleFrameDoNotChangeDocumentHistorySelectionOrDirtyState()
-        => await Task.Run(CheckDocumentOnOneThread);
+    public Task FailureAndStaleFrameDoNotChangeDocumentHistorySelectionOrDirtyState()
+        => RunOnDesignerThreadAsync(CheckDocumentOnOneThread);
 
     private static void CheckDocumentOnOneThread()
     {
@@ -142,8 +165,8 @@ public sealed class ExecutablePreviewTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ClosingRetiresAnUnapprovedSnapshotExactlyOnce(bool captureInFlight)
-        => await Task.Run(() => CheckCaptureCleanup(captureInFlight));
+    public Task ClosingRetiresAnUnapprovedSnapshotExactlyOnce(bool captureInFlight)
+        => RunOnDesignerThreadAsync(() => CheckCaptureCleanup(captureInFlight));
 
     private static void CheckCaptureCleanup(bool captureInFlight)
     {
@@ -178,6 +201,13 @@ public sealed class ExecutablePreviewTests
 #pragma warning restore VSTHRD002
         Assert.False(controller.IsEnabled);
         Assert.Equal(1, snapshot.DisposeCount);
+    }
+
+    private static Task RunOnDesignerThreadAsync(Action test)
+    {
+        // The modeled editor waits for background work. Give it a dedicated thread so it
+        // does not occupy the same pool that runs file capture and preview callbacks.
+        return Task.Factory.StartNew(test, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
 
     private sealed class QueuedDispatcher : IDesignerUiDispatcher
