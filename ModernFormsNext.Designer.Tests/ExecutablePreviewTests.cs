@@ -106,7 +106,7 @@ public sealed class ExecutablePreviewTests
 
     [Fact]
     public Task FailureAndStaleFrameDoNotChangeDocumentHistorySelectionOrDirtyState()
-        => RunOnDesignerThread(CheckDocumentOnOneThread);
+        => RunOnDesignerThreadAsync(CheckDocumentOnOneThread);
 
     private static void CheckDocumentOnOneThread()
     {
@@ -166,7 +166,7 @@ public sealed class ExecutablePreviewTests
     [InlineData(false)]
     [InlineData(true)]
     public Task ClosingRetiresAnUnapprovedSnapshotExactlyOnce(bool captureInFlight)
-        => RunOnDesignerThread(() => CheckCaptureCleanup(captureInFlight));
+        => RunOnDesignerThreadAsync(() => CheckCaptureCleanup(captureInFlight));
 
     private static void CheckCaptureCleanup(bool captureInFlight)
     {
@@ -203,7 +203,7 @@ public sealed class ExecutablePreviewTests
         Assert.Equal(1, snapshot.DisposeCount);
     }
 
-    private static Task RunOnDesignerThread(Action test)
+    private static Task RunOnDesignerThreadAsync(Action test)
     {
         // The modeled editor waits for background work. Give it a dedicated thread so it
         // does not occupy the same pool that runs file capture and preview callbacks.
