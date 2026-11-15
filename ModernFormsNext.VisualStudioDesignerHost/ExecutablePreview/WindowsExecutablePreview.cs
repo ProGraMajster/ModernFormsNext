@@ -90,14 +90,18 @@ internal sealed class WindowsExecutablePreview(string workerPath) : IExecutableP
                     throw new PlatformNotSupportedException("No local IPv4 interface for the admission controls.");
                 listener.Start(backlog: 4);
                 int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-                datagrams.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+                // TCP and UDP use independent port namespaces. Let each bind to an available
+                // ephemeral port, including on machines with another protocol already using the TCP port.
+                datagrams.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
+                int datagramPort = ((IPEndPoint)datagrams.Client.LocalEndPoint!).Port;
                 foreach (var local in new[] { IPAddress.Loopback, address })
-                    await VerifyReachableAsync(local, port, datagrams, deadline.Token).ConfigureAwait(false);
+                    await VerifyReachableAsync(local, port, datagramPort, datagrams, deadline.Token).ConfigureAwait(false);
 
                 listener6.Start(backlog: 2);
                 int port6 = ((IPEndPoint)listener6.LocalEndpoint).Port;
-                datagrams6.Client.Bind(new IPEndPoint(IPAddress.IPv6Loopback, port6));
-                await VerifyReachableAsync(IPAddress.IPv6Loopback, port6, datagrams6, deadline.Token).ConfigureAwait(false);
+                datagrams6.Client.Bind(new IPEndPoint(IPAddress.IPv6Loopback, 0));
+                int datagramPort6 = ((IPEndPoint)datagrams6.Client.LocalEndPoint!).Port;
+                await VerifyReachableAsync(IPAddress.IPv6Loopback, port6, datagramPort6, datagrams6, deadline.Token).ConfigureAwait(false);
 
                 string pipeName = "ModernFormsNext.PreviewProbe." + Guid.NewGuid().ToString("N");
                 using var desktopPipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1,
@@ -111,7 +115,7 @@ internal sealed class WindowsExecutablePreview(string workerPath) : IExecutableP
                 desktopPipe.Disconnect();
 
                 var key = new PreviewKey(Guid.NewGuid(), 1, 0, 0);
-                using var process = candidate.Start(key, new(address.ToString(), port, port6, pipeName));
+                using var process = candidate.Start(key, new(address.ToString(), port, datagramPort, port6, datagramPort6, pipeName));
                 using var kill = deadline.Token.Register(process.Kill);
                 PreviewPacket result;
                 try
@@ -136,13 +140,12 @@ internal sealed class WindowsExecutablePreview(string workerPath) : IExecutableP
             }
         }
 
-        private static async Task VerifyReachableAsync(IPAddress address, int port, UdpClient listener, CancellationToken ct)
+        private static async Task VerifyReachableAsync(IPAddress address, int tcpPort, int udpPort, UdpClient listener, CancellationToken ct)
         {
-            var endpoint = new IPEndPoint(address, port);
             using var client = new TcpClient(address.AddressFamily);
-            await client.ConnectAsync(endpoint, ct).ConfigureAwait(false);
+            await client.ConnectAsync(address, tcpPort, ct).ConfigureAwait(false);
             using var sender = new UdpClient(address.AddressFamily);
-            await sender.SendAsync(new byte[] { 0x50 }, endpoint, ct).ConfigureAwait(false);
+            await sender.SendAsync(new byte[] { 0x50 }, new IPEndPoint(address, udpPort), ct).ConfigureAwait(false);
             if ((await listener.ReceiveAsync(ct).ConfigureAwait(false)).Buffer is not [0x50])
                 throw new InvalidDataException("The local UDP positive control failed.");
         }

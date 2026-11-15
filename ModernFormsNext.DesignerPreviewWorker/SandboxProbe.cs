@@ -21,21 +21,23 @@ internal static class SandboxProbe
         string profile = Environment.GetEnvironmentVariable("MFN_PREVIEW_PROFILE_ROOT")!;
         string profileName = Environment.GetEnvironmentVariable("MFN_PREVIEW_PROFILE_NAME")!;
         string address = Environment.GetEnvironmentVariable("MFN_PREVIEW_ADDRESS")!;
-        int port = int.Parse(Environment.GetEnvironmentVariable("MFN_PREVIEW_PORT")!, System.Globalization.CultureInfo.InvariantCulture);
-        int port6 = int.Parse(Environment.GetEnvironmentVariable("MFN_PREVIEW_IPV6_PORT")!, System.Globalization.CultureInfo.InvariantCulture);
+        int tcp4 = ReadNumber("MFN_PREVIEW_TCP4");
+        int udp4 = ReadNumber("MFN_PREVIEW_UDP4");
+        int tcp6 = ReadNumber("MFN_PREVIEW_TCP6");
+        int udp6 = ReadNumber("MFN_PREVIEW_UDP6");
         string pipe = Environment.GetEnvironmentVariable("MFN_PREVIEW_PIPE")!;
-        int parent = int.Parse(Environment.GetEnvironmentVariable("MFN_PREVIEW_PARENT")!, System.Globalization.CultureInfo.InvariantCulture);
+        int parent = ReadNumber("MFN_PREVIEW_PARENT");
         byte failed = 0;
         int nativeError = 0;
         Check(1, () => File.ReadAllText(scratch) == "preview scratch");
         Check(2, () => File.ReadAllText(snapshot) == "preview readonly" && Denied(() => File.WriteAllText(snapshot, "probe")));
         Check(3, () => Denied(() => File.ReadAllText(outside)) && Denied(() => File.AppendAllText(outside, "probe")));
-        Check(4, () => TcpDenied(IPAddress.Loopback, port));
-        Check(5, () => TcpDenied(IPAddress.Parse(address), port));
+        Check(4, () => TcpDenied(IPAddress.Loopback, tcp4));
+        Check(5, () => TcpDenied(IPAddress.Parse(address), tcp4));
         Check(6, () => HostDenied(parent));
         Check(7, ChildDenied);
-        Check(8, () => UdpDenied(IPAddress.Loopback, port));
-        Check(9, () => UdpDenied(IPAddress.Parse(address), port));
+        Check(8, () => UdpDenied(IPAddress.Loopback, udp4));
+        Check(9, () => UdpDenied(IPAddress.Parse(address), udp4));
         string removedProfileFile = FilePath.Combine(profile, "AC", "preview-canary");
         Check(10, () => NativeWriteDenied(removedProfileFile, create: true, out nativeError) || nativeError == 3);
         Check(11, () => CannotRecreateProfileDirectory(profile, out nativeError));
@@ -43,8 +45,8 @@ internal static class SandboxProbe
         Check(13, () => NativeWriteDenied(scratch + ".new", create: true, out nativeError));
         Check(14, () => CannotRecreateProfile(profileName, out nativeError));
         Check(15, () => NoWritableProfileRegistry(out nativeError));
-        Check(16, () => TcpDenied(IPAddress.IPv6Loopback, port6));
-        Check(17, () => UdpDenied(IPAddress.IPv6Loopback, port6));
+        Check(16, () => TcpDenied(IPAddress.IPv6Loopback, tcp6));
+        Check(17, () => UdpDenied(IPAddress.IPv6Loopback, udp6));
         Check(18, () => DesktopPipeDenied(pipe, out nativeError));
         byte[] result = new byte[PreviewWire.ProbeResultLength];
         result[0] = failed;
@@ -66,6 +68,9 @@ internal static class SandboxProbe
             }
         }
     }
+
+    private static int ReadNumber(string name)
+        => int.Parse(Environment.GetEnvironmentVariable(name)!, System.Globalization.CultureInfo.InvariantCulture);
 
     private static bool NativeWriteDenied(string path, bool create, out int error)
     {

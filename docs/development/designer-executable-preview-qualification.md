@@ -64,8 +64,15 @@ requires qualification.
 | Windows 11 Home 26H2 x64 build 26300.9711, .NET 10 runtime | Broker admission passed on a standard-user desktop. The worker was able to read its staged runtime. Native writes to read-only temporary storage, attempts to recreate the retired profile and writable profile-registry access failed. Hostile raster sizes and trailing frames are covered by protocol tests. |
 | Controlled local network | Positive TCP and UDP controls on IPv4 loopback, one local IPv4 interface and IPv6 loopback reached broker-owned endpoints. Corresponding LPAC operations were denied. A broker-owned desktop named pipe accepted the unrestricted client and rejected the worker. |
 | Real managed controls | A separately built control project rendered the expected Skia pixels under the new policy. Controlled constructor, property, layout, paint and Dispose failures returned their diagnostic phase. Paint timeout and abrupt process exit left a later healthy worker able to render. |
-| Other Windows and Visual Studio configurations | Pending. Repeat the signed-package or local qualification-package workflow on supported Windows 11 x64 builds and Visual Studio versions. Record Windows edition and build, process architecture, Visual Studio build, .NET runtime version and exact VSIX hash. |
+| Other Windows and Visual Studio configurations | Pending. Start with Windows 11 24H2 and 25H2 x64 test guests and the x64 Visual Studio 17.x and 18.x installations covered by the VSIX manifest. Record Windows edition and build, process architecture, Visual Studio build, .NET runtime version and exact VSIX hash. Manifest installation targets are candidates for qualification. |
 | Controlled remote IPv4 and IPv6, expanded OS broker tests | Pending. Use isolated test guests with owned TCP and UDP listeners and a disposable local account. Use synthetic markers for files, registry and shell or COM operations. Keep default host firewall rules and test the positive endpoint before testing the LPAC deny path. |
+
+The installer smoke on Windows 11 Home used Visual Studio 18.12.12405.243 in
+a private experimental profile. A native NTFS opportunistic lock on a synthetic
+selected DLL made the pre-consent capture deterministic for the shutdown test.
+The Designer retired staging after the lock was released. Closing with consent
+visible, rebuilding and reapproving the fixture, a busy paint loop, and two
+documents with independent histories also passed on this configuration.
 
 Use the installed-VSIX reproduction in
 [the Designer isolation design](designer-executable-preview-isolation.md).

@@ -285,7 +285,7 @@ internal sealed class LpacPreviewLauncher : IDisposable
         nint handles = Marshal.AllocHGlobal(2 * IntPtr.Size);
         string system = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         string extras = probe is not { } endpoints ? "" :
-            FormattableString.Invariant($"MFN_PREVIEW_ADDRESS={endpoints.Address}\0MFN_PREVIEW_CANARY={FilePath.Combine(snapshot.Root, "outside.txt")}\0MFN_PREVIEW_PARENT={Environment.ProcessId}\0MFN_PREVIEW_PORT={endpoints.Ipv4Port}\0MFN_PREVIEW_IPV6_PORT={endpoints.Ipv6Port}\0MFN_PREVIEW_PIPE={endpoints.PipeName}\0MFN_PREVIEW_PROFILE_ROOT={profileRoot}\0MFN_PREVIEW_PROFILE_NAME={snapshot.Owner}\0");
+            FormattableString.Invariant($"MFN_PREVIEW_ADDRESS={endpoints.Address}\0MFN_PREVIEW_CANARY={FilePath.Combine(snapshot.Root, "outside.txt")}\0MFN_PREVIEW_PARENT={Environment.ProcessId}\0MFN_PREVIEW_TCP4={endpoints.Ipv4TcpPort}\0MFN_PREVIEW_UDP4={endpoints.Ipv4UdpPort}\0MFN_PREVIEW_TCP6={endpoints.Ipv6TcpPort}\0MFN_PREVIEW_UDP6={endpoints.Ipv6UdpPort}\0MFN_PREVIEW_PIPE={endpoints.PipeName}\0MFN_PREVIEW_PROFILE_ROOT={profileRoot}\0MFN_PREVIEW_PROFILE_NAME={snapshot.Owner}\0");
         // No inherited PATH, CLR profiler settings, user profile paths or project environment.
         nint environment = Marshal.StringToHGlobalUni(
             $"LOCALAPPDATA={snapshot.Scratch}\0{extras}SystemRoot={system}\0TEMP={snapshot.Scratch}\0TMP={snapshot.Scratch}\0\0");
@@ -432,7 +432,7 @@ internal sealed class LpacPreviewLauncher : IDisposable
 
     public void Dispose() => FreeSid(sid);
 
-    internal readonly record struct NetworkProbe(string Address, int Ipv4Port, int Ipv6Port, string PipeName);
+    internal readonly record struct NetworkProbe(string Address, int Ipv4TcpPort, int Ipv4UdpPort, int Ipv6TcpPort, int Ipv6UdpPort, string PipeName);
 
     internal sealed class WorkerProcess(SafeFileHandle job, nint process, Stream input, Stream output, Action<bool> complete) : IDisposable
     {
