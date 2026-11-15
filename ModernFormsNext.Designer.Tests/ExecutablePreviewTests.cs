@@ -105,8 +105,8 @@ public sealed class ExecutablePreviewTests
     }
 
     [Fact]
-    public async Task FailureAndStaleFrameDoNotChangeDocumentHistorySelectionOrDirtyState()
-        => await Task.Run(CheckDocumentOnOneThread);
+    public Task FailureAndStaleFrameDoNotChangeDocumentHistorySelectionOrDirtyState()
+        => RunOnDesignerThread(CheckDocumentOnOneThread);
 
     private static void CheckDocumentOnOneThread()
     {
@@ -165,8 +165,8 @@ public sealed class ExecutablePreviewTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ClosingRetiresAnUnapprovedSnapshotExactlyOnce(bool captureInFlight)
-        => await Task.Run(() => CheckCaptureCleanup(captureInFlight));
+    public Task ClosingRetiresAnUnapprovedSnapshotExactlyOnce(bool captureInFlight)
+        => RunOnDesignerThread(() => CheckCaptureCleanup(captureInFlight));
 
     private static void CheckCaptureCleanup(bool captureInFlight)
     {
@@ -201,6 +201,13 @@ public sealed class ExecutablePreviewTests
 #pragma warning restore VSTHRD002
         Assert.False(controller.IsEnabled);
         Assert.Equal(1, snapshot.DisposeCount);
+    }
+
+    private static Task RunOnDesignerThread(Action test)
+    {
+        // The modeled editor waits for background work. Give it a dedicated thread so it
+        // does not occupy the same pool that runs file capture and preview callbacks.
+        return Task.Factory.StartNew(test, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
 
     private sealed class QueuedDispatcher : IDesignerUiDispatcher
