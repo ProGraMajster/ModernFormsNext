@@ -47,6 +47,29 @@ public sealed class ExecutablePreviewTests
     }
 
     [Fact]
+    public async Task RejectsAnInRangeRasterWithTheWrongSizeBeforeReadingItsPayload()
+    {
+        var key = new PreviewKey(Guid.NewGuid(), 1, 0, 1);
+        using var serialized = new MemoryStream();
+        await PreviewWire.WriteAsync(serialized, key, PreviewMessage.Result, new byte[8], default);
+        using var headerOnly = new MemoryStream(serialized.ToArray()[..64]);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            PreviewWire.ReadAsync(headerOnly, key, PreviewMessage.Result, default, expectedResultLength: 4).AsTask());
+    }
+
+    [Fact]
+    public async Task RejectsAnAdditionalFrameAfterACompleteResult()
+    {
+        var key = new PreviewKey(Guid.NewGuid(), 1, 0, 1);
+        using var stream = new MemoryStream();
+        await PreviewWire.WriteAsync(stream, key, PreviewMessage.Result, new byte[4], default);
+        await PreviewWire.WriteAsync(stream, key, PreviewMessage.Result, new byte[4], default);
+        stream.Position = 0;
+        await PreviewWire.ReadAsync(stream, key, PreviewMessage.Result, default, expectedResultLength: 4);
+        await Assert.ThrowsAsync<InvalidDataException>(() => PreviewWire.RequireEndOfStreamAsync(stream, default).AsTask());
+    }
+
+    [Fact]
     public async Task HostRejectsARequestOrASecondReadyAsAReply()
     {
         var key = new PreviewKey(Guid.NewGuid(), 1, 0, 1);

@@ -10,6 +10,7 @@ internal static class PreviewWire
     internal const int MaxEdge = 1024;
     internal const int MaxRaster = MaxEdge * MaxEdge * 4;
     internal const int MaxRequest = 64 * 1024;
+    internal const int ProbeResultLength = 5;
     private const int HeaderSize = 64;
     private const uint Magic = 0x3150464d; // MFP1
     private static readonly JsonSerializerOptions Json = new()
@@ -37,7 +38,8 @@ internal static class PreviewWire
         await stream.FlushAsync(ct).ConfigureAwait(false);
     }
 
-    internal static async ValueTask<PreviewPacket> ReadAsync(Stream stream, PreviewKey expected, PreviewMessage expectedKind, CancellationToken ct)
+    internal static async ValueTask<PreviewPacket> ReadAsync(Stream stream, PreviewKey expected, PreviewMessage expectedKind,
+        CancellationToken ct, int? expectedResultLength = null)
     {
         byte[] buffer = new byte[HeaderSize];
         await stream.ReadExactlyAsync(buffer, ct).ConfigureAwait(false);
@@ -51,11 +53,19 @@ internal static class PreviewWire
         int length = BinaryPrimitives.ReadInt32LittleEndian(buffer.AsSpan(44));
         bool expectedResponse = expectedKind == PreviewMessage.Result &&
             kind is PreviewMessage.Phase or PreviewMessage.Result or PreviewMessage.Failure;
-        if (key != expected || !IsLengthAllowed(kind, length) || (!expectedResponse && kind != expectedKind))
+        if (key != expected || !IsLengthAllowed(kind, length) || (!expectedResponse && kind != expectedKind) ||
+            (kind == PreviewMessage.Result && expectedResultLength is int resultLength && length != resultLength))
             throw new InvalidDataException("Unexpected preview message.");
         byte[] payload = new byte[length];
         await stream.ReadExactlyAsync(payload, ct).ConfigureAwait(false);
         return new PreviewPacket(kind, payload);
+    }
+
+    internal static async ValueTask RequireEndOfStreamAsync(Stream stream, CancellationToken ct)
+    {
+        var extra = new byte[1];
+        if (await stream.ReadAsync(extra, ct).ConfigureAwait(false) != 0)
+            throw new InvalidDataException("Unexpected bytes after the terminal preview frame.");
     }
 
     private static bool IsLengthAllowed(PreviewMessage kind, int length) => kind switch

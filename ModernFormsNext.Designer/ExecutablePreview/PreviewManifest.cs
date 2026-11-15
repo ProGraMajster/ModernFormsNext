@@ -12,7 +12,7 @@ internal static class PreviewManifest
     internal static string GetDigest(IEnumerable<(string Name, string Hash)> files)
     {
         // Policy prefix invalidates a prior digest if the approved authority ever changes.
-        var manifest = new StringBuilder("ModernFormsNext Windows LPAC static preview v1\n");
+        var manifest = new StringBuilder("ModernFormsNext Windows LPAC Untrusted static preview v2\n");
         foreach (var file in files.OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase))
             manifest.Append(file.Name).Append(':').Append(file.Hash).Append('\n');
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(manifest.ToString())));

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO.Pipes;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -79,47 +80,71 @@ internal sealed class WindowsExecutablePreview(string workerPath) : IExecutableP
                 .FirstOrDefault(item => item.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(item));
             var listener = new TcpListener(IPAddress.Any, 0);
             using var datagrams = new UdpClient(AddressFamily.InterNetwork);
+            var listener6 = new TcpListener(IPAddress.IPv6Loopback, 0);
+            using var datagrams6 = new UdpClient(AddressFamily.InterNetworkV6);
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
             deadline.CancelAfter(TimeSpan.FromSeconds(8));
             try
             {
-                int port = 0;
-                if (address is not null)
+                if (address is null)
+                    throw new PlatformNotSupportedException("No local IPv4 interface for the admission controls.");
+                listener.Start(backlog: 4);
+                int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                datagrams.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+                foreach (var local in new[] { IPAddress.Loopback, address })
+                    await VerifyReachableAsync(local, port, datagrams, deadline.Token).ConfigureAwait(false);
+
+                listener6.Start(backlog: 2);
+                int port6 = ((IPEndPoint)listener6.LocalEndpoint).Port;
+                datagrams6.Client.Bind(new IPEndPoint(IPAddress.IPv6Loopback, port6));
+                await VerifyReachableAsync(IPAddress.IPv6Loopback, port6, datagrams6, deadline.Token).ConfigureAwait(false);
+
+                string pipeName = "ModernFormsNext.PreviewProbe." + Guid.NewGuid().ToString("N");
+                using var desktopPipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1,
+                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                using (var positive = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous))
                 {
-                    listener.Start(backlog: 4);
-                    port = ((IPEndPoint)listener.LocalEndpoint).Port;
-                    datagrams.Client.Bind(new IPEndPoint(IPAddress.Any, port));
-                    foreach (var local in new[] { IPAddress.Loopback, address })
-                    {
-                        using var client = new TcpClient(AddressFamily.InterNetwork);
-                        var endpoint = new IPEndPoint(local, port);
-                        await client.ConnectAsync(endpoint, deadline.Token).ConfigureAwait(false);
-                        using var sender = new UdpClient(AddressFamily.InterNetwork);
-                        await sender.SendAsync(new byte[] { 0x50 }, endpoint, deadline.Token).ConfigureAwait(false);
-                        if ((await datagrams.ReceiveAsync(deadline.Token).ConfigureAwait(false)).Buffer is not [0x50])
-                            throw new InvalidDataException("The local UDP positive control failed.");
-                    }
+                    var accept = desktopPipe.WaitForConnectionAsync(deadline.Token);
+                    await positive.ConnectAsync(deadline.Token).ConfigureAwait(false);
+                    await accept.ConfigureAwait(false);
                 }
-                else
-                {
-                    // Without the positive control this host cannot qualify the no-network policy.
-                    throw new PlatformNotSupportedException();
-                }
+                desktopPipe.Disconnect();
+
                 var key = new PreviewKey(Guid.NewGuid(), 1, 0, 0);
-                using var process = candidate.Start(key, address.ToString(), port);
+                using var process = candidate.Start(key, new(address.ToString(), port, port6, pipeName));
                 using var kill = deadline.Token.Register(process.Kill);
                 PreviewPacket result;
-                try { result = await PreviewWire.ReadAsync(process.Output, key, PreviewMessage.Result, deadline.Token).ConfigureAwait(false); }
+                try
+                {
+                    result = await PreviewWire.ReadAsync(process.Output, key, PreviewMessage.Result, deadline.Token,
+                        expectedResultLength: PreviewWire.ProbeResultLength).ConfigureAwait(false);
+                }
                 catch (EndOfStreamException)
                 {
                     process.ExitedSuccessfully(200);
                     throw new InvalidDataException($"Sandbox policy probe ended before a result (0x{process.ExitStatus:x8}).");
                 }
-                if (result.Kind != PreviewMessage.Result || result.Payload is not [0] || !process.ExitedSuccessfully(1500))
-                    throw new InvalidDataException(result.Payload is [byte step]
-                        ? $"Sandbox policy probe did not pass (check {step})." : "Invalid sandbox probe reply.");
+                if (result.Kind != PreviewMessage.Result || result.Payload is not [0, 0, 0, 0, 0] || !process.ExitedSuccessfully(1500))
+                    throw new InvalidDataException(result.Payload is [byte step, _, _, _, _]
+                        ? $"Sandbox policy probe did not pass (check {step}, code 0x{BinaryPrimitives.ReadInt32LittleEndian(result.Payload.AsSpan(1)):x8})." : "Invalid sandbox probe reply.");
+                await PreviewWire.RequireEndOfStreamAsync(process.Output, deadline.Token).ConfigureAwait(false);
             }
-            finally { listener.Stop(); }
+            finally
+            {
+                listener6.Stop();
+                listener.Stop();
+            }
+        }
+
+        private static async Task VerifyReachableAsync(IPAddress address, int port, UdpClient listener, CancellationToken ct)
+        {
+            var endpoint = new IPEndPoint(address, port);
+            using var client = new TcpClient(address.AddressFamily);
+            await client.ConnectAsync(endpoint, ct).ConfigureAwait(false);
+            using var sender = new UdpClient(address.AddressFamily);
+            await sender.SendAsync(new byte[] { 0x50 }, endpoint, ct).ConfigureAwait(false);
+            if ((await listener.ReceiveAsync(ct).ConfigureAwait(false)).Buffer is not [0x50])
+                throw new InvalidDataException("The local UDP positive control failed.");
         }
 
         public async Task<PreviewOutcome> RenderAsync(PreviewKey key, PreviewRequest request, CancellationToken ct)
@@ -136,10 +161,12 @@ internal sealed class WindowsExecutablePreview(string workerPath) : IExecutableP
             {
                 await PreviewWire.ReadAsync(process.Output, key, PreviewMessage.Ready, deadline.Token).ConfigureAwait(false);
                 await PreviewWire.WriteAsync(process.Input, key, PreviewMessage.Request, requestBytes, deadline.Token).ConfigureAwait(false);
+                process.Input.Dispose(); // Only one request is valid for this worker.
                 deadline.CancelAfter(TimeSpan.FromSeconds(3));
                 while (true)
                 {
-                    var packet = await PreviewWire.ReadAsync(process.Output, key, PreviewMessage.Result, deadline.Token).ConfigureAwait(false);
+                    var packet = await PreviewWire.ReadAsync(process.Output, key, PreviewMessage.Result, deadline.Token,
+                        expectedResultLength: request.Width * request.Height * 4).ConfigureAwait(false);
                     if (packet.Kind == PreviewMessage.Phase)
                     {
                         var next = (PreviewPhase)packet.Payload[0];
@@ -153,6 +180,7 @@ internal sealed class WindowsExecutablePreview(string workerPath) : IExecutableP
                     deadline.CancelAfter(TimeSpan.FromSeconds(2));
                     if (!process.ExitedSuccessfully(1500))
                         return new(null, phase, PreviewFault.Exited);
+                    await PreviewWire.RequireEndOfStreamAsync(process.Output, deadline.Token).ConfigureAwait(false);
                     if (packet.Kind == PreviewMessage.Failure)
                     {
                         var failed = (PreviewPhase)packet.Payload[0];

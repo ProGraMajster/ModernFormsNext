@@ -23,7 +23,7 @@ the same boundary.
 - Use an additional short-lived Windows worker. Launch a trusted worker binary,
   verify its restricted token and limits, then allow it to load only the staged
   snapshot. Its isolated directory contains read-only artifacts and any approved
-  packaged resources plus disposable private scratch. The default snapshot has
+  packaged resources and an inaccessible temporary-directory target. The default snapshot has
   no source tree, user profile, credentials or inherited environment secrets.
   Preview consumes existing build output. Build targets, package restore and
   source generators run only through the normal, separately invoked build flow.
@@ -197,10 +197,15 @@ leaves the existing data preview or placeholder available.
 The broker verifies the worker token and job before resuming every process.
 Startup gets five seconds, each reported phase gets three seconds and exit gets
 two seconds. The job allows one process, 384 MiB of process memory and 25 percent
-CPU. The probe's scratch grant is removed before project loading. AppContainer
-profile storage and brokered APIs are still part of platform qualification.
+CPU. Windows starts each worker suspended and the broker lowers its primary
+integrity to Untrusted and verifies mandatory no-write-up. Before resuming, the
+broker deletes the bootstrap AppContainer profile and checks the expected package
+folder for absence. The worker receives read-only runtime and project files.
+The probe's read grant to the temporary-directory canary is removed before
+project loading. See [the LPAC qualification record](designer-executable-preview-qualification.md)
+for the Windows observations and remaining checks.
 
-## Qualification status — 2026-11-15
+## Initial qualification baseline — 2026-11-15
 
 On Windows x64 build 26300.9711, the broker rendered a separately compiled C#
 control project. Its pixel check passed before and after all five managed
