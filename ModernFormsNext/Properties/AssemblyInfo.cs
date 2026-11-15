@@ -6,3 +6,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("ModernFormsNext.Testing")]
 [assembly: InternalsVisibleTo("ModernFormsNext.Automation")]
 [assembly: InternalsVisibleTo("ModernFormsNext.VisualStudioDesignerHost")]
+[assembly: InternalsVisibleTo("ModernFormsNext.DesignerPreviewWorker")]

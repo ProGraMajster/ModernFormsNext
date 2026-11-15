@@ -12,6 +12,30 @@ internal sealed class DesignerStatusBar : Panel
     private readonly ModernFormsDesignerOptions options;
     private readonly DesignerPersistenceCoordinator persistence;
     private readonly DesignerLayoutEngine layoutEngine = new();
+    private Button? previewSettings;
+
+    internal void AttachExecutablePreview(DesignerCommandService commands)
+    {
+        if (state.ExecutablePreview is not { } preview)
+            return;
+        var button = new Button
+        {
+            Name = "ExecutablePreviewSettings",
+            Left = Math.Max(0, Width - 168), Top = 2, Width = 162, Height = 20,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+        previewSettings = Controls.Add(button);
+        button.Click += (_, _) => commands.ShowSettingsDialog(FindForm());
+        preview.Changed += Refresh;
+        state.SettingsChanged += (_, _) => Refresh();
+        Refresh();
+
+        void Refresh()
+        {
+            if (!button.IsDisposed)
+                button.Text = T(preview.IsEnabled ? "ExecutablePreviewOn" : "ExecutablePreviewOff");
+        }
+    }
 
     public DesignerStatusBar(
         DesignerSession state,
@@ -61,7 +85,7 @@ internal sealed class DesignerStatusBar : Panel
                 new System.Drawing.Rectangle(
                     logicalPaintArgs.LogicalToDeviceUnits(10),
                     0,
-                    logicalPaintArgs.LogicalToDeviceUnits(Math.Max(1, Width - 20)),
+                    logicalPaintArgs.LogicalToDeviceUnits(Math.Max(1, Width - (previewSettings is null ? 20 : 188))),
                     logicalPaintArgs.LogicalToDeviceUnits(Height)),
                 SKColors.White,
                 ContentAlignment.MiddleLeft,

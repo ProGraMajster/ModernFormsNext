@@ -14,6 +14,11 @@
     <Description>Out-of-process ModernFormsNext designer host launched by the Visual Studio extension.</Description>
   </PropertyGroup>
 
+  <!-- Qualification packages exercise the integrated path before it is enabled for users. -->
+  <PropertyGroup Condition="'$(ModernFormsNextExecutablePreviewQualification)' == 'true'">
+    <DefineConstants>$(DefineConstants);EXECUTABLE_PREVIEW_QUALIFICATION</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
     <ProjectReference Include="..\ModernFormsNext.Designer\ModernFormsNext.Designer.csproj" />

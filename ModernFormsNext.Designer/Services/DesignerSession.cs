@@ -1,5 +1,6 @@
 using ModernFormsNext;
 using ModernFormsNext.Designer.Clipboard;
+using ModernFormsNext.Designer.ExecutablePreview;
 using ModernFormsNext.Designer.History;
 using ModernFormsNext.Designer.Properties;
 using ModernFormsNext.Designer.Surface;
@@ -32,6 +33,16 @@ public sealed partial class DesignerSession : IDisposable
     private DesignerOpenDocument? activeDocument;
     private int historyLimit;
     private bool disposed;
+
+    internal ExecutablePreviewController? ExecutablePreview { get; private set; }
+
+    internal void ConfigureExecutablePreview(IExecutablePreviewBackend backend)
+    {
+        ThrowIfDisposed();
+        if (ExecutablePreview is not null)
+            throw new InvalidOperationException("An executable preview backend is already installed.");
+        ExecutablePreview = new ExecutablePreviewController(this, backend);
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DesignerSession"/> class.
@@ -2603,6 +2614,7 @@ public sealed partial class DesignerSession : IDisposable
             rollbackNotificationException = ex;
         }
 
+        ExecutablePreview?.Dispose();
         Transactions.ReleaseObservers();
         Host.Selection.SelectionChanged -= HostSelection_SelectionChanged;
         clipboard.Changed -= Clipboard_Changed;

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using ModernFormsNext;
 using ModernFormsNext.Designer.Localization;
+using ModernFormsNext.Designer.ExecutablePreview;
 using ModernFormsNext.Designer.Services;
 using ModernFormsNext.Designer.Surface;
 
@@ -38,6 +39,7 @@ internal sealed class DesignerSettingsDialog : Form
     private readonly CheckBox snapToGrid;
     private readonly NumericUpDown gridSize;
     private readonly Dictionary<DesignerToolWindowId, DockRow> dockRows = [];
+    private bool dialogClosed;
 
     public DesignerSettingsDialog(ModernFormsDesignerOptions options, DesignerSession session)
     {
@@ -48,6 +50,7 @@ internal sealed class DesignerSettingsDialog : Form
         Name = "DesignerSettingsDialog";
         Size = new Size(820, 598);
         StartPosition = FormStartPosition.CenterParent;
+        Closed += (_, _) => dialogClosed = true;
 
         Controls.Add(CreateLabel(T("Rendering"), 24, 48, 160));
         renderMode = Controls.Add(new ComboBox
@@ -117,6 +120,36 @@ internal sealed class DesignerSettingsDialog : Form
             rowTop += 38;
         }
 
+        if (session.ExecutablePreview is { } preview)
+        {
+            var approve = Controls.Add(new Button { Name = "ApproveExecutablePreview", Left = 24, Top = 522,
+                Width = 196, Height = 30, Text = T("ApproveExecutablePreview") });
+            var retry = Controls.Add(new Button { Name = "RetryExecutablePreview", Left = 228, Top = 522,
+                Width = 150, Height = 30, Text = T("RetryExecutablePreview"), Enabled = preview.IsEnabled });
+            var disable = Controls.Add(new Button { Name = "DisableExecutablePreview", Left = 386, Top = 522,
+                Width = 170, Height = 30, Text = T("DisableExecutablePreview"), Enabled = preview.IsEnabled });
+            approve.Enabled = session.CurrentProjectPath is not null;
+            approve.Click += async (_, _) =>
+            {
+                approve.Enabled = false;
+                try { await ApproveExecutablePreviewAsync(preview); }
+                finally
+                {
+                    if (!dialogClosed)
+                    {
+                        approve.Enabled = session.CurrentProjectPath is not null;
+                        retry.Enabled = disable.Enabled = preview.IsEnabled;
+                    }
+                }
+            };
+            retry.Click += (_, _) => preview.Retry();
+            disable.Click += (_, _) =>
+            {
+                preview.Disable();
+                retry.Enabled = disable.Enabled = false;
+            };
+        }
+
         var ok = Controls.Add(new Button
         {
             Left = 586,
@@ -143,6 +176,42 @@ internal sealed class DesignerSettingsDialog : Form
             DialogResult = DialogResult.OK;
         };
         cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
+    }
+
+    private async Task ApproveExecutablePreviewAsync(ExecutablePreviewController preview)
+    {
+        if (session.CurrentProjectPath is not { } project)
+            return;
+        IExecutablePreviewSnapshot? candidate = null;
+        try
+        {
+            var picker = new OpenFileDialog { Title = T("ApproveExecutablePreview"), AllowMultiple = true,
+                InitialDirectory = System.IO.Path.GetDirectoryName(project) };
+            picker.AddFilter("Managed assemblies (*.dll)", "*.dll");
+            if (await picker.ShowDialog(this) != DialogResult.OK || dialogClosed)
+                return;
+
+            candidate = await preview.CaptureAsync(project, picker.FileNames.ToArray());
+            if (dialogClosed)
+                return;
+            using var consent = new ExecutablePreviewApprovalDialog(T("ApproveExecutablePreview"), T("PreviewApprovalNotice"),
+                T("ApproveBuild"), T("Cancel"), candidate.Digest, candidate.Summary);
+            if (await consent.ShowDialog(this) != DialogResult.Yes || dialogClosed)
+                return;
+            var approved = candidate;
+            candidate = null;
+            await preview.EnableAsync(project, approved);
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            if (!dialogClosed)
+                session.Log("Isolated preview could not read the selected managed build artifacts.");
+        }
+        finally
+        {
+            if (candidate is not null)
+                preview.Discard(candidate);
+        }
     }
 
     private DockRow CreateDockRow(DesignerToolWindowId id, int top)

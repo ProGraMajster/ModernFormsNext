@@ -34,7 +34,8 @@ internal static class Program
             DesignerHostDiagnosticLog.Write("FORM_CONSTRUCTOR_OK");
 
             DesignerHostDiagnosticLog.Write("APPLICATION_RUN_BEGIN");
-            Application.Run(form);
+            try { Application.Run(form); }
+            finally { form.FinishExecutablePreviewCleanup(); }
             DesignerHostDiagnosticLog.Write("APPLICATION_RUN_END");
         }
         catch (Exception ex)
