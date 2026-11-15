@@ -85,6 +85,11 @@ public sealed class VisualStudioDesignerHostForm : Form
             Dock = DockStyle.Fill
         };
 
+        string executablePreview = System.IO.Path.Combine(AppContext.BaseDirectory, "PreviewWorker",
+            "ModernFormsNext.DesignerPreviewWorker.exe");
+        if (ExecutablePreview.WindowsExecutablePreview.Available && File.Exists(executablePreview))
+            shell.ConfigureExecutablePreview(new ExecutablePreview.WindowsExecutablePreview(executablePreview));
+
         Controls.Add(shell);
         OpenDesignDocument(arguments.DesignDocumentPath, arguments.ProjectPath);
 
@@ -222,6 +227,18 @@ public sealed class VisualStudioDesignerHostForm : Form
             closeConfirmed = true;
             Close();
         });
+    }
+
+    internal void FinishExecutablePreviewCleanup()
+    {
+        if (shell.Session.ExecutablePreview is not { } preview)
+            return;
+
+        preview.Dispose();
+        // The dispatcher has stopped. Give the retired job and its staging directory a bounded
+        // chance to finish before process exit, without delaying the editor's close interaction.
+        if (!preview.Cleanup.Wait(TimeSpan.FromSeconds(7)))
+            DesignerHostDiagnosticLog.Write("Isolated preview staging cleanup exceeded the shutdown budget.");
     }
 
     private void HandleClosed(object? sender, EventArgs e)

@@ -221,7 +221,13 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
 
         if (isProjectUserControl)
         {
-            if (!TryDrawEmbeddedPreview(
+            var bitmap = state.ControlRenderMode == DesignerControlRenderMode.Runtime &&
+                !previewStack.Any() && layout.GetVisibleBounds(state.Document, node).Height > 0
+                ? state.ExecutablePreview?.GetRaster(node, bounds.Width, bounds.Height, previewPaintArgs.Scaling)
+                : null;
+            if (bitmap is not null)
+                surfacePaintArgs.Canvas.DrawBitmap(bitmap, bounds.ToSKRect());
+            else if (!TryDrawEmbeddedPreview(
                 surfacePaintArgs,
                 previewPaintArgs,
                 state,

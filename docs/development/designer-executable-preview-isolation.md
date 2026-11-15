@@ -1,7 +1,8 @@
 # Executable custom-control previews in the Windows Designer
 
-Status: proposed for #40. PR #468 is the data-preview hardening stage.
-The release scope remains 1.12.0. This design does not enable project-code execution.
+Issue #40 tracks implementation and qualification for 1.12.0. PR #468 hardened
+the data preview. Local qualification builds can use the executable renderer.
+Ordinary VSIX builds use the data preview and exclude the executable worker.
 
 ## Existing boundaries
 
@@ -12,7 +13,7 @@ holds the user's authority to read and write project files, so it must continue
 to handle only data and trusted framework controls. Standalone Designer follows
 the same boundary.
 
-## Proposed execution model
+## Execution model
 
 - Keep data preview as the default. An explicit per-project opt-in applies to
   an identified build snapshot. Changing its artifacts or requested authority
@@ -42,16 +43,16 @@ the same boundary.
   signal for the Designer to save or mutate authored data.
 - Keep one project-code operation in flight per worker and coalesce obsolete
   requests. Before dispatch the controller records the node and operation.
-  On managed exceptions capture a bounded method stack and phase. Constructors
+  On managed exceptions capture one project method token from a bounded stack and record the phase. Constructors
   and static initialization can fail before an instance exists. Dispose only
   acquired instances, attempt outstanding cleanup and retire unhealthy workers.
   A process crash or deadline retires the whole worker and its request generation.
   Acknowledge phase transitions to refine the last known phase on hangs. Use
   one stable diagnostic per unchanged failed request and keep useful placeholders.
   Explicit retry or a repaired build starts a clean process. Healthy controls
-  can be requested on that worker while the faulting node remains deferred.
-- Use independently bounded startup, construct/apply/layout/render and shutdown
-  deadlines. The trusted Designer enforces them asynchronously outside the worker
+  can render in fresh workers while the faulting node remains deferred.
+- Use independently bounded startup, load/construct/properties/layout/paint/dispose
+  and shutdown deadlines. The trusted Designer enforces them asynchronously outside the worker
   UI thread. Cancellation for a superseded render is best effort. A stuck worker
   is terminated by its job and cannot delay document editing or close. Late or
   duplicate bytes from a retired generation are discarded. Keep recovery and
@@ -150,7 +151,80 @@ under `artifacts/scope-reaudit-2026-11-12/issue-40/os-probe`.
 - [AccessCheck](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheck)
 - [Process handle inheritance](https://learn.microsoft.com/en-us/windows/win32/procthread/inheritance)
 
-## Proposed issue structure
+## Qualification build and reproduction
+
+Use a disposable checkout and a fresh Visual Studio experimental profile. Build
+the fixture and VSIX with the SDK from `global.json`.
+
+```powershell
+dotnet build scripts/tests/fixtures/DesignerExecutablePreview/ProjectFixture.csproj -m:1 /p:UseSharedCompilation=false
+dotnet build ModernFormsNext.VisualStudioExtension.Vsix -c Debug -m:1 /p:UseSharedCompilation=false /p:ModernFormsNextExecutablePreviewQualification=true
+```
+
+Install `ModernFormsNext.VisualStudioExtension.Vsix/bin/Debug/net472/ModernFormsNextDesigner.vsix`
+in the fresh profile with the Visual Studio SDK's `VSIXInstaller /RootSuffix:<suffix>`.
+Open the fixture project and `PreviewExample.mfdesign`. The Designer starts in data
+mode. Use **Isolated preview** in the Designer status bar, select the fixture's
+`ProjectFixture.dll` from `bin/Debug/net10.0-windows`, review the assembly and build
+SHA-256 digests, then select **Approve this build**. Close Settings to edit the
+document. The same dialog offers **Retry preview** and **Turn off preview**.
+Approval belongs to the current Designer session and project. A change to an
+approved output revokes approval. After a rebuild, select and approve the new
+outputs to resume. Build and package restore are separate Visual Studio actions.
+
+The fixture renders green `custom C#` badges and exercises throws in the
+constructor, property setter, layout, paint and Dispose, a process exit and a
+hung paint. Local host output records the named control and phase. Managed
+exceptions can also report a method resolved from the approved PE. Verify that
+`PRIVATE_EXCEPTION_MESSAGE` stays absent. Add a button, wait for the worker
+timeout and check that the button remains selected and can be undone and redone.
+Modify the fixture, rebuild, observe revocation and reapprove. On close or
+revocation, confirm that the owned worker, profile and staging data are retired.
+Check the Visual Studio output and per-process Designer host log in the temporary
+directory.
+
+Every frame has a session, request number, document revision and node number.
+The request also carries the approved SHA-256 digest. A request is limited to
+64 KiB and 32 bounded scalar properties. Rasters are capped at 1024×1024 pixels
+(4 MiB). The worker handles public parameterless ModernFormsNext controls with
+compatible managed references. The broker stages only the selected managed DLLs
+under the current project directory. The worker supplies a design site after
+construction, runs layout and paint, and returns pixels. Runtime services, native
+dependencies and interactive input are outside this preview path. A failed frame
+leaves the existing data preview or placeholder available.
+
+The broker verifies the worker token and job before resuming every process.
+Startup gets five seconds, each reported phase gets three seconds and exit gets
+two seconds. The job allows one process, 384 MiB of process memory and 25 percent
+CPU. The probe's scratch grant is removed before project loading. AppContainer
+profile storage and brokered APIs are still part of platform qualification.
+
+## Qualification status — 2026-11-15
+
+On Windows x64 build 26300.9711, the broker rendered a separately compiled C#
+control project. Its pixel check passed before and after all five managed
+failure phases, a timeout and a process exit. Paired IPv4 TCP and UDP checks
+covered loopback and a local non-loopback interface. The broker verified the
+restricted token, package SID, child policy and job. It exercised outside file
+read/write denial, read-only snapshot enforcement, private probe scratch,
+privileged broker handle denial and child creation denial.
+
+An installed development VSIX in an isolated Visual Studio 18 profile showed the
+real control project. Designer output confirmed successful frames, all five
+failure phases, timeout and process exit. During a failure sequence the editor
+retained a newly added and selected button. Undo and Redo succeeded, and the
+original document SHA-256 stayed unchanged. A write notification for the fixture
+assembly revoked approval and retired staging. This covers one Windows and
+Visual Studio configuration.
+
+Before enabling the ordinary VSIX, repeat qualification on supported Windows
+builds. Verify remote network and IPv6 paths with controlled endpoints, registry
+and brokered operations, cross-process UI and clipboard restrictions, and
+AppContainer profile storage. Exercise the job ceilings, forced termination and
+two-document editing with the installed candidate. Keep the build gate closed
+until this evidence is reviewed.
+
+## Issue scope
 
 The existing #40 acceptance bullets cover document survival after a failing
 custom control, useful placeholders, actionable origin, safe disposal and
@@ -162,10 +236,8 @@ preview before closing #40. OS-level confinement is a prerequisite for that
 preview. A successful #468 or a clean worker exit alone does not supply that
 proof.
 
-Use implementation subissues under #40 for the confined worker/negative
-security tests, executable raster/diagnostics and worker recovery/integration.
-The parent retains end-to-end acceptance and remains an open 1.12.0 item. This
-document proposes the breakdown without creating or retargeting GitHub issues.
+The parent retains end-to-end acceptance and remains an open 1.12.0 item. The
+remaining qualification and enablement can be tracked as one child of #40.
 
 Separate product work includes interactive previews with pointer/keyboard and
 native children, live debugger/hot reload, custom converters/designers,

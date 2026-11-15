@@ -29,6 +29,7 @@
     <UseCodebase>true</UseCodebase>
     <DesignerHostProject>..\ModernFormsNext.VisualStudioDesignerHost\ModernFormsNext.VisualStudioDesignerHost.csproj</DesignerHostProject>
     <DesignerHostRuntimeIdentifier>win-x64</DesignerHostRuntimeIdentifier>
+    <PreviewWorkerProject>..\ModernFormsNext.DesignerPreviewWorker\ModernFormsNext.DesignerPreviewWorker.csproj</PreviewWorkerProject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -67,6 +68,10 @@
                       ReferenceOutputAssembly="false"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
+    <ProjectReference Include="$(PreviewWorkerProject)"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
     <ProjectReference Include="..\ModernFormsNext.VisualStudioDesignerHost\ModernFormsNext.VisualStudioDesignerHost.csproj"
                       ReferenceOutputAssembly="false"
                       SkipGetTargetFrameworkProperties="true"
@@ -97,6 +102,7 @@
     <DesignerHostPublishDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'DesignerHost'))</DesignerHostPublishDir>
     <!-- Publish changes global properties. Isolate its whole dependency graph,
          including tools, XML docs, generated sources and package outputs. -->
+    <_ExecutablePreviewValidation Condition="'$(ModernFormsNextExecutablePreviewQualification)' == 'true'">-ExpectExecutablePreview</_ExecutablePreviewValidation>
     <_DesignerHostProperties>Configuration=$(Configuration);TargetFramework=net10.0-windows;RuntimeIdentifier=$(DesignerHostRuntimeIdentifier);PublishDir=$(DesignerHostPublishDir);SelfContained=false;EnableWindowsTargeting=true;ModernFormsNextBuildVariant=vsix-host</_DesignerHostProperties>
   </PropertyGroup>
 
@@ -125,7 +131,7 @@
   <Target Name="ValidateModernFormsNextVsix"
           AfterTargets="CreateVsixContainer"
           Condition="'$(DesignTimeBuild)' != 'true'">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Validate-Vsix.ps1&quot; -VsixPath &quot;$(TargetDir)$(TargetVsixContainerName)&quot; -ExpectedVersion &quot;$(ModernFormsNextVisualStudioExtensionVersion)&quot; -Configuration &quot;$(Configuration)&quot; -ProjectDirectory &quot;$(MSBuildProjectDirectory)&quot;" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Validate-Vsix.ps1&quot; -VsixPath &quot;$(TargetDir)$(TargetVsixContainerName)&quot; -ExpectedVersion &quot;$(ModernFormsNextVisualStudioExtensionVersion)&quot; -Configuration &quot;$(Configuration)&quot; -ProjectDirectory &quot;$(MSBuildProjectDirectory)&quot; $(_ExecutablePreviewValidation)" />
   </Target>
 
   <Target Name="PublishModernFormsNextDesignerHost"
@@ -135,8 +141,15 @@
     <MSBuild Projects="$(DesignerHostProject)"
              Targets="Publish"
              Properties="$(_DesignerHostProperties)" />
+    <!-- Give LPAC the worker's private runtime, independent of user-installed SDK paths. -->
+    <MSBuild Projects="$(PreviewWorkerProject)"
+             Condition="'$(ModernFormsNextExecutablePreviewQualification)' == 'true'"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);TargetFramework=net10.0-windows;RuntimeIdentifier=$(DesignerHostRuntimeIdentifier);PublishDir=$(DesignerHostPublishDir)PreviewWorker\;SelfContained=true;EnableWindowsTargeting=true"
+             RemoveProperties="ModernFormsNextBuildVariant" />
     <ItemGroup>
-      <ModernFormsNextDesignerHostFile Include="$(DesignerHostPublishDir)**\*" />
+      <ModernFormsNextDesignerHostFile Include="$(DesignerHostPublishDir)**\*"
+                                       Exclude="$(DesignerHostPublishDir)PreviewWorker\**\*.pdb" />
       <Content Include="@(ModernFormsNextDesignerHostFile)">
         <IncludeInVSIX>true</IncludeInVSIX>
         <VSIXSubPath>DesignerHost\%(ModernFormsNextDesignerHostFile.RecursiveDir)</VSIXSubPath>

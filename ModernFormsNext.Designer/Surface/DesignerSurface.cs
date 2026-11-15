@@ -9,8 +9,18 @@ internal sealed class DesignerSurface : Panel
     private readonly DesignerSession state;
     private readonly DesignerSurfaceRenderer renderer;
     private readonly DesignerMouseController mouseController;
+    private ExecutablePreview.ExecutablePreviewController? executablePreview;
 
     internal DesignerMouseController MouseController => mouseController;
+
+    internal void AttachExecutablePreview()
+    {
+        executablePreview = state.ExecutablePreview;
+        if (executablePreview is not null)
+            executablePreview.Changed += InvalidatePreview;
+    }
+
+    private void InvalidatePreview() => Invalidate();
 
     internal event EventHandler? DefaultEventRequested;
 
@@ -100,7 +110,11 @@ internal sealed class DesignerSurface : Panel
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
+            if (executablePreview is not null)
+                executablePreview.Changed -= InvalidatePreview;
             renderer.Dispose();
+        }
         base.Dispose(disposing);
     }
 }

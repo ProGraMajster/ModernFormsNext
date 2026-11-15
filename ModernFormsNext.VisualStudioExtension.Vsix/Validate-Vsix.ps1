@@ -10,7 +10,9 @@ param(
     [string]$Configuration,
 
     [Parameter(Mandatory = $true)]
-    [string]$ProjectDirectory
+    [string]$ProjectDirectory,
+
+    [switch]$ExpectExecutablePreview
 )
 
 $ErrorActionPreference = "Stop"
@@ -311,6 +313,18 @@ Assert-UserControlTemplateSource -ProjectDirectory $ProjectDirectory
 $manifest = Read-VsixManifest -Path $resolvedVsixPath
 $logicalManifest = Get-VsixLogicalManifest -Manifest $manifest
 Assert-ModernFormsNextVsix -Manifest $manifest -LogicalManifest $logicalManifest -ExpectedVersion $ExpectedVersion
+
+$worker = "DesignerHost/PreviewWorker/"
+if ($ExpectExecutablePreview) {
+    foreach ($file in @("ModernFormsNext.DesignerPreviewWorker.exe", "ModernFormsNext.DesignerPreviewWorker.dll",
+                     "ModernFormsNext.DesignerPreviewWorker.runtimeconfig.json", "coreclr.dll", "libSkiaSharp.dll")) {
+        if ($manifest.Entries -notcontains ($worker + $file)) {
+            throw "VSIX isolated preview payload is missing '$file'."
+        }
+    }
+} elseif (@($manifest.Entries -like "$worker*").Count -ne 0) {
+    throw "An ordinary VSIX must exclude the unqualified executable preview payload."
+}
 
 $otherConfiguration = if ($Configuration -eq "Debug") { "Release" } else { "Debug" }
 $otherVsixPath = Join-Path $ProjectDirectory "bin\$otherConfiguration\net472\ModernFormsNextDesigner.vsix"

@@ -19,6 +19,13 @@ namespace ModernFormsNext.Designer;
 /// </remarks>
 public sealed class ModernFormsDesignerShell : Panel
 {
+    internal void ConfigureExecutablePreview(ExecutablePreview.IExecutablePreviewBackend backend)
+    {
+        Session.ConfigureExecutablePreview(backend);
+        surface.AttachExecutablePreview();
+        statusBar.AttachExecutablePreview(commands);
+    }
+
     private const int DefaultToolbarHeight = 42;
     private const int StatusHeight = 24;
     private const int TabHeight = 32;

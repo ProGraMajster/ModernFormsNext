@@ -1,0 +1,91 @@
+{
+  "metadata": { "formatVersion": 1, "toolName": "ModernFormsNext" },
+  "namespace": "ProjectFixture",
+  "className": "PreviewExample",
+  "formName": "Isolated preview fixture",
+  "size": { "width": 550, "height": 370 },
+  "events": {},
+  "controls": [
+    {
+      "name": "healthy",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 35, "y": 40 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "approved" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "badConstructor",
+      "typeName": "ProjectFixture.ThrowingBadge",
+      "bounds": { "width": 200, "height": 34, "x": 35, "y": 98 },
+      "events": {},
+      "children": [],
+      "properties": {},
+      "memberVisibility": "private"
+    },
+    {
+      "name": "badSetter",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 35, "y": 156 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "setter" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "badLayout",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 35, "y": 214 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "layout" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "badPaint",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 35, "y": 272 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "paint" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "badDispose",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 272, "y": 40 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "dispose" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "hanging",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 272, "y": 98 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "hang" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "crashing",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 272, "y": 156 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "crash" },
+      "memberVisibility": "private"
+    },
+    {
+      "name": "beforeFailure",
+      "typeName": "ProjectFixture.PreviewBadge",
+      "bounds": { "width": 200, "height": 34, "x": 272, "y": 214 },
+      "events": {},
+      "children": [],
+      "properties": { "Caption": "approved" },
+      "memberVisibility": "private"
+    }
+  ]
+}

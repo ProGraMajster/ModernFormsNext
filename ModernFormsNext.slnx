@@ -33,6 +33,7 @@
     <Project Path="ModernFormsNext.Automation/ModernFormsNext.Automation.csproj" />
     <Project Path="ModernFormsNext.CodeGeneration/ModernFormsNext.CodeGeneration.csproj" />
     <Project Path="ModernFormsNext.Designer/ModernFormsNext.Designer.csproj" />
+    <Project Path="ModernFormsNext.DesignerPreviewWorker/ModernFormsNext.DesignerPreviewWorker.csproj" />
     <Project Path="ModernFormsNext.Designing/ModernFormsNext.Designing.csproj" />
     <Project Path="ModernFormsNext.Testing/ModernFormsNext.Testing.csproj" />
     <Project Path="ModernFormsNext.SystemNotifications.AppSdk/ModernFormsNext.SystemNotifications.AppSdk.csproj" />

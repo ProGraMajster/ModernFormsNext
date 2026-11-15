@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <Version>$(ModernFormsNextPackageVersion)</Version>
+    <Description>Restricted Windows process for ModernFormsNext executable Designer previews.</Description>
+    <!-- Restore the private runtime alongside regular solution builds for the VSIX publish target. -->
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ModernFormsNext\ModernFormsNext.csproj" />
+    <Compile Include="..\ModernFormsNext.Designer\ExecutablePreview\PreviewWire.cs" Link="PreviewWire.cs" />
+    <Compile Include="..\ModernFormsNext.Designer\ExecutablePreview\PreviewManifest.cs" Link="PreviewManifest.cs" />
+  </ItemGroup>
+</Project>
