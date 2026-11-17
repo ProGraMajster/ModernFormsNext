@@ -15,6 +15,15 @@ foreach ($case in $cases) {
     $actual = Get-DesignerStartupStatus $case.log $case.exited $case.code $case.forced
     if ($actual -cne $case.expected) { throw "Expected $($case.expected), observed $actual." }
 }
+$oldLog = "[old] START ProcessStart=1234`n[old] FORM_SHOWN ProcessStart=1234`n"
+if (Get-DesignerProcessLog $oldLog 123) { throw 'A previous process creation time was accepted.' }
+$newLog = $oldLog + "[new] START ProcessStart=123`n[new] DPI_SETUP_BEGIN ProcessStart=123`n"
+$current = Get-DesignerProcessLog $newLog 123
+if ($current -match 'FORM_SHOWN' -or $current -notmatch 'DPI_SETUP_BEGIN') {
+    throw 'Readiness from a previous PID instance contaminated the new run.'
+}
+$complete = Get-DesignerProcessLog ($newLog + "[new] FORM_SHOWN ProcessStart=123`n") 123
+if ($complete -notmatch 'FORM_SHOWN') { throw 'The current process readiness was lost.' }
 $parseErrors = $null
 $tokens = $null
 [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../Test-DesignerStartup.ps1'),

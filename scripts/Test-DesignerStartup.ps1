@@ -46,7 +46,7 @@ function Start-DiagnosticProcess([string]$Path, [string[]]$Arguments, [bool]$Vis
     return [Diagnostics.Process]::Start($info)
 }
 
-function Copy-ProcessLog([int]$ProcessId, [string]$Kind, [string]$Label) {
+function Copy-ProcessLog([int]$ProcessId, [string]$Kind, [string]$Label, [long]$ProcessStart) {
     $source = Join-Path ([IO.Path]::GetTempPath()) "ModernFormsNextDesigner$Kind-$ProcessId.log"
     if (Test-Path -LiteralPath $source) {
         $stream = [IO.File]::Open($source, [IO.FileMode]::Open, [IO.FileAccess]::Read,
@@ -54,6 +54,7 @@ function Copy-ProcessLog([int]$ProcessId, [string]$Kind, [string]$Label) {
         $reader = [IO.StreamReader]::new($stream)
         try { $text = $reader.ReadToEnd() }
         finally { $reader.Dispose() }
+        $text = Get-DesignerProcessLog $text $ProcessStart
         [IO.File]::WriteAllText((Join-Path $output "$Label-$Kind-$ProcessId.log"), $text)
         return $text
     }
@@ -134,7 +135,7 @@ function Invoke-NativeProbe([string]$Mode, [string]$Label) {
         do {
             [MfnStartupNative]::Pump()
             Save-ProcessSample $process $Label
-            $log = Copy-ProcessLog $process.Id 'Host' $Label
+            $log = Copy-ProcessLog $process.Id 'Host' $Label $process.StartTime.ToFileTimeUtc()
             if ($process.HasExited -or ($log -match 'IPC_READY' -and $log -match 'FORM_SHOWN')) { break }
             Start-Sleep -Milliseconds 100
         } while ([DateTime]::UtcNow -lt $deadline)
@@ -160,7 +161,7 @@ function Invoke-NativeProbe([string]$Mode, [string]$Label) {
                 catch [InvalidOperationException] { if (!$process.HasExited) { throw } }
                 [void]$process.WaitForExit(3000)
             }
-            $log = Copy-ProcessLog $process.Id 'Host' $Label
+            $log = Copy-ProcessLog $process.Id 'Host' $Label $process.StartTime.ToFileTimeUtc()
             $exited = $process.HasExited
             $exitCode = if ($exited) { $process.ExitCode } else { $null }
             $result = Get-DesignerStartupStatus $log $exited $exitCode $forced
@@ -290,7 +291,7 @@ public static class MfnStartupNative {
     $hostHashMismatch = $false
     do {
         Save-ProcessSample $ide 'visual-studio'
-        $editorLog = Copy-ProcessLog $ide.Id 'Editor' 'inside-vs'
+        $editorLog = Copy-ProcessLog $ide.Id 'Editor' 'inside-vs' $ide.StartTime.ToFileTimeUtc()
         $candidates = @(Get-CimInstance Win32_Process -Filter "Name='ModernFormsNext.VisualStudioDesignerHost.exe'" |
             Where-Object { $_.CommandLine -match ('--owner-process\s+' + $ide.Id + '(?:\s|$)') -and
                 $_.CommandLine.Contains($fixture) })
@@ -304,7 +305,7 @@ public static class MfnStartupNative {
         }
         if ($null -ne $hostProcess) {
             Save-ProcessSample $hostProcess 'inside-vs'
-            $hostLog = Copy-ProcessLog $hostProcess.Id 'Host' 'inside-vs'
+            $hostLog = Copy-ProcessLog $hostProcess.Id 'Host' 'inside-vs' $hostProcess.StartTime.ToFileTimeUtc()
             if ($hostProcess.HasExited) { break }
             if ($hostLog -match 'FORM_SHOWN' -and $hostLog -match 'IPC_READY PipeName=(\S+)') {
                 $pipe = $Matches[1]
@@ -312,17 +313,18 @@ public static class MfnStartupNative {
                 break
             }
         }
-        elseif ($editorLog -match 'HOST_LAUNCH_OK ProcessId=(\d+)') {
+        elseif ($editorLog -match 'HOST_LAUNCH_OK ProcessId=(\d+) ChildStart=(\d+)') {
             # A host can fail and exit between process enumerations. Preserve its own log
             # using the launch record even when a Process handle can no longer be opened.
             $launched = [int]$Matches[1]
+            $childStart = [long]$Matches[2]
             [void]$observed.Add($launched)
-            $hostLog = Copy-ProcessLog $launched 'Host' 'inside-vs'
+            $hostLog = Copy-ProcessLog $launched 'Host' 'inside-vs' $childStart
         }
         if ($ide.HasExited) { break }
         Start-Sleep -Milliseconds 250
     } while ([DateTime]::UtcNow -lt $deadline)
-    $editorLog = Copy-ProcessLog $ide.Id 'Editor' 'inside-vs'
+    $editorLog = Copy-ProcessLog $ide.Id 'Editor' 'inside-vs' $ide.StartTime.ToFileTimeUtc()
     if ($null -ne $hostProcess) {
         $exited = $hostProcess.HasExited
         $exitCode = if ($exited) { $hostProcess.ExitCode } else { $null }

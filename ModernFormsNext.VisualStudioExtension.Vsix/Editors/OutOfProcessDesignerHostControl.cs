@@ -341,7 +341,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             }
 
             ownedProcess = process;
-            DesignerEditorDiagnosticLog.Write($"HOST_LAUNCH_OK ProcessId={process.Id}");
+            DesignerEditorDiagnosticLog.Write($"HOST_LAUNCH_OK ProcessId={process.Id} ChildStart={process.StartTime.ToFileTimeUtc()}");
             process.EnableRaisingEvents = true;
             process.Exited += HandleOwnedProcessExited;
             startupDeadlineUtc = DateTime.UtcNow + StartupTimeout;

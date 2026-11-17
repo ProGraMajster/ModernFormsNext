@@ -760,7 +760,11 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var log = await ReadLogAsync(logPath);
+            var log = ExtractLastRun(await ReadLogAsync(logPath));
+            // Windows reuses PIDs. A log from an older process with that PID must never
+            // satisfy readiness before this instance has written its first record.
+            if (!log.Contains($" ProcessStart={process.StartTime.ToFileTimeUtc()}{Environment.NewLine}", StringComparison.Ordinal))
+                log = string.Empty;
             if (log.Contains(marker, StringComparison.Ordinal))
                 return;
             if (process.HasExited)

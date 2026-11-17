@@ -53,7 +53,9 @@ repair of a named missing component. A profile reset would discard the compariso
 Backend stages use `System.Diagnostics.Trace`, category `ModernFormsNext.Startup`.
 Only the Designer installs a listener that forwards this category to its existing
 per-process log. No new public framework API or platform service is introduced.
-Records include PID, managed thread ID and native Windows thread ID. Assembly
+Records include PID, managed thread ID, native Windows thread ID and the process
+creation FILETIME. The collector and process-test readiness checks use this
+creation value to reject older runs after Windows reuses a PID. Assembly
 load/activation failures retain their previous discovery behavior and report their
 exception type and HRESULT. Stage payloads contain framework identities and status
 values. They include no source text, DLL contents or project exception payloads.

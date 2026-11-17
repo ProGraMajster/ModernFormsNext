@@ -10,4 +10,13 @@ function Get-DesignerStartupStatus {
     return 'BLOCKED'
 }
 
-Export-ModuleMember -Function Get-DesignerStartupStatus
+function Get-DesignerProcessLog {
+    param([string]$Log, [long]$ProcessStart)
+    $match = [regex]::Match($Log, ' ProcessStart=' + $ProcessStart + '(?:\r?\n|$)')
+    if (!$match.Success) { return '' }
+    $lineStart = $Log.LastIndexOf("`n[", $match.Index, [StringComparison]::Ordinal)
+    if ($lineStart -lt 0) { return $Log }
+    return $Log.Substring($lineStart + 1)
+}
+
+Export-ModuleMember -Function Get-DesignerStartupStatus, Get-DesignerProcessLog
