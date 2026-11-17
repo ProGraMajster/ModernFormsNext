@@ -91,7 +91,7 @@ function Save-ProcessSample([Diagnostics.Process]$Process, [string]$Label) {
     $sample | ConvertTo-Json -Depth 5 -Compress | Add-Content -LiteralPath (Join-Path $output 'processes.jsonl') -Encoding utf8
 }
 
-function Send-DesignerCommand([string]$Pipe, [string]$Command) {
+function Send-DesignerCommand([string]$Pipe, [string]$Command, [string]$Document) {
     $client = [IO.Pipes.NamedPipeClientStream]::new('.', $Pipe, [IO.Pipes.PipeDirection]::InOut,
         [IO.Pipes.PipeOptions]::Asynchronous)
     $cancel = [Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(2))
@@ -103,7 +103,8 @@ function Send-DesignerCommand([string]$Pipe, [string]$Command) {
         $reader = [IO.StreamReader]::new($client, [Text.Encoding]::UTF8, $true, 1024, $true)
         try {
             $writer.AutoFlush = $true
-            $writer.WriteLine("$Command`t`t`t")
+            $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Document))
+            $writer.WriteLine("$Command`t$encoded`t`t")
             $response = $reader.ReadLineAsync().WaitAsync($cancel.Token)
             while (!$response.IsCompleted) { [MfnStartupNative]::Pump(); Start-Sleep -Milliseconds 10 }
             return $response.GetAwaiter().GetResult()
@@ -138,8 +139,8 @@ function Invoke-NativeProbe([string]$Mode, [string]$Label) {
             Start-Sleep -Milliseconds 100
         } while ([DateTime]::UtcNow -lt $deadline)
         if (!$process.HasExited -and $log -match 'IPC_READY') {
-            $commandOk = (Send-DesignerCommand $pipe 'DIRTY') -eq "DIRTY`t0"
-            if ((Send-DesignerCommand $pipe 'SHUTDOWN') -ne 'OK') { throw 'The shutdown command was rejected.' }
+            $commandOk = (Send-DesignerCommand $pipe 'DIRTY' $fixture) -eq "DIRTY`t0"
+            if ((Send-DesignerCommand $pipe 'SHUTDOWN' $fixture) -ne 'OK') { throw 'The shutdown command was rejected.' }
             $deadline = [DateTime]::UtcNow.AddSeconds(3)
             while (!$process.HasExited -and [DateTime]::UtcNow -lt $deadline) {
                 [MfnStartupNative]::Pump()
@@ -307,7 +308,7 @@ public static class MfnStartupNative {
             if ($hostProcess.HasExited) { break }
             if ($hostLog -match 'FORM_SHOWN' -and $hostLog -match 'IPC_READY PipeName=(\S+)') {
                 $pipe = $Matches[1]
-                $ideCommandOk = (Send-DesignerCommand $pipe 'DIRTY') -eq "DIRTY`t0"
+                $ideCommandOk = (Send-DesignerCommand $pipe 'DIRTY' $fixture) -eq "DIRTY`t0"
                 break
             }
         }
