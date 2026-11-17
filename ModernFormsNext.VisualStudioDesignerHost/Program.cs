@@ -47,13 +47,16 @@ internal static class Program
         }
         finally
         {
-            DesignerHostDiagnosticLog.Write($"PROCESS_EXIT ExitCode={Environment.ExitCode}");
+            DesignerHostDiagnosticLog.Write($"MAIN_END ExitCode={Environment.ExitCode}");
             System.Diagnostics.Trace.Listeners.Remove(startupTrace);
         }
     }
 
     private static void RegisterGlobalExceptionDiagnostics()
     {
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            DesignerHostDiagnosticLog.Write($"PROCESS_EXIT ExitCode={Environment.ExitCode}");
+
         AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
         {
             if (eventArgs.ExceptionObject is Exception exception)

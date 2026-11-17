@@ -62,23 +62,31 @@ function Copy-ProcessLog([int]$ProcessId, [string]$Kind, [string]$Label) {
 
 function Save-ProcessSample([Diagnostics.Process]$Process, [string]$Label) {
     $sample = [ordered]@{ at = [DateTimeOffset]::Now.ToString('o'); label = $Label; pid = $Process.Id }
-    $Process.Refresh()
-    $sample.exited = $Process.HasExited
-    if ($Process.HasExited) { $sample.exitCode = $Process.ExitCode }
-    else {
-        $sample.cpuMilliseconds = $Process.TotalProcessorTime.TotalMilliseconds
-        $sample.workingSet = $Process.WorkingSet64
-        $sample.handles = $Process.HandleCount
-        $sample.threads = @($Process.Threads | ForEach-Object {
-            $thread = $_
-            $entry = [ordered]@{ nativeTid = $thread.Id }
-            try {
-                $entry.state = [string]$thread.ThreadState
-                if ($thread.ThreadState -eq 'Wait') { $entry.waitReason = [string]$thread.WaitReason }
-            }
-            catch [InvalidOperationException] { $entry.state = 'ExitedDuringSample' }
-            $entry
-        })
+    try {
+        $Process.Refresh()
+        $sample.exited = $Process.HasExited
+        if ($Process.HasExited) { $sample.exitCode = $Process.ExitCode }
+        else {
+            $sample.cpuMilliseconds = $Process.TotalProcessorTime.TotalMilliseconds
+            $sample.workingSet = $Process.WorkingSet64
+            $sample.handles = $Process.HandleCount
+            $sample.threads = @($Process.Threads | ForEach-Object {
+                $thread = $_
+                $entry = [ordered]@{ nativeTid = $thread.Id }
+                try {
+                    $entry.state = [string]$thread.ThreadState
+                    if ($thread.ThreadState -eq 'Wait') { $entry.waitReason = [string]$thread.WaitReason }
+                }
+                catch [InvalidOperationException] { $entry.state = 'ExitedDuringSample' }
+                $entry
+            })
+        }
+    }
+    catch {
+        # Process/thread enumeration races with termination. Keep that observation while
+        # allowing the owned-process cleanup below to run.
+        $sample.observationError = $_.Exception.GetType().Name
+        $sample.hresult = $_.Exception.HResult
     }
     $sample | ConvertTo-Json -Depth 5 -Compress | Add-Content -LiteralPath (Join-Path $output 'processes.jsonl') -Encoding utf8
 }
@@ -96,7 +104,7 @@ function Send-DesignerCommand([string]$Pipe, [string]$Command) {
         try {
             $writer.AutoFlush = $true
             $writer.WriteLine("$Command`t`t`t")
-            $response = $reader.ReadLineAsync($cancel.Token).AsTask()
+            $response = $reader.ReadLineAsync().WaitAsync($cancel.Token)
             while (!$response.IsCompleted) { [MfnStartupNative]::Pump(); Start-Sleep -Milliseconds 10 }
             return $response.GetAwaiter().GetResult()
         }
@@ -147,7 +155,8 @@ function Invoke-NativeProbe([string]$Mode, [string]$Label) {
                 $forced = $true
                 "Requested termination of owned diagnostic host $($process.Id) at $([DateTimeOffset]::Now.ToString('o'))" |
                     Add-Content -LiteralPath (Join-Path $output 'termination.log')
-                $process.Kill()
+                try { $process.Kill() }
+                catch [InvalidOperationException] { if (!$process.HasExited) { throw } }
                 [void]$process.WaitForExit(3000)
             }
             $log = Copy-ProcessLog $process.Id 'Host' $Label
@@ -205,6 +214,9 @@ try {
     $deployment = $deployments[0].DirectoryName
     $zip = [IO.Compression.ZipFile]::OpenRead($vsix)
     try {
+        if ($null -eq $zip.GetEntry('DesignerHost/PreviewWorker/ModernFormsNext.DesignerPreviewWorker.exe')) {
+            throw 'The candidate VSIX lacks the qualification worker.'
+        }
         $manifestEntry = $zip.GetEntry('extension.vsixmanifest')
         $reader = [IO.StreamReader]::new($manifestEntry.Open())
         try { [xml]$manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
