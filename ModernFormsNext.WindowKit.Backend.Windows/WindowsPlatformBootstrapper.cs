@@ -21,6 +21,8 @@ public sealed class WindowsPlatformBootstrapper : IPlatformBootstrap
     /// <inheritdoc/>
     public void Initialize()
     {
+        System.Diagnostics.Trace.WriteLine("WINDOWS_BOOTSTRAPPER_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
         WindowsPlatformBootstrap.Initialize();
+        System.Diagnostics.Trace.WriteLine("WINDOWS_BOOTSTRAPPER_INITIALIZE_OK", "ModernFormsNext.Startup");
     }   
 }

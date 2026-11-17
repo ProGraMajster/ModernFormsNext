@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -63,8 +64,10 @@ public static class FrameworkBootstrap
         if (initialized)
             return;
 
+        Trace.WriteLine("BOOTSTRAP_LOCK_BEGIN", "ModernFormsNext.Startup");
         lock (sync)
         {
+            Trace.WriteLine("BOOTSTRAP_LOCK_OK", "ModernFormsNext.Startup");
             if (initialized)
                 return;
 
@@ -79,6 +82,7 @@ public static class FrameworkBootstrap
 
             LoadBackendAssemblies();
 
+            Trace.WriteLine("BOOTSTRAP_DISCOVERY_BEGIN", "ModernFormsNext.Startup");
             var bootstrapper = AppDomain.CurrentDomain
                 .GetAssemblies()
                 .SelectMany(SafeGetTypes)
@@ -87,13 +91,16 @@ public static class FrameworkBootstrap
                     !t.IsAbstract &&
                     !t.IsInterface)
                 .Select(Create)
-                .FirstOrDefault(x => x != null && x.CanInitializeCurrentPlatform());
+                .FirstOrDefault(CanInitialize);
+            Trace.WriteLine("BOOTSTRAP_DISCOVERY_OK", "ModernFormsNext.Startup");
 
             if (bootstrapper == null)
                 throw new PlatformNotSupportedException(
                     $"No backend available for this platform ({GetCurrentPlatformName()}).");
 
+            Trace.WriteLine("BOOTSTRAPPER_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
             bootstrapper.Initialize();
+            Trace.WriteLine("BOOTSTRAPPER_INITIALIZE_OK", "ModernFormsNext.Startup");
             initialized = true;
         }
     }
@@ -128,12 +135,15 @@ public static class FrameworkBootstrap
 
         foreach (var assemblyFile in backendAssemblyFiles)
         {
+            Trace.WriteLine($"BACKEND_ASSEMBLY_LOAD_BEGIN Assembly={Path.GetFileName(assemblyFile)}", "ModernFormsNext.Startup");
             try
             {
                 AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(assemblyFile));
+                Trace.WriteLine("BACKEND_ASSEMBLY_LOAD_OK", "ModernFormsNext.Startup");
             }
-            catch
+            catch (Exception error)
             {
+                Trace.WriteLine($"BACKEND_ASSEMBLY_LOAD_FAILED Type={error.GetType().Name} HResult=0x{error.HResult:X8}", "ModernFormsNext.Startup");
                 // Ignore load failures here; unsupported or broken backends
                 // should not block discovery of other valid backends.
             }
@@ -155,10 +165,14 @@ public static class FrameworkBootstrap
     {
         try
         {
-            return Activator.CreateInstance(t) as IPlatformBootstrap;
+            Trace.WriteLine($"BOOTSTRAPPER_CONSTRUCTOR_BEGIN Type={t.FullName}", "ModernFormsNext.Startup");
+            var result = Activator.CreateInstance(t) as IPlatformBootstrap;
+            Trace.WriteLine("BOOTSTRAPPER_CONSTRUCTOR_OK", "ModernFormsNext.Startup");
+            return result;
         }
-        catch
+        catch (Exception error)
         {
+            Trace.WriteLine($"BOOTSTRAPPER_CONSTRUCTOR_FAILED Type={error.GetType().Name} HResult=0x{error.HResult:X8}", "ModernFormsNext.Startup");
             return null;
         }
     }
@@ -176,14 +190,28 @@ public static class FrameworkBootstrap
     /// </remarks>
     private static Type[] SafeGetTypes(Assembly a)
     {
+        Trace.WriteLine($"BOOTSTRAP_TYPES_BEGIN Assembly={a.GetName().Name}", "ModernFormsNext.Startup");
         try
         {
-            return a.GetTypes();
+            var types = a.GetTypes();
+            Trace.WriteLine("BOOTSTRAP_TYPES_OK", "ModernFormsNext.Startup");
+            return types;
         }
         catch (ReflectionTypeLoadException ex)
         {
+            Trace.WriteLine("BOOTSTRAP_TYPES_PARTIAL", "ModernFormsNext.Startup");
             return ex.Types.Where(x => x != null).ToArray()!;
         }
+    }
+
+    private static bool CanInitialize(IPlatformBootstrap? bootstrapper)
+    {
+        if (bootstrapper is null)
+            return false;
+        Trace.WriteLine("BOOTSTRAP_CAN_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
+        bool supported = bootstrapper.CanInitializeCurrentPlatform();
+        Trace.WriteLine($"BOOTSTRAP_CAN_INITIALIZE_OK Supported={supported}", "ModernFormsNext.Startup");
+        return supported;
     }
 
     /// <summary>

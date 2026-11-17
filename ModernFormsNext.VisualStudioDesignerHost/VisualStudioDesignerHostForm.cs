@@ -52,6 +52,7 @@ public sealed class VisualStudioDesignerHostForm : Form
             ConfigureStandaloneWindow();
         DesignerHostDiagnosticLog.Write($"HOSTING_MODE_CONFIGURED Mode={arguments.HostingMode}");
 
+        DesignerHostDiagnosticLog.Write("HANDLE_CREATE_BEGIN");
         var platformHandle = PlatformHandle;
         DesignerHostDiagnosticLog.Write(
             $"HANDLE_CREATED Descriptor={platformHandle.HandleDescriptor ?? "<none>"} " +

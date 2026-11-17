@@ -34,8 +34,10 @@ internal static class WindowsAccessibilityPreferenceReader
         catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException) { }
         try
         {
+            System.Diagnostics.Trace.WriteLine("WINDOWS_TEXT_SCALE_BEGIN", "ModernFormsNext.Startup");
             using var lease = WindowsTextScaleSubscription.Create(null);
             scale = lease?.Read();
+            System.Diagnostics.Trace.WriteLine("WINDOWS_TEXT_SCALE_OK", "ModernFormsNext.Startup");
         }
         catch (Exception error) when (error is COMException or InvalidCastException or DllNotFoundException or EntryPointNotFoundException or PlatformNotSupportedException) { }
         return new(colors, scale);
@@ -83,12 +85,16 @@ internal sealed partial class WindowsTextScaleSubscription : IWindowsTextScaleCh
         nint name = 0, instance = 0;
         try
         {
+            System.Diagnostics.Trace.WriteLine("WINRT_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
             int hr = RoInitialize(0); // STA; an existing different apartment remains owned by its caller.
+            System.Diagnostics.Trace.WriteLine($"WINRT_INITIALIZE_END HResult=0x{hr:X8}", "ModernFormsNext.Startup");
             result.initialized = hr >= 0;
             if (hr < 0 && hr != unchecked((int)0x80010106)) return null; // RPC_E_CHANGED_MODE
             const string className = "Windows.UI.ViewManagement.UISettings";
             Marshal.ThrowExceptionForHR(WindowsCreateString(className, className.Length, out name));
+            System.Diagnostics.Trace.WriteLine("WINRT_UISETTINGS_ACTIVATE_BEGIN", "ModernFormsNext.Startup");
             Marshal.ThrowExceptionForHR(RoActivateInstance(name, out instance));
+            System.Diagnostics.Trace.WriteLine("WINRT_UISETTINGS_ACTIVATE_OK", "ModernFormsNext.Startup");
             result.settings = UniqueComInterfaceMarshaller<IWindowsUiSettings2>.ConvertToManaged((void*)instance);
             if (result.settings is null) throw new COMException("UISettings was unavailable.");
             if (changed is not null)

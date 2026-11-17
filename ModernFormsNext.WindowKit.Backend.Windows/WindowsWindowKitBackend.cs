@@ -19,7 +19,9 @@ public sealed class WindowsWindowKitBackend : IWindowKitBackend
         if (IsInitialized)
             return;
 
+        System.Diagnostics.Trace.WriteLine("WINDOWS_BACKEND_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
         WindowsPlatformBootstrap.InitializeServices();
         IsInitialized = true;
+        System.Diagnostics.Trace.WriteLine("WINDOWS_BACKEND_INITIALIZE_OK", "ModernFormsNext.Startup");
     }
 }

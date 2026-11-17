@@ -23,7 +23,9 @@ internal static class DesignerHostDiagnosticLog
             {
                 File.AppendAllText(
                     Path,
-                    $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}");
+                    $"[{DateTimeOffset.Now:O}] {message} " +
+                    $"Pid={Environment.ProcessId} Tid={Environment.CurrentManagedThreadId} " +
+                    $"NativeTid={GetCurrentThreadId()}{Environment.NewLine}");
             }
         }
         catch
@@ -39,6 +41,9 @@ internal static class DesignerHostDiagnosticLog
 
         Write(FormatException(marker, exception));
     }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
 
     internal static string FormatException(string marker, Exception exception)
     {

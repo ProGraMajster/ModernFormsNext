@@ -8,6 +8,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        using var startupTrace = new DesignerStartupTraceListener();
+        System.Diagnostics.Trace.Listeners.Add(startupTrace);
         DesignerHostDiagnosticLog.Write("START");
 
         try
@@ -42,6 +44,11 @@ internal static class Program
         {
             DesignerHostDiagnosticLog.WriteException("MAIN_EXCEPTION", ex);
             Environment.ExitCode = -1;
+        }
+        finally
+        {
+            DesignerHostDiagnosticLog.Write($"PROCESS_EXIT ExitCode={Environment.ExitCode}");
+            System.Diagnostics.Trace.Listeners.Remove(startupTrace);
         }
     }
 
