@@ -204,12 +204,19 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
     protected override void OnHandleCreated(EventArgs e)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        base.OnHandleCreated(e);
-
-        if (TryReattachOwnedHost())
-            return;
-
-        LaunchOwnedHost();
+        DesignerEditorDiagnosticLog.Write("PANE_HANDLE_CREATE_BEGIN");
+        try
+        {
+            base.OnHandleCreated(e);
+            if (!TryReattachOwnedHost())
+                LaunchOwnedHost();
+            DesignerEditorDiagnosticLog.Write("PANE_HANDLE_CREATE_OK");
+        }
+        catch (Exception error)
+        {
+            DesignerEditorDiagnosticLog.WriteException("PANE_HANDLE_CREATE_FAILED", error);
+            throw;
+        }
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -325,6 +332,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
 
         try
         {
+            DesignerEditorDiagnosticLog.Write($"HOST_LAUNCH_BEGIN Mode={hostingMode}");
             var process = Process.Start(startInfo);
             if (process is null)
             {
@@ -333,6 +341,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             }
 
             ownedProcess = process;
+            DesignerEditorDiagnosticLog.Write($"HOST_LAUNCH_OK ProcessId={process.Id} ChildStart={process.StartTime.ToFileTimeUtc()}");
             process.EnableRaisingEvents = true;
             process.Exited += HandleOwnedProcessExited;
             startupDeadlineUtc = DateTime.UtcNow + StartupTimeout;
@@ -340,6 +349,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         }
         catch (Exception ex)
         {
+            DesignerEditorDiagnosticLog.WriteException("HOST_LAUNCH_FAILED", ex);
             ShowFailure($"Designer host could not be started.{Environment.NewLine}{ex.Message}");
         }
     }
@@ -359,6 +369,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             : FindTopLevelWindowOwnedByProcess(ownedProcess.Id);
         if (childWindowHandle != IntPtr.Zero)
         {
+            DesignerEditorDiagnosticLog.Write($"HOST_WINDOW_READY ProcessId={ownedProcess.Id} Mode={hostingMode}");
             readinessTimer.Stop();
             statusLabel.Text = hostingMode == DesignerHostingMode.Standalone
                 ? "The ModernFormsNext Designer is open in a separate window."
@@ -385,6 +396,8 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
 
     private void HandleOwnedProcessExited(object sender, EventArgs e)
     {
+        if (sender is Process observed)
+            DesignerEditorDiagnosticLog.Write($"HOST_EXIT_OBSERVED ProcessId={TryGetProcessId(observed)} ExitCode={TryGetExitCode(observed)}");
         if (disposing
             || !IsHandleCreated
             || sender is not Process exitedProcess
@@ -444,7 +457,7 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
         if (process is null)
             return;
 
-        DesignerEditorDiagnosticLog.Write($"HOST_SHUTDOWN_BEGIN ProcessId={TryGetProcessId(process)}");
+        DesignerEditorDiagnosticLog.Write($"HOST_SHUTDOWN_BEGIN ProcessId={TryGetProcessId(process)} AlreadyExited={HasExited(process)}");
         process.Exited -= HandleOwnedProcessExited;
         try
         {
@@ -452,26 +465,31 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             {
                 lock (ipcGate)
                 {
-                    _ = DesignerHostIpcClient.TrySendCommand(
+                    bool acknowledged = DesignerHostIpcClient.TrySendCommand(
                         pipeName,
                         "SHUTDOWN",
                         documentPath,
                         projectPath,
                         TimeSpan.FromSeconds(1));
+                    DesignerEditorDiagnosticLog.Write($"HOST_SHUTDOWN_IPC Acknowledged={acknowledged}");
                 }
 
                 if (!process.WaitForExit(1500) && !process.HasExited)
                 {
+                    DesignerEditorDiagnosticLog.Write($"HOST_KILL_REQUESTED ProcessId={TryGetProcessId(process)}");
                     process.Kill();
-                    _ = process.WaitForExit(1000);
+                    bool exited = process.WaitForExit(1000);
+                    DesignerEditorDiagnosticLog.Write($"HOST_KILL_RETURNED Exited={exited}");
                 }
             }
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException error)
         {
+            DesignerEditorDiagnosticLog.WriteException("HOST_SHUTDOWN_FAILED", error);
         }
-        catch (System.ComponentModel.Win32Exception)
+        catch (System.ComponentModel.Win32Exception error)
         {
+            DesignerEditorDiagnosticLog.WriteException("HOST_SHUTDOWN_FAILED", error);
         }
         finally
         {

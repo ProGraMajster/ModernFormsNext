@@ -82,13 +82,16 @@ public sealed class MfDesignEditorFactory : IVsEditorFactory
 
         try
         {
+            DesignerEditorDiagnosticLog.Write("EDITOR_FACTORY_CREATE_BEGIN");
             var pane = CreateEditorPane(pszMkDocument);
             ppunkDocView = Marshal.GetIUnknownForObject(pane);
             ppunkDocData = Marshal.GetIUnknownForObject(pane);
+            DesignerEditorDiagnosticLog.Write("EDITOR_FACTORY_CREATE_OK");
             return VSConstants.S_OK;
         }
         catch (Exception ex)
         {
+            DesignerEditorDiagnosticLog.WriteException("EDITOR_FACTORY_CREATE_FAILED", ex);
             VsShellUtilities.ShowMessageBox(
                 serviceProvider,
                 $"ModernFormsNext Designer could not initialize.{Environment.NewLine}{ex.Message}",

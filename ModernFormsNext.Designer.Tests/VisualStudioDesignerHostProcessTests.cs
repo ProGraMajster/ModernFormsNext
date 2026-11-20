@@ -143,6 +143,19 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
             Assert.Contains("ARGS_PARSED", log, StringComparison.Ordinal);
             Assert.Contains("DPI_SETUP_BEGIN", log, StringComparison.Ordinal);
             Assert.Contains("DPI_SETUP_OK", log, StringComparison.Ordinal);
+            Assert.Contains($"Pid={process.Id} Tid=", log, StringComparison.Ordinal);
+            Assert.Contains("NativeTid=", log, StringComparison.Ordinal);
+            string[] stages = ["BOOTSTRAP_DISCOVERY", "BOOTSTRAPPER_CONSTRUCTOR", "BOOTSTRAP_CAN_INITIALIZE",
+                "BOOTSTRAPPER_INITIALIZE", "WINDOWS_PLATFORM_INITIALIZE", "WINDOWS_BACKEND_INITIALIZE",
+                "WIN32_PLATFORM_INITIALIZE", "WIN32_DPI", "WIN32_MESSAGE_WINDOW", "WIN32_COM_INITIALIZE",
+                "WINDOWS_SERVICE_REGISTRATION"];
+            foreach (string stage in stages)
+            {
+                Assert.Contains(stage + "_BEGIN", log, StringComparison.Ordinal);
+                Assert.Contains(stage + "_OK", log, StringComparison.Ordinal);
+            }
+            Assert.Contains("DISPATCHER_LOOP_BEGIN", log, StringComparison.Ordinal);
+            Assert.Contains("PROCESS_EXIT ExitCode=0", log, StringComparison.Ordinal);
             Assert.Contains("FORM_CONSTRUCTOR_BEGIN", log, StringComparison.Ordinal);
             Assert.Contains("HOSTING_MODE_CONFIGURED Mode=Standalone", log, StringComparison.Ordinal);
             Assert.Contains(
@@ -421,6 +434,82 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
         Assert.Contains("Environment.StackTrace:", diagnostic, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task InvalidParentReportsInitializationFailureAndANewProcessCanOpen()
+    {
+        string design = IOPath.Combine(workspaceDirectory, "InvalidParent.mfdesign");
+        using var failed = StartHost($"ModernFormsNext-Failed-{Guid.NewGuid():N}", design, new IntPtr(-1));
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await failed.WaitForExitAsync(deadline.Token);
+            Assert.Equal(-1, failed.ExitCode);
+            string log = ExtractLastRun(await ReadLogAsync(DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), failed.Id)));
+            Assert.Contains("DPI_SETUP_OK", log, StringComparison.Ordinal);
+            Assert.Contains("MAIN_EXCEPTION", log, StringComparison.Ordinal);
+            Assert.Contains("PROCESS_EXIT ExitCode=-1", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("IPC_READY", log, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (!failed.HasExited)
+            {
+                failed.Kill(entireProcessTree: true);
+                await failed.WaitForExitAsync();
+            }
+        }
+
+        using var parent = new NativeParentWindow(800, 600);
+        string pipe = $"ModernFormsNext-Reopened-{Guid.NewGuid():N}";
+        using var reopened = StartHost(pipe, design, parent.Handle);
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await WaitForLogMarkerAsync(reopened, DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), reopened.Id),
+                $"IPC_READY PipeName={pipe}", deadline.Token);
+            Assert.Equal("OK", await SendCommandAsync(pipe, "SHUTDOWN", design, deadline.Token));
+            await reopened.WaitForExitAsync(deadline.Token);
+            Assert.Equal(0, reopened.ExitCode);
+        }
+        finally
+        {
+            if (!reopened.HasExited)
+            {
+                reopened.Kill(entireProcessTree: true);
+                await reopened.WaitForExitAsync();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ParentCanCloseDuringStartupWithoutLeavingTheHostRunning()
+    {
+        using var parent = new NativeParentWindow(800, 600);
+        string design = IOPath.Combine(workspaceDirectory, "EarlyClose.mfdesign");
+        using var process = StartHost($"ModernFormsNext-EarlyClose-{Guid.NewGuid():N}", design, parent.Handle);
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            string logPath = DesignerHostDiagnosticLog.GetPath(IOPath.GetTempPath(), process.Id);
+            await WaitForLogMarkerAsync(process, logPath, "START", deadline.Token);
+            parent.Close();
+            await process.WaitForExitAsync(deadline.Token);
+            // Closing before Attach is an invalid parent, while closing after Attach enters
+            // the ordinary owner-close path. Both must end the exact owned process.
+            Assert.Contains(process.ExitCode, new[] { 0, -1 });
+            Assert.Contains("PROCESS_EXIT", ExtractLastRun(await ReadLogAsync(logPath)), StringComparison.Ordinal);
+            Assert.False(File.Exists(design));
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+            }
+        }
+    }
+
     private static Process StartHost(string pipeName, string designPath, IntPtr parentHandle)
     {
         var hostPath = IOPath.Combine(
@@ -671,7 +760,11 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var log = await ReadLogAsync(logPath);
+            var log = ExtractLastRun(await ReadLogAsync(logPath));
+            // Windows reuses PIDs. A log from an older process with that PID must never
+            // satisfy readiness before this instance has written its first record.
+            if (!log.Contains($" ProcessStart={process.StartTime.ToFileTimeUtc()}{Environment.NewLine}", StringComparison.Ordinal))
+                log = string.Empty;
             if (log.Contains(marker, StringComparison.Ordinal))
                 return;
             if (process.HasExited)
@@ -765,7 +858,7 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
     private static string ExtractLastRun(string log)
     {
         var marker = $"{Environment.NewLine}[";
-        var start = log.LastIndexOf($"] START{Environment.NewLine}", StringComparison.Ordinal);
+        var start = log.LastIndexOf("] START ", StringComparison.Ordinal);
         if (start < 0)
             return log;
 

@@ -8,6 +8,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        using var startupTrace = new DesignerStartupTraceListener();
+        System.Diagnostics.Trace.Listeners.Add(startupTrace);
         DesignerHostDiagnosticLog.Write("START");
 
         try
@@ -43,10 +45,18 @@ internal static class Program
             DesignerHostDiagnosticLog.WriteException("MAIN_EXCEPTION", ex);
             Environment.ExitCode = -1;
         }
+        finally
+        {
+            DesignerHostDiagnosticLog.Write($"MAIN_END ExitCode={Environment.ExitCode}");
+            System.Diagnostics.Trace.Listeners.Remove(startupTrace);
+        }
     }
 
     private static void RegisterGlobalExceptionDiagnostics()
     {
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            DesignerHostDiagnosticLog.Write($"PROCESS_EXIT ExitCode={Environment.ExitCode}");
+
         AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
         {
             if (eventArgs.ExceptionObject is Exception exception)

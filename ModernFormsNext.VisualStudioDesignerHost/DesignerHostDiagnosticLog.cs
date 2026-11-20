@@ -3,6 +3,7 @@ namespace ModernFormsNext.VisualStudioDesignerHost;
 internal static class DesignerHostDiagnosticLog
 {
     private static readonly object Gate = new();
+    private static readonly long ProcessStart = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToFileTimeUtc();
 
     public static string Path { get; } = GetPath(System.IO.Path.GetTempPath(), Environment.ProcessId);
 
@@ -23,7 +24,9 @@ internal static class DesignerHostDiagnosticLog
             {
                 File.AppendAllText(
                     Path,
-                    $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}");
+                    $"[{DateTimeOffset.Now:O}] {message} " +
+                    $"Pid={Environment.ProcessId} Tid={Environment.CurrentManagedThreadId} " +
+                    $"NativeTid={GetCurrentThreadId()} ProcessStart={ProcessStart}{Environment.NewLine}");
             }
         }
         catch
@@ -39,6 +42,9 @@ internal static class DesignerHostDiagnosticLog
 
         Write(FormatException(marker, exception));
     }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
 
     internal static string FormatException(string marker, Exception exception)
     {

@@ -9,6 +9,8 @@ namespace ModernFormsNext.VisualStudioExtension.Editors;
 internal static class DesignerEditorDiagnosticLog
 {
     private static readonly object Gate = new();
+    private static readonly int ProcessId = Process.GetCurrentProcess().Id;
+    private static readonly long ProcessStart = Process.GetCurrentProcess().StartTime.ToFileTimeUtc();
     private static readonly string LogPath = System.IO.Path.Combine(
         System.IO.Path.GetTempPath(),
         $"ModernFormsNextDesignerEditor-{Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture)}.log");
@@ -23,7 +25,9 @@ internal static class DesignerEditorDiagnosticLog
             {
                 File.AppendAllText(
                     LogPath,
-                    $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}",
+                    $"[{DateTimeOffset.Now:O}] {message} Pid={ProcessId} " +
+                    $"Tid={Environment.CurrentManagedThreadId} NativeTid={GetCurrentThreadId()} " +
+                    $"ProcessStart={ProcessStart}{Environment.NewLine}",
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             }
         }
@@ -59,4 +63,7 @@ internal static class DesignerEditorDiagnosticLog
 
         Write(builder.ToString());
     }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
 }
