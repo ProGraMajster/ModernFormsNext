@@ -36,14 +36,41 @@ $observed = [Collections.Generic.HashSet[int]]::new()
 $identity = [ordered]@{ requestedCommit = $Commit; rootSuffix = $RootSuffix; startedAt = $started.ToString('o') }
 $status = 'BLOCKED'
 $reason = ''
+$editorHelper = $null
+$editorRouting = $null
 
-function Start-DiagnosticProcess([string]$Path, [string[]]$Arguments, [bool]$Visible) {
+function Start-DiagnosticProcess([string]$Path, [string[]]$Arguments, [bool]$Visible, [bool]$CaptureOutput = $false) {
     $info = [Diagnostics.ProcessStartInfo]::new($Path)
     $info.UseShellExecute = $false
     $info.WorkingDirectory = $output
     $info.WindowStyle = if ($Visible) { 'Normal' } else { 'Hidden' }
+    if ($CaptureOutput) { $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true }
     foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
-    return [Diagnostics.Process]::Start($info)
+    $process = [Diagnostics.Process]::Start($info)
+    if ($CaptureOutput) {
+        # Drain both streams asynchronously so compiler/COM diagnostics cannot fill a pipe
+        # and stall the separately bounded editor-selection helper.
+        $script:helperOutput = $process.StandardOutput.ReadToEndAsync()
+        $script:helperError = $process.StandardError.ReadToEndAsync()
+    }
+    return $process
+}
+
+function Stop-EditorHelper {
+    if ($null -eq $editorHelper) { return }
+    if (!$editorHelper.HasExited) {
+        "Requested termination of owned editor helper $($editorHelper.Id) at $([DateTimeOffset]::Now.ToString('o'))" |
+            Add-Content -LiteralPath (Join-Path $output 'termination.log')
+        try { $editorHelper.Kill() }
+        catch [InvalidOperationException] { if (!$editorHelper.HasExited) { throw } }
+        [void]$editorHelper.WaitForExit(3000)
+    }
+    if ($editorHelper.HasExited) {
+        [IO.File]::WriteAllText((Join-Path $output 'editor-helper.stdout.txt'), $helperOutput.GetAwaiter().GetResult())
+        [IO.File]::WriteAllText((Join-Path $output 'editor-helper.stderr.txt'), $helperError.GetAwaiter().GetResult())
+    }
+    $editorHelper.Dispose()
+    $script:editorHelper = $null
 }
 
 function Copy-ProcessLog([int]$ProcessId, [string]$Kind, [string]$Label, [long]$ProcessStart) {
@@ -165,7 +192,11 @@ function Invoke-NativeProbe([string]$Mode, [string]$Label) {
             $exited = $process.HasExited
             $exitCode = if ($exited) { $process.ExitCode } else { $null }
             $result = Get-DesignerStartupStatus $log $exited $exitCode $forced
-            if (!$commandOk -and $result -eq 'PASS') { $result = 'FAIL' }
+            if (!$commandOk -and $result -eq 'PASS') {
+                $result = 'FAIL'
+                $failure = 'The direct host did not answer the DIRTY command correctly.'
+            }
+            if (!$failure -and $result -ne 'PASS') { $failure = 'The direct host did not complete bounded startup and clean shutdown.' }
             $results.Add([ordered]@{ label = $Label; status = $result; pid = $process.Id;
                 forcedStop = $forced; exitCode = $exitCode; ipcResponsive = $commandOk; failure = $failure })
             $process.Dispose()
@@ -247,11 +278,11 @@ try {
         Where-Object { $_.CommandLine -match ('/RootSuffix\s+"?' + [regex]::Escape($RootSuffix) + '(?:"|\s|$)') })
     if ($running.Count) { throw 'Close the selected experimental Visual Studio instance before running the diagnostic.' }
     $fixtureDirectory = Join-Path $output 'Fixture'
-    [IO.Directory]::CreateDirectory($fixtureDirectory) | Out-Null
-    $fixture = Join-Path $fixtureDirectory 'PreviewExample.mfdesign'
-    Copy-Item -LiteralPath (Join-Path $repository "$fixtureRelative/PreviewExample.mfdesign") -Destination $fixture
-    # Only the controlled data document is opened. Startup requires no consent or execution of project DLLs.
-    $fixtureProject = Join-Path $repository "$fixtureRelative/ProjectFixture.csproj"
+    $identity.copiedFixture = Copy-DesignerStartupFixture (Join-Path $repository $fixtureRelative) $fixtureDirectory
+    $fixture = $identity.copiedFixture.document
+    $fixtureProject = $identity.copiedFixture.project
+    # Keep the controlled document beside its project and source, matching a normal IDE open.
+    # Startup requires no build, consent or execution of project DLLs.
     $fixtureHash = (Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash
 
     Add-Type -TypeDefinition @'
@@ -279,10 +310,17 @@ public static class MfnStartupNative {
     Invoke-NativeProbe 'standalone' 'outside-vs-restart'
 
     $activity = Join-Path $output 'ActivityLog.xml'
-    $ide = Start-DiagnosticProcess $devenv @($fixture, '/RootSuffix', $RootSuffix, '/Log', $activity) $true
+    $ide = Start-DiagnosticProcess $devenv @($fixtureProject, '/RootSuffix', $RootSuffix, '/Log', $activity) $true
     [void]$observed.Add($ide.Id)
     $identity.idePid = $ide.Id
-    Write-Host 'The controlled document is opening in the experimental Visual Studio profile.'
+    $identity.ideStart = $ide.StartTime.ToFileTimeUtc()
+    $routingPath = Join-Path $output 'editor-open.json'
+    $editorHelper = Start-DiagnosticProcess (Join-Path $PSHOME 'pwsh.exe') @('-NoProfile', '-STA', '-File',
+        (Join-Path $PSScriptRoot 'Invoke-DesignerStartupEditor.ps1'), '-IdeProcessId', [string]$ide.Id,
+        '-IdeStart', [string]$identity.ideStart, '-VisualStudioPath', $VisualStudioPath, '-RootSuffix', $RootSuffix,
+        '-Document', $fixture, '-OutputPath', $routingPath, '-TimeoutSeconds', [string]$ObservationSeconds) $false $true
+    [void]$observed.Add($editorHelper.Id)
+    Write-Host 'The copied project is opening; the collector explicitly requests the registered Designer factory.'
     Write-Host 'If a dialog blocks opening, leave it visible until collection finishes. Do not close the document.'
     $deadline = [DateTime]::UtcNow.AddSeconds($ObservationSeconds)
     $hostProcess = $null
@@ -291,6 +329,14 @@ public static class MfnStartupNative {
     $hostHashMismatch = $false
     do {
         Save-ProcessSample $ide 'visual-studio'
+        Save-ProcessSample $editorHelper 'editor-automation'
+        if ($editorHelper.HasExited -and $null -eq $editorRouting) {
+            if (Test-Path -LiteralPath $routingPath) { $editorRouting = Get-Content -LiteralPath $routingPath -Raw | ConvertFrom-Json }
+            if ($null -eq $editorRouting -or $editorHelper.ExitCode -ne 0 -and $editorRouting.status -eq 'Opened') {
+                $editorRouting = [ordered]@{status='BLOCKED'; stage='EditorAutomation';
+                    failure='The editor helper exited without a successful verified frame. Inspect helper logs.'}
+            }
+        }
         $editorLog = Copy-ProcessLog $ide.Id 'Editor' 'inside-vs' $ide.StartTime.ToFileTimeUtc()
         $candidates = @(Get-CimInstance Win32_Process -Filter "Name='ModernFormsNext.VisualStudioDesignerHost.exe'" |
             Where-Object { $_.CommandLine -match ('--owner-process\s+' + $ide.Id + '(?:\s|$)') -and
@@ -310,7 +356,7 @@ public static class MfnStartupNative {
             if ($hostLog -match 'FORM_SHOWN' -and $hostLog -match 'IPC_READY PipeName=(\S+)') {
                 $pipe = $Matches[1]
                 $ideCommandOk = (Send-DesignerCommand $pipe 'DIRTY' $fixture) -eq "DIRTY`t0"
-                break
+                if ($null -ne $editorRouting) { break }
             }
         }
         elseif ($editorLog -match 'HOST_LAUNCH_OK ProcessId=(\d+) ChildStart=(\d+)') {
@@ -321,17 +367,27 @@ public static class MfnStartupNative {
             [void]$observed.Add($launched)
             $hostLog = Copy-ProcessLog $launched 'Host' 'inside-vs' $childStart
         }
+        if ($null -ne $editorRouting -and $editorRouting.status -ne 'Opened') { break }
         if ($ide.HasExited) { break }
         Start-Sleep -Milliseconds 250
     } while ([DateTime]::UtcNow -lt $deadline)
+    if ($null -eq $editorRouting) {
+        # An RPC can remain blocked inside the IDE; terminate only our helper, leaving
+        # the experimental IDE and its document available for inspection.
+        $editorRouting = [ordered]@{status='BLOCKED'; stage='EditorAutomation';
+            failure='Explicit editor selection did not complete within the observation interval.'}
+    }
+    Stop-EditorHelper
     $editorLog = Copy-ProcessLog $ide.Id 'Editor' 'inside-vs' $ide.StartTime.ToFileTimeUtc()
+    $insideFailure = ''
+    $insideStage = 'HostStartup'
     if ($null -ne $hostProcess) {
         $exited = $hostProcess.HasExited
         $exitCode = if ($exited) { $hostProcess.ExitCode } else { $null }
         $inside = Get-DesignerStartupStatus $hostLog $exited $exitCode $false
         if (!$ideCommandOk -and $inside -eq 'PASS') { $inside = 'FAIL' }
-        $results.Add([ordered]@{label='inside-vs'; status=$inside; pid=$hostProcess.Id;
-            exitCode=$exitCode; ipcResponsive=$ideCommandOk; forcedStop=$false})
+        $insidePid = $hostProcess.Id
+        if ($inside -ne 'PASS') { $insideFailure = 'The owned host did not complete startup and responsive IPC. Inspect editor/host logs.' }
         # The IDE remains available for inspection. Record its live child's current native threads
         # before any later user action closes the document.
         $hostProcess.Dispose()
@@ -340,17 +396,34 @@ public static class MfnStartupNative {
         $missingStatus = Get-DesignerStartupStatus $hostLog $false $null $false
         # Readiness without a process/IPC response is incomplete evidence.
         if ($missingStatus -eq 'PASS') { $missingStatus = 'BLOCKED' }
-        $results.Add([ordered]@{ label='inside-vs'; status=$missingStatus;
-            failure='No matching installed host was observed. Inspect the IDE dialog and editor/activity logs.' })
+        $inside = $missingStatus
+        $insidePid = $null
+        $exitCode = $null
+        $insideFailure = 'No matching installed host was observed. Inspect the IDE dialog and editor/activity logs.'
     }
+    if ($editorRouting.status -ne 'Opened') {
+        if ($inside -ne 'FAIL') { $inside = if ($editorRouting.status -eq 'FAIL') { 'FAIL' } else { 'BLOCKED' } }
+        $insideStage = $editorRouting.stage
+        $insideFailure = $editorRouting.failure
+    }
+    $results.Add([ordered]@{label='inside-vs'; status=$inside; pid=$insidePid;
+        exitCode=$exitCode; ipcResponsive=$ideCommandOk; forcedStop=$false;
+        failureStage=$insideStage; failure=$insideFailure; editorRouting=$editorRouting})
     if ($hostHashMismatch) { throw 'Visual Studio started a host outside the verified deployment.' }
     if ((Get-FileHash -LiteralPath $fixture -Algorithm SHA256).Hash -cne $fixtureHash) {
         throw 'The synthetic design document changed during the startup probe.'
     }
+    foreach ($copied in $identity.copiedFixture.copiedHashes) {
+        if ((Get-FileHash -LiteralPath (Join-Path $fixtureDirectory $copied.name) -Algorithm SHA256).Hash -cne $copied.Hash) {
+            throw "The copied fixture changed during the startup probe ($($copied.name))."
+        }
+    }
     if (@($results | Where-Object { $_.status -eq 'FAIL' }).Count) { $status='FAIL' }
     elseif (@($results | Where-Object { $_.status -ne 'PASS' }).Count) { $status='BLOCKED' }
     else { $status='PASS' }
-    $reason = 'Startup probes only. The experimental IDE is left open for inspection. LPAC execution has not been qualified.'
+    $incomplete = @($results | Where-Object { $_.status -ne 'PASS' })
+    $reason = if ($incomplete.Count) { "$($incomplete[0].label): $($incomplete[0].failure)" }
+        else { 'All startup probes and explicit Designer selection completed. LPAC execution has not been qualified.' }
     $ide.Dispose()
 }
 catch {
@@ -358,6 +431,7 @@ catch {
     $_ | Out-String | Set-Content -LiteralPath (Join-Path $output 'collector-error.txt') -Encoding utf8
 }
 finally {
+    Stop-EditorHelper
     $identity | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath (Join-Path $output 'identity.json') -Encoding utf8
     # Query only relevant application events and owned processes. Never change WER or machine settings.
     try {

@@ -24,9 +24,35 @@ if ($current -match 'FORM_SHOWN' -or $current -notmatch 'DPI_SETUP_BEGIN') {
 }
 $complete = Get-DesignerProcessLog ($newLog + "[new] FORM_SHOWN ProcessStart=123`n") 123
 if ($complete -notmatch 'FORM_SHOWN') { throw 'The current process readiness was lost.' }
-$parseErrors = $null
-$tokens = $null
-[void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../Test-DesignerStartup.ps1'),
-    [ref]$tokens, [ref]$parseErrors)
-if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
-Write-Host 'Designer startup evidence classification and collector syntax passed.'
+$source = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'fixtures/DesignerExecutablePreview'))
+$before = @(Get-ChildItem -LiteralPath $source -File | Get-FileHash -Algorithm SHA256)
+# Retain the tiny controlled test copy as evidence; never remove a caller's directory.
+$destination = Join-Path ([IO.Path]::GetTempPath()) ('MfnStartupFixtureTest-' + [guid]::NewGuid().ToString('N'))
+$copy = Copy-DesignerStartupFixture $source $destination
+foreach ($name in 'PreviewExample.mfdesign', 'PreviewBadge.cs') {
+    if ((Get-FileHash (Join-Path $source $name)).Hash -cne (Get-FileHash (Join-Path $destination $name)).Hash) {
+        throw "Copied fixture differs ($name)."
+    }
+}
+[xml]$originalProject = Get-Content (Join-Path $source 'ProjectFixture.csproj') -Raw
+[xml]$copiedProject = Get-Content $copy.project -Raw
+$expectedTarget = [IO.Path]::GetFullPath((Join-Path $source $originalProject.Project.ItemGroup.ProjectReference.Include))
+if ($copiedProject.Project.ItemGroup.ProjectReference.Include -cne $expectedTarget) {
+    throw 'The copied project no longer references the same framework.'
+}
+if ((Split-Path $copy.project) -cne (Split-Path $copy.document) -or $copy.copiedHashes.Count -ne 3) {
+    throw 'The copied document is missing its project/source context or hash inventory.'
+}
+foreach ($entry in $before) {
+    if ((Get-FileHash -LiteralPath $entry.Path).Hash -cne $entry.Hash) { throw 'Fixture source was modified.' }
+}
+try { Copy-DesignerStartupFixture $source $destination; throw 'An existing copy was overwritten.' }
+catch { if ($_.Exception.Message -ne 'The copied fixture directory must be new.') { throw } }
+foreach ($script in 'Test-DesignerStartup.ps1', 'Invoke-DesignerStartupEditor.ps1') {
+    $parseErrors = $null
+    $tokens = $null
+    [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot "../$script"),
+        [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+}
+Write-Host 'Designer startup classification, fixture context and collector/helper syntax passed.'
