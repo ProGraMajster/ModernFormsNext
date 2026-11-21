@@ -19,7 +19,9 @@ public sealed class WindowsWindowKitBackend : IWindowKitBackend
         if (IsInitialized)
             return;
 
+        StartupDiagnostics.Log.Stage("WINDOWS_BACKEND_INITIALIZE_BEGIN");
         WindowsPlatformBootstrap.InitializeServices();
         IsInitialized = true;
+        StartupDiagnostics.Log.Stage("WINDOWS_BACKEND_INITIALIZE_OK");
     }
 }

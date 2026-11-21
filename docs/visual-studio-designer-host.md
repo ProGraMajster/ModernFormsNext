@@ -5,6 +5,31 @@ classic VSSDK package remains small and .NET Framework-compatible, while the Des
 run on modern .NET in `ModernFormsNext.VisualStudioDesignerHost`. The host can be integrated into
 the Visual Studio document pane or presented as an independent top-level window.
 
+## Visual Studio and .NET compatibility
+
+| Layer | ModernFormsNext 1.12.0 |
+| --- | --- |
+| VSIX installation | The x64 manifest admits VS 2022 and later in Community, Professional and Enterprise. The in-process adapter targets .NET Framework 4.7.2. Installation eligibility establishes neither host startup nor project compatibility. |
+| Designer host | Requires an x64 Windows desktop with the .NET 10 runtime. The standard VSIX supplies the data Designer host. Local installed-package evidence covers Windows 11 26H2 with VS 2026 18.12. |
+| .NET 10 applications and templates | Use the .NET 10 CLI or Visual Studio 2026 18.0 or later with a compatible SDK. The repository pins SDK 10.0.401, from the 10.0.4xx band bundled with 18.9, with minimum Visual Studio/MSBuild compatibility at 18.0. |
+| Limited VS 2022 use | The manifest retains the data editor installation route. The Windows 24H2 / VS 2022 17.14.45 editor startup comparison remains partial. Visual Studio 2022's supported project targets stop before .NET 10. |
+
+See [Microsoft's SDK and IDE matrix](https://learn.microsoft.com/dotnet/core/porting/versioning-sdk-msbuild-vs).
+The 2.0.0 plan will qualify VS 2022 with an older target if a target can meet the
+[Microsoft lifecycle policy](https://learn.microsoft.com/lifecycle/products/microsoft-net-and-net-core)
+and the package and tooling requirements. It will separately qualify VS 2026 with .NET 10.
+The extension installation range alone is insufficient for either qualification.
+
+The standard 1.12.0 Designer reads control metadata and the design document.
+It uses placeholders for project controls that lack a data preview. Undo/Redo and
+selection live in the current document session. When the host exits unexpectedly,
+the saved design and any available [autosave snapshot](designer-autosave-and-recovery.md)
+can be reopened. Recovery preserves snapshot content. Editing after the latest
+snapshot may be lost and the reopened session starts a new history.
+
+The standard VSIX contains no executable preview worker. Private qualification
+builds are described in the [executable preview development guide](development/designer-executable-preview-isolation.md).
+
 ## Designer hosting modes
 
 Choose **Tools > Options > ModernFormsNext > Designer > Designer hosting** to select one of two

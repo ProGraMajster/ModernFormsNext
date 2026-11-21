@@ -1,4 +1,5 @@
-﻿using ModernFormsNext.WindowKit.Controls.ApplicationLifetimes;
+using ModernFormsNext.WindowKit.Backend;
+using ModernFormsNext.WindowKit.Controls.ApplicationLifetimes;
 using ModernFormsNext.WindowKit.Platform;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -107,9 +108,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public Win32Platform()
         {
+            StartupDiagnostics.Log.Stage("WIN32_DPI_BEGIN");
             SetDpiAwareness();
+            StartupDiagnostics.Log.Stage("WIN32_DPI_OK");
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_WINDOW_BEGIN");
             CreateMessageWindow();
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_WINDOW_OK");
             _dispatcher = new Win32DispatcherImpl(_hwnd);
+            StartupDiagnostics.Log.Stage("WIN32_DISPATCHER_CREATED");
         }
 
         internal static Win32Platform Instance => s_instance;
@@ -239,14 +245,18 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 lpszClassName = "AvaloniaMessageWindow " + Guid.NewGuid(),
             };
 
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_CLASS_BEGIN");
             ushort atom = RegisterClassEx(ref wndClassEx);
+            StartupDiagnostics.Log.Stage($"WIN32_MESSAGE_CLASS_END Atom={atom}");
 
             if (atom == 0)
             {
                 throw new Win32Exception();
             }
 
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_HWND_BEGIN");
             _hwnd = CreateWindowEx(0, atom, null, 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            StartupDiagnostics.Log.Stage($"WIN32_MESSAGE_HWND_END Handle=0x{_hwnd:X}");
 
             if (_hwnd == IntPtr.Zero)
             {

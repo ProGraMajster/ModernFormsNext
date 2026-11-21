@@ -1,3 +1,4 @@
+#requires -Version 7.2
 <#
 .SYNOPSIS
 Runs a candidate VSIX startup smoke in a newly named Visual Studio profile.
@@ -21,6 +22,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Import-Module (Join-Path $PSScriptRoot 'ReleaseDocumentation.Common.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'DesignerStartup.Common.psm1') -Force
 $version = ConvertTo-ReleaseVersion -Version $Tag
 if ($Tag -cne "v$version") { throw 'Use the exact tag from the release evidence.' }
 $repository = Split-Path -Parent $PSScriptRoot
@@ -129,34 +131,64 @@ Invoke-Setup $msbuild @($enable, '/t:EnableCandidate', '/nologo', '/v:minimal', 
     "/p:SmokeInstallation=$vs", "/p:SmokeProfile=$suffix", "/p:SmokeVersion=$ExpectedVsixVersion")
 Invoke-Setup $devenv @('/RootSuffix', $suffix, '/updateconfiguration')
 
-$ide = Start-OwnedProcess $devenv @($fixture, '/RootSuffix', $suffix, '/Log', $activity) $true
+$ide = Start-OwnedProcess $devenv @('/RootSuffix', $suffix, '/Log', $activity) $true
+$editorOpen = Join-Path $output 'editor-open.json'
+$helper = Start-OwnedProcess (Join-Path $PSHOME 'pwsh.exe') @(
+    '-NoProfile', '-STA', '-File', (Join-Path $PSScriptRoot 'Invoke-DesignerStartupEditor.ps1'),
+    '-IdeProcessId', [string]$ide.Id, '-IdeStart', [string]$ide.StartTime.ToFileTimeUtc(),
+    '-VisualStudioPath', $vs, '-RootSuffix', $suffix, '-Document', $fixture,
+    '-OutputPath', $editorOpen, '-TimeoutSeconds', [string][Math]::Min(120, $TimeoutSeconds)
+) $false
 $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSeconds)
 $designArgument = '--design-file\s+"?' + [regex]::Escape($fixture) + '(?:"|\s|$)'
 $ownerArgument = '--owner-process\s+' + $ide.Id + '(?:\s|$)'
-while ([datetime]::UtcNow -lt $deadline -and !$ide.HasExited) {
-    $hosts = @(Get-CimInstance Win32_Process -Filter "Name='ModernFormsNext.VisualStudioDesignerHost.exe'" |
-        Where-Object { $_.CommandLine -match $designArgument -and $_.CommandLine -match $ownerArgument })
-    foreach ($hostProcess in $hosts) {
-        if (!$hostProcess.ExecutablePath -or !$hostProcess.ExecutablePath.StartsWith($extensions, [StringComparison]::OrdinalIgnoreCase) -or
-            (Get-FileHash -LiteralPath $hostProcess.ExecutablePath -Algorithm SHA256).Hash -cne $entryHashes[$hostPath]) {
-            throw 'The Designer opened from outside the qualified private deployment.'
+try {
+    while ([datetime]::UtcNow -lt $deadline -and !$ide.HasExited) {
+        if (!$helper.HasExited) { Start-Sleep -Milliseconds 250; continue }
+        if ($helper.ExitCode -ne 0 -or !(Test-Path -LiteralPath $editorOpen)) {
+            throw "Visual Studio did not confirm the registered Designer editor. Inspect $editorOpen."
         }
-        $deployedShell = Join-Path (Split-Path -Parent (Split-Path -Parent $hostProcess.ExecutablePath)) $shellPath
-        if ((Get-FileHash -LiteralPath $deployedShell -Algorithm SHA256).Hash -cne $entryHashes[$shellPath]) {
-            throw 'The installed Designer extension does not match the candidate VSIX.'
+        $hosts = @(Get-CimInstance Win32_Process -Filter "Name='ModernFormsNext.VisualStudioDesignerHost.exe'" |
+            Where-Object { $_.CommandLine -match $designArgument -and $_.CommandLine -match $ownerArgument })
+        foreach ($hostProcess in $hosts) {
+            if (!$hostProcess.ExecutablePath -or !$hostProcess.ExecutablePath.StartsWith($extensions, [StringComparison]::OrdinalIgnoreCase) -or
+                (Get-FileHash -LiteralPath $hostProcess.ExecutablePath -Algorithm SHA256).Hash -cne $entryHashes[$hostPath]) {
+                throw 'The Designer opened from outside the qualified private deployment.'
+            }
+            $deployedShell = Join-Path (Split-Path -Parent (Split-Path -Parent $hostProcess.ExecutablePath)) $shellPath
+            if ((Get-FileHash -LiteralPath $deployedShell -Algorithm SHA256).Hash -cne $entryHashes[$shellPath]) {
+                throw 'The installed Designer extension does not match the candidate VSIX.'
+            }
+            $log = Join-Path ([IO.Path]::GetTempPath()) "ModernFormsNextDesignerHost-$($hostProcess.ProcessId).log"
+            if (!(Test-Path -LiteralPath $log)) { continue }
+            $process = Get-Process -Id $hostProcess.ProcessId -ErrorAction SilentlyContinue
+            if (!$process) { continue }
+            try {
+                $creation = $process.StartTime.ToFileTimeUtc()
+                $runLog = Get-DesignerProcessLog (Get-Content -LiteralPath $log -Raw) $creation
+            }
+            catch [InvalidOperationException] { continue }
+            finally { $process.Dispose() }
+            if ($runLog -match 'IPC_READY' -and $runLog -match 'FORM_SHOWN') {
+                Set-Content -LiteralPath (Join-Path $output 'designer-host.log') -Value $runLog -Encoding utf8NoBOM
+                [ordered]@{
+                    tag = $Tag; commit = $Commit; vsixVersion = $ExpectedVsixVersion; vsixSha256 = $ExpectedSha256.ToLowerInvariant()
+                    status = 'host-ready'; idePid = $ide.Id; designerPid = $hostProcess.ProcessId
+                    profileSuffix = $suffix; observedAtUtc = [datetime]::UtcNow.ToString('o')
+                } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'designer-smoke.json') -Encoding utf8NoBOM
+                Write-Host "Inspect ReleaseSmoke.mfdesign in the isolated Visual Studio window. Evidence: $output"
+                return
+            }
         }
-        $log = Join-Path ([IO.Path]::GetTempPath()) "ModernFormsNextDesignerHost-$($hostProcess.ProcessId).log"
-        if ((Test-Path -LiteralPath $log) -and (Select-String -LiteralPath $log -SimpleMatch 'IPC_READY' -Quiet)) {
-            Copy-Item -LiteralPath $log -Destination (Join-Path $output 'designer-host.log')
-            [ordered]@{
-                tag = $Tag; commit = $Commit; vsixVersion = $ExpectedVsixVersion; vsixSha256 = $ExpectedSha256.ToLowerInvariant()
-                status = 'host-ready'; idePid = $ide.Id; designerPid = $hostProcess.ProcessId
-                profileSuffix = $suffix; observedAtUtc = [datetime]::UtcNow.ToString('o')
-            } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'designer-smoke.json') -Encoding utf8NoBOM
-            Write-Host "Inspect ReleaseSmoke.mfdesign in the isolated Visual Studio window. Evidence: $output"
-            return
-        }
+        Start-Sleep -Milliseconds 500
     }
-    Start-Sleep -Milliseconds 500
+    throw "The candidate Designer host did not signal readiness. Inspect the isolated IDE and logs in $output."
 }
-throw "The candidate Designer host did not signal readiness. Inspect the isolated IDE and logs in $output."
+finally {
+    if (!$helper.HasExited) {
+        try { $helper.Kill() }
+        catch [InvalidOperationException] { if (!$helper.HasExited) { throw } }
+    }
+    $helper.Dispose()
+    $ide.Dispose()
+}

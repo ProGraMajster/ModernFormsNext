@@ -9,9 +9,10 @@ namespace ModernFormsNext.VisualStudioExtension.Editors;
 internal static class DesignerEditorDiagnosticLog
 {
     private static readonly object Gate = new();
+    private static readonly (int Id, long Start) ProcessIdentity = GetCurrentProcessIdentity();
     private static readonly string LogPath = System.IO.Path.Combine(
         System.IO.Path.GetTempPath(),
-        $"ModernFormsNextDesignerEditor-{Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture)}.log");
+        $"ModernFormsNextDesignerEditor-{ProcessIdentity.Id.ToString(CultureInfo.InvariantCulture)}.log");
 
     public static string Path => LogPath;
 
@@ -23,7 +24,9 @@ internal static class DesignerEditorDiagnosticLog
             {
                 File.AppendAllText(
                     LogPath,
-                    $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}",
+                    $"[{DateTimeOffset.Now:O}] {message} Pid={ProcessIdentity.Id} " +
+                    $"Tid={Environment.CurrentManagedThreadId} NativeTid={GetCurrentThreadId()} " +
+                    $"ProcessStart={ProcessIdentity.Start}{Environment.NewLine}",
                     new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             }
         }
@@ -58,5 +61,21 @@ internal static class DesignerEditorDiagnosticLog
         }
 
         Write(builder.ToString());
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    internal static long TryGetProcessStart(Process process)
+    {
+        try { return process.StartTime.ToFileTimeUtc(); }
+        catch (InvalidOperationException) { return 0; }
+        catch (System.ComponentModel.Win32Exception) { return 0; }
+    }
+
+    private static (int Id, long Start) GetCurrentProcessIdentity()
+    {
+        using var process = Process.GetCurrentProcess();
+        return (process.Id, TryGetProcessStart(process));
     }
 }

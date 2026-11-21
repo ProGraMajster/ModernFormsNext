@@ -8,7 +8,7 @@ The browser smoke uses Node 22 or later and a local Chromium browser. It opens t
 
 | Gate | Evidence required |
 | --- | --- |
-| Visual Studio | Run **scripts/Test-ReleaseDesigner.ps1** with the candidate VSIX, its SHA-256, VSIX version, tag, commit and a fresh output directory. Use an interactive Windows validation environment with a single Visual Studio installation, the extensibility SDK and the IDE closed. The script opens the fixture in a fresh experimental profile and records host readiness. Inspect the loaded Designer and record the visual result before closing that instance. |
+| Visual Studio | Run **scripts/Test-ReleaseDesigner.ps1** in PowerShell 7.2 or later with the standard candidate VSIX, its SHA-256, VSIX version, tag, commit and a fresh output directory. Use an interactive Windows validation environment with a single Visual Studio installation, the extensibility SDK and the IDE closed. The script opens the registered Designer in a fresh experimental profile and records editor selection and host readiness. Inspect the loaded Designer and record the visual result before closing that instance. |
 | Android | Run the [Android release matrix](../android-release-validation.md) with the prepared **ModernFormsNextSample.apk** on the selected physical device. Keep the matrix and device observations together. Reference that evidence and the exact APK digest in the approval. |
 | Marketplace | Confirm the prepared VSIX is approved for the Marketplace handoff and record whether it is awaiting upload, submitted or published. The public Gallery lookup records whether the version is listed. An unavailable lookup remains visible in the report. |
 

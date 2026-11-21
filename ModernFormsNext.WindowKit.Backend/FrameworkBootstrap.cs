@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -63,8 +63,10 @@ public static class FrameworkBootstrap
         if (initialized)
             return;
 
+        StartupDiagnostics.Log.Stage("BOOTSTRAP_LOCK_BEGIN");
         lock (sync)
         {
+            StartupDiagnostics.Log.Stage("BOOTSTRAP_LOCK_OK");
             if (initialized)
                 return;
 
@@ -79,6 +81,7 @@ public static class FrameworkBootstrap
 
             LoadBackendAssemblies();
 
+            StartupDiagnostics.Log.Stage("BOOTSTRAP_DISCOVERY_BEGIN");
             var bootstrapper = AppDomain.CurrentDomain
                 .GetAssemblies()
                 .SelectMany(SafeGetTypes)
@@ -87,13 +90,16 @@ public static class FrameworkBootstrap
                     !t.IsAbstract &&
                     !t.IsInterface)
                 .Select(Create)
-                .FirstOrDefault(x => x != null && x.CanInitializeCurrentPlatform());
+                .FirstOrDefault(CanInitialize);
+            StartupDiagnostics.Log.Stage("BOOTSTRAP_DISCOVERY_OK");
 
             if (bootstrapper == null)
                 throw new PlatformNotSupportedException(
                     $"No backend available for this platform ({GetCurrentPlatformName()}).");
 
+            StartupDiagnostics.Log.Stage("BOOTSTRAPPER_INITIALIZE_BEGIN");
             bootstrapper.Initialize();
+            StartupDiagnostics.Log.Stage("BOOTSTRAPPER_INITIALIZE_OK");
             initialized = true;
         }
     }
@@ -128,12 +134,15 @@ public static class FrameworkBootstrap
 
         foreach (var assemblyFile in backendAssemblyFiles)
         {
+            StartupDiagnostics.Log.Stage($"BACKEND_ASSEMBLY_LOAD_BEGIN Assembly={Path.GetFileName(assemblyFile)}");
             try
             {
                 AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(assemblyFile));
+                StartupDiagnostics.Log.Stage("BACKEND_ASSEMBLY_LOAD_OK");
             }
-            catch
+            catch (Exception error)
             {
+                StartupDiagnostics.Log.Stage($"BACKEND_ASSEMBLY_LOAD_FAILED Type={error.GetType().Name} HResult=0x{error.HResult:X8}");
                 // Ignore load failures here; unsupported or broken backends
                 // should not block discovery of other valid backends.
             }
@@ -155,10 +164,14 @@ public static class FrameworkBootstrap
     {
         try
         {
-            return Activator.CreateInstance(t) as IPlatformBootstrap;
+            StartupDiagnostics.Log.Stage($"BOOTSTRAPPER_CONSTRUCTOR_BEGIN Type={t.FullName}");
+            var result = Activator.CreateInstance(t) as IPlatformBootstrap;
+            StartupDiagnostics.Log.Stage("BOOTSTRAPPER_CONSTRUCTOR_OK");
+            return result;
         }
-        catch
+        catch (Exception error)
         {
+            StartupDiagnostics.Log.Stage($"BOOTSTRAPPER_CONSTRUCTOR_FAILED Type={error.GetType().Name} HResult=0x{error.HResult:X8}");
             return null;
         }
     }
@@ -176,14 +189,28 @@ public static class FrameworkBootstrap
     /// </remarks>
     private static Type[] SafeGetTypes(Assembly a)
     {
+        StartupDiagnostics.Log.Stage($"BOOTSTRAP_TYPES_BEGIN Assembly={a.GetName().Name}");
         try
         {
-            return a.GetTypes();
+            var types = a.GetTypes();
+            StartupDiagnostics.Log.Stage("BOOTSTRAP_TYPES_OK");
+            return types;
         }
         catch (ReflectionTypeLoadException ex)
         {
+            StartupDiagnostics.Log.Stage("BOOTSTRAP_TYPES_PARTIAL");
             return ex.Types.Where(x => x != null).ToArray()!;
         }
+    }
+
+    private static bool CanInitialize(IPlatformBootstrap? bootstrapper)
+    {
+        if (bootstrapper is null)
+            return false;
+        StartupDiagnostics.Log.Stage("BOOTSTRAP_CAN_INITIALIZE_BEGIN");
+        bool supported = bootstrapper.CanInitializeCurrentPlatform();
+        StartupDiagnostics.Log.Stage($"BOOTSTRAP_CAN_INITIALIZE_OK Supported={supported}");
+        return supported;
     }
 
     /// <summary>

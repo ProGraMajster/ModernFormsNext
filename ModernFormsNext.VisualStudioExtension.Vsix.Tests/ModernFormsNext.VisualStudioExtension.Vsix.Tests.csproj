@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Vsix\ModernFormsNext.VisualStudioExtension.Vsix.csproj" />
+    <Compile Include="..\scripts\DesignerStartup.VisualStudio.cs" Link="DesignerStartup.VisualStudio.cs" />
   </ItemGroup>
 
 </Project>
