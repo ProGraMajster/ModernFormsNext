@@ -40,6 +40,16 @@ ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while Nu
   paired window-size constraints, high DPI title-bar icons and control typography.
 - Improved ellipsis measurement and cleanup after Windows notification failures.
 
+### Platform validation
+
+- Recorded Windows IMM32 and real HWND integration, and physical Android API 36
+  lifecycle, native InputConnection, Latin Gboard input and 60 Hz frame observations.
+  Android remains Experimental. Broader CJK and device qualification is tracked
+  in [#537](https://github.com/ProGraMajster/ModernFormsNext/issues/537) and
+  [#538](https://github.com/ProGraMajster/ModernFormsNext/issues/538).
+- See the [1.12.0 release notes](docs/1.12.0-release-notes.md) for the qualified
+  scope and outstanding manual platform checks.
+
 ### Experimental builds and planned 2.0.0 work
 
 - Executable previews of project controls remain available in private qualification builds.

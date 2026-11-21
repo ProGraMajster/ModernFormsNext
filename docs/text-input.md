@@ -293,8 +293,22 @@ this guide is an implementation contract, not a passing native-language/device c
 matrix. Physical-device, vendor IME, language/layout and manual candidate-window acceptance
 remain separate from deterministic protocol tests and native injected-message tests.
 
-The [1.11.0 scope-freeze report](development/1.11.0-roadmap-completion.md#issue-62--text-input-and-composition)
-tracks the current-master acceptance audit. The shared implementation is already merged;
-the final Android API/vendor/device observations are consolidated under issue #69.
-Issue #62 remains open for unverified native compatibility criteria rather than implying
-that another composition system needs to be implemented.
+## 1.12.0 qualification
+
+Windows targeted checks cover the IMM32 candidate coordinate contract during DPI
+changes and the actual HWND Unicode path, including keyboard-owner and popup
+handoff. The tested desktop had Polish (Programmers) configured. The IMM32
+candidate tests use a simulated native transport.
+
+On a physical NX769J running Android API 36, the native InputConnection runner
+passed 82 assertions for TextBox, multiline TextBox, RichTextBox and the
+MarkdownEditor source. In a separate run, taps on real Gboard keys entered
+Latin text in the single-line editor. Next moved focus to the multiline editor
+and the first editor kept the entered word. See the
+[#131 qualification results](https://github.com/ProGraMajster/ModernFormsNext/issues/131#issuecomment-7066655444).
+
+Live candidate placement on Windows with a CJK IME, vendor CJK composition on
+Android and more keyboard layouts are tracked in
+[#537](https://github.com/ProGraMajster/ModernFormsNext/issues/537).
+Android physical hardware keyboard coverage is tracked in
+[#109](https://github.com/ProGraMajster/ModernFormsNext/issues/109).
