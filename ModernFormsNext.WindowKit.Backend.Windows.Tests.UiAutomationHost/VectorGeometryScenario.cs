@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using ModernFormsNext;
@@ -10,6 +11,7 @@ internal static class VectorGeometryScenario
 {
     internal static int Run()
     {
+        var elapsed = Stopwatch.StartNew();
         try
         {
             using var form = new Form { Text = "Vector geometry certification", ClientSize = new(380, 480) };
@@ -23,8 +25,9 @@ internal static class VectorGeometryScenario
                     Require(SetWindowPos(hwnd, new nint(-1), 40, 40, 0, 0, 0x0011), "Cannot expose the owned window.");
                     using (var fixture = new VectorGeometryCertification(form.Controls, Console.WriteLine))
                     {
+                        using var desktop = new DesktopPresentation(hwnd);
                         fixture.Exercise();
-                        Paint(hwnd, fixture);
+                        Paint(hwnd, fixture, desktop, elapsed);
                         Pixels(fixture, false);
                         var area = fixture.ClipPixelBounds;
                         Pointer(hwnd, new(area.Left + area.Width / 4, area.Top + area.Height / 2), 0x0201, 1);
@@ -34,10 +37,10 @@ internal static class VectorGeometryScenario
                         Pointer(hwnd, new(area.Left + 3 * area.Width / 4, area.Top + area.Height / 2), 0x0202);
                         Require(fixture.Clicks == 1, "The excluded child received native pointer input.");
                         fixture.PrepareAlternative(true);
-                        Paint(hwnd, fixture);
+                        Paint(hwnd, fixture, desktop, elapsed);
                         Pixels(fixture, true);
                         fixture.PrepareAlternative(false);
-                        Paint(hwnd, fixture);
+                        Paint(hwnd, fixture, desktop, elapsed);
                         Pixels(fixture, false);
                     }
                     var source = PathGeometry.Parse("M10 10 C30 10 70 10 90 10");
@@ -79,12 +82,15 @@ internal static class VectorGeometryScenario
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
     }
-    private static void Paint(nint hwnd, VectorGeometryCertification fixture)
+    private static void Paint(nint hwnd, VectorGeometryCertification fixture, DesktopPresentation desktop, Stopwatch elapsed)
     {
         int before = fixture.PaintCount;
         fixture.Root.Invalidate();
         Require(RedrawWindow(hwnd, 0, 0, 0x0001 | 0x0100) && fixture.PaintCount > before, "The native window did not paint the vector fixture.");
+        long paintFinished = Stopwatch.GetTimestamp();
         Require(DwmFlush() >= 0, "The desktop compositor did not commit the frame.");
+        // All three states share the native focus host's existing 30-second budget.
+        desktop.WaitForPresentAfter(paintFinished, TimeSpan.FromSeconds(30) - elapsed.Elapsed);
     }
     private static void Pixels(VectorGeometryCertification fixture, bool alternative)
     {
