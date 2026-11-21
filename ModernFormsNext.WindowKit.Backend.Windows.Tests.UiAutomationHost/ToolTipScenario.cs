@@ -6,6 +6,8 @@ using ModernFormsNext.WindowKit.Threading;
 
 internal static class ToolTipScenario
 {
+    private static readonly TimeSpan TransitionTimeout = TimeSpan.FromSeconds(5);
+
     internal static int Run()
     {
         try
@@ -50,11 +52,18 @@ internal static class ToolTipScenario
                             if (middle is 0 or 255) throw new InvalidOperationException("No intermediate native opacity was observed.");
                             Console.WriteLine($"TOOLTIP native-middle-alpha={middle}");
                         }
-                        await Wait(() => fixture.Settled);
+                        var settle = Stopwatch.StartNew();
+                        await Wait(() => fixture.Settled, settle);
                         fixture.VerifySettled();
                         if (Alpha(popup) != 255 || GetFocus() != child) throw new InvalidOperationException("Settled tooltip changed alpha/focus.");
-                        Paint(popup);
-                        VerifyPixel(fixture, opaque: true);
+                        long paintFinished = Paint(popup);
+                        // The software paint and DwmFlush don't identify the desktop image that
+                        // a screen DC will read. Fence the one opaque sample on a new present.
+                        using (var desktop = new DesktopPresentation(popup))
+                        {
+                            desktop.WaitForPresentAfter(paintFinished, TransitionTimeout - settle.Elapsed);
+                            VerifyPixel(fixture, opaque: true);
+                        }
                         fixture.BeginExit();
                         await Wait(() => !fixture.Popup.Visible);
                         if (IsWindowVisible(popup)) throw new InvalidOperationException("Native exit left a visible popup.");
@@ -81,17 +90,21 @@ internal static class ToolTipScenario
         return alpha;
     }
 
-    private static async Task Wait(Func<bool> ready)
+    private static async Task Wait(Func<bool> ready, Stopwatch? elapsed = null)
     {
-        var elapsed = Stopwatch.StartNew();
-        while (!ready() && elapsed.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(10);
+        elapsed ??= Stopwatch.StartNew();
+        while (!ready() && elapsed.Elapsed < TransitionTimeout) await Task.Delay(10);
         if (!ready()) throw new InvalidOperationException("Tooltip presentation did not reach its bounded native state.");
     }
 
-    private static void Paint(nint hwnd)
+    private static long Paint(nint hwnd)
     {
-        if (!RedrawWindow(hwnd, 0, 0, 0x0001 | 0x0100) || DwmFlush() < 0)
+        if (!RedrawWindow(hwnd, 0, 0, 0x0001 | 0x0100))
+            throw new InvalidOperationException("Owned tooltip window did not repaint.");
+        long paintFinished = Stopwatch.GetTimestamp();
+        if (DwmFlush() < 0)
             throw new InvalidOperationException("Owned tooltip frame did not commit.");
+        return paintFinished;
     }
 
     private static void VerifyPixel(ToolTipCertification fixture, bool opaque)
