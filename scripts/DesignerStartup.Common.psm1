@@ -12,6 +12,7 @@ function Get-DesignerStartupStatus {
 
 function Get-DesignerProcessLog {
     param([string]$Log, [long]$ProcessStart)
+    if ($ProcessStart -le 0) { return '' }
     $match = [regex]::Match($Log, ' ProcessStart=' + $ProcessStart + '(?:\r?\n|$)')
     if (!$match.Success) { return '' }
     $lineStart = $Log.LastIndexOf("`n[", $match.Index, [StringComparison]::Ordinal)
@@ -47,4 +48,15 @@ function Copy-DesignerStartupFixture {
     }
 }
 
-Export-ModuleMember -Function Get-DesignerStartupStatus, Get-DesignerProcessLog, Copy-DesignerStartupFixture
+function Assert-DesignerStartupPackage {
+    param([string[]]$EntryNames, [switch]$ExpectExecutablePreview)
+    $worker = 'DesignerHost/PreviewWorker/ModernFormsNext.DesignerPreviewWorker.exe'
+    if ($ExpectExecutablePreview) {
+        if ($worker -notin $EntryNames) { throw 'The candidate VSIX lacks the qualification worker.' }
+    }
+    elseif ($EntryNames -match '(^|/)PreviewWorker/|(^|/)ModernFormsNext\.DesignerPreviewWorker\.') {
+        throw 'The standard VSIX contains executable preview worker files.'
+    }
+}
+
+Export-ModuleMember -Function Get-DesignerStartupStatus, Get-DesignerProcessLog, Copy-DesignerStartupFixture, Assert-DesignerStartupPackage

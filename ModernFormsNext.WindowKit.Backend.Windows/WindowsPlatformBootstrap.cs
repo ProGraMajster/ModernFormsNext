@@ -1,4 +1,4 @@
-﻿using ModernFormsNext.WindowKit;
+using ModernFormsNext.WindowKit;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32Com;
 using ModernFormsNext.WindowKit.Controls.Platform;
@@ -23,9 +23,9 @@ public static class WindowsPlatformBootstrap
     /// </summary>
     public static void Initialize()
     {
-        System.Diagnostics.Trace.WriteLine("WINDOWS_PLATFORM_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage("WINDOWS_PLATFORM_INITIALIZE_BEGIN");
         WindowKitBackendRegistry.Register(new WindowsWindowKitBackend());
-        System.Diagnostics.Trace.WriteLine("WINDOWS_PLATFORM_INITIALIZE_OK", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage("WINDOWS_PLATFORM_INITIALIZE_OK");
     }
 
     internal static void InitializeServices()
@@ -33,26 +33,26 @@ public static class WindowsPlatformBootstrap
         if (initialized)
             return;
 
-        System.Diagnostics.Trace.WriteLine("WINDOWS_SERVICES_LOCK_BEGIN", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage("WINDOWS_SERVICES_LOCK_BEGIN");
         lock (sync)
         {
-            System.Diagnostics.Trace.WriteLine("WINDOWS_SERVICES_LOCK_OK", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WINDOWS_SERVICES_LOCK_OK");
             if (initialized)
                 return;
 
             // The platform constructor creates a native message window immediately. Register the
             // settings service first because Windows can synchronously deliver WM_SETTINGCHANGE to
             // that WndProc before the remainder of backend initialization has completed.
-            System.Diagnostics.Trace.WriteLine("WINDOWS_SETTINGS_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WINDOWS_SETTINGS_BEGIN");
             AvaloniaGlobals.AddService<IPlatformSettings>(new Win32PlatformSettings());
-            System.Diagnostics.Trace.WriteLine("WINDOWS_SETTINGS_OK", "ModernFormsNext.Startup");
-            System.Diagnostics.Trace.WriteLine("WIN32_PLATFORM_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WINDOWS_SETTINGS_OK");
+            StartupDiagnostics.Log.Stage("WIN32_PLATFORM_INITIALIZE_BEGIN");
             Win32Platform.Initialize();
-            System.Diagnostics.Trace.WriteLine("WIN32_PLATFORM_INITIALIZE_OK", "ModernFormsNext.Startup");
-            System.Diagnostics.Trace.WriteLine("WIN32_COM_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_PLATFORM_INITIALIZE_OK");
+            StartupDiagnostics.Log.Stage("WIN32_COM_INITIALIZE_BEGIN");
             Win32ComRegistration.Initialize();
-            System.Diagnostics.Trace.WriteLine("WIN32_COM_INITIALIZE_OK", "ModernFormsNext.Startup");
-            System.Diagnostics.Trace.WriteLine("WINDOWS_SERVICE_REGISTRATION_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_COM_INITIALIZE_OK");
+            StartupDiagnostics.Log.Stage("WINDOWS_SERVICE_REGISTRATION_BEGIN");
 
             int lifecycleThread = Environment.CurrentManagedThreadId;
             var lifecycle = new WindowsApplicationLifecycle(
@@ -88,7 +88,7 @@ public static class WindowsPlatformBootstrap
             PlatformServiceRegistry.Register<IPlatformThemeSettings>(new WindowsPlatformThemeSettings(animationSettings));
 
             initialized = true;
-            System.Diagnostics.Trace.WriteLine("WINDOWS_SERVICE_REGISTRATION_OK", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WINDOWS_SERVICE_REGISTRATION_OK");
         }
     }
 }

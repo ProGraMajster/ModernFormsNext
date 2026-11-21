@@ -1,4 +1,5 @@
-﻿using System;
+using ModernFormsNext.WindowKit.Backend;
+using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -103,7 +104,7 @@ internal class Win32DispatcherImpl : IControlledDispatcherImpl
 
     public void RunLoop(CancellationToken cancellationToken)
     {
-        System.Diagnostics.Trace.WriteLine("DISPATCHER_LOOP_BEGIN", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage("DISPATCHER_LOOP_BEGIN");
         var result = 0;
         while (!cancellationToken.IsCancellationRequested 
                && (result = GetMessage(out var msg, IntPtr.Zero, 0, 0)) > 0)
@@ -116,7 +117,7 @@ internal class Win32DispatcherImpl : IControlledDispatcherImpl
             //Logging.Logger.TryGet(Logging.LogEventLevel.Error, Logging.LogArea.Win32Platform)
             //    ?.Log(this, "Unmanaged error in {0}. Error Code: {1}", nameof(RunLoop), Marshal.GetLastWin32Error());
         }
-        System.Diagnostics.Trace.WriteLine($"DISPATCHER_LOOP_END Result={result}", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage($"DISPATCHER_LOOP_END Result={result}");
     }
 
     public long Now => _clock.ElapsedMilliseconds;

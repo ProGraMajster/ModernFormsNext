@@ -341,7 +341,9 @@ internal sealed class OutOfProcessDesignerHostControl : UserControl, IDesignerDo
             }
 
             ownedProcess = process;
-            DesignerEditorDiagnosticLog.Write($"HOST_LAUNCH_OK ProcessId={process.Id} ChildStart={process.StartTime.ToFileTimeUtc()}");
+            // An early exit can make creation time unavailable. Preserve the owned
+            // process lifecycle even when the launch diagnostics are incomplete.
+            DesignerEditorDiagnosticLog.Write($"HOST_LAUNCH_OK ProcessId={process.Id} ChildStart={DesignerEditorDiagnosticLog.TryGetProcessStart(process)}");
             process.EnableRaisingEvents = true;
             process.Exited += HandleOwnedProcessExited;
             startupDeadlineUtc = DateTime.UtcNow + StartupTimeout;

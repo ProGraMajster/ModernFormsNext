@@ -322,7 +322,7 @@ if ($ExpectExecutablePreview) {
             throw "VSIX isolated preview payload is missing '$file'."
         }
     }
-} elseif (@($manifest.Entries -like "$worker*").Count -ne 0) {
+} elseif ($manifest.Entries -match '(^|/)PreviewWorker/|(^|/)ModernFormsNext\.DesignerPreviewWorker\.') {
     throw "An ordinary VSIX must exclude the unqualified executable preview payload."
 }
 

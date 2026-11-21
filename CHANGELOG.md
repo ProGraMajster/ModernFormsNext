@@ -4,6 +4,51 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.12.0] — Unreleased
+
+### Controls, navigation and platform support
+
+- Added CollectionView, CarouselView, RefreshView, SearchBar, TimePicker and BindingNavigator.
+  Shared container recycling supports large lists, with opt-in virtualization for ListView.
+- Added pages, navigation stacks, tabs, flyouts, AppShell routing and configurable page headers.
+- Added NativeViewHost platform integration and continued work on experimental Android windowing,
+  lifecycle, input and appearance. Android package assets target .NET 10.
+- Expanded DynamicResource support for trimmed applications, layout transitions, brush interpolation,
+  shadows, typography, ToolTip behavior and right-to-left layout.
+
+### Designer
+
+- Added group editing, snapping guides, project assets, event-handler navigation, inherited forms
+  and controls, and authoring for pages and animations.
+- The standard Designer reads design data and control metadata. Unavailable custom controls remain
+  editable through placeholders. Integrated and Separate window modes share the same editing,
+  Undo/Redo, Save and autosave recovery model.
+
+### Reliability and diagnostics
+
+- Recorded the stages of Windows Designer host startup, native window attachment and owned process
+  shutdown. Startup diagnostics identify both the process and its creation time.
+- Updated startup and release diagnostics to open the registered Designer, verify its host
+  and retain evidence when startup cannot be observed.
+
+### Fixes
+
+- Fixed integrated Designer Save routing and extended safe reverse synchronization of `.mfdesign`.
+- Fixed scroll event values and scroll-to-control behavior, duplicate parent-change notifications,
+  paired window-size constraints, high DPI title-bar icons and control typography.
+- Improved ellipsis measurement and cleanup after Windows notification failures.
+
+### Experimental builds and planned 2.0.0 work
+
+- Executable previews of project controls remain available in private qualification builds.
+  The standard VSIX contains no preview worker and uses the data preview.
+- Full isolation qualification, production enablement and older .NET target evaluation are
+  tracked for 2.0.0 in [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40),
+  [#486](https://github.com/ProGraMajster/ModernFormsNext/issues/486) and
+  [#44](https://github.com/ProGraMajster/ModernFormsNext/issues/44).
+- See the [Designer compatibility matrix](docs/visual-studio-designer-host.md#visual-studio-and-net-compatibility)
+  for extension installation, host runtime and application targeting.
+
 ## [1.11.1] — 2026-09-22
 
 - Fixed [#130](https://github.com/ProGraMajster/ModernFormsNext/issues/130): scrollable derived

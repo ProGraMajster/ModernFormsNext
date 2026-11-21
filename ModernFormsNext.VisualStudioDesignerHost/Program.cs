@@ -9,7 +9,6 @@ internal static class Program
     private static void Main(string[] args)
     {
         using var startupTrace = new DesignerStartupTraceListener();
-        System.Diagnostics.Trace.Listeners.Add(startupTrace);
         DesignerHostDiagnosticLog.Write("START");
 
         try
@@ -48,7 +47,6 @@ internal static class Program
         finally
         {
             DesignerHostDiagnosticLog.Write($"MAIN_END ExitCode={Environment.ExitCode}");
-            System.Diagnostics.Trace.Listeners.Remove(startupTrace);
         }
     }
 

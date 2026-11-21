@@ -16,7 +16,8 @@ param(
     [ValidatePattern('\A[A-Za-z0-9]{1,40}\z')][string]$RootSuffix = 'MFN486',
     [string]$VisualStudioPath,
     [string]$OutputDirectory,
-    [ValidateRange(10, 120)][int]$ObservationSeconds = 20
+    [ValidateRange(10, 120)][int]$ObservationSeconds = 20,
+    [switch]$ExpectExecutablePreview
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,7 +34,8 @@ if (Test-Path -LiteralPath $output) { throw 'Use a new evidence directory.' }
 $started = Get-Date
 $results = [Collections.Generic.List[object]]::new()
 $observed = [Collections.Generic.HashSet[int]]::new()
-$identity = [ordered]@{ requestedCommit = $Commit; rootSuffix = $RootSuffix; startedAt = $started.ToString('o') }
+$identity = [ordered]@{ requestedCommit = $Commit; rootSuffix = $RootSuffix; startedAt = $started.ToString('o');
+    expectExecutablePreview = [bool]$ExpectExecutablePreview }
 $status = 'BLOCKED'
 $reason = ''
 $editorHelper = $null
@@ -230,7 +232,7 @@ try {
     $identity.dotnet = @(& dotnet --info 2>&1 | ForEach-Object { [string]$_ })
     if (!$VisualStudioPath) {
         $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-        $installations = @(& $vswhere -products '*' -version '[17.0,18.0)' -format json | ConvertFrom-Json)
+        $installations = @(& $vswhere -products '*' -version '[17.0,)' -format json | ConvertFrom-Json)
         if ($LASTEXITCODE -ne 0 -or $installations.Count -ne 1) { throw 'Specify -VisualStudioPath for the intended installation.' }
         $VisualStudioPath = $installations[0].installationPath
     }
@@ -247,9 +249,7 @@ try {
     $deployment = $deployments[0].DirectoryName
     $zip = [IO.Compression.ZipFile]::OpenRead($vsix)
     try {
-        if ($null -eq $zip.GetEntry('DesignerHost/PreviewWorker/ModernFormsNext.DesignerPreviewWorker.exe')) {
-            throw 'The candidate VSIX lacks the qualification worker.'
-        }
+        Assert-DesignerStartupPackage $zip.Entries.FullName -ExpectExecutablePreview:$ExpectExecutablePreview
         $manifestEntry = $zip.GetEntry('extension.vsixmanifest')
         $reader = [IO.StreamReader]::new($manifestEntry.Open())
         try { [xml]$manifest = $reader.ReadToEnd() } finally { $reader.Dispose() }
@@ -272,8 +272,12 @@ try {
     finally { $zip.Dispose() }
     $hostExecutable = Join-Path $deployment 'DesignerHost/ModernFormsNext.VisualStudioDesignerHost.exe'
     $worker = Join-Path $deployment 'DesignerHost/PreviewWorker/ModernFormsNext.DesignerPreviewWorker.exe'
-    if (!(Test-Path -LiteralPath $worker)) { throw 'The installed package lacks the qualification worker.' }
-    $identity.workerRuntime = Get-Content -LiteralPath (Join-Path (Split-Path $worker) 'ModernFormsNext.DesignerPreviewWorker.runtimeconfig.json') -Raw | ConvertFrom-Json
+    if ($ExpectExecutablePreview) {
+        $identity.workerRuntime = Get-Content -LiteralPath (Join-Path (Split-Path $worker) 'ModernFormsNext.DesignerPreviewWorker.runtimeconfig.json') -Raw | ConvertFrom-Json
+    }
+    elseif (Test-Path -LiteralPath (Split-Path $worker)) {
+        throw 'The installed standard deployment contains a PreviewWorker directory. Use a clean experimental profile.'
+    }
     $running = @(Get-CimInstance Win32_Process -Filter "Name='devenv.exe'" |
         Where-Object { $_.CommandLine -match ('/RootSuffix\s+"?' + [regex]::Escape($RootSuffix) + '(?:"|\s|$)') })
     if ($running.Count) { throw 'Close the selected experimental Visual Studio instance before running the diagnostic.' }

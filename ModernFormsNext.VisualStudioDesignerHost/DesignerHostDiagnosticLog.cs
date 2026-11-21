@@ -3,7 +3,15 @@ namespace ModernFormsNext.VisualStudioDesignerHost;
 internal static class DesignerHostDiagnosticLog
 {
     private static readonly object Gate = new();
-    private static readonly long ProcessStart = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToFileTimeUtc();
+    private static readonly long ProcessStart = GetProcessStart();
+
+    private static long GetProcessStart()
+    {
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        try { return process.StartTime.ToFileTimeUtc(); }
+        catch (InvalidOperationException) { return 0; }
+        catch (System.ComponentModel.Win32Exception) { return 0; }
+    }
 
     public static string Path { get; } = GetPath(System.IO.Path.GetTempPath(), Environment.ProcessId);
 

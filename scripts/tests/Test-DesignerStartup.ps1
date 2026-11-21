@@ -16,7 +16,13 @@ foreach ($case in $cases) {
     if ($actual -cne $case.expected) { throw "Expected $($case.expected), observed $actual." }
 }
 $oldLog = "[old] START ProcessStart=1234`n[old] FORM_SHOWN ProcessStart=1234`n"
+Assert-DesignerStartupPackage @('DesignerHost/ModernFormsNext.VisualStudioDesignerHost.exe')
+$worker = 'DesignerHost/PreviewWorker/ModernFormsNext.DesignerPreviewWorker.exe'
+Assert-DesignerStartupPackage @($worker) -ExpectExecutablePreview
+try { Assert-DesignerStartupPackage @($worker); throw 'A qualification package was accepted as standard.' }
+catch { if ($_.Exception.Message -ne 'The standard VSIX contains executable preview worker files.') { throw } }
 if (Get-DesignerProcessLog $oldLog 123) { throw 'A previous process creation time was accepted.' }
+if (Get-DesignerProcessLog '[old] FORM_SHOWN ProcessStart=0' 0) { throw 'An unknown process creation time was accepted.' }
 $newLog = $oldLog + "[new] START ProcessStart=123`n[new] DPI_SETUP_BEGIN ProcessStart=123`n"
 $current = Get-DesignerProcessLog $newLog 123
 if ($current -match 'FORM_SHOWN' -or $current -notmatch 'DPI_SETUP_BEGIN') {
@@ -48,7 +54,7 @@ foreach ($entry in $before) {
 }
 try { Copy-DesignerStartupFixture $source $destination; throw 'An existing copy was overwritten.' }
 catch { if ($_.Exception.Message -ne 'The copied fixture directory must be new.') { throw } }
-foreach ($script in 'Test-DesignerStartup.ps1', 'Invoke-DesignerStartupEditor.ps1') {
+foreach ($script in 'Test-DesignerStartup.ps1', 'Invoke-DesignerStartupEditor.ps1', 'Test-ReleaseDesigner.ps1') {
     $parseErrors = $null
     $tokens = $null
     [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot "../$script"),

@@ -86,9 +86,10 @@ and the successful direct probes do **not** prove that earlier problem fixed.
 
 ## Instrumentation
 
-Backend stages use `System.Diagnostics.Trace`, category `ModernFormsNext.Startup`.
-Only the Designer installs a listener that forwards this category to its existing
+Backend stages use the `ModernFormsNext-Startup` event provider.
+The Designer subscribes to this provider and forwards stages to its existing
 per-process log. No new public framework API or platform service is introduced.
+The provider keeps these stages out of applications' general Trace listeners.
 Records include PID, managed thread ID, native Windows thread ID and the process
 creation FILETIME. The collector and process-test readiness checks use this
 creation value to reject older runs after Windows reuses a PID. Assembly
@@ -109,6 +110,12 @@ An external termination still requires event/process evidence.
 
 ## Run on the guest
 
+Use a standard VSIX to qualify the product data preview. Build without the
+qualification property and run the collector without `-ExpectExecutablePreview`.
+The collector rejects a worker payload in an ordinary archive and rejects a
+leftover worker directory in its deployment. The instructions below describe
+the separate comparison against the retained private qualification candidate.
+
 Check out the diagnostic PR's exact commit. Build the qualification package and
 install it into `MFN486` while that experimental instance is closed. The existing
 isolation guide describes the private VSIX installation. Use PowerShell 7.2 or
@@ -122,7 +129,7 @@ After installing those exact package bytes, run this single collection command
 from the repository root.
 
 ```powershell
-pwsh -NoProfile -File scripts/Test-DesignerStartup.ps1 -VsixPath ModernFormsNext.VisualStudioExtension.Vsix/bin/Debug/net472/ModernFormsNextDesigner.vsix -ExpectedSha256 (Get-FileHash ModernFormsNext.VisualStudioExtension.Vsix/bin/Debug/net472/ModernFormsNextDesigner.vsix -Algorithm SHA256).Hash -Commit (git rev-parse HEAD) -RootSuffix MFN486
+pwsh -NoProfile -File scripts/Test-DesignerStartup.ps1 -VsixPath ModernFormsNext.VisualStudioExtension.Vsix/bin/Debug/net472/ModernFormsNextDesigner.vsix -ExpectedSha256 (Get-FileHash ModernFormsNext.VisualStudioExtension.Vsix/bin/Debug/net472/ModernFormsNextDesigner.vsix -Algorithm SHA256).Hash -Commit (git rev-parse HEAD) -RootSuffix MFN486 -ExpectExecutablePreview
 ```
 
 The collector checks the commit and synthetic fixture source, records Windows,
@@ -178,7 +185,7 @@ rebuilding or reinstalling it is unnecessary. Check out the updated diagnostic
 PR commit and use the path to those retained package bytes:
 
 ```powershell
-pwsh -NoProfile -File scripts/Test-DesignerStartup.ps1 -VsixPath '<retained qualification VSIX path>' -ExpectedSha256 64CE1C28A9E6BF301745094C6E80E95F1C33100E90FA2B12C631A0DD0F17EA6F -Commit (git rev-parse HEAD) -RootSuffix MFN486
+pwsh -NoProfile -File scripts/Test-DesignerStartup.ps1 -VsixPath '<retained qualification VSIX path>' -ExpectedSha256 64CE1C28A9E6BF301745094C6E80E95F1C33100E90FA2B12C631A0DD0F17EA6F -Commit (git rev-parse HEAD) -RootSuffix MFN486 -ExpectExecutablePreview
 ```
 
 Here `-Commit` identifies the collector checkout. The independent VSIX digest

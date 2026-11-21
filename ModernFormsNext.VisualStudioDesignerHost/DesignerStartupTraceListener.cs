@@ -1,19 +1,21 @@
-using System.Diagnostics;
+using System.Diagnostics.Tracing;
+using ModernFormsNext.WindowKit.Backend;
 
 namespace ModernFormsNext.VisualStudioDesignerHost;
 
 // Observe tracing only in the Designer process. Backend assemblies know neither the
 // Designer log path nor any project or Visual Studio state.
-internal sealed class DesignerStartupTraceListener : TraceListener
+internal sealed class DesignerStartupTraceListener : EventListener
 {
-    internal const string Category = "ModernFormsNext.Startup";
-
-    public override void Write(string? message) { }
-    public override void WriteLine(string? message) { }
-
-    public override void WriteLine(string? message, string? category)
+    protected override void OnEventSourceCreated(EventSource eventSource)
     {
-        if (category == Category)
-            DesignerHostDiagnosticLog.Write(message ?? string.Empty);
+        if (eventSource.Name == StartupDiagnostics.ProviderName)
+            EnableEvents(eventSource, EventLevel.Informational);
+    }
+
+    protected override void OnEventWritten(EventWrittenEventArgs eventData)
+    {
+        if (eventData.EventId == 1 && eventData.Payload is [string stage])
+            DesignerHostDiagnosticLog.Write(stage);
     }
 }

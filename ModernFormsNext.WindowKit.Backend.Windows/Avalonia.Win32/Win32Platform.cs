@@ -1,4 +1,5 @@
-﻿using ModernFormsNext.WindowKit.Controls.ApplicationLifetimes;
+using ModernFormsNext.WindowKit.Backend;
+using ModernFormsNext.WindowKit.Controls.ApplicationLifetimes;
 using ModernFormsNext.WindowKit.Platform;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
@@ -107,14 +108,14 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
         public Win32Platform()
         {
-            System.Diagnostics.Trace.WriteLine("WIN32_DPI_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_DPI_BEGIN");
             SetDpiAwareness();
-            System.Diagnostics.Trace.WriteLine("WIN32_DPI_OK", "ModernFormsNext.Startup");
-            System.Diagnostics.Trace.WriteLine("WIN32_MESSAGE_WINDOW_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_DPI_OK");
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_WINDOW_BEGIN");
             CreateMessageWindow();
-            System.Diagnostics.Trace.WriteLine("WIN32_MESSAGE_WINDOW_OK", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_WINDOW_OK");
             _dispatcher = new Win32DispatcherImpl(_hwnd);
-            System.Diagnostics.Trace.WriteLine("WIN32_DISPATCHER_CREATED", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_DISPATCHER_CREATED");
         }
 
         internal static Win32Platform Instance => s_instance;
@@ -244,18 +245,18 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 lpszClassName = "AvaloniaMessageWindow " + Guid.NewGuid(),
             };
 
-            System.Diagnostics.Trace.WriteLine("WIN32_MESSAGE_CLASS_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_CLASS_BEGIN");
             ushort atom = RegisterClassEx(ref wndClassEx);
-            System.Diagnostics.Trace.WriteLine($"WIN32_MESSAGE_CLASS_END Atom={atom}", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage($"WIN32_MESSAGE_CLASS_END Atom={atom}");
 
             if (atom == 0)
             {
                 throw new Win32Exception();
             }
 
-            System.Diagnostics.Trace.WriteLine("WIN32_MESSAGE_HWND_BEGIN", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage("WIN32_MESSAGE_HWND_BEGIN");
             _hwnd = CreateWindowEx(0, atom, null, 0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-            System.Diagnostics.Trace.WriteLine($"WIN32_MESSAGE_HWND_END Handle=0x{_hwnd:X}", "ModernFormsNext.Startup");
+            StartupDiagnostics.Log.Stage($"WIN32_MESSAGE_HWND_END Handle=0x{_hwnd:X}");
 
             if (_hwnd == IntPtr.Zero)
             {

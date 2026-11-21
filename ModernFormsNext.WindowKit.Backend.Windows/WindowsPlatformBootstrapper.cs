@@ -1,4 +1,4 @@
-﻿using ModernFormsNext.WindowKit.Backend;
+using ModernFormsNext.WindowKit.Backend;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows;
 
@@ -21,8 +21,8 @@ public sealed class WindowsPlatformBootstrapper : IPlatformBootstrap
     /// <inheritdoc/>
     public void Initialize()
     {
-        System.Diagnostics.Trace.WriteLine("WINDOWS_BOOTSTRAPPER_INITIALIZE_BEGIN", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage("WINDOWS_BOOTSTRAPPER_INITIALIZE_BEGIN");
         WindowsPlatformBootstrap.Initialize();
-        System.Diagnostics.Trace.WriteLine("WINDOWS_BOOTSTRAPPER_INITIALIZE_OK", "ModernFormsNext.Startup");
+        StartupDiagnostics.Log.Stage("WINDOWS_BOOTSTRAPPER_INITIALIZE_OK");
     }   
 }
