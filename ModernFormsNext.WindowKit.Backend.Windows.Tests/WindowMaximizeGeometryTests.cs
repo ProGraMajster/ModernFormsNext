@@ -64,6 +64,48 @@ public sealed class WindowMaximizeGeometryTests
         Assert.Equal(outer, WindowImpl.GetMaximizedClientRect(outer, new RECT { right = 1920, bottom = 1080 }));
     }
 
+    /// <summary>Custom chrome keeps the native work-area maximize bounds on each attached monitor.</summary>
+    [Fact]
+    public void CustomChromeUsesTheSameOuterMaximizeBoundsAsSystemChrome()
+    {
+        using var system = new Form { UseSystemDecorations = true };
+        using var custom = new Form { UseSystemDecorations = false };
+        system.Show();
+        custom.Show();
+        try
+        {
+            nint customHandle = custom.PlatformHandle.Handle;
+            // The native caption style selects the maximize policy. The actual
+            // caption and system menu remain under the managed title bar's control.
+            var style = (WindowStyles)GetWindowLong(customHandle, (int)WindowLongParam.GWL_STYLE);
+            Assert.Equal(WindowStyles.WS_CAPTION, style & WindowStyles.WS_CAPTION);
+            Assert.False(style.HasFlag(WindowStyles.WS_SYSMENU));
+            foreach (var monitor in GetMonitors())
+            {
+                var systemHandle = system.PlatformHandle.Handle;
+                foreach (var handle in new[] { systemHandle, customHandle })
+                    Assert.True(SetWindowPos(handle, 0, monitor.rcWork.left + 40, monitor.rcWork.top + 40, 600, 360,
+                        SetWindowPosFlags.SWP_NOZORDER | SetWindowPosFlags.SWP_NOACTIVATE));
+                Assert.True(GetWindowRect(customHandle, out var normal));
+
+                system.WindowState = FormWindowState.Maximized;
+                Assert.True(GetWindowRect(systemHandle, out var nativeMaximized));
+                system.WindowState = FormWindowState.Normal;
+                NativeSendMessage(customHandle, (uint)WindowsMessage.WM_SYSCOMMAND, 0xF030, 0);
+                Assert.Equal(FormWindowState.Maximized, custom.WindowState);
+                AssertWindowRect(customHandle, nativeMaximized);
+                AssertCustomMaximized(customHandle, monitor.rcWork);
+                custom.WindowState = FormWindowState.Normal;
+                AssertWindowRect(customHandle, normal);
+            }
+        }
+        finally
+        {
+            custom.Close();
+            system.Close();
+        }
+    }
+
     /// <summary>Both entry points must use the same work area and preserve the normal placement on every attached monitor.</summary>
     [Fact]
     public void ManagedAndNativeMaximizeHaveIdenticalClientAndWindowBounds()

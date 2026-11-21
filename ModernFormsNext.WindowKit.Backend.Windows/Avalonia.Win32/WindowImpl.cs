@@ -1141,8 +1141,20 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
 
             if (command.HasValue)
             {
+                var wasVisible = IsWindowVisible(_hwnd);
                 UnmanagedMethods.ShowWindow(_hwnd, command.Value);
-        }
+
+                // For a newly captioned window, Windows can apply STARTUPINFO's SW_HIDE
+                // instead of our first show command. Complete the explicit Show after that
+                // launch hint has been consumed. A reentrant hide or close takes precedence.
+                if (!wasVisible && _hwnd != IntPtr.Zero && version == _windowStateOperationVersion &&
+                    !_isFullScreenActive && !HasFullDecorations && !IsWindowVisible(_hwnd))
+                {
+                    var style = GetStyle();
+                    if (IsOverlappedWindow(style) && style.HasAllFlags(WindowStyles.WS_CAPTION))
+                        UnmanagedMethods.ShowWindow(_hwnd, command.Value);
+                }
+            }
 
             //if (!Design.IsDesignMode && activate)
             //{
@@ -1213,6 +1225,11 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
         private WindowStyles GetWindowStateStyles()
         {
             return GetStyle() & WindowStateMask;
+        }
+
+        private static bool IsOverlappedWindow(WindowStyles style)
+        {
+            return (style & (WindowStyles.WS_CHILD | WindowStyles.WS_POPUP)) == 0;
         }
 
         private WindowStyles GetStyle()
@@ -1351,6 +1368,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 else
                 {
                     style &= ~fullDecorationFlags;
+                    // Windows uses the caption style to choose work-area maximize bounds for
+                    // ordinary top-level windows. Custom chrome still owns NCCALCSIZE and
+                    // non-client painting, so retaining the style does not draw a second title bar.
+                    // A captionless HWND can have a work-area client but a DWM frame over the taskbar.
+                    if (IsOverlappedWindow(style))
+                        style |= WindowStyles.WS_CAPTION;
                 }
 
                 SetStyle(style);
