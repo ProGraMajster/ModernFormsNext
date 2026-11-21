@@ -34,6 +34,8 @@ ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while Nu
 ### Fixes
 
 - Fixed integrated Designer Save routing and extended safe reverse synchronization of `.mfdesign`.
+- Fixed Windows custom-chrome maximization so the native window respects the monitor work area
+  and leaves a persistent taskbar visible and clickable.
 - Fixed scroll event values and scroll-to-control behavior, duplicate parent-change notifications,
   paired window-size constraints, high DPI title-bar icons and control typography.
 - Improved ellipsis measurement and cleanup after Windows notification failures.

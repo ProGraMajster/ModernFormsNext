@@ -1351,6 +1351,12 @@ namespace ModernFormsNext.WindowKit.Backend.Windows.Win32
                 else
                 {
                     style &= ~fullDecorationFlags;
+                    // Windows uses the caption style to choose work-area maximize bounds for
+                    // ordinary top-level windows. Custom chrome still owns NCCALCSIZE and
+                    // non-client painting, so retaining the style does not draw a second title bar.
+                    // A captionless HWND can have a work-area client but a DWM frame over the taskbar.
+                    if ((style & (WindowStyles.WS_CHILD | WindowStyles.WS_POPUP)) == 0)
+                        style |= WindowStyles.WS_CAPTION;
                 }
 
                 SetStyle(style);
