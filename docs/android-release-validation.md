@@ -164,8 +164,31 @@ assertion totals and settings comparison. Keep fixture-based native host results
 external WebView and media host cases. For a physical stress run, record the charging state
 when observable because USB power can affect the results.
 
-Current dated results and their exact source/PR provenance are recorded in the
-[1.11.0 roadmap completion report](development/1.11.0-roadmap-completion.md#issue-69--android-release-validation-matrix).
-Missing broader lanes keep #69 **PARTIAL**. This matrix supplies a reviewed experimental Android
-checkpoint; the final release audit must assess it against the existing release policy and must not
-silently promote it to complete Android production support.
+The [1.11.0 roadmap completion report](development/1.11.0-roadmap-completion.md#issue-69--android-release-validation-matrix)
+retains the baseline evidence and its source provenance. The dated 1.12.0 observations continue
+the same experimental qualification.
+
+## 1.12.0 qualification
+
+The accepted experimental Android scope includes the existing API 23, 34 and 36
+emulator evidence and a physical NX769J (API 36). The physical `LifecycleStress`
+run passed 147 assertions with 90 seconds in the background, 36 Activity
+recreations, one active surface and zero retired native views after collection.
+The recorded heap and PSS measurements apply to that bounded run.
+
+On this device, two `ReleaseMatrix` runs each passed 107 assertions.
+Requested 60, 90 and 120 Hz modes all reported an active 60 Hz during the
+sample animation, including after 120 Hz was selected in Android settings.
+The 60 Hz CPU paint and callback data, native injected multi-touch checks,
+and their runtime provenance are recorded in the
+[#133 qualification results](https://github.com/ProGraMajster/ModernFormsNext/issues/133#issuecomment-7066655798).
+
+A separate observed Gboard session on NX769J entered Latin text and moved
+focus with Next. Live CJK and other keyboard providers are covered by
+[#537](https://github.com/ProGraMajster/ModernFormsNext/issues/537).
+Human TalkBack and physical Android keyboard validation are tracked
+in [#59](https://github.com/ProGraMajster/ModernFormsNext/issues/59)
+and [#109](https://github.com/ProGraMajster/ModernFormsNext/issues/109).
+Actual 90/120 Hz, physical finger multi-touch, more device profiles and
+extended stability remain open in [#538](https://github.com/ProGraMajster/ModernFormsNext/issues/538).
+GPU completion and scanout were unavailable in the 1.12.0 device measurements.
