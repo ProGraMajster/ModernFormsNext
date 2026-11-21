@@ -7,6 +7,13 @@ calculation and painting still own the client area and title bar. The native
 system menu stays disabled when using custom chrome, and child and popup windows
 keep their existing style policy.
 
+At the initial explicit `Show`, a launcher can supply `SW_HIDE` in
+`STARTUPINFO`. If that keeps the newly captioned HWND hidden, the backend
+applies the requested show state after Windows consumes the startup hint.
+An intervening managed hide or close takes precedence. The standalone
+Designer startup test exercises this path by launching with a hidden hint
+and requiring a visible top-level HWND before sending its first commands.
+
 In [issue #534](https://github.com/ProGraMajster/ModernFormsNext/issues/534),
 the custom client rect matched the monitor work area, while the DWM frame
 covered the taskbar. On a Windows 11 desktop with the persistent taskbar, adding
