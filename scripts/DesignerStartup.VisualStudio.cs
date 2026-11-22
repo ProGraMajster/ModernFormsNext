@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using Microsoft.VisualStudio.Shell.Interop;
 
-/// <summary>Opens a controlled startup document in one exact running Visual Studio instance.</summary>
+/// <summary>Verifies a controlled startup document in one exact running Visual Studio instance.</summary>
 public static class DesignerStartupVisualStudio
 {
     /// <summary>The registered ModernFormsNext editor factory identity.</summary>
@@ -21,13 +21,26 @@ public static class DesignerStartupVisualStudio
     [DllImport("ole32.dll")]
     private static extern int CreateBindCtx(int reserved, out IBindCtx context);
 
-    /// <summary>Requests the registered factory and verifies the returned frame before showing it.</summary>
+    /// <summary>Requests the registered factory for a project document and verifies the frame before showing it.</summary>
     /// <param name="processId">The owned experimental IDE process identifier.</param>
     /// <param name="majorVersion">The IDE major version used by its automation moniker.</param>
     /// <param name="document">The absolute path of the controlled copied document.</param>
     /// <returns>The verified editor factory identity.</returns>
     /// <remarks>Call on an STA thread. The caller bounds this operation in a separate helper process.</remarks>
     public static Guid Open(int processId, int majorVersion, string document)
+        => WithIde(processId, majorVersion, document, OpenDocument);
+
+    /// <summary>Verifies the exact document already opened through normal Visual Studio editor selection.</summary>
+    /// <param name="processId">The owned experimental IDE process identifier.</param>
+    /// <param name="majorVersion">The IDE major version used by its automation moniker.</param>
+    /// <param name="document">The absolute path of the controlled copied document.</param>
+    /// <param name="close">Whether to close only the verified frame using the normal save prompt.</param>
+    /// <returns>The verified editor factory identity.</returns>
+    /// <remarks>Call on an STA thread. This never requests creation of an editor frame.</remarks>
+    public static Guid Observe(int processId, int majorVersion, string document, bool close)
+        => WithIde(processId, majorVersion, document, (automation, path) => FindDocument(automation, path, close));
+
+    private static Guid WithIde(int processId, int majorVersion, string document, Func<object, string, Guid> action)
     {
         if (processId <= 0) throw new ArgumentOutOfRangeException(nameof(processId));
         if (string.IsNullOrWhiteSpace(document)) throw new ArgumentException("A document is required.", nameof(document));
@@ -51,7 +64,7 @@ public static class DesignerStartupVisualStudio
                     catch (COMException error) when (error.HResult == unchecked((int)0x80070005)) { continue; }
                     if (name != target) continue;
                     Marshal.ThrowExceptionForHR(table.GetObject(batch[0], out object automation));
-                    try { return OpenDocument(automation, document); }
+                    try { return action(automation, document); }
                     finally { Release(automation); }
                 }
                 finally { Release(batch[0]); }
@@ -99,6 +112,8 @@ public static class DesignerStartupVisualStudio
             // can otherwise exist long before VS calls CreateEditorInstance.
             Marshal.ThrowExceptionForHR(shell.IsDocumentInAProject(document,
                 out hierarchy, out var item, out hierarchyProvider, out _));
+            if (hierarchy == null)
+                throw new InvalidOperationException("An explicit editor request requires a project document. Use normal Visual Studio editor selection for standalone files.");
             int openResult = shell.OpenSpecificEditor((uint)__VSOSPEFLAGS3.OSPE_SKIPDEFERRAL,
                 document, ref editor, string.Empty, ref logicalView, string.Empty,
                 hierarchy, item, IntPtr.Zero, hierarchyProvider, out frame);
@@ -116,6 +131,49 @@ public static class DesignerStartupVisualStudio
             Release(frame); Release(hierarchy); Release(hierarchyProvider); Release(shell);
             Marshal.Release(pointer);
         }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "VSTHRD010",
+        Justification = "Runs in a separate STA process. COM marshals these proxy calls to the IDE UI thread.")]
+    private static Guid FindDocument(object automation, string document, bool close)
+    {
+        var provider = (Microsoft.VisualStudio.OLE.Interop.IServiceProvider)automation;
+        Guid service = typeof(SVsUIShell).GUID;
+        Guid iid = typeof(IVsUIShell).GUID;
+        Marshal.ThrowExceptionForHR(provider.QueryService(ref service, ref iid, out var pointer));
+        if (pointer == IntPtr.Zero) throw new InvalidOperationException("The IDE did not provide its frame service.");
+        IVsUIShell? shell = null;
+        IEnumWindowFrames? frames = null;
+        try
+        {
+            shell = (IVsUIShell)Marshal.GetObjectForIUnknown(pointer);
+            Marshal.ThrowExceptionForHR(shell.GetDocumentWindowEnum(out frames));
+            var batch = new IVsWindowFrame[1];
+            while (true)
+            {
+                Marshal.ThrowExceptionForHR(frames.Next(1, batch, out uint count));
+                if (count == 0) break;
+                var frame = batch[0];
+                try
+                {
+                    Marshal.ThrowExceptionForHR(frame.GetProperty((int)__VSFPROPID.VSFPROPID_pszMkDocument, out var value));
+                    string? moniker = value as string;
+                    if (!string.Equals(moniker, document, StringComparison.OrdinalIgnoreCase)) continue;
+                    Marshal.ThrowExceptionForHR(frame.GetGuidProperty((int)__VSFPROPID.VSFPROPID_guidEditorType, out var actual));
+                    ValidateFrame(actual, moniker, document);
+                    if (close)
+                    {
+                        int result = frame.CloseFrame((uint)__FRAMECLOSE.FRAMECLOSE_PromptSave);
+                        Marshal.ThrowExceptionForHR(result);
+                        if (result != 0) throw new InvalidOperationException("Visual Studio did not close the Designer frame.");
+                    }
+                    return actual;
+                }
+                finally { Release(frame); }
+            }
+            throw new COMException("The exact document frame is not available yet.", unchecked((int)0x800401E3));
+        }
+        finally { Release(frames); Release(shell); Marshal.Release(pointer); }
     }
 
     internal static void ValidateFrame(Guid actualFactory, string? actualDocument, string expectedDocument)
