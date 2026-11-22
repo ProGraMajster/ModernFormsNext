@@ -205,6 +205,8 @@ The 1.12.0 release uses these NuGet packages:
 | [`ModernFormsNext.Testing`](https://www.nuget.org/packages/ModernFormsNext.Testing) | Deterministic headless TestHost for framework applications. |
 | [`ModernFormsNext.Automation`](https://www.nuget.org/packages/ModernFormsNext.Automation) | Optional semantic snapshots and actions over the accessibility model. |
 | [`ModernFormsNext.Automation.Windows`](https://www.nuget.org/packages/ModernFormsNext.Automation.Windows) | Opt-in authenticated Windows live automation bridge. |
+| `ModernFormsNext.SystemNotifications.AppSdk` | Optional Windows App SDK notification backend, new package identity for 1.12.0. |
+| `ModernFormsNext.SystemNotifications.WinRT` | Optional classic Windows WinRT notification backend, new package identity for 1.12.0. |
 | [`ModernFormsNext.Templates`](https://www.nuget.org/packages/ModernFormsNext.Templates) | `dotnet new` project template. |
 | [`ModernFormsNext.WindowKit`](https://www.nuget.org/packages/ModernFormsNext.WindowKit) | Platform-neutral windowing and service contracts. |
 | [`ModernFormsNext.WindowKit.Backend`](https://www.nuget.org/packages/ModernFormsNext.WindowKit.Backend) | Shared backend infrastructure. |

@@ -17,6 +17,9 @@ fresh result for the current checkout. For application guidance, use the documen
 
 ## Runtime investigations
 
+- [Windows custom-chrome maximize and taskbar work area](windows-custom-chrome-maximize.md)
+- [Presentation lifetime and Windows UIA subscriptions](../mtd-presentation-stability.md)
+
 - [TabControl and TabStrip typography, sizing and DPI (#204)](issue-204-tab-typography.md)
 - [NumericUpDown editor typography and sizing (#205)](issue-205-numeric-typography.md)
 - [Label natural measurement and ellipsis (#272)](issue-272-label-ellipsis.md)

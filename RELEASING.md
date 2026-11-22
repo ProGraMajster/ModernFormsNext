@@ -128,10 +128,10 @@ dotnet pack .\ModernFormsNext.slnx --configuration Release --no-build --output .
 The template package intentionally has no `.snupkg`; published library packages should have one.
 
 The current inventory is 14 `.nupkg` and 13 `.snupkg`, derived from the validator's package specs.
-This includes the two existing optional notification packages and the new
-`ModernFormsNext.WindowKit.Backend.Android` package, **Experimental**, with `net10.0` and
+This includes the optional Windows App SDK and WinRT notification backends and
+`ModernFormsNext.WindowKit.Backend.Android`, **Experimental**, with `net10.0` and
 `net10.0-android` assets and minimum API 23. Windows remains the primary stable backend.
-The Android package is new in 1.12.0.
+The notification backend packages and Android backend package have new NuGet IDs for 1.12.0.
 The release and full PR jobs explicitly install JDK 21, Android platform/build-tools 36, and
 workload set 10.0.401.1 (Android 36.1.69). No emulator or separate publisher is added.
 
@@ -149,8 +149,10 @@ do not configure a general release-to-release ApiCompat baseline; compare both A
 against the release base separately when qualifying packaging changes. DocFX selects the native
 Android surface once to avoid duplicate pages.
 
-Before first publication, the maintainer must confirm the nuget.org Trusted Publishing policy
-permits creation of this new package ID by the `Release` publication job on the version tag.
+Before first publication, the maintainer must confirm that the nuget.org Trusted Publishing policy
+permits creation of `ModernFormsNext.SystemNotifications.AppSdk`,
+`ModernFormsNext.SystemNotifications.WinRT` and `ModernFormsNext.WindowKit.Backend.Android`
+by the `Release` publication job on the version tag.
 
 Versioned documentation and sample artifacts are also mandatory release inputs. Restore the pinned
 DocFX tool, run the script tests, build the four ZIP files from the Release outputs, and validate

@@ -45,7 +45,7 @@ MarkdownChanged exposes source changes. PreviewLinkClicked routes a preview inte
 
 ## Platform support
 
-The control logic and managed rendering are shared. Windows is the primary runtime. Android is experimental; check the supported host, input and accessibility scenarios before relying on a specific native behavior.
+The control logic and managed rendering are shared. Windows is the primary runtime. Android support is experimental. The platform matrix lists the qualified host, input and accessibility scenarios.
 See the [platform matrix](../platforms/android.md) for Android release evidence.
 
 ## Designer support
