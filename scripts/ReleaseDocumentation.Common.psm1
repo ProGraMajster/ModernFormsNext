@@ -345,8 +345,12 @@ function Assert-SafeArchiveEntries {
 
         if ($entry.Length -gt 0 -and $entry.Length -le 20MB -and $name -match '(?i:\.(?:cs|csproj|props|targets|json|xml|md|txt|html|css|js|yml|yaml|ps1|psm1))$') {
             $text = Get-ArchiveEntryText -Archive $Archive -EntryName $entry.FullName
+            # Public GitHub project routes share the /users/<name>/ spelling of macOS home paths.
+            # Check the original text for Windows and Linux paths and mask only that public route
+            # when checking /Users. Local paths elsewhere in the same entry still fail validation.
+            $withoutProjectLinks = $text -replace '\bhttps://github\.com/users/[a-z0-9-]+/projects/[0-9]+\b', ''
             if ($text -match '(?i:[A-Za-z]:[\\/]Users[\\/][^\\/]+[\\/])' `
-                -or $text -match '(?i:/Users/[^/]+/)' `
+                -or $withoutProjectLinks -match '(?i:/Users/[^/]+/)' `
                 -or $text -match '(?i:/home/[^/]+/)') {
                 throw "Archive '$ArchivePath' contains an absolute local user path in '$name'."
             }
