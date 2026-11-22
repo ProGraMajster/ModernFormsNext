@@ -24,6 +24,186 @@
     href: content/docs/platform-specific-features.md
   - name: Known limitations
     href: content/docs/known-limitations.md
+- name: Control catalog
+  items:
+  - name: Catalog and scope
+    href: content/docs/controls/README.md
+  - name: Control fundamentals
+    href: content/docs/controls/control-fundamentals.md
+  - name: Components and dialogs inventory
+    href: content/docs/controls/components.md
+  - name: Actions and selection
+    items:
+    - name: Button
+      href: content/docs/controls/button.md
+    - name: CheckBox
+      href: content/docs/controls/check-box.md
+    - name: ComboBox
+      href: content/docs/controls/combo-box.md
+    - name: RadioButton
+      href: content/docs/controls/radio-button.md
+    - name: Switch
+      href: content/docs/controls/switch.md
+    - name: TrackBar
+      href: content/docs/controls/track-bar.md
+  - name: Text and input
+    items:
+    - name: DateTimePicker
+      href: content/docs/controls/date-time-picker.md
+    - name: Label
+      href: content/docs/controls/label.md
+    - name: LinkLabel
+      href: content/docs/controls/link-label.md
+    - name: MarkdownEditor
+      href: content/docs/controls/markdown-editor.md
+    - name: MaskedTextBox
+      href: content/docs/controls/masked-text-box.md
+    - name: NumericUpDown
+      href: content/docs/controls/numeric-up-down.md
+    - name: RichTextBox
+      href: content/docs/controls/rich-text-box.md
+    - name: SearchBar
+      href: content/docs/controls/search-bar.md
+    - name: TextBox
+      href: content/docs/controls/text-box.md
+    - name: TimePicker
+      href: content/docs/controls/time-picker.md
+  - name: Lists and data
+    items:
+    - name: BindingNavigator
+      href: content/docs/controls/binding-navigator.md
+    - name: CarouselView
+      href: content/docs/controls/carousel-view.md
+    - name: CheckedListBox
+      href: content/docs/controls/checked-list-box.md
+    - name: CollectionView
+      href: content/docs/controls/collection-view.md
+    - name: DataGridView
+      href: content/docs/controls/data-grid-view.md
+    - name: ListBox
+      href: content/docs/controls/list-box.md
+    - name: ListView
+      href: content/docs/controls/list-view.md
+    - name: RefreshView
+      href: content/docs/controls/refresh-view.md
+    - name: TreeView
+      href: content/docs/controls/tree-view.md
+  - name: Layout and containers
+    items:
+    - name: Control
+      href: content/docs/controls/control.md
+    - name: FlowLayoutPanel
+      href: content/docs/controls/flow-layout-panel.md
+    - name: GroupBox
+      href: content/docs/controls/group-box.md
+    - name: HorizontalScrollBar
+      href: content/docs/controls/horizontal-scroll-bar.md
+    - name: Panel
+      href: content/docs/controls/panel.md
+    - name: ScrollControl
+      href: content/docs/controls/scroll-control.md
+    - name: ScrollableControl
+      href: content/docs/controls/scrollable-control.md
+    - name: SplitContainer
+      href: content/docs/controls/split-container.md
+    - name: Splitter
+      href: content/docs/controls/splitter.md
+    - name: TableLayoutPanel
+      href: content/docs/controls/table-layout-panel.md
+    - name: UserControl
+      href: content/docs/controls/user-control.md
+    - name: VerticalScrollBar
+      href: content/docs/controls/vertical-scroll-bar.md
+  - name: Pages and navigation
+    items:
+    - name: AppShell
+      href: content/docs/controls/app-shell.md
+    - name: ContentPage
+      href: content/docs/controls/content-page.md
+    - name: FlyoutPage
+      href: content/docs/controls/flyout-page.md
+    - name: NavigationHeader
+      href: content/docs/controls/navigation-header.md
+    - name: NavigationPage
+      href: content/docs/controls/navigation-page.md
+    - name: NavigationPane
+      href: content/docs/controls/navigation-pane.md
+    - name: PageHost
+      href: content/docs/controls/page-host.md
+    - name: TabControl
+      href: content/docs/controls/tab-control.md
+    - name: TabPage
+      href: content/docs/controls/tab-page.md
+    - name: TabStrip
+      href: content/docs/controls/tab-strip.md
+    - name: TabbedPage
+      href: content/docs/controls/tabbed-page.md
+  - name: Menus and toolbars
+    items:
+    - name: ContextMenu
+      href: content/docs/controls/context-menu.md
+    - name: Menu
+      href: content/docs/controls/menu.md
+    - name: MenuDropDown
+      href: content/docs/controls/menu-drop-down.md
+    - name: Ribbon
+      href: content/docs/controls/ribbon.md
+    - name: StatusBar
+      href: content/docs/controls/status-bar.md
+    - name: ToolBar
+      href: content/docs/controls/tool-bar.md
+  - name: Media and geometry
+    items:
+    - name: Circle
+      href: content/docs/controls/circle.md
+    - name: ColorBox
+      href: content/docs/controls/color-box.md
+    - name: DocumentViewer
+      href: content/docs/controls/document-viewer.md
+    - name: Ellipse
+      href: content/docs/controls/ellipse.md
+    - name: HueSlider
+      href: content/docs/controls/hue-slider.md
+    - name: Line
+      href: content/docs/controls/line.md
+    - name: MarkdownViewer
+      href: content/docs/controls/markdown-viewer.md
+    - name: Path
+      href: content/docs/controls/path.md
+    - name: PictureBox
+      href: content/docs/controls/picture-box.md
+    - name: Polygon
+      href: content/docs/controls/polygon.md
+    - name: Polyline
+      href: content/docs/controls/polyline.md
+  - name: Windows and integration
+    items:
+    - name: Form
+      href: content/docs/controls/form.md
+    - name: FormTitleBar
+      href: content/docs/controls/form-title-bar.md
+    - name: MessageBoxForm
+      href: content/docs/controls/message-box-form.md
+    - name: NativeViewHost
+      href: content/docs/controls/native-view-host.md
+    - name: PopupWindow
+      href: content/docs/controls/popup-window.md
+    - name: PrintPreviewControl
+      href: content/docs/controls/print-preview-control.md
+    - name: PrintPreviewDialog
+      href: content/docs/controls/print-preview-dialog.md
+    - name: ProgressBar
+      href: content/docs/controls/progress-bar.md
+  - name: Components
+    items:
+    - name: BindingSource
+      href: content/docs/controls/binding-source.md
+    - name: ImageList
+      href: content/docs/controls/image-list.md
+    - name: Timer
+      href: content/docs/controls/timer.md
+    - name: ToolTip
+      href: content/docs/controls/tool-tip.md
 - name: Controls, input, and data
   items:
   - name: UserControls
@@ -142,6 +322,12 @@
     href: content/docs/android-adb.md
   - name: Cross-platform sample
     href: content/docs/cross-platform-sample.md
+  - name: Window hosting
+    href: content/docs/android-windowing.md
+  - name: System services
+    href: content/docs/android-platform-services.md
+  - name: Native view hosting
+    href: content/docs/native-view-hosting.md
   - name: Manifests and permissions
     href: content/docs/android-permissions.md
   - name: Hardware input
@@ -176,6 +362,10 @@
     href: content/docs/ci.md
   - name: Repository validation
     href: content/docs/repository-validation.md
+  - name: 1.12.0 change coverage
+    href: content/docs/development/1.12.0-change-matrix.md
+  - name: 1.12.0 documentation audit
+    href: content/docs/development/1.12.0-documentation-audit.md
   - name: Development reports and audits
     href: content/docs/development/README.md
   - name: Roadmap
@@ -186,6 +376,10 @@
   items:
   - name: Changelog
     href: content/CHANGELOG.md
+  - name: 1.12.0 release notes
+    href: content/docs/1.12.0-release-notes.md
+  - name: Migration 1.11.1 to 1.12.0
+    href: content/docs/migrations/1.11.1-to-1.12.0.md
   - name: 1.11.1 release notes
     href: content/docs/1.11.1-release-notes.md
   - name: 1.11.0 release notes

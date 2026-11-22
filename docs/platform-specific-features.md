@@ -34,8 +34,8 @@ preference detection does not automatically replace an app's theme. The
 and applies its typography multiplier once through the existing ThemeManager.
 
 Read-only [diagnostics and Designer metadata](accessibility/diagnostics-and-designer.md) consume
-the shared model. General recycled containers remain #55, the full inspector/picker remains
-#61, and broad physical Android reliability remains #69. The bounded Android Form/window host
+the shared model. [Recycled containers](virtualization.md) now project logical items through the
+same semantics. The full inspector/picker remains #61 and broader physical Android coverage remains #69. The bounded Android Form/window host
 is implemented by [#72](android-windowing.md); independent desktop windows remain unsupported.
 The [Phase 4 Android runner](accessibility/android-phase4-validation.md) is explicitly enabled.
 It passed bounded native checks on the API 34 emulator and API 36 physical device in Debug and

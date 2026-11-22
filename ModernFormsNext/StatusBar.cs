@@ -1,12 +1,15 @@
-﻿using System;
+using System;
 using System.Drawing;
 using ModernFormsNext.Renderers;
 
 namespace ModernFormsNext
 {
     /// <summary>
-    /// Represents a StatusBar control.
+    /// Displays a short status message at the bottom of its parent by default.
     /// </summary>
+    /// <remarks>
+    /// Assign <see cref="Control.Text"/> on the UI thread to update the message and request repaint.
+    /// </remarks>
     public class StatusBar : Control
     {
         /// <summary>

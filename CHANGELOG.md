@@ -6,60 +6,73 @@ ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while Nu
 
 ## [1.12.0] — Unreleased
 
-### Controls, navigation and platform support
+### Controls and data
 
-- Added CollectionView, CarouselView, RefreshView, SearchBar, TimePicker and BindingNavigator.
-  Shared container recycling supports large lists, with opt-in virtualization for ListView.
-- Added pages, navigation stacks, tabs, flyouts, AppShell routing and configurable page headers.
-- Added NativeViewHost platform integration and continued work on experimental Android windowing,
-  lifecycle, input and appearance. Android package assets target .NET 10.
-- Expanded DynamicResource support for trimmed applications, layout transitions, brush interpolation,
-  shadows, typography, ToolTip behavior and right-to-left layout.
+- **CollectionView** binds an `IList` through `ItemsSource` and realizes visible items with an `IItemContainerFactory<Control>`. The shared items host manages selection, viewport realization, overscan, detached-container recycling and mutation reconciliation. Item invocation exposes the source item and index. [#274](https://github.com/ProGraMajster/ModernFormsNext/pull/298)
+- **ListView** adds an opt-in `VirtualizationEnabled` path over its existing item collection. Use `ItemSize` and `ItemsLayout` to describe geometry. Existing eager realization remains the default. Shared virtualization APIs include realization snapshots and container/recycle diagnostics. Windows, Android and Designer certification has explicit scenario boundaries. [#55](https://github.com/ProGraMajster/ModernFormsNext/issues/55), [#203](https://github.com/ProGraMajster/ModernFormsNext/pull/273)
+- **CarouselView** pages through a templated source. It supports horizontal or vertical paging, a configurable adjacent-item cache, selected-index navigation and item invocation. **RefreshView** hosts scrollable content with threshold-based pull feedback, explicit refresh requests and optional cancellation. Its refresh command participates in normal command routing. [#275](https://github.com/ProGraMajster/ModernFormsNext/pull/299)
+- **SearchBar** offers an editor, submit and clear actions, suggestions from a source or provider, configurable in-memory history and cancellable search and suggestion events. **TimePicker** edits a time-of-day value with bounds, culture-aware formatting and a configurable step. [#276](https://github.com/ProGraMajster/ModernFormsNext/pull/301)
+- **BindingNavigator** supplies position/count UI and configurable navigation, add, delete, save and cancel parts over a `BindingSource`. The parts follow currency, permissions and command availability. [#85](https://github.com/ProGraMajster/ModernFormsNext/pull/422)
 
-### Designer
+### Pages and application navigation
 
-- Added group editing, snapping guides, project assets, event-handler navigation, inherited forms
-  and controls, and authoring for pages and animations.
-- The standard Designer reads design data and control metadata. Unavailable custom controls remain
-  editable through placeholders. Integrated and Separate window modes share the same editing,
-  Undo/Redo, Save and autosave recovery model.
+- Added `Page`, `ContentPage`, `PageHost` and `NavigationPage`. Page composition stays in the control tree. Asynchronous push/pop serializes stack changes, supports cancellable navigation, and routes Back and focus/lifecycle transitions through the common framework. [#302](https://github.com/ProGraMajster/ModernFormsNext/pull/306)
+- Added `TabbedPage` with selectable pages and `FlyoutPage` with overlay and split presentation. Selection and navigation preserve page ownership. Flyout width, breakpoint, flow direction and transitions are configurable. [#303](https://github.com/ProGraMajster/ModernFormsNext/pull/307)
+- Added `AppShell` routes, route parameters, relative and absolute navigation, back-stack state and application lifecycle binding. Page-aware Designer metadata and the application template support code-first page and shell composition. [#304](https://github.com/ProGraMajster/ModernFormsNext/pull/412), [#305](https://github.com/ProGraMajster/ModernFormsNext/pull/414)
+- `NavigationPage` and `AppShell` expose an optional navigation header with title and Back UI, custom title or header content, toolbar actions and top/bottom placement. The header consumes space from the page host when enabled. [#413](https://github.com/ProGraMajster/ModernFormsNext/pull/441)
 
-### Reliability and diagnostics
+### Layout, typography and rendering
 
-- Recorded the stages of Windows Designer host startup, native window attachment and owned process
-  shutdown. Startup diagnostics identify both the process and its creation time.
-- Updated startup and release diagnostics to open the registered Designer, verify its host
-  and retain evidence when startup cannot be observed.
+- `ScrollableControl.Scroll` reports canonical axis and old/new values consistently across the real movement paths. `ScrollControlIntoView` reveals an eligible descendant across nested scroll hosts, including oversized targets. Parent reassignment raises one `ParentChanged` per actual change. [#162](https://github.com/ProGraMajster/ModernFormsNext/pull/465), [#163](https://github.com/ProGraMajster/ModernFormsNext/pull/466), [#164](https://github.com/ProGraMajster/ModernFormsNext/pull/444)
+- Flow and table layouts support inherited `RightToLeft` with mirrored placement, flow breaks, spans and logical cell coordinates. Explicit flow directions and physical positioning remain separately configurable. [#89](https://github.com/ProGraMajster/ModernFormsNext/pull/421)
+- Added shared shadows and typography metrics. Inherited typography reaches the implicit TabControl strip and the NumericUpDown editor. Label ellipsis measurement accounts for fractional advances so a fitting line stays intact. [#78](https://github.com/ProGraMajster/ModernFormsNext/pull/415), [#204](https://github.com/ProGraMajster/ModernFormsNext/pull/448), [#205](https://github.com/ProGraMajster/ModernFormsNext/pull/461), [#272](https://github.com/ProGraMajster/ModernFormsNext/pull/464)
+- Extended vector geometry with arc segments, groups and combined paths, and added data-backed Path editing in the Designer. Polygon and Polyline share the vector geometry infrastructure. [#70](https://github.com/ProGraMajster/ModernFormsNext/pull/429)
+- Rendering gains explicit backend configuration, damage tracking and bounded partial redraw, while retaining the software path. Windows presentation handles retained content, failed presentation recovery and modal window transitions. Android frame scheduling and tracing expose native-paint evidence separately from GPU or display scanout. [#46](https://github.com/ProGraMajster/ModernFormsNext/pull/171), [#433](https://github.com/ProGraMajster/ModernFormsNext/pull/433)
 
-### Fixes
+### Styling, resources, animation and feedback
 
-- Fixed integrated Designer Save routing and extended safe reverse synchronization of `.mfdesign`.
-- Fixed Windows custom-chrome maximization so the native window respects the monitor work area
-  and leaves a persistent taskbar visible and clickable.
-- Fixed scroll event values and scroll-to-control behavior, duplicate parent-change notifications,
-  paired window-size constraints, high DPI title-bar icons and control typography.
-- Improved ellipsis measurement and cleanup after Windows notification failures.
+- Resource dictionaries support merged lookup and factories. Typed dynamic-resource property registration supports the trimming/AOT path, with the string path and unavailable-key diagnostics documented separately. [#84](https://github.com/ProGraMajster/ModernFormsNext/pull/420)
+- Layout transitions inherit policy and handle zero-area collapse/expand. Layout-aware visual states can interpolate more box and text metrics. Brush interpolation supports explicit color-space options and compatible gradient morphs with documented fallback behavior. [#73](https://github.com/ProGraMajster/ModernFormsNext/pull/416), [#74](https://github.com/ProGraMajster/ModernFormsNext/pull/417), [#76](https://github.com/ProGraMajster/ModernFormsNext/pull/418)
+- Designer animation recipes support opt-in metadata serialization and safe previews for custom definitions and easing. Runtime animation types and executable project code follow distinct contracts. [#75](https://github.com/ProGraMajster/ModernFormsNext/pull/430)
+- ToolTip supports independent movement and fading, inactive-window policy through `ShowAlways`, and explicit presentation/lifetime endpoints. Popup cancellation and owner drawing retain their existing hooks. [#88](https://github.com/ProGraMajster/ModernFormsNext/pull/423), [#446](https://github.com/ProGraMajster/ModernFormsNext/pull/446)
 
-### Platform validation
+### Input, accessibility and lifecycle
 
-- Recorded Windows IMM32 and real HWND integration, and physical Android API 36
-  lifecycle, native InputConnection, Latin Gboard input and 60 Hz frame observations.
-  Android remains Experimental. Broader CJK and device qualification is tracked
-  in [#537](https://github.com/ProGraMajster/ModernFormsNext/issues/537) and
-  [#538](https://github.com/ProGraMajster/ModernFormsNext/issues/538).
-- See the [1.12.0 release notes](docs/1.12.0-release-notes.md) for the qualified
-  scope and outstanding manual platform checks.
+- Audited focus transfers, validation ordering and disposal/reentrancy across app and control entry points. Invalid focus transitions preserve the canonical focused element. Validation suppression and cancellation follow the originating transition. [#149](https://github.com/ProGraMajster/ModernFormsNext/pull/150), [#160](https://github.com/ProGraMajster/ModernFormsNext/pull/166), [#161](https://github.com/ProGraMajster/ModernFormsNext/pull/167)
+- Collection and navigation hosts integrate selection, focus, invocation and reveal with shared accessibility semantics. Recycled content remains subject to the realization rules documented in the [virtualization guide](docs/virtualization.md). [#203](https://github.com/ProGraMajster/ModernFormsNext/pull/273), [#274](https://github.com/ProGraMajster/ModernFormsNext/pull/298)
+- Expanded text-input qualification for real Windows HWND/IMM32 and Android InputConnection, including observed Gboard Latin input and focus transfer. Android password editors withhold protected text through the input connection. Added state handoff and activation coverage for lifecycle restoration. The adapters and routed command system already shipped in 1.11.x. [#131](https://github.com/ProGraMajster/ModernFormsNext/pull/470), [#132](https://github.com/ProGraMajster/ModernFormsNext/pull/467)
 
-### Experimental builds and planned 2.0.0 work
+### Windows
 
-- Executable previews of project controls remain available in private qualification builds.
-  The standard VSIX contains no preview worker and uses the data preview.
-- Full isolation qualification, production enablement and older .NET target evaluation are
-  tracked for 2.0.0 in [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40),
-  [#486](https://github.com/ProGraMajster/ModernFormsNext/issues/486) and
-  [#44](https://github.com/ProGraMajster/ModernFormsNext/issues/44).
-- See the [Designer compatibility matrix](docs/visual-studio-designer-host.md#visual-studio-and-net-compatibility)
-  for extension installation, host runtime and application targeting.
+- Custom chrome keeps native maximize and Snap behavior, resolves the monitor work area, preserves the taskbar when maximized and handles the hidden-by-launcher startup case. Mixed 100%/225% DPI and persistent/auto-hide taskbars are covered by the release checks. Title-bar icon size scales with DPI, and a changed Form size constraint reports any coerced paired constraint. [#137](https://github.com/ProGraMajster/ModernFormsNext/pull/139), [#138](https://github.com/ProGraMajster/ModernFormsNext/pull/462), [#165](https://github.com/ProGraMajster/ModernFormsNext/pull/445), [#534](https://github.com/ProGraMajster/ModernFormsNext/pull/536)
+- Added and verified Form loading, visibility, geometry, window-state and DPI events and explicit `Form.Activate()` against native lifecycle transitions. The event audits record ordering and duplicate-notification behavior. [#153](https://github.com/ProGraMajster/ModernFormsNext/pull/153), [#154](https://github.com/ProGraMajster/ModernFormsNext/pull/154), [#155](https://github.com/ProGraMajster/ModernFormsNext/pull/155), [#156](https://github.com/ProGraMajster/ModernFormsNext/pull/156), [#157](https://github.com/ProGraMajster/ModernFormsNext/pull/157), [#159](https://github.com/ProGraMajster/ModernFormsNext/pull/159)
+- Expanded Windows system notifications, including registration and backend diagnostics. The classic WinRT notifier caches unavailable capability probes and falls back through the configured policy. Shell notification tracking retires stale entries when terminal callbacks are missing. [#158](https://github.com/ProGraMajster/ModernFormsNext/pull/196), [#269/#270](https://github.com/ProGraMajster/ModernFormsNext/pull/271)
+
+### Android and native views
+
+- Added the experimental `ModernFormsNext.WindowKit.Backend.Android` package with `net10.0` and `net10.0-android` assets and minimum API 23 for the Android workload. The bounded Activity/Form host supports shared surfaces and owned popup behavior. Native activities and independent desktop windows follow different lifetime models. [#72](https://github.com/ProGraMajster/ModernFormsNext/pull/169), [#198](https://github.com/ProGraMajster/ModernFormsNext/pull/198)
+- Added `NativeViewHost` with explicit attach/detach ownership and compositing capability diagnostics. Windows hosts HWND peers and Android hosts View peers. Native overlays have platform-dependent clipping, transform, ordering and input boundaries. [#60](https://github.com/ProGraMajster/ModernFormsNext/pull/197)
+- Expanded Android platform services and system appearance, including Activity configuration change observation and opt-in reapplication of authored themes. Physical lifecycle, IME and long-run evidence is recorded separately from emulator and host checks. [#79](https://github.com/ProGraMajster/ModernFormsNext/pull/195), [#77](https://github.com/ProGraMajster/ModernFormsNext/pull/434), [#133](https://github.com/ProGraMajster/ModernFormsNext/pull/471)
+
+### Visual Studio Designer and tooling
+
+- Multi-selection adds group transforms, alignment, sizing and ordering. Grid and smart guides offer configurable snapping. Clipboard operations preserve transaction semantics across copy, paste, cut and duplicate. [#35](https://github.com/ProGraMajster/ModernFormsNext/pull/424), [#36](https://github.com/ProGraMajster/ModernFormsNext/pull/425)
+- The Designer can generate and navigate supported event handlers, manage project-local assets, and author inherited Form/UserControl designs with inherited members protected. Page, vector and animation metadata are available where the relevant editor supports them. [#37](https://github.com/ProGraMajster/ModernFormsNext/pull/426), [#38](https://github.com/ProGraMajster/ModernFormsNext/pull/427), [#39](https://github.com/ProGraMajster/ModernFormsNext/pull/428), [#305](https://github.com/ProGraMajster/ModernFormsNext/pull/414)
+- Integrated Visual Studio Save routes to the canonical Designer document. Safe reverse synchronization round-trips more supported code while retaining unsupported statements and explicit conflicts. Integrated and Separate modes share the document, Undo/Redo, Save and recovery model. [#81](https://github.com/ProGraMajster/ModernFormsNext/pull/431), [#99](https://github.com/ProGraMajster/ModernFormsNext/pull/432)
+- Standard preview reads design data and metadata through an isolated host and uses editable placeholders for unavailable controls. Host startup diagnostics correlate process ID with creation time, capture lifecycle stages, and let the collector verify the registered `.mfdesign` editor and attachment. [#468](https://github.com/ProGraMajster/ModernFormsNext/pull/468), [#535](https://github.com/ProGraMajster/ModernFormsNext/issues/535), [#533](https://github.com/ProGraMajster/ModernFormsNext/pull/533)
+
+### Diagnostics, build and packaging
+
+- Expanded sequential release gates, documentation and smoke handoff, and PR CI classification. ToolTip and vector geometry native tests synchronize one pixel observation with a desktop frame produced after repaint, keeping original color assertions. Profiler allocation evidence retains the unchanged 0 B recording-only gate. [#148](https://github.com/ProGraMajster/ModernFormsNext/pull/148), [#82](https://github.com/ProGraMajster/ModernFormsNext/pull/442), [#168](https://github.com/ProGraMajster/ModernFormsNext/pull/469), [#540](https://github.com/ProGraMajster/ModernFormsNext/pull/541)
+- The coordinated framework, VSIX and templates target 1.12.0. The minor assembly line is 1.12.0.0. The SDK pin is .NET 10.0.401. The release validates the Android package alongside existing framework, backend, testing, automation and notification packages. See the [migration guide](docs/migrations/1.11.1-to-1.12.0.md).
+- Updated the build-time Visual Studio Shell MessagePack reference to 3.1.9, the patched version for [GHSA-qhrr-8q5h-9q3h](https://github.com/advisories/GHSA-qhrr-8q5h-9q3h). The existing runtime asset exclusion remains in place.
+- Added practical control guides, a control and component inventory, updated release notes and versioned offline navigation. The DocFX API reference remains generated from matching assemblies and XML comments.
+
+### Platform limits and deferred work
+
+- Windows remains the primary runtime. Android remains **Experimental**. The physical NX769J ran at observed 60 Hz. Wider CJK/IME, vendor/device/deep stress, physical high-refresh and hardware keyboard coverage, and human TalkBack verification remain open. [#537](https://github.com/ProGraMajster/ModernFormsNext/issues/537), [#538](https://github.com/ProGraMajster/ModernFormsNext/issues/538), [#59](https://github.com/ProGraMajster/ModernFormsNext/issues/59), [#109](https://github.com/ProGraMajster/ModernFormsNext/issues/109)
+- The standard VSIX keeps executable project preview disabled and omits the worker. LPAC qualification and production enablement, and evaluation of older .NET targets, are tracked for 2.0.0. [#40](https://github.com/ProGraMajster/ModernFormsNext/issues/40), [#486](https://github.com/ProGraMajster/ModernFormsNext/issues/486), [#44](https://github.com/ProGraMajster/ModernFormsNext/issues/44)
+- See the [1.12.0 release notes](docs/1.12.0-release-notes.md) for verified platform scope and the [release change matrix](docs/development/1.12.0-change-matrix.md) for provenance.
 
 ## [1.11.1] — 2026-09-22
 

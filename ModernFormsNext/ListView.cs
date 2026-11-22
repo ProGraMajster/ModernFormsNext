@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Linq;
 using System.ComponentModel;
@@ -149,6 +149,13 @@ namespace ModernFormsNext
         /// <summary>
         /// Gets or sets the currently selected item, if any. If there are multiple selected items, the first selected item will be returned.
         /// </summary>
+        /// <remarks>
+        /// Assign on the owning UI thread. Virtual mode keeps the logical selection when the
+        /// container is recycled. A null assignment clears the selection.
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        /// In virtual mode, the assigned non-null item does not belong to this list.
+        /// </exception>
         public ListViewItem? SelectedItem {
             get => VirtualizationEnabled ? logicalSelectedItem : Items.FirstOrDefault (i => i.Selected);
             set {

@@ -17,8 +17,13 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 
 ## Controls, input, and data
 
+- [Control and component catalog](controls/README.md) — individual guides, properties and C# examples.
+- [Control fundamentals](controls/control-fundamentals.md) — layout, input, styling, binding and lifetime.
+- [Components and dialogs](controls/components.md) — non-visual types, system integration and popup ownership.
+
 - [UserControls](user-controls.md)
 - [Pages and stack navigation](pages-and-navigation.md) — lightweight hosted pages, canonical validation, retained history and scoped Back.
+- [AppShell routes and lifecycle](app-shell-routing.md)
 - [Tabbed and flyout pages](page-composition.md) — retained tab selection, responsive flyout/detail, validated dismissal and local direction.
 - [Data binding](data-binding.md)
 - [BindingNavigator](binding-navigator.md)
@@ -103,9 +108,10 @@ Android is experimental. Use [platform status](platform-specific-features.md) an
 ## Releases and migration
 
 - [Changelog](../CHANGELOG.md)
-- Release notes: [1.11.1](1.11.1-release-notes.md), [1.11.0](1.11.0-release-notes.md),
+- Release notes: [1.12.0](1.12.0-release-notes.md), [1.11.1](1.11.1-release-notes.md), [1.11.0](1.11.0-release-notes.md),
   [1.10.0](1.10.0-release-notes.md), [1.9.0](1.9.0-release-notes.md)
-- Migration guides: [1.9.0 to 1.10.0](migrations/1.9.0-to-1.10.0.md),
+- Migration guides: [1.11.1 to 1.12.0](migrations/1.11.1-to-1.12.0.md),
+  [1.9.0 to 1.10.0](migrations/1.9.0-to-1.10.0.md),
   [1.8.0 to 1.9.0](migrations/1.8.0-to-1.9.0.md)
 - [Historical 1.9.0 theme-system scope](1.9.0-theme-system.md)
 - [Release process](../RELEASING.md)

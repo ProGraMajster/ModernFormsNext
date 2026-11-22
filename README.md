@@ -45,7 +45,7 @@ with shared suggestion virtualization, bounded recent history and nullable time 
 ### Android status
 
 > [!WARNING]
-> Android support in ModernFormsNext 1.11.1 is **Experimental**. APIs, project structure, and
+> Android support in ModernFormsNext 1.12.0 is **Experimental**. APIs, project structure, and
 > runtime behavior may still change. It is not yet recommended for production applications.
 
 The Android backend presents shared Forms and their real control trees through backend-owned
@@ -95,25 +95,25 @@ It is infrastructure for future WebView/Media adapters, independent of the rende
 
 ## Installation
 
-ModernFormsNext 1.11.1 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
+ModernFormsNext 1.12.0 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
 allows roll-forward to a later installed .NET 10 feature band.
 
 For an existing Windows application:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.11.1
+dotnet add package ModernFormsNext --version 1.12.0
 ```
 
 Install the project template and create an application:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.11.1
+dotnet new install ModernFormsNext.Templates::1.12.0
 dotnet new mfn-app -n MyApp
 cd MyApp
 dotnet run
 ```
 
-The package and template commands use the release version and become available after 1.11.1 is
+The package and template commands use the release version and become available after 1.12.0 is
 published. For source builds or pre-release validation, clone the repository and use project
 references instead. See [installation](docs/installation.md) for package, template, VSIX, and
 Experimental Instance instructions.
@@ -162,8 +162,7 @@ Android backend.
 ## Visual Studio Designer
 
 The optional `ModernFormsNextDesigner.vsix` adds **View ModernFormsNext Designer** for designable
-ModernFormsNext forms and UserControls, plus matching item templates. Version 1.11.1 of the VSIX is
-the matching extension for the 1.11.1 framework release.
+ModernFormsNext forms and UserControls, plus matching item templates. Use the coordinated 1.12.0 VSIX with the 1.12.0 framework.
 
 A designable form uses three related files:
 
@@ -198,7 +197,7 @@ ControlGallery rather than in the generated starter experience.
 
 ## Packages
 
-The 1.11.1 release is composed of these intentionally published NuGet packages:
+The 1.12.0 release uses these NuGet packages:
 
 | Package | Purpose |
 | --- | --- |
@@ -214,9 +213,9 @@ The 1.11.1 release is composed of these intentionally published NuGet packages:
 | [`ModernFormsNext.CodeGeneration`](https://www.nuget.org/packages/ModernFormsNext.CodeGeneration) | C# designer generation and conservative reverse parsing. |
 | [`ModernFormsNext.Designer`](https://www.nuget.org/packages/ModernFormsNext.Designer) | Reusable Windows designer shell and services. |
 
-The next release adds `ModernFormsNext.WindowKit.Backend.Android` as an **Experimental** NuGet
+1.12.0 adds `ModernFormsNext.WindowKit.Backend.Android` as an **Experimental** NuGet
 package with `net10.0` and `net10.0-android` assets. It is not part of the already-published 1.11.1
-release. Use the same version as the other ModernFormsNext packages after that release is published;
+release. Use the same version as the other ModernFormsNext packages after 1.12.0 is published;
 see [Android package consumption](docs/android-backend.md#nuget-package-experimental).
 APIs, behavior, and platform support may change. Windows remains the primary stable backend.
 
@@ -231,16 +230,17 @@ for bundle contents and local validation.
 The **[documentation index](docs/README.md)** groups the complete guides by topic.
 
 - [Getting started](docs/getting-started.md) and [installation](docs/installation.md)
+- [Control and component catalog](docs/controls/README.md) and [control fundamentals](docs/controls/control-fundamentals.md)
 - [Sample applications and screenshots](docs/samples.md)
 - [Platform support](docs/platform-specific-features.md) and [Android status](docs/platforms/android.md)
 - [Architecture and decisions](docs/architecture/README.md) and [development reports](docs/development/README.md)
-- [Changelog](CHANGELOG.md), [1.11.1 release notes](docs/1.11.1-release-notes.md), and
-  [migration guides](docs/README.md#releases-and-migration)
+- [Changelog](CHANGELOG.md), [1.12.0 release notes](docs/1.12.0-release-notes.md), and
+  [1.11.1 to 1.12.0 migration](docs/migrations/1.11.1-to-1.12.0.md)
 - [Release process](RELEASING.md)
 
 ## Known limitations
 
-ModernFormsNext 1.11.1 is stable on its primary Windows path, while several Designer, Android,
+Windows is the primary supported ModernFormsNext runtime, while several Designer, Android,
 cross-platform, compatibility, and manual-validation boundaries remain. The central
 [known-limitations index](docs/known-limitations.md) classifies them by type and severity and links
 to current issues and detailed subsystem documentation.

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -80,6 +80,7 @@ namespace ModernFormsNext
         /// image that was previously loaded through <see cref="ImageLocation"/> or
         /// <see cref="Load(string)"/>.
         ///
+        /// A directly assigned bitmap remains caller-owned. Keep it alive while displayed.
         /// When an animated GIF is loaded from a path or URL, this property returns the
         /// currently displayed frame.
         /// </remarks>
@@ -118,6 +119,8 @@ namespace ModernFormsNext
         /// advanced automatically until another image is assigned or the control is
         /// disposed.
         /// </remarks>
+        /// <param name="url">A local file path or a URL to load.</param>
+        /// <exception cref="InvalidOperationException"><paramref name="url"/> is empty or whitespace.</exception>
         public void Load (string url)
         {
             if (string.IsNullOrWhiteSpace (url))
