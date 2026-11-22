@@ -13,11 +13,65 @@ function Get-DesignerStartupStatus {
 function Get-DesignerProcessLog {
     param([string]$Log, [long]$ProcessStart)
     if ($ProcessStart -le 0) { return '' }
-    $match = [regex]::Match($Log, ' ProcessStart=' + $ProcessStart + '(?:\r?\n|$)')
-    if (!$match.Success) { return '' }
-    $lineStart = $Log.LastIndexOf("`n[", $match.Index, [StringComparison]::Ordinal)
-    if ($lineStart -lt 0) { return $Log }
-    return $Log.Substring($lineStart + 1)
+    # Every diagnostic entry ends with its process creation time. Match complete
+    # entries so earlier or later occupants of the same PID cannot satisfy a gate.
+    $entries = [regex]::Split($Log, '(?m)(?=^\[[^\r\n]*\] )')
+    return (($entries -cmatch (' ProcessStart=' + $ProcessStart + '\s*\z')) -join '').TrimEnd()
+}
+
+function Get-DesignerHostLaunch {
+    param([string]$Log, [int]$ProcessId, [long]$ProcessStart)
+    if ($ProcessId -le 0 -or $ProcessStart -le 0) { return $false }
+    return $Log -cmatch ('(?m)^\[[^\r\n]*\] HOST_LAUNCH_OK ProcessId=' + $ProcessId +
+        ' ChildStart=' + $ProcessStart + ' Pid=')
+}
+
+function Test-DesignerSmokeShutdown {
+    param([string]$Log, [int]$ProcessId, [int]$ExitCode)
+    $linePrefix = '(?m)^\[[^\r\n]*\] '
+    return $ExitCode -eq 0 -and
+        $Log -cmatch ($linePrefix + 'HOST_SHUTDOWN_END ProcessId=' + $ProcessId + ' ExitCode=0 ') -and
+        $Log -cnotmatch ($linePrefix + 'HOST_(KILL_REQUESTED|SHUTDOWN_FAILED)\b')
+}
+
+function Get-DesignerSmokeDirtyState {
+    param([string]$Pipe, [string]$Document, [int]$ProcessId)
+    if (!('DesignerSmokePipe' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+public static class DesignerSmokePipe
+{
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint processId);
+}
+'@
+    }
+    $client = [IO.Pipes.NamedPipeClientStream]::new('.', $Pipe, [IO.Pipes.PipeDirection]::InOut,
+        [IO.Pipes.PipeOptions]::Asynchronous)
+    $cancel = [Threading.CancellationTokenSource]::new([TimeSpan]::FromSeconds(2))
+    try {
+        [void]$client.ConnectAsync($cancel.Token).GetAwaiter().GetResult()
+        [uint32]$serverId = 0
+        # Check the connected server before sending even the synthetic document path.
+        if (![DesignerSmokePipe]::GetNamedPipeServerProcessId($client.SafePipeHandle, [ref]$serverId) -or
+            $serverId -ne $ProcessId) {
+            throw 'The connected Designer pipe is outside the verified host process.'
+        }
+        $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Document))
+        $request = [Text.Encoding]::UTF8.GetBytes("DIRTY`t$encoded`t`t`n")
+        [void]$client.WriteAsync([ReadOnlyMemory[byte]]::new($request), $cancel.Token).AsTask().GetAwaiter().GetResult()
+        $reader = [IO.StreamReader]::new($client, [Text.Encoding]::UTF8, $true, 1024, $true)
+        try {
+            $reply = $reader.ReadLineAsync($cancel.Token).AsTask().GetAwaiter().GetResult()
+            if ($reply -cne "DIRTY`t0") { throw 'The Designer did not report the expected clean fixture over IPC.' }
+            return $reply
+        }
+        finally { $reader.Dispose() }
+    }
+    finally { $client.Dispose(); $cancel.Dispose() }
 }
 
 function Copy-DesignerStartupFixture {
@@ -59,4 +113,5 @@ function Assert-DesignerStartupPackage {
     }
 }
 
-Export-ModuleMember -Function Get-DesignerStartupStatus, Get-DesignerProcessLog, Copy-DesignerStartupFixture, Assert-DesignerStartupPackage
+Export-ModuleMember -Function Get-DesignerStartupStatus, Get-DesignerProcessLog, Copy-DesignerStartupFixture,
+    Assert-DesignerStartupPackage, Get-DesignerHostLaunch, Test-DesignerSmokeShutdown, Get-DesignerSmokeDirtyState

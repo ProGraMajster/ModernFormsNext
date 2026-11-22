@@ -30,6 +30,19 @@ if ($current -match 'FORM_SHOWN' -or $current -notmatch 'DPI_SETUP_BEGIN') {
 }
 $complete = Get-DesignerProcessLog ($newLog + "[new] FORM_SHOWN ProcessStart=123`n") 123
 if ($complete -notmatch 'FORM_SHOWN') { throw 'The current process readiness was lost.' }
+$reused = Get-DesignerProcessLog ($newLog + "[later] FORM_SHOWN IPC_READY ProcessStart=4321`n") 123
+if ($reused -match 'FORM_SHOWN|IPC_READY') { throw 'Readiness from a later PID instance was accepted.' }
+$editorLog = "[now] HOST_LAUNCH_OK ProcessId=10 ChildStart=22 Pid=1 ProcessStart=33"
+if (!(Get-DesignerHostLaunch $editorLog 10 22) -or (Get-DesignerHostLaunch $editorLog 10 2) -or
+    (Get-DesignerHostLaunch $editorLog 11 22)) {
+    throw 'The launch log did not identify the exact process instance.'
+}
+$shutdown = "[now] HOST_SHUTDOWN_END ProcessId=10 ExitCode=0 HResult=0x00000000 Pid=1 ProcessStart=33"
+if (!(Test-DesignerSmokeShutdown $shutdown 10 0) -or (Test-DesignerSmokeShutdown $shutdown 1 0) -or
+    (Test-DesignerSmokeShutdown $shutdown 10 -1) -or (Test-DesignerSmokeShutdown '' 10 0) -or
+    (Test-DesignerSmokeShutdown ("[now] HOST_KILL_REQUESTED ProcessId=10 Pid=1 ProcessStart=33`n" + $shutdown) 10 0)) {
+    throw 'A host was not required to shut down normally.'
+}
 $source = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'fixtures/DesignerExecutablePreview'))
 $before = @(Get-ChildItem -LiteralPath $source -File | Get-FileHash -Algorithm SHA256)
 # Retain the tiny controlled test copy as evidence; never remove a caller's directory.
@@ -61,4 +74,65 @@ foreach ($script in 'Test-DesignerStartup.ps1', 'Invoke-DesignerStartupEditor.ps
         [ref]$tokens, [ref]$parseErrors)
     if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
 }
-Write-Host 'Designer startup classification, fixture context and collector/helper syntax passed.'
+$standalone = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../Test-ReleaseDesigner.ps1') -Raw
+if ($standalone -notmatch "Start-OwnedProcess \`$devenv @\([^\r\n]*'/Edit', \`$fixture\)" -or
+    $standalone -notmatch "Invoke-EditorCheck 'Observe' 'Observed'" -or
+    $standalone -match "Invoke-EditorCheck 'OpenProject'") {
+    throw 'The release smoke must use normal standalone editor selection and independently observe the frame.'
+}
+if ($IsWindows) {
+    foreach ($wrongOwner in $false, $true) {
+        $name = 'MfnSmokePipeTest-' + [guid]::NewGuid().ToString('N')
+        $job = Start-Job -ArgumentList $name -ScriptBlock {
+            param($Name)
+            $server = [IO.Pipes.NamedPipeServerStream]::new($Name)
+            try {
+                $PID
+                $server.WaitForConnection()
+                $reader = [IO.StreamReader]::new($server, [Text.Encoding]::UTF8, $false, 1024, $true)
+                try {
+                    $request = $reader.ReadLine()
+                    if ($null -ne $request) {
+                        $request
+                        $bytes = [Text.Encoding]::UTF8.GetBytes("DIRTY`t0`n")
+                        $server.Write($bytes, 0, $bytes.Length)
+                    }
+                }
+                finally { $reader.Dispose() }
+            }
+            finally { $server.Dispose() }
+        }
+        try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(10)
+            do {
+                $serverPid = Receive-Job $job
+                if ($serverPid) { break }
+                Start-Sleep -Milliseconds 100
+            } while ([DateTime]::UtcNow -lt $deadline)
+            if (!$serverPid) { throw 'The temporary Designer test pipe did not become available.' }
+            $document = 'C:\Smoke Test\ReleaseSmoke.mfdesign'
+            if ($wrongOwner) {
+                try {
+                    $null = Get-DesignerSmokeDirtyState $name $document $PID
+                    throw 'A pipe from outside the verified host process was accepted.'
+                }
+                catch { if ($_.Exception.Message -ne 'The connected Designer pipe is outside the verified host process.') { throw } }
+            }
+            else {
+                $reply = Get-DesignerSmokeDirtyState $name $document $serverPid
+                if ($reply -cne "DIRTY`t0") { throw 'The clean fixture response was lost.' }
+            }
+            if (!(Wait-Job $job -Timeout 5)) { throw 'The temporary Designer test pipe did not stop.' }
+            $request = Receive-Job $job
+            if ($wrongOwner) {
+                if ($null -ne $request) { throw 'A request was sent to the wrong pipe server.' }
+            }
+            else {
+                $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($document))
+                if ($request -cne "DIRTY`t$encoded`t`t") { throw 'The clean-state request did not identify the exact document.' }
+            }
+        }
+        finally { Stop-Job $job; Remove-Job $job }
+    }
+}
+Write-Host 'Designer startup classification, fixture context, standalone route and host identity checks passed.'

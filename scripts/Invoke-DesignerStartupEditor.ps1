@@ -1,5 +1,5 @@
 #requires -Version 7.2
-<# Opens only the controlled document in the exact experimental IDE selected by the collector. #>
+<# Targets only the controlled document in the exact experimental IDE selected by the collector. #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][int]$IdeProcessId,
@@ -8,13 +8,16 @@ param(
     [Parameter(Mandatory)][string]$RootSuffix,
     [Parameter(Mandatory)][string]$Document,
     [Parameter(Mandatory)][string]$OutputPath,
+    [ValidateSet('OpenProject', 'Observe', 'Close')][string]$Operation = 'OpenProject',
     [ValidateRange(10,120)][int]$TimeoutSeconds = 20
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $state=[ordered]@{status='Pending';stage='Prerequisites';idePid=$IdeProcessId;ideStart=$IdeStart;
-    requestedFactory='c61567c8-f5ac-4f9e-9c6e-b4ec99c7ab31';logicalView='7651a702-06e5-11d1-8ebd-00a0c90f26ea';
-    method='IVsUIShellOpenDocument.OpenSpecificEditor';skipDeferral=$true;
+    requestedFactory='c61567c8-f5ac-4f9e-9c6e-b4ec99c7ab31';document=$Document;
+    logicalView=if($Operation -eq 'OpenProject'){'7651a702-06e5-11d1-8ebd-00a0c90f26ea'}else{$null};
+    method=if($Operation -eq 'OpenProject'){'IVsUIShellOpenDocument.OpenSpecificEditor'}else{'IVsUIShell.GetDocumentWindowEnum'};
+    skipDeferral=($Operation -eq 'OpenProject');operation=$Operation;
     actualFactory=$null;hresult=$null;failure=$null}
 function Save-State {
     $state.at=[DateTimeOffset]::Now.ToString('o')
@@ -40,14 +43,21 @@ try {
     Add-Type -Path (Join-Path $PSScriptRoot 'DesignerStartup.VisualStudio.cs') -ReferencedAssemblies @(
         $interop,'System.Runtime.InteropServices.dll','mscorlib.dll')
     $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-    $state.stage='EditorOpen'
+    $majorVersion=(Get-Item -LiteralPath $expected).VersionInfo.FileMajorPart
+    $state.stage='Editor'+$Operation
     Save-State
     do {
-        if ($ide.HasExited) { throw 'The owned IDE exited before opening the Designer.' }
+        if ($ide.HasExited) { throw 'The owned IDE exited during the editor check.' }
         try {
-            $state.actualFactory=[DesignerStartupVisualStudio]::Open($IdeProcessId,
-                (Get-Item -LiteralPath $expected).VersionInfo.FileMajorPart,$Document).ToString('D')
-            $state.status='Opened'
+            if ($Operation -eq 'OpenProject') {
+                $actual=[DesignerStartupVisualStudio]::Open($IdeProcessId,$majorVersion,$Document)
+                $state.status='Opened'
+            }
+            else {
+                $actual=[DesignerStartupVisualStudio]::Observe($IdeProcessId,$majorVersion,$Document,($Operation -eq 'Close'))
+                $state.status=if($Operation -eq 'Close'){'Closed'}else{'Observed'}
+            }
+            $state.actualFactory=$actual.ToString('D')
             $state.hresult='0x00000000'
             $state.failure=$null
             Save-State
@@ -65,7 +75,7 @@ try {
         }
     } while ([DateTime]::UtcNow -lt $deadline)
     $state.status='BLOCKED'
-    $state.failure='The owned IDE did not become available for the explicit editor request.'
+    $state.failure='The owned IDE did not complete the editor operation before the deadline.'
     Save-State
     exit 2
 }
