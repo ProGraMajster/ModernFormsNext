@@ -192,3 +192,14 @@ and [#109](https://github.com/ProGraMajster/ModernFormsNext/issues/109).
 Actual 90/120 Hz, physical finger multi-touch, more device profiles and
 extended stability remain open in [#538](https://github.com/ProGraMajster/ModernFormsNext/issues/538).
 GPU completion and scanout were unavailable in the 1.12.0 device measurements.
+
+### Official Prepare APK
+
+The APK from Prepare run 45044795303 passed the standard `ReleaseMatrix` with
+107 assertions on NX769J (API 36) and 97 on the API 34 emulator. The installed
+NX769J APK matched the SHA-256 in the release manifest. On M2003J15SC (API 31),
+the same APK's standard matrix failed at `background-no-surface` after injected
+Home. A separate `LifecycleStress` run using `MoveTaskToBack` passed 147
+assertions, with 90 seconds in the background and 36 Activity recreations.
+Both results on M2003J15SC are retained in the publication evidence.
+[Official Android evidence](https://github.com/ProGraMajster/ModernFormsNext/issues/82#issuecomment-7082603546)
