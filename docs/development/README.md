@@ -17,6 +17,9 @@ fresh result for the current checkout. For application guidance, use the documen
 
 ## Runtime investigations
 
+- [Windows custom-chrome maximize and taskbar work area](windows-custom-chrome-maximize.md)
+- [Presentation lifetime and Windows UIA subscriptions](../mtd-presentation-stability.md)
+
 - [TabControl and TabStrip typography, sizing and DPI (#204)](issue-204-tab-typography.md)
 - [NumericUpDown editor typography and sizing (#205)](issue-205-numeric-typography.md)
 - [Label natural measurement and ellipsis (#272)](issue-272-label-ellipsis.md)
@@ -44,12 +47,18 @@ fresh result for the current checkout. For application guidance, use the documen
 
 ## Release evidence
 
+- [1.12.0 change coverage matrix](1.12.0-change-matrix.md)
+- [1.12.0 documentation audit and coverage](1.12.0-documentation-audit.md)
+- [1.12.0 scope finalization](1.12.0-scope-finalization.md) and [scope matrix](1.12.0-scope-matrix.md)
+
 - [1.12.0 scope re-audit, 2026-11-12 — incomplete, publication not approved](1.12.0-scope-reaudit-2026-11-12.md)
 - [1.11.0 release readiness](1.11.0-release-readiness.md)
 - [1.11.0 roadmap completion](1.11.0-roadmap-completion.md)
 - [1.10.0 documentation and limitations audit](../audits/1.10.0-documentation-and-limitations-audit.md)
 
 ## Historical issue queues
+
+The reports below retain the issue status and platform evidence recorded at the time.
 
 - [Runtime queue: initial audit](codex-audit-series1.md)
 - [Designer queue: series 2](codex-audit-series2.md)

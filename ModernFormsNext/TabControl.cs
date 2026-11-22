@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using ModernFormsNext.Accessibility;
 using ModernFormsNext.Renderers;
@@ -186,8 +186,11 @@ namespace ModernFormsNext
         /// <see langword="true"/> if the tab was successfully closed; otherwise, <see langword="false"/>.
         /// </returns>
         /// <remarks>
-        /// Tabs marked as pinned or non-closable cannot be closed.
+        /// Call on the UI thread. A pinned, non-closable or foreign page returns false.
+        /// <see cref="TabClosing"/> can cancel removal. <see cref="TabClosed"/> follows
+        /// successful removal from <see cref="TabPages"/>.
         /// </remarks>
+        /// <exception cref="ArgumentNullException"><paramref name="page"/> is null.</exception>
         public bool CloseTab(TabPage page)
         {
             if (page is null)

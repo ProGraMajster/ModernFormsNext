@@ -4,7 +4,7 @@ ModernFormsNext is distributed as NuGet packages, project templates, and a Visua
 designer extension. The framework remains code-first, but the designer can edit the companion
 `.mfdesign` document and regenerate the matching `.Designer.cs` file.
 
-The commands below target the coordinated 1.11.1 release. They become publicly available after the
+The commands below target the coordinated 1.12.0 release. They become publicly available after the
 NuGet packages and GitHub release assets are published.
 
 ## Requirements
@@ -18,7 +18,7 @@ NuGet packages and GitHub release assets are published.
 For an existing application, reference the framework package:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.11.1
+dotnet add package ModernFormsNext --version 1.12.0
 ```
 
 The package provides the runtime controls, forms, rendering, layout, input, dialogs, and
@@ -29,7 +29,7 @@ Windows backend integration used by ModernFormsNext applications.
 Install the template package:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.11.1
+dotnet new install ModernFormsNext.Templates::1.12.0
 ```
 
 Create a new app:
@@ -69,10 +69,10 @@ as a classic Windows Forms marker and may try to open the built-in WinForms desi
 
 ## Install the Visual Studio Designer
 
-Install `ModernFormsNextDesigner.vsix` version `1.11.1` from the matching 1.11.1 release assets when
-available. This coordinated patch keeps the extension and its embedded designer host aligned
-with the framework scrolling fixes. Do not install an older VSIX when validating the 1.11.1
-designer workflow. During local repository development, build the VSIX project first:
+Install `ModernFormsNextDesigner.vsix` version `1.12.0` from the matching release assets when
+available. The standard package includes the data Designer host. Check the
+[Visual Studio compatibility matrix](visual-studio-designer-host.md#visual-studio-and-net-compatibility)
+for IDE project support and host runtime requirements. For local development, build the VSIX first:
 
 ```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
@@ -183,7 +183,7 @@ extension follows the current Visual Studio UI culture where possible.
 ## Android
 
 The packaged project template and Visual Studio designer are Windows-first. Android support in
-ModernFormsNext 1.11.1 is **Experimental**, uses an explicit activity/shared-surface host, and is not
+ModernFormsNext 1.12.0 is **Experimental**, uses an explicit activity/shared-surface host, and is not
 part of the default `mfn-app` template. See [Android platform status](platforms/android.md) before
 creating an Android evaluation project.
 

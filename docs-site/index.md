@@ -6,6 +6,7 @@ ModernFormsNext release. The release version, tag, and source commit are recorde
 
 Start with the [project overview](content/README.md), the
 [documentation index](content/docs/README.md), or [getting started](content/docs/getting-started.md).
+Browse the [control and component catalog](content/docs/controls/README.md) for working examples.
 Use the [API reference](api/index.md) for the public surface generated from the matching Release
 assemblies and XML documentation.
 

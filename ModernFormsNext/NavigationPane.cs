@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Linq;
 using ModernFormsNext.Renderers;
@@ -90,7 +90,7 @@ public class NavigationPane : Control
     protected virtual void OnSelectedItemChanged (EventArgs e) => SelectedItemChanged?.Invoke (this, e);
 
     /// <summary>
-    /// Raised when the selected item changes.
+    /// Raised on the UI thread when pointer input or a programmatic selection changes the pane's selection.
     /// </summary>
     public event EventHandler? SelectedItemChanged;
 

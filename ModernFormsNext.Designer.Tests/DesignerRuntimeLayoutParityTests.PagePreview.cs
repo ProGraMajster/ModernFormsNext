@@ -5,7 +5,6 @@ using ModernFormsNext.Designer.Surface;
 using ModernFormsNext.Designing;
 using SkiaSharp;
 using Xunit;
-using System.Runtime.CompilerServices;
 using ModernFormsNext.CodeGeneration.CSharp;
 
 namespace ModernFormsNext.Designer.Tests;
@@ -15,7 +14,7 @@ public sealed partial class DesignerRuntimeLayoutParityTests
     [Fact]
     public void OptionalGalleryDocumentMatchesGeneratedSourceAndRetainsEditorState()
     {
-        var directory = GalleryPageExampleDirectory();
+        var directory = IOPath.Combine(AppContext.BaseDirectory, "Fixtures", "DesignedPages");
         var document = DesignDocumentSerializer.Default.Deserialize(File.ReadAllText(IOPath.Combine(directory, "DesignedPagesView.mfdesign")));
         var generated = new CSharpDesignerGenerator().Generate(document,
             new CSharpDesignerGenerationOptions { EmitDesignerMetadataHeader = false });
@@ -35,9 +34,6 @@ public sealed partial class DesignerRuntimeLayoutParityTests
         Assert.Same(first, tabs.SelectedPage);
         Assert.Equal("Retained after selection", editor.Text);
     }
-
-    private static string GalleryPageExampleDirectory([CallerFilePath] string source = "")
-        => IOPath.GetFullPath(IOPath.Combine(IOPath.GetDirectoryName(source)!, "..", "samples", "ControlGallery", "Examples"));
 
     [Fact]
     public void PagePreviewGeometryUsesCompiledProductionSlotsAndImplicitFrames()

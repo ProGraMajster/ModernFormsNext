@@ -11,7 +11,7 @@ The current source tree additionally provides an experimental
 [Application/Form window backend](../android-windowing.md); its mobile policy is not desktop parity.
 
 `ModernFormsNext.WindowKit.Backend.Android` is prepared as an **Experimental** NuGet package for
-the next release, retaining both `net10.0` deterministic logic and the `net10.0-android` native
+1.12.0, retaining both `net10.0` deterministic logic and the `net10.0-android` native
 surface. It is not available in the already-published 1.11.1 release. See
 [package consumption and manifest contributions](../android-backend.md#nuget-package-experimental).
 Windows remains the primary stable backend; package availability does not imply production readiness.
@@ -75,11 +75,10 @@ framework controls. Android-specific types remain in `ModernFormsNext.WindowKit.
 
 - The source-tree `Application.Run(Form)` path requires `AndroidWindowActivity` (or the documented
   `AndroidActivityHost` callbacks). It supports one main Form and owner-bound modal/popup surfaces.
-- Android does not yet register a system light/dark ThemeManager provider. `ThemeVariant.System`
-  therefore uses the explicit Light/Dark apply fallback. Reduced motion is separate: the Android
-  animation-settings provider reads and observes the global animator-duration scale. Neither
-  implementation implies runtime parity; startup, switching, storage streams, setting changes, and
-  visual transitions still need broad emulator/device validation for a release.
+- Android exposes Activity night configuration to ThemeManager. An authored `ThemeVariant.System`
+  theme can be reapplied when the app opts to follow system appearance. Reduced motion is separate
+  and observes the global animator-duration scale. See [themes](../themes.md#follow-light-and-dark-appearance-on-android)
+  for fallback, lifecycle and validation boundaries.
 - Independent desktop top-level windows and concurrent Activity hosts are unsupported.
   See the [window capability matrix](../android-windowing.md#capability-matrix) for precise policies.
 - SAF file/folder pickers, content storage/bookmarks, URI/content-file launch, sharing and basic

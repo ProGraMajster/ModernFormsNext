@@ -106,6 +106,11 @@ jobs:
         # Parallel build/test qualification is incomplete; retain the policy in docs/ci.md.
         run: dotnet build ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
 
+      - name: Compile control documentation examples
+        if: steps.changes.outputs.full != 'false'
+        shell: pwsh
+        run: ./scripts/Test-ControlDocumentation.ps1
+
       - name: Regression tests (including high DPI and native partial presentation)
         if: steps.changes.outputs.full != 'false'
         run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore -m:1 /p:UseSharedCompilation=false --logger "trx;LogFilePrefix=ci"

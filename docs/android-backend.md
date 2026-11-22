@@ -1,7 +1,7 @@
 # Android backend
 
 > [!WARNING]
-> Android support in ModernFormsNext 1.11.0 is **Experimental** and is not recommended for
+> Android support in ModernFormsNext 1.12.0 is **Experimental** and is not recommended for
 > production applications. See the [Android platform status](platforms/android.md) for the
 > supported vertical slice and current limitations.
 
@@ -15,8 +15,8 @@ sharing, notification and message-dialog policy, including cancellation and cust
 
 ## NuGet package (Experimental)
 
-`ModernFormsNext.WindowKit.Backend.Android` is prepared for the next coordinated release.
-The already-published 1.11.1 release does not include it. After the next release, use
+`ModernFormsNext.WindowKit.Backend.Android` is prepared for the coordinated 1.12.0 release.
+The published 1.11.1 release does not include it. After 1.12.0 publication, use
 `PackageReference` with exactly the same version as the other ModernFormsNext packages:
 
 ```xml

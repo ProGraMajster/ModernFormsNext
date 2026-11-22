@@ -181,6 +181,33 @@ try {
         $archive.Dispose()
     }
 
+    $projectLink = 'https://github.com/users/example-maintainer/projects/3'
+    $projectLinkSource = Join-Path $temporaryRoot 'project-link-source'
+    [IO.Directory]::CreateDirectory($projectLinkSource) | Out-Null
+    $projectLinkManifest = Join-Path $projectLinkSource 'manifest.json'
+    Write-Utf8File -Path $projectLinkManifest -Content (@{ project = $projectLink } | ConvertTo-Json)
+    $projectLinkZip = Join-Path $temporaryRoot 'public-project.zip'
+    New-StableZip -SourceDirectory $projectLinkSource -DestinationPath $projectLinkZip -RootDirectoryName 'root' -Timestamp ([DateTimeOffset]::Parse('2026-08-16T12:00:00Z'))
+    $archive = [IO.Compression.ZipFile]::OpenRead($projectLinkZip)
+    try {
+        Assert-SafeArchiveEntries -Archive $archive -ArchivePath $projectLinkZip
+        Assert-True $true 'A public GitHub project URL is a portable link.'
+    }
+    finally { $archive.Dispose() }
+
+    $pathIndex = 0
+    foreach ($localPath in 'C:/Users/Developer/checkout', '/Users/Developer/checkout', '/home/developer/checkout') {
+        Write-Utf8File -Path $projectLinkManifest -Content (@{ project = $projectLink; source = $localPath } | ConvertTo-Json)
+        $pathZip = Join-Path $temporaryRoot "project-link-with-local-path-$pathIndex.zip"
+        New-StableZip -SourceDirectory $projectLinkSource -DestinationPath $pathZip -RootDirectoryName 'root' -Timestamp ([DateTimeOffset]::Parse('2026-08-16T12:00:00Z'))
+        $archive = [IO.Compression.ZipFile]::OpenRead($pathZip)
+        try {
+            Assert-Throws { Assert-SafeArchiveEntries -Archive $archive -ArchivePath $pathZip } 'absolute local user path'
+        }
+        finally { $archive.Dispose() }
+        $pathIndex++
+    }
+
     $htmlSource = Join-Path $temporaryRoot 'html-source'
     [IO.Directory]::CreateDirectory((Join-Path $htmlSource 'api')) | Out-Null
     [IO.Directory]::CreateDirectory((Join-Path $htmlSource 'metadata')) | Out-Null

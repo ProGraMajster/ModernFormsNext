@@ -19,20 +19,20 @@ NuGet package versions use SemVer without a `v` prefix. The shared value is stor
 `Directory.Build.props`:
 
 ```xml
-<ModernFormsNextPackageVersion>1.11.1</ModernFormsNextPackageVersion>
+<ModernFormsNextPackageVersion>1.12.0</ModernFormsNextPackageVersion>
 ```
 
 Git tags use the same version with a `v` prefix:
 
 ```text
-v1.11.1
+v1.12.0
 ```
 
 The Visual Studio extension version is stored separately so an emergency extension-only patch
 remains possible:
 
 ```xml
-<ModernFormsNextVisualStudioExtensionVersion>1.11.1</ModernFormsNextVisualStudioExtensionVersion>
+<ModernFormsNextVisualStudioExtensionVersion>1.12.0</ModernFormsNextVisualStudioExtensionVersion>
 ```
 
 For coordinated framework minor/major releases, the VSIX version must match the framework release.
@@ -81,8 +81,8 @@ the tag.
    symbol-package policy.
 5. Confirm the VSIX manifest, registration attributes, assets, prerequisites, and Visual Studio
    installation targets.
-6. Review platform claims. For 1.11.1, Android must remain explicitly **Experimental** and must not
-   be described as a complete `Application.Run(Form)` or WindowKit implementation.
+6. Review platform claims. For 1.12.0, Android remains **Experimental**. Describe the bounded Activity/Form host
+   and supported services using the [Android support matrix](docs/platforms/android.md).
 7. Review `git diff`, stage only the intended files, and create focused commits. Do not use
    `git add .` without auditing the entire worktree.
 
@@ -106,7 +106,7 @@ while `-m:1 /p:UseSharedCompilation=false` remains the release policy. The
 shared writers, but repeated parallel-build/test qualification is not fully green. Local timing
 improvements do not qualify publication builds for parallel execution.
 
-For 1.11.1, additionally validate:
+Additionally validate:
 
 - `net10.0-windows` framework and samples;
 - the `net10.0-android` backend, cross-platform sample, and Android backend tests when the workload
@@ -128,10 +128,10 @@ dotnet pack .\ModernFormsNext.slnx --configuration Release --no-build --output .
 The template package intentionally has no `.snupkg`; published library packages should have one.
 
 The current inventory is 14 `.nupkg` and 13 `.snupkg`, derived from the validator's package specs.
-This includes the two existing optional notification packages and the new
-`ModernFormsNext.WindowKit.Backend.Android` package, **Experimental**, with `net10.0` and
+This includes the optional Windows App SDK and WinRT notification backends and
+`ModernFormsNext.WindowKit.Backend.Android`, **Experimental**, with `net10.0` and
 `net10.0-android` assets and minimum API 23. Windows remains the primary stable backend.
-Android is prepared for the next release; do not republish the already-used 1.11.1 version.
+The notification backend packages and Android backend package have new NuGet IDs for 1.12.0.
 The release and full PR jobs explicitly install JDK 21, Android platform/build-tools 36, and
 workload set 10.0.401.1 (Android 36.1.69). No emulator or separate publisher is added.
 
@@ -149,8 +149,10 @@ do not configure a general release-to-release ApiCompat baseline; compare both A
 against the release base separately when qualifying packaging changes. DocFX selects the native
 Android surface once to avoid duplicate pages.
 
-Before first publication, the maintainer must confirm the nuget.org Trusted Publishing policy
-permits creation of this new package ID by the `Release` publication job on the version tag.
+Before first publication, the maintainer must confirm that the nuget.org Trusted Publishing policy
+permits creation of `ModernFormsNext.SystemNotifications.AppSdk`,
+`ModernFormsNext.SystemNotifications.WinRT` and `ModernFormsNext.WindowKit.Backend.Android`
+by the `Release` publication job on the version tag.
 
 Versioned documentation and sample artifacts are also mandatory release inputs. Restore the pinned
 DocFX tool, run the script tests, build the four ZIP files from the Release outputs, and validate
@@ -159,15 +161,16 @@ them before creating a tag:
 ```powershell
 dotnet tool restore
 $commit = (git rev-parse HEAD).Trim()
+.\scripts\Test-ControlDocumentation.ps1
 .\scripts\tests\Test-ReleaseDocumentation.ps1
 .\scripts\Build-ReleaseDocumentation.ps1 `
-    -Version 1.11.1 `
+    -Version 1.12.0 `
     -Tag local `
     -Commit $commit `
     -OutputDirectory .\artifacts\release-docs
 .\scripts\Validate-ReleaseDocumentation.ps1 `
     -ArtifactDirectory .\artifacts\release-docs `
-    -ExpectedVersion 1.11.1 `
+    -ExpectedVersion 1.12.0 `
     -ExpectedCommit $commit `
     -ExpectedTag local
 ```
