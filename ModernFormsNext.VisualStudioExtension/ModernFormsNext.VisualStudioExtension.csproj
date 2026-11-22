@@ -46,7 +46,7 @@
     <PackageReference Include="Microsoft.VisualStudio.Shell.15.0" Version="17.14.40264" ExcludeAssets="runtime" NoWarn="NU1701" />
     <PackageReference Include="Microsoft.VisualStudio.Shell.Interop" Version="17.14.40260" ExcludeAssets="runtime" />
     <!-- Shell contracts require MessagePack for design-time metadata; use the audited release. -->
-    <PackageReference Include="MessagePack" Version="3.1.8" ExcludeAssets="runtime" />
+    <PackageReference Include="MessagePack" Version="3.1.9" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2142" PrivateAssets="all" />
   </ItemGroup>
 
