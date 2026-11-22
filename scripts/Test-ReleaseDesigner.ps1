@@ -253,8 +253,7 @@ try {
     $result.designerExitCode = $verifiedHost.ExitCode
     $editorLog = Copy-CurrentLog 'Editor' $ide.Id $result.ideStart
     $hostLog = Copy-CurrentLog 'Host' $verifiedHost.Id $result.designerStart
-    if (!(Test-DesignerSmokeShutdown $editorLog $verifiedHost.Id $verifiedHost.ExitCode) -or
-        $hostLog -cnotmatch '(?m)^\[[^\r\n]*\] SHUTDOWN_RECEIVED\b') {
+    if (!(Test-DesignerSmokeShutdown $editorLog $hostLog $verifiedHost.Id $verifiedHost.ExitCode)) {
         throw 'The verified Designer host did not acknowledge and complete normal shutdown.'
     }
     $result.normalHostShutdown = $true

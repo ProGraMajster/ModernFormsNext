@@ -37,10 +37,15 @@ if (!(Get-DesignerHostLaunch $editorLog 10 22) -or (Get-DesignerHostLaunch $edit
     (Get-DesignerHostLaunch $editorLog 11 22)) {
     throw 'The launch log did not identify the exact process instance.'
 }
-$shutdown = "[now] HOST_SHUTDOWN_END ProcessId=10 ExitCode=0 HResult=0x00000000 Pid=1 ProcessStart=33"
-if (!(Test-DesignerSmokeShutdown $shutdown 10 0) -or (Test-DesignerSmokeShutdown $shutdown 1 0) -or
-    (Test-DesignerSmokeShutdown $shutdown 10 -1) -or (Test-DesignerSmokeShutdown '' 10 0) -or
-    (Test-DesignerSmokeShutdown ("[now] HOST_KILL_REQUESTED ProcessId=10 Pid=1 ProcessStart=33`n" + $shutdown) 10 0)) {
+$shutdown = "[now] HOST_SHUTDOWN_IPC Acknowledged=True Pid=1 ProcessStart=33`n" +
+    '[now] HOST_SHUTDOWN_END ProcessId=10 ExitCode= with code 0 HResult=0x00000000 Pid=1 ProcessStart=33'
+$hostExit = "[now] SHUTDOWN_RECEIVED Pid=10 ProcessStart=22`n[now] PROCESS_EXIT ExitCode=0 Pid=10 ProcessStart=22"
+$kill = "[now] HOST_KILL_REQUESTED ProcessId=10 Pid=1 ProcessStart=33`n"
+if (!(Test-DesignerSmokeShutdown $shutdown $hostExit 10 0) -or (Test-DesignerSmokeShutdown $shutdown $hostExit 1 0) -or
+    (Test-DesignerSmokeShutdown $shutdown $hostExit 10 -1) -or (Test-DesignerSmokeShutdown '' $hostExit 10 0) -or
+    (Test-DesignerSmokeShutdown $shutdown '' 10 0) -or
+    (Test-DesignerSmokeShutdown ($shutdown.Replace('Acknowledged=True', 'Acknowledged=False')) $hostExit 10 0) -or
+    (Test-DesignerSmokeShutdown ($kill + $shutdown) $hostExit 10 0)) {
     throw 'A host was not required to shut down normally.'
 }
 $source = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'fixtures/DesignerExecutablePreview'))

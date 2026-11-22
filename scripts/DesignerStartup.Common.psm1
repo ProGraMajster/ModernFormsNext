@@ -27,11 +27,16 @@ function Get-DesignerHostLaunch {
 }
 
 function Test-DesignerSmokeShutdown {
-    param([string]$Log, [int]$ProcessId, [int]$ExitCode)
+    param([string]$EditorLog, [string]$HostLog, [int]$ProcessId, [int]$ExitCode)
     $linePrefix = '(?m)^\[[^\r\n]*\] '
+    # The editor's ExitCode field includes human-readable text. Use the owned
+    # process handle and the host's structured exit record for the numeric code.
     return $ExitCode -eq 0 -and
-        $Log -cmatch ($linePrefix + 'HOST_SHUTDOWN_END ProcessId=' + $ProcessId + ' ExitCode=0 ') -and
-        $Log -cnotmatch ($linePrefix + 'HOST_(KILL_REQUESTED|SHUTDOWN_FAILED)\b')
+        $EditorLog -cmatch ($linePrefix + 'HOST_SHUTDOWN_IPC Acknowledged=True Pid=') -and
+        $EditorLog -cmatch ($linePrefix + 'HOST_SHUTDOWN_END ProcessId=' + $ProcessId + ' ExitCode=[^\r\n]* HResult=0x00000000 Pid=') -and
+        $EditorLog -cnotmatch ($linePrefix + 'HOST_(KILL_REQUESTED|SHUTDOWN_FAILED)\b') -and
+        $HostLog -cmatch ($linePrefix + 'SHUTDOWN_RECEIVED Pid=' + $ProcessId + ' ') -and
+        $HostLog -cmatch ($linePrefix + 'PROCESS_EXIT ExitCode=0 Pid=' + $ProcessId + ' ')
 }
 
 function Get-DesignerSmokeDirtyState {
