@@ -36,10 +36,10 @@ presented as a finished replacement for WinForms, MAUI, or other established UI 
 
 The repository does not currently provide supported macOS or Linux application backends.
 
-The 1.12.0 development source includes [CarouselView and RefreshView](docs/collection-utilities.md):
+ModernFormsNext 1.12.0 includes [CarouselView and RefreshView](docs/collection-utilities.md):
 bounded pages built on CollectionView and refresh actions through the shared input/command system.
 Their ControlGallery page includes interactive pages and cancellable application-owned refresh work.
-The development source also includes [SearchBar and TimePicker](docs/search-and-time.md),
+This release also includes [SearchBar and TimePicker](docs/search-and-time.md),
 with shared suggestion virtualization, bounded recent history and nullable time selection.
 
 ### Android status
@@ -113,10 +113,11 @@ cd MyApp
 dotnet run
 ```
 
-The package and template commands use the release version and become available after 1.12.0 is
-published. For source builds or pre-release validation, clone the repository and use project
-references instead. See [installation](docs/installation.md) for package, template, VSIX, and
-Experimental Instance instructions.
+The framework and template packages are available on NuGet. The matching VSIX
+and versioned documentation are available on GitHub. For local source builds and
+Experimental Instance setup, follow the installation guide.
+[GitHub Release](https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.12.0) ·
+[Installation guide](docs/installation.md)
 
 ## Minimal example
 
@@ -216,10 +217,11 @@ The 1.12.0 release uses these NuGet packages:
 | [`ModernFormsNext.Designer`](https://www.nuget.org/packages/ModernFormsNext.Designer) | Reusable Windows designer shell and services. |
 
 1.12.0 adds `ModernFormsNext.WindowKit.Backend.Android` as an **Experimental** NuGet
-package with `net10.0` and `net10.0-android` assets. It is not part of the already-published 1.11.1
-release. Use the same version as the other ModernFormsNext packages after 1.12.0 is published;
-see [Android package consumption](docs/android-backend.md#nuget-package-experimental).
-APIs, behavior, and platform support may change. Windows remains the primary stable backend.
+package with `net10.0` and `net10.0-android` assets. Use the same version as the other
+ModernFormsNext packages. APIs, behavior, and platform support may change. Windows remains
+the primary stable backend.
+[NuGet package](https://www.nuget.org/packages/ModernFormsNext.WindowKit.Backend.Android/1.12.0) ·
+[Android package consumption](docs/android-backend.md#nuget-package-experimental)
 
 ## Documentation
 

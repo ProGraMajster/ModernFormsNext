@@ -15,9 +15,9 @@ sharing, notification and message-dialog policy, including cancellation and cust
 
 ## NuGet package (Experimental)
 
-`ModernFormsNext.WindowKit.Backend.Android` is prepared for the coordinated 1.12.0 release.
-The published 1.11.1 release does not include it. After 1.12.0 publication, use
-`PackageReference` with exactly the same version as the other ModernFormsNext packages:
+`ModernFormsNext.WindowKit.Backend.Android` is available starting with ModernFormsNext 1.12.0.
+Use the same version in `PackageReference` as the other ModernFormsNext packages.
+[NuGet package](https://www.nuget.org/packages/ModernFormsNext.WindowKit.Backend.Android/1.12.0)
 
 ```xml
 <PackageReference Include="ModernFormsNext.WindowKit.Backend.Android"

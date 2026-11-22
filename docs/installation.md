@@ -4,8 +4,9 @@ ModernFormsNext is distributed as NuGet packages, project templates, and a Visua
 designer extension. The framework remains code-first, but the designer can edit the companion
 `.mfdesign` document and regenerate the matching `.Designer.cs` file.
 
-The commands below target the coordinated 1.12.0 release. They become publicly available after the
-NuGet packages and GitHub release assets are published.
+The commands below target ModernFormsNext 1.12.0. The matching VSIX and versioned
+documentation are available from the GitHub release.
+[Release assets](https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.12.0)
 
 ## Requirements
 
@@ -69,10 +70,14 @@ as a classic Windows Forms marker and may try to open the built-in WinForms desi
 
 ## Install the Visual Studio Designer
 
-Install `ModernFormsNextDesigner.vsix` version `1.12.0` from the matching release assets when
-available. The standard package includes the data Designer host. Check the
+Install the matching `ModernFormsNextDesigner.vsix` version `1.12.0`. The standard package
+includes the data Designer host.
+[Download VSIX](https://github.com/ProGraMajster/ModernFormsNext/releases/download/v1.12.0/ModernFormsNextDesigner.vsix)
+
+Check IDE project support and host runtime requirements before installing.
 [Visual Studio compatibility matrix](visual-studio-designer-host.md#visual-studio-and-net-compatibility)
-for IDE project support and host runtime requirements. For local development, build the VSIX first:
+
+For local development, build the VSIX first:
 
 ```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
