@@ -234,8 +234,14 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
                 timeout.Token);
 
             Assert.Equal("OK", await SendCommandAsync(pipeName, "FOCUS", string.Empty, timeout.Token));
-            await WaitForLogMarkerAsync(process, logPath, "FOCUS_REQUEST", timeout.Token);
-            Assert.Equal(child, GetThreadFocus(child));
+            // The host records Win32 GetFocus on its UI thread immediately after SetFocus.
+            // Later activation can change live focus while the test reads the log.
+            var focusLog = await WaitForLogMarkerAsync(process, logPath, "FOCUS_REQUEST", timeout.Token);
+            var focusRecord = Assert.Single(focusLog.Split(Environment.NewLine),
+                line => line.Contains("] FOCUS_REQUEST ", StringComparison.Ordinal));
+            var childHandle = $"0x{child.ToInt64():X}";
+            Assert.Contains($" Child={childHandle} ", focusRecord, StringComparison.Ordinal);
+            Assert.Contains($" Current={childHandle} ", focusRecord, StringComparison.Ordinal);
 
             Assert.Equal("OK", await SendCommandAsync(pipeName, "PARK", string.Empty, timeout.Token));
             await WaitForConditionAsync(
@@ -741,40 +747,28 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
         return found;
     }
 
-    private static IntPtr GetThreadFocus(IntPtr window)
-    {
-        var threadId = GetWindowThreadProcessId(window, out _);
-        var info = new GuiThreadInfo
-        {
-            Size = Marshal.SizeOf<GuiThreadInfo>()
-        };
-        Assert.True(GetGUIThreadInfo(threadId, ref info));
-        return info.FocusWindow;
-    }
-
-    private static async Task WaitForLogMarkerAsync(
+    private static async Task<string> WaitForLogMarkerAsync(
         Process process,
         string logPath,
         string marker,
         CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var log = ExtractLastRun(await ReadLogAsync(logPath));
             // Windows reuses PIDs. A log from an older process with that PID must never
             // satisfy readiness before this instance has written its first record.
             if (!log.Contains($" ProcessStart={process.StartTime.ToFileTimeUtc()}{Environment.NewLine}", StringComparison.Ordinal))
                 log = string.Empty;
             if (log.Contains(marker, StringComparison.Ordinal))
-                return;
+                return log;
             if (process.HasExited)
                 throw new InvalidOperationException(
                     $"Designer host exited with code {process.ExitCode} before marker '{marker}'.{Environment.NewLine}{log}");
 
             await Task.Delay(25, cancellationToken);
         }
-
-        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private static async Task<IntPtr> WaitForPlatformMessageWindowAsync(
@@ -1005,20 +999,6 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
         public uint Private;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct GuiThreadInfo
-    {
-        public int Size;
-        public uint Flags;
-        public IntPtr ActiveWindow;
-        public IntPtr FocusWindow;
-        public IntPtr CaptureWindow;
-        public IntPtr MenuOwnerWindow;
-        public IntPtr MoveSizeWindow;
-        public IntPtr CaretWindow;
-        public NativeRect CaretBounds;
-    }
-
     private delegate bool EnumWindowsCallback(IntPtr window, IntPtr parameter);
 
     [DllImport("user32.dll")]
@@ -1073,10 +1053,6 @@ public sealed class VisualStudioDesignerHostProcessTests : IDisposable
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr window);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo information);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateWindowEx(
