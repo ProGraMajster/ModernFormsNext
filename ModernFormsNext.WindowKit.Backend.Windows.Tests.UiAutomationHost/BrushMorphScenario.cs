@@ -25,23 +25,25 @@ internal static class BrushMorphScenario
                         throw new InvalidOperationException("Cannot expose native brush fixture.");
                     if (immediate) AnimationScheduler.Default.Policy.DurationScale = 0;
                     using var fixture = new BrushMorphCertification(form.Controls, Console.WriteLine);
+                    var elapsed = Stopwatch.StartNew();
+                    using var desktop = new DesktopPresentation(hwnd);
                     fixture.VerifySource();
-                    Paint(hwnd, fixture);
+                    Paint(hwnd, fixture, desktop, elapsed);
                     VerifyPixels(fixture, "source");
                     fixture.Begin();
                     if (!fixture.Immediate)
                     {
                         await Wait(() => fixture.IsIntermediate);
                         fixture.VerifyIntermediate();
-                        Paint(hwnd, fixture);
+                        Paint(hwnd, fixture, desktop, elapsed);
                         VerifyPixels(fixture, "middle");
                     }
                     await Wait(() => fixture.IsSettled);
                     fixture.VerifySettled();
-                    Paint(hwnd, fixture);
+                    Paint(hwnd, fixture, desktop, elapsed);
                     VerifyPixels(fixture, "target");
                     fixture.Restore();
-                    Paint(hwnd, fixture);
+                    Paint(hwnd, fixture, desktop, elapsed);
                     VerifyPixels(fixture, "restored");
                     Console.WriteLine($"BRUSH_MORPH:NATIVE:{hwnd}");
                 }
@@ -63,14 +65,17 @@ internal static class BrushMorphScenario
         if (!ready()) throw new InvalidOperationException("Native brush timeline did not reach its expected state.");
     }
 
-    private static void Paint(nint hwnd, BrushMorphCertification fixture)
+    private static void Paint(nint hwnd, BrushMorphCertification fixture, DesktopPresentation desktop, Stopwatch elapsed)
     {
         int before = fixture.PaintCount;
         fixture.Root.Invalidate();
         if (!RedrawWindow(hwnd, 0, 0, 0x0001 | 0x0100) || fixture.PaintCount <= before)
             throw new InvalidOperationException("Native brush fixture did not paint.");
-        // Wait for the desktop compositor before sampling the independently visible frame.
+        long paintFinished = Stopwatch.GetTimestamp();
         if (DwmFlush() < 0) throw new InvalidOperationException("Desktop frame did not commit.");
+        // Use a desktop image presented after this paint for the single pixel observation
+        // of each point. All stages share the native focus host's 30-second budget.
+        desktop.WaitForPresentAfter(paintFinished, TimeSpan.FromSeconds(30) - elapsed.Elapsed);
         Console.WriteLine($"BRUSH_MORPH native-paint {before}->{fixture.PaintCount}");
     }
 

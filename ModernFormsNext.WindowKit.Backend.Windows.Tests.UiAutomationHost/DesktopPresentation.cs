@@ -29,7 +29,7 @@ internal sealed unsafe class DesktopPresentation : IDisposable
         {
             var timeout = (remaining - Stopwatch.GetElapsedTime(start)).TotalMilliseconds;
             if (timeout <= 0)
-                throw new TimeoutException("No desktop image was presented after repainting the tooltip.");
+                throw new TimeoutException("No desktop image was presented after repainting the test window.");
 
             // IDXGIOutputDuplication::AcquireNextFrame can also wake for pointer-only changes.
             FrameInfo frame;
@@ -37,7 +37,7 @@ internal sealed unsafe class DesktopPresentation : IDisposable
             var acquire = (delegate* unmanaged[Stdcall]<nint, uint, FrameInfo*, nint*, int>)VTable(duplication)[8];
             int result = acquire(duplication, (uint)timeout, &frame, &resource);
             if (result == DxgiWaitTimeout)
-                throw new TimeoutException("No desktop image was presented after repainting the tooltip.");
+                throw new TimeoutException("No desktop image was presented after repainting the test window.");
             Marshal.ThrowExceptionForHR(result);
 
             Marshal.Release(resource);
@@ -86,7 +86,7 @@ internal sealed unsafe class DesktopPresentation : IDisposable
             finally { Marshal.Release(adapter); }
         }
 
-        throw new InvalidOperationException("DXGI could not identify the tooltip's monitor.");
+        throw new InvalidOperationException("DXGI could not identify the test window's monitor.");
     }
 
     private static nint DuplicateOutput(nint adapter, nint output)
