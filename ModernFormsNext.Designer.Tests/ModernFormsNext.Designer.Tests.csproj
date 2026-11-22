@@ -27,4 +27,12 @@
     <ProjectReference Include="..\ModernFormsNext.VisualStudioExtension.Shared\ModernFormsNext.VisualStudioExtension.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Copy the real sample inputs so the test also works with deterministic source paths. -->
+    <None Include="..\samples\ControlGallery\Examples\DesignedPagesView.mfdesign"
+          Link="Fixtures\DesignedPages\DesignedPagesView.mfdesign" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\samples\ControlGallery\Examples\DesignedPagesView.Designer.cs"
+          Link="Fixtures\DesignedPages\DesignedPagesView.Designer.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
