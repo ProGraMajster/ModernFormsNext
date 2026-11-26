@@ -4,9 +4,9 @@ ModernFormsNext is distributed as NuGet packages, project templates, and a Visua
 designer extension. The framework remains code-first, but the designer can edit the companion
 `.mfdesign` document and regenerate the matching `.Designer.cs` file.
 
-The commands below target ModernFormsNext 1.12.0. The matching VSIX and versioned
-documentation are available from the GitHub release.
-[Release assets](https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.12.0)
+The commands below target ModernFormsNext 1.12.1. Find published VSIX and
+versioned documentation downloads in the GitHub releases.
+[Latest GitHub release](https://github.com/ProGraMajster/ModernFormsNext/releases/latest)
 
 ## Requirements
 
@@ -19,7 +19,7 @@ documentation are available from the GitHub release.
 For an existing application, reference the framework package:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.12.0
+dotnet add package ModernFormsNext --version 1.12.1
 ```
 
 The package provides the runtime controls, forms, rendering, layout, input, dialogs, and
@@ -30,7 +30,7 @@ Windows backend integration used by ModernFormsNext applications.
 Install the template package:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.12.0
+dotnet new install ModernFormsNext.Templates::1.12.1
 ```
 
 Create a new app:
@@ -70,9 +70,9 @@ as a classic Windows Forms marker and may try to open the built-in WinForms desi
 
 ## Install the Visual Studio Designer
 
-Install the matching `ModernFormsNextDesigner.vsix` version `1.12.0`. The standard package
+Install the matching `ModernFormsNextDesigner.vsix` version `1.12.1`. The standard package
 includes the data Designer host.
-[Download VSIX](https://github.com/ProGraMajster/ModernFormsNext/releases/download/v1.12.0/ModernFormsNextDesigner.vsix)
+[GitHub releases](https://github.com/ProGraMajster/ModernFormsNext/releases)
 
 Check IDE project support and host runtime requirements before installing.
 [Visual Studio compatibility matrix](visual-studio-designer-host.md#visual-studio-and-net-compatibility)

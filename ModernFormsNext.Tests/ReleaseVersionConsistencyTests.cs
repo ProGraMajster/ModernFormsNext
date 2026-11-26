@@ -5,7 +5,7 @@ namespace ModernFormsNext.Tests;
 
 public sealed class ReleaseVersionConsistencyTests
 {
-    private const string ExpectedVersion = "1.12.0";
+    private const string ExpectedVersion = "1.12.1";
 
     private static readonly string[] PackableProjects =
     [
@@ -37,10 +37,9 @@ public sealed class ReleaseVersionConsistencyTests
     [Fact]
     public void LibraryAssemblyIdentityMatchesTheMinorReleaseLine()
     {
-        // The minor release deliberately advances the library assembly identity to 1.12.0.0.
-        // A later compatible patch must keep that identity while advancing the file version.
+        // Compatible 1.12.x patches keep the minor assembly identity while advancing the file version.
         Assert.Equal(new Version(1, 12, 0, 0), typeof(Control).Assembly.GetName().Version);
-        Assert.Equal("1.12.0.0", System.Diagnostics.FileVersionInfo.GetVersionInfo(typeof(Control).Assembly.Location).FileVersion);
+        Assert.Equal($"{ExpectedVersion}.0", System.Diagnostics.FileVersionInfo.GetVersionInfo(typeof(Control).Assembly.Location).FileVersion);
     }
 
     [Fact]

@@ -95,28 +95,28 @@ It is infrastructure for future WebView/Media adapters, independent of the rende
 
 ## Installation
 
-ModernFormsNext 1.12.0 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
+ModernFormsNext 1.12.1 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
 allows roll-forward to a later installed .NET 10 feature band.
 
 For an existing Windows application:
 
 ```powershell
-dotnet add package ModernFormsNext --version 1.12.0
+dotnet add package ModernFormsNext --version 1.12.1
 ```
 
 Install the project template and create an application:
 
 ```powershell
-dotnet new install ModernFormsNext.Templates::1.12.0
+dotnet new install ModernFormsNext.Templates::1.12.1
 dotnet new mfn-app -n MyApp
 cd MyApp
 dotnet run
 ```
 
-The framework and template packages are available on NuGet. The matching VSIX
-and versioned documentation are available on GitHub. For local source builds and
-Experimental Instance setup, follow the installation guide.
-[GitHub Release](https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.12.0) ·
+Find published framework and template packages on NuGet and the published VSIX
+and versioned documentation on GitHub. Follow the installation guide for local
+source builds and Experimental Instance setup.
+[Latest GitHub release](https://github.com/ProGraMajster/ModernFormsNext/releases/latest) ·
 [Installation guide](docs/installation.md)
 
 ## Minimal example
@@ -163,7 +163,7 @@ Android backend.
 ## Visual Studio Designer
 
 The optional `ModernFormsNextDesigner.vsix` adds **View ModernFormsNext Designer** for designable
-ModernFormsNext forms and UserControls, plus matching item templates. Use the coordinated 1.12.0 VSIX with the 1.12.0 framework.
+ModernFormsNext forms and UserControls, plus matching item templates. Use the coordinated 1.12.1 VSIX with the 1.12.1 framework.
 
 A designable form uses three related files:
 
@@ -238,7 +238,7 @@ The **[documentation index](docs/README.md)** groups the complete guides by topi
 - [Sample applications and screenshots](docs/samples.md)
 - [Platform support](docs/platform-specific-features.md) and [Android status](docs/platforms/android.md)
 - [Architecture and decisions](docs/architecture/README.md) and [development reports](docs/development/README.md)
-- [Changelog](CHANGELOG.md), [1.12.0 release notes](docs/1.12.0-release-notes.md), and
+- [Changelog](CHANGELOG.md), [1.12.1 release notes](docs/1.12.1-release-notes.md), [1.12.0 release notes](docs/1.12.0-release-notes.md), and
   [1.11.1 to 1.12.0 migration](docs/migrations/1.11.1-to-1.12.0.md)
 - [Release process](RELEASING.md)
 

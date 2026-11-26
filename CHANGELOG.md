@@ -4,6 +4,12 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## [1.12.1] — Unreleased
+
+### Fixes
+
+- `FolderBrowserDialog`, `OpenFileDialog`, and `SaveFileDialog` use the picker provider's default location when `InitialDirectory` is null, empty, or whitespace-only and no `InitialLocation` is set. Empty strings previously caused an exception before the picker opened. [#549](https://github.com/ProGraMajster/ModernFormsNext/issues/549)
+
 ## [1.12.0] — 2026-11-22
 
 ### Controls and data
@@ -679,6 +685,7 @@ Published packages:
 - GitHub `Release` workflow completed successfully for tag `v1.5.0`.
 - NuGet public indexes show version `1.5.0` for all published ModernFormsNext packages.
 
+[1.12.1]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.12.0...master
 [1.12.0]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.12.0
 [1.10.0]: https://github.com/ProGraMajster/ModernFormsNext/compare/v1.9.0...v1.10.0
 [1.11.1]: https://github.com/ProGraMajster/ModernFormsNext/releases/tag/v1.11.1
