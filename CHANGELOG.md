@@ -9,6 +9,7 @@ ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while Nu
 ### Fixes
 
 - `FolderBrowserDialog`, `OpenFileDialog`, and `SaveFileDialog` use the picker provider's default location when `InitialDirectory` is null, empty, or whitespace-only and no `InitialLocation` is set. Empty strings previously caused an exception before the picker opened. [#549](https://github.com/ProGraMajster/ModernFormsNext/issues/549)
+- Repaired the historical 1.12.0 changelog link that blocked the versioned documentation build.
 
 ## [1.12.0] — 2026-11-22
 
