@@ -10,8 +10,15 @@ namespace ModernFormsNext
     public abstract class FileSystemDialog
     {
         /// <summary>
-        /// Gets or sets the initial directory for the dialog.
+        /// Gets or sets the local directory suggested as the dialog's starting location.
         /// </summary>
+        /// <remarks>
+        /// When <see cref="InitialLocation"/> is set, it takes precedence. A null, empty,
+        /// or whitespace-only value leaves the starting location up to the picker provider.
+        /// Relative paths resolve against the current working directory. A path that cannot
+        /// be found as a directory supplies no suggestion. Malformed paths can still raise
+        /// an exception when the dialog opens.
+        /// </remarks>
         public string? InitialDirectory { get; set; }
 
         /// <summary>Gets or sets caller cancellation; native UI may remain visible after the Task cancels.</summary>
@@ -28,15 +35,14 @@ namespace ModernFormsNext
 
         internal WindowKit.Platform.Storage.IStorageFolder? GetInitialDirectory ()
         {
-            if (InitialLocation is not null) return InitialLocation;
-            if (InitialDirectory is not null && !(Uri.TryCreate(InitialDirectory, UriKind.Absolute, out var uri) && !uri.IsFile)) {
-                var dir_info = new DirectoryInfo (InitialDirectory);
+            if (InitialLocation is { } location) return location;
 
-                if (dir_info.Exists)
-                    return new BclStorageFolder (dir_info);
-            }
+            var path = InitialDirectory;
+            if (string.IsNullOrWhiteSpace (path) || (Uri.TryCreate (path, UriKind.Absolute, out var uri) && !uri.IsFile))
+                return null;
 
-            return null;
+            var dir_info = new DirectoryInfo (path);
+            return dir_info.Exists ? new BclStorageFolder (dir_info) : null;
         }
     }
 }

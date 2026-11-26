@@ -1,8 +1,8 @@
 <Project>
 	<Import Project="build\BuildVariants.props" />
 	<PropertyGroup>
-		<ModernFormsNextPackageVersion>1.12.0</ModernFormsNextPackageVersion>
-		<ModernFormsNextVisualStudioExtensionVersion>1.12.0</ModernFormsNextVisualStudioExtensionVersion>
+		<ModernFormsNextPackageVersion>1.12.1</ModernFormsNextPackageVersion>
+		<ModernFormsNextVisualStudioExtensionVersion>1.12.1</ModernFormsNextVisualStudioExtensionVersion>
 		<!-- Compatible patches retain the library assembly identity of the minor release. -->
 		<ModernFormsNextAssemblyVersion>1.12.0.0</ModernFormsNextAssemblyVersion>
 
