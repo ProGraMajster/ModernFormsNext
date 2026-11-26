@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/v/ModernFormsNext.svg)](https://www.nuget.org/packages/ModernFormsNext)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](license.md)
 
-ModernFormsNext is a code-first C# UI framework for .NET 10. It provides a familiar, desktop-style
+ModernFormsNext is a code-first C# UI framework. It provides a familiar, desktop-style
 programming model while owning its control tree, layout, input, styling, and SkiaSharp rendering.
 
 ![ModernFormsNext ControlGallery on Windows](docs/controlgallery-windows.png)
@@ -31,7 +31,7 @@ presented as a finished replacement for WinForms, MAUI, or other established UI 
 
 | Platform | Status | Target | Notes |
 | --- | --- | --- | --- |
-| Windows | Supported | `net10.0-windows` | Primary development, runtime, designer, and validation platform. |
+| Windows | Supported on .NET 10 LTS; .NET 11 STS qualified for Stage 1 scenarios | `net10.0-windows`, `net11.0-windows` | Primary development, runtime, designer, and validation platform. See the [compatibility matrix](docs/development/dotnet-compatibility.md). |
 | Android | **Experimental** | `net10.0-android` | Source-tree Application/Form host supports one main Form, owned modals, and reusable popups; desktop windowing and service parity remain limited. |
 
 The repository does not currently provide supported macOS or Linux application backends.
@@ -97,6 +97,10 @@ It is infrastructure for future WebView/Media adapters, independent of the rende
 
 ModernFormsNext 1.12.1 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
 allows roll-forward to a later installed .NET 10 feature band.
+
+The 2.0.0 development template also offers `--FrameworkVersion net11.0-windows` with SDK 11.
+Install the SDKs side by side and select the SDK in the application directory. The source build,
+ordinary Designer host, and default template use .NET 10.
 
 For an existing Windows application:
 

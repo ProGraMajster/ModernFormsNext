@@ -10,7 +10,7 @@ This package installs the default project template for creating a new ModernForm
 
 ## Requirements
 
-* .NET SDK 10
+* .NET SDK 10 for the default project or .NET SDK 11 for the .NET 11 option
 * Windows is currently the recommended target platform
 
 The generated project targets:
@@ -43,6 +43,12 @@ Create a new ModernFormsNext application:
 
 ```powershell
 dotnet new mfn-app -n MyApp
+```
+
+For a .NET 11 Windows application, run this with SDK 11 selected:
+
+```powershell
+dotnet new mfn-app -n MyApp --FrameworkVersion net11.0-windows
 ```
 
 Open the generated project folder:

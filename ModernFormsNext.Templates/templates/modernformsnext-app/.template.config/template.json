@@ -30,6 +30,10 @@
           "description": "Recommended Windows desktop target."
         },
         {
+          "choice": "net11.0-windows",
+          "description": "Windows desktop target for the .NET 11 SDK and runtime."
+        },
+        {
           "choice": "net10.0",
           "description": "Platform-neutral target. Use only when the selected backend supports it."
         }

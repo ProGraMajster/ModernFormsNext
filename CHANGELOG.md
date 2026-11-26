@@ -4,6 +4,11 @@ All notable ModernFormsNext changes are documented in this file.
 
 ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while NuGet package versions do not.
 
+## Unreleased
+
+- Stage 1 qualifies Windows consumers targeting .NET 11 STS against the existing .NET 10 LTS runtime assets.
+  The app template offers `net11.0-windows` as an option. See the [SDK, platform and Designer matrix](docs/development/dotnet-compatibility.md).
+
 ## [1.12.1] — 2026-11-26
 
 ### Fixes
