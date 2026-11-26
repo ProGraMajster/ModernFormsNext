@@ -26,6 +26,25 @@ Treat this repository as a framework/library project, not as one application.
 
 ---
 
+## Branch strategy for 2.0.0
+
+* Keep `master` on the stable 1.12.x line while 2.0.0 is in development.
+* Start each stage from the current `origin/develop/2.0.0` on a
+  `work/2.0-stage-*` branch. Target `develop/2.0.0` for every 2.0.0 PR.
+* Start a `hotfix/*` branch from the current stable line for urgent 1.12.x
+  fixes and target `master`. Bring relevant stable fixes to `develop/2.0.0`
+  in a separate PR.
+* Obtain separate owner approval for integrating the qualified 2.0.0
+  into `master` and before publishing the final release.
+* During implementation, build and test the changed area and its dependants.
+  Use named tests, class filters or affected projects. Reuse matching build
+  outputs and restore when the graph changes or assets are missing. Use the
+  full-solution commands below for full qualification or changes that warrant
+  that scope. Required PR CI and release qualification keep their full
+  validation requirements. See [CI policy](docs/ci.md).
+
+---
+
 ## Non-negotiable rules
 
 Always follow these rules:

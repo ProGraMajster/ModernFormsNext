@@ -1,11 +1,13 @@
 name: .NET
 
 on:
-  # Protect master requires this PR check with strict up-to-date checks and no
-  # bypass. Rebuilding again on push repeats validation; tags have their own gate.
-  # Never add workflow-level paths/paths-ignore: required `build` must be emitted.
+  # Keep the default PR activity types and validate again when a PR changes base.
+  # Required build checks also cover documentation PRs, so keep branch filters only.
   pull_request:
-    branches: [ "master" ]
+    types: [opened, synchronize, reopened, edited]
+    branches:
+      - master
+      - develop/2.0.0
 
 permissions:
   contents: read
@@ -15,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Keep this job ID/name stable: Protect master requires the `build` context.
+  # Both protected branches require the build context with strict base freshness.
   build:
     runs-on: windows-latest
 
