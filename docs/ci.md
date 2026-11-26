@@ -2,8 +2,10 @@
 
 ## Required PR check
 
-Every `pull_request` targeting `master` starts `.github/workflows/dotnet.yml`.
-Its single job remains **`build`**, the context required by **Protect master**.
+For PRs targeting `master` or `develop/2.0.0`, `.github/workflows/dotnet.yml`
+runs on `opened`, `synchronize`, `reopened`, and `edited`. GitHub sends
+`edited` when a PR's base changes, so retargeting validates the new merge
+revision. The job remains **`build`**, required by both branch rulesets.
 There are no workflow path filters or job-level conditions. Classification happens
 inside the job; a light documentation run still executes and succeeds/fails as
 `build`. Do not use `[skip ci]` on a PR that needs this required check.
@@ -73,13 +75,20 @@ Concurrency groups contain the workflow name and PR number, with
 `cancel-in-progress: true`. Updating one PR supersedes its stale run; other PRs
 and the release workflow have different lifecycles.
 
-## Master and release
+## Development and stable release branches
 
-There is no ordinary `push -> master` build. This relies on the existing enforced
-PR rule, strict required `build` check and absence of bypasses. If those protections
-or merge methods change, revisit this policy. The final merge/rebase commit need
-not have the same SHA as the checked PR merge revision, and it will not receive a
-new push check. Do not describe it as a separately validated exact-SHA artifact.
+Start each 2.0.0 stage from `origin/develop/2.0.0` on a `work/2.0-stage-*`
+branch with a PR to `develop/2.0.0`. Use focused local tests and the required
+PR check before integration. Start urgent 1.12.x fixes on `hotfix/*` from
+the stable `master` line, then forward-port relevant fixes in a separate
+development PR. Obtain separate owner approval before integrating the qualified
+2.0.0 into `master` or publishing the final release.
+
+Both branches require PRs, an up-to-date base with a passing `build`, resolved
+review threads, and no force pushes or deletion. Validation uses the PR merge
+revision. Ordinary branch pushes trigger neither a new build nor publication.
+The final merge or rebase commit may have a different SHA from the checked
+revision. Describe validation using the SHA the check actually tested.
 
 Tags matching `v*.*.*` run the independent release **preparation** job. It has no
 PR cancellation group or NuGet cache action. Preparation checks out the tag,
