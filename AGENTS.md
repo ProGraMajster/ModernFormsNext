@@ -355,19 +355,19 @@ Use this solution file:
 
 Do not assume a `.sln` file exists.
 
-### Restore
+### Full solution restore
 
 ```powershell
 dotnet restore .\ModernFormsNext.slnx
 ```
 
-### Debug build
+### Full solution Debug build
 
 ```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
 ```
 
-### Release build
+### Full solution Release build
 
 ```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false

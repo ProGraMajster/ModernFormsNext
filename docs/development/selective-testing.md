@@ -57,9 +57,11 @@ dotnet test ModernFormsNext.Tests/ModernFormsNext.Tests.csproj -c Release --no-b
 
 ## Choose tests for a change
 
-Review `git diff --name-status origin/master` and
-`git ls-files --others --exclude-standard`, including project references and
-runtime dependencies. Use this mapping as the starting point.
+Review the diff against the current PR target. Use
+`git diff --name-status origin/develop/2.0.0` for 2.0.0 work and
+`git diff --name-status origin/master` for a stable-line fix. Include
+`git ls-files --others --exclude-standard` and check project references
+and runtime dependencies. Use this mapping as the starting point.
 
 | Changed area | Start with | Expand when |
 | --- | --- | --- |
