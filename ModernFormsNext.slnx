@@ -10,6 +10,7 @@
     <Project Path="samples/ModernFormsNext.DemoApp/ModernFormsNext.DemoApp.csproj" Id="443f0023-59f5-4347-9a5d-8a214ddd092a" />
     <Project Path="samples/ModernFormsNext.DesignerPlayground/ModernFormsNext.DesignerPlayground.csproj" />
     <Project Path="samples/ControlGallery/ControlGallery.csproj" />
+    <Project Path="samples/ModernFormsNext.PerformanceLab/ModernFormsNext.PerformanceLab.csproj" />
     <Project Path="samples/Explorer/Explore.csproj" />
     <Project Path="samples/Outlaw/Outlaw.csproj" />
   </Folder>
