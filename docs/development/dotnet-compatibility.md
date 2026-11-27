@@ -15,7 +15,7 @@ Windows versions for that runtime.
 | Windows x64 desktop | Default project template and source build | Opt-in project template and focused compatibility checks |
 | Android ARM64 | Experimental, matching API 36 workload, minimum API 23 | Experimental consumer probe with CoreCLR, API 37 workload and minimum API 24. Published Android assets and release qualification use the .NET 10 workload. |
 | Visual Studio project targeting | VS 2026 with an SDK feature band appropriate for the installation | VS 2026 18.12 and SDK 11.0.1xx |
-| Ordinary Designer and VSIX | .NET 10 Windows out-of-process host, .NET Framework 4.7.2 VSIX adapter | Open the data Designer with the .NET 10 host installed. IDE integration with generated .NET 11 projects needs separate installed qualification. |
+| Ordinary Designer and VSIX | .NET 10 Windows out-of-process host, .NET Framework 4.7.2 VSIX adapter | Use the standard data Designer in VS 2026 18.12 with the same .NET 10 host. Project source tooling follows the syntax limits below. |
 
 Install SDKs side by side. The checkout's `global.json` selects SDK 10.0.401
 or a later .NET 10 feature-band build. For a .NET 11 consumer, use a project
@@ -38,6 +38,17 @@ asset and its backend dependency. The ordinary `mfn-app` command keeps
 its existing target. The manifest's VS install eligibility, the out-of-process
 host's .NET 10 runtime, and the application's TFM are separate requirements.
 Consult [Designer support](../visual-studio-designer-host.md) and issue [#44](https://github.com/ProGraMajster/ModernFormsNext/issues/44) for IDE qualification.
+
+### SDK and language scope
+
+| Use | Stage 1 status |
+| --- | --- |
+| Consume the runtime packages | Windows x64 apps targeting `net10.0-windows` or `net11.0-windows` use the published TFM layout built with SDK 10. |
+| Build and pack the framework checkout | SDK 10 remains the repository and release toolchain. An SDK 11 source build has a separate qualification scope. |
+| Use C# 15 in application code | SDK 11 compiles it for `net11.0`. The framework source and starter files use the existing language policy. |
+| Parse project source in the Designer | The standard host ships Roslyn 4.14.0. A C# 15 union compiled with SDK 11 and produced syntax errors in this parser in both default and Preview modes. Use supported syntax in files handled by the Designer. |
+
+Broader Designer syntax qualification is tracked separately. [C# 15 Designer issue #555](https://github.com/ProGraMajster/ModernFormsNext/issues/555)
 
 .NET 11 raises the x86/x64 minimum instruction set to x86-64-v2 and the
 Windows Arm64 baseline to include LSE. Windows/Linux x64 ReadyToRun uses
@@ -136,12 +147,15 @@ No conditional API, source-generator migration, serializer change, trim
 annotation or native binary change is needed for this stage. CodeGeneration
 uses Roslyn for Designer code generation and parsing. The VSIX ships the
 existing data-preview path. Trimming evidence is limited to the
-DynamicResource fixture. Whole-framework trimming and Windows NativeAOT
-remain unqualified.
+DynamicResource fixture. The Windows x64 NativeAOT probe with process-local
+MSVC tools generated native code and reached linking. The installed toolchain
+lacks the Windows SDK import libraries, and linking stopped with LNK1181
+for `advapi32.lib`. Entire-framework trim and NativeAOT qualification is
+tracked in [#336](https://github.com/ProGraMajster/ModernFormsNext/issues/336#issuecomment-7223849755).
 
 Keep development commits at the existing publication identity while working
 locally against isolated candidate feeds. Set coordinated NuGet
 `2.0.0-preview.1` and numeric VSIX identity when preparing an approved
 prerelease, following [RELEASING.md](../../RELEASING.md). Update assembly
-identity at the major release boundary under that policy. Stage 1 uses
-draft PRs and does not publish packages or create release tags.
+identity at the major release boundary under that policy. Integrate Stage 1
+changes through PRs to `develop/2.0.0` using the [CI policy](../ci.md).

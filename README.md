@@ -98,7 +98,8 @@ It is infrastructure for future WebView/Media adapters, independent of the rende
 ModernFormsNext 1.12.1 requires .NET 10. The repository selects SDK `10.0.401` in `global.json` and
 allows roll-forward to a later installed .NET 10 feature band.
 
-The 2.0.0 development template also offers `--FrameworkVersion net11.0-windows` with SDK 11.
+ModernFormsNext 2.0.0 validates Windows x64 consumer apps on .NET 10 LTS and .NET 11 STS.
+The project template offers `--FrameworkVersion net11.0-windows` with SDK 11.
 Install the SDKs side by side and select the SDK in the application directory. The source build,
 ordinary Designer host, and default template use .NET 10.
 
