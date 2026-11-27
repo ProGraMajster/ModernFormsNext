@@ -33,6 +33,10 @@
           Link="Fixtures\DesignedPages\DesignedPagesView.mfdesign" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\samples\ControlGallery\Examples\DesignedPagesView.Designer.cs"
           Link="Fixtures\DesignedPages\DesignedPagesView.Designer.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\ModernFormsNext.Templates\templates\modernformsnext-app\MainForm.mfdesign"
+          Link="Fixtures\StarterTemplate\MainForm.mfdesign" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\ModernFormsNext.Templates\templates\modernformsnext-app\MainForm.Designer.cs"
+          Link="Fixtures\StarterTemplate\MainForm.Designer.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

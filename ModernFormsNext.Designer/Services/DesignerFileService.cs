@@ -36,9 +36,14 @@ internal sealed partial class DesignerFileService
         return path;
     }
 
+    /// <summary>Prepares generated source and its intended path without writing either file.</summary>
+    /// <param name="document">The authoritative Designer document.</param>
+    /// <param name="explicitDesignDocumentPath">The design path to use, or null to resolve it from the active document.</param>
+    /// <param name="includeDesignHash">Set to false when comparing an unedited project starter with the saved design.</param>
     public DesignerGenerationFileResult PrepareDesignerCode(
         DesignDocument document,
-        string? explicitDesignDocumentPath = null)
+        string? explicitDesignDocumentPath = null,
+        bool includeDesignHash = true)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -51,7 +56,7 @@ internal sealed partial class DesignerFileService
             new CSharpDesignerGenerationOptions
             {
                 SourceFilePath = IOPath.GetFileName(designDocumentPath),
-                DesignHash = roundTrip.ComputeDesignHash(document),
+                DesignHash = includeDesignHash ? roundTrip.ComputeDesignHash(document) : null,
                 AnimationDefinitions = animationDefinitionsProvider?.Invoke() ?? []
             });
 

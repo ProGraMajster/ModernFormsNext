@@ -10,6 +10,9 @@
     "width": 900,
     "height": 600
   },
+  "properties": {
+    "Text": "ModernFormsNext App"
+  },
   "events": {},
   "controls": [
     {

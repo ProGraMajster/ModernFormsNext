@@ -75,6 +75,7 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+          dotnet-version: '11.0.100'
 
       - name: .NET Info
         if: steps.changes.outputs.full != 'false'
@@ -116,6 +117,51 @@ jobs:
       - name: Regression tests (including high DPI and native partial presentation)
         if: steps.changes.outputs.full != 'false'
         run: dotnet test ModernFormsNext.slnx --configuration Release --no-build --no-restore -m:1 /p:UseSharedCompilation=false --logger "trx;LogFilePrefix=ci"
+
+      - name: Pack and inspect candidate packages
+        if: steps.changes.outputs.full != 'false'
+        shell: pwsh
+        run: |
+          dotnet pack ModernFormsNext.slnx -c Release --no-build -m:1 -o artifacts/ci/compat-packages
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/Validate-ReleasePackages.ps1 -PackageDirectory artifacts/ci/compat-packages
+
+      - name: Windows NuGet and template consumers (.NET 10 and 11)
+        if: steps.changes.outputs.full != 'false'
+        shell: pwsh
+        run: |
+          foreach ($major in 10, 11) {
+            ./scripts/Test-WindowsPackageConsumer.ps1 -RuntimeMajor $major -PackageDirectory artifacts/ci/compat-packages -OutputDirectory "artifacts/ci/consumer-$major"
+          }
+
+      - name: Focused native Windows regression on .NET 11
+        if: steps.changes.outputs.full != 'false'
+        shell: pwsh
+        env:
+          DOTNET_ROLL_FORWARD: LatestMajor
+          DOTNET_TEST_RUNNER: VSTest
+        run: |
+          $project = (Resolve-Path ModernFormsNext.WindowKit.Backend.Windows.Tests/ModernFormsNext.WindowKit.Backend.Windows.Tests.csproj).Path
+          $results = Join-Path $PWD 'artifacts/ci/runtime-11'
+          $filter = 'FullyQualifiedName~WindowsNativeApplicationLifecycleTests|FullyQualifiedName~WindowsNativeComboDisposalTests|FullyQualifiedName~WindowsNativeDpiChangedTests|FullyQualifiedName~WindowsNativePerformanceTests|FullyQualifiedName~WindowsTextInputIntegrationTests|FullyQualifiedName~WindowsKeyboardInputTests'
+          # Use the SDK 11 pin created by the consumer check. Rolling the
+          # existing Release test and child host to CLR 11 reuses the same binaries.
+          Push-Location artifacts/ci/consumer-11
+          try {
+            dotnet test $project -c Release --no-build --no-restore --filter $filter --results-directory $results --logger 'trx;LogFileName=windows-net11.trx' -- RunConfiguration.TreatNoTestsAsError=true
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally { Pop-Location }
+
+      - name: Retain Windows compatibility evidence
+        if: always() && steps.changes.outputs.full != 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-runtime-compatibility
+          path: |
+            artifacts/ci/consumer-*/*.log
+            artifacts/ci/consumer-*/result.json
+            artifacts/ci/runtime-11/*.trx
+          if-no-files-found: ignore
 
       - name: DynamicResource JIT and trimmed deployment
         if: steps.changes.outputs.full != 'false'
