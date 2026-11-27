@@ -2,7 +2,7 @@
 
 Ostatni zamknięty etap to S01. **S02-a jest gotowe do przeglądu** po
 integracji planu #556 i wykonaniu prób Windows. S02-b czeka na osobną zgodę.
-[Raport i pomiary](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) · [PR S02-a](@@PR@@)
+[Raport i pomiary](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) · [PR S02-a](https://github.com/ProGraMajster/ModernFormsNext/pull/557)
 [Plan główny](MASTER-PLAN.md) · [Dane planu](implementation-plan.json)
 
 | Etap | Stan | Issue ukończone / wszystkie |

@@ -14,7 +14,7 @@ Designera. Źródła frameworka używają SDK 10. Android jest Experimental.
 ## Pierwszy podetap po akceptacji
 
 **S02-a. Minimalny PerformanceLab #114 na istniejącym profilerze #58.**
-Gotowy do przeglądu w [PR S02-a](@@PR@@). [Raport pomiarów](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md).
+Gotowy do przeglądu w [PR S02-a](https://github.com/ProGraMajster/ModernFormsNext/pull/557). [Raport pomiarów](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md).
 Utrwalić workload i pomiar SkiaSharp 3.x, żeby osobny PR #419 mógł dać
 wiarygodne porównanie 4.x i wykryć zmianę w pakietach, DPI, tekście oraz
 prezentacji. Pierwszy PR powinien zawierać cienki harness, metadane i dwa

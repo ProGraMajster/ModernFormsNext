@@ -13556,7 +13556,7 @@
       "stageId": "S02",
       "waveId": "S02-a",
       "codeCommit": "5ee4218fcb05b08e621915552fe64ef0d5aa2629",
-      "implementationPullRequest": "@@PR@@",
+      "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/557",
       "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md",
       "localScope": "windows-x64-release-baseline-and-selective-tests",
       "scenarioRuns": {
@@ -13844,7 +13844,7 @@
     "stageId": "S02",
     "waveId": "S02-a",
     "status": "ready-for-review",
-    "implementationPullRequest": "@@PR@@",
+    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/557",
     "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md"
   }
 }

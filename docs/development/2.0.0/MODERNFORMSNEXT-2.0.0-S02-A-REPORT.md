@@ -3,7 +3,7 @@
 **Gotowy do przeglądu.** PerformanceLab wykonuje dwa wersjonowane scenariusze
 Windows na SkiaSharp 3.x. Etap jest częścią #114 i korzysta z profilera #58.
 Integracja implementacji z develop wymaga decyzji właściciela.
-[PR implementacyjny](@@PR@@) · [Wymagane CI](@@PR@@/checks)
+[PR implementacyjny](https://github.com/ProGraMajster/ModernFormsNext/pull/557) · [Wymagane CI](https://github.com/ProGraMajster/ModernFormsNext/pull/557/checks)
 
 ## Master Plan
 
