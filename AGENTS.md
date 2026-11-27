@@ -29,6 +29,9 @@ Treat this repository as a framework/library project, not as one application.
 ## Branch strategy for 2.0.0
 
 * Keep `master` on the stable 1.12.x line while 2.0.0 is in development.
+* Check the [2.0.0 Master Plan](docs/development/2.0.0/MASTER-PLAN.md)
+  and its stage tracker before selecting work. Use its linked JSON as
+  the canonical dependency and status data.
 * Start each stage from the current `origin/develop/2.0.0` on a
   `work/2.0-stage-*` branch. Target `develop/2.0.0` for every 2.0.0 PR.
 * Start a `hotfix/*` branch from the current stable line for urgent 1.12.x
