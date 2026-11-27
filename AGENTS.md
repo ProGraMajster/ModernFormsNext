@@ -355,19 +355,19 @@ Use this solution file:
 
 Do not assume a `.sln` file exists.
 
-### Restore
+### Full solution restore
 
 ```powershell
 dotnet restore .\ModernFormsNext.slnx
 ```
 
-### Debug build
+### Full solution Debug build
 
 ```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
 ```
 
-### Release build
+### Full solution Release build
 
 ```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
@@ -389,13 +389,18 @@ Only use `ModernFormsNext.DemoApp` to verify the default user template experienc
 
 ### Tests
 
-If test projects exist, run:
+During implementation, run tests for the changed behavior and its actual
+dependants. Start with a named test, class or project. Reuse current binaries
+when they match the source, TFM, configuration and platform under test.
 
 ```powershell
-dotnet test .\ModernFormsNext.slnx --configuration Debug --no-restore
+./scripts/Invoke-SelectiveTests.ps1 -Component Core -Configuration Debug -Filter 'FullyQualifiedName~FileSystemDialogInitialDirectoryTests'
 ```
 
-If no tests exist for the changed area, say that clearly and rely on build plus manual sample verification.
+Use a focused build when binaries are stale and restore when its inputs have
+changed or the assets are missing. See [selective testing](docs/development/selective-testing.md)
+for project choices, reports and native platform checks. If the changed area has
+no tests, report the build and manual sample evidence.
 
 Do not invent missing test projects unless explicitly asked.
 
@@ -814,17 +819,27 @@ unless the task requires it.
 
 ## Validation checklist
 
-For normal code changes, run at least:
+Select the smallest build and test scope that covers the change. An SDK,
+shared-contract, rendering-engine or shared-infrastructure change can justify
+broader validation. Record which consumers are affected and why. Reuse passing
+results for identical inputs. Pick the configuration and platform that exercise
+the change.
+
+```powershell
+dotnet restore .\ModernFormsNext\ModernFormsNext.csproj
+dotnet build .\ModernFormsNext\ModernFormsNext.csproj --configuration Debug --no-restore /p:EnableWindowsTargeting=true
+```
+
+Required PR checks and release qualification retain their defined scope. Run
+the full solution locally when requested or when a dependency boundary warrants
+it. Explain any validation gaps and keep local selective results labelled as such.
+
+For release/package qualification, the full build and tests use:
 
 ```powershell
 dotnet restore .\ModernFormsNext.slnx
-dotnet build .\ModernFormsNext.slnx --configuration Debug --no-restore /p:EnableWindowsTargeting=true
-```
-
-For release/package-related changes, also run:
-
-```powershell
 dotnet build .\ModernFormsNext.slnx --configuration Release --no-restore --verbosity normal -m:1 /p:UseSharedCompilation=false
+./scripts/Invoke-SelectiveTests.ps1 -Full -Configuration Release
 ```
 
 For visible UI/control changes, run:
