@@ -1,21 +1,21 @@
 # Status etapów ModernFormsNext 2.0.0
 
-Ostatni ukończony etap to S01. Aktywny etap implementacji pozostaje
-nieprzypisany do decyzji właściciela. Następna propozycja to **S02-a**
-i minimalny PerformanceLab #114 wykorzystujący profiler #58.
+Ostatni ukończony etap to S01. Właściciel zatwierdził uruchomienie
+wyłącznie **S02-a** po integracji PR #556 z wymaganym zielonym CI.
+Celem jest minimalny PerformanceLab #114 korzystający z profilera #58.
 [Plan główny](MASTER-PLAN.md) · [Dane planu](implementation-plan.json)
 
 | Etap | Stan | Issue ukończone / wszystkie |
 | --- | --- | ---: |
 | [S01](#s01) | ukończony | 2 / 2 |
-| [S02](#s02) | proponowany | 0 / 8 |
-| [S03](#s03) | proponowany | 0 / 19 |
+| [S02](#s02) | proponowany | 0 / 9 |
+| [S03](#s03) | proponowany | 0 / 20 |
 | [S04](#s04) | proponowany | 0 / 20 |
 | [S05](#s05) | proponowany | 0 / 29 |
 | [S06](#s06) | proponowany | 0 / 21 |
-| [S07](#s07) | proponowany | 0 / 12 |
-| [S08](#s08) | proponowany | 0 / 6 |
-| [S09](#s09) | proponowany | 0 / 0 |
+| [S07](#s07) | proponowany | 0 / 13 |
+| [S08](#s08) | proponowany | 0 / 5 |
+| [S09](#s09) | proponowany | 0 / 2 |
 
 ## S01
 
@@ -28,7 +28,7 @@ Zgodność .NET i selektywna walidacja.
 
 ## S02
 
-Pomiary i stabilna ścieżka renderowania.
+Bazowe pomiary, migracja software i akceleracja GPU.
 
 | Zadanie | Issue | Priorytet | Stan audytu | GitHub Project | Target version |
 | --- | --- | --- | --- | --- | --- |
@@ -38,8 +38,9 @@ Pomiary i stabilna ścieżka renderowania.
 | S02-c | [#337](ISSUES-AUDIT.md#issue-337) | P1 | plan · partial | Backlog | 2.0.0 |
 | S02-c | [#419](ISSUES-AUDIT.md#issue-419) | P0 | plan · foundation | Backlog | 2.0.0 |
 | S02-d | [#338](ISSUES-AUDIT.md#issue-338) | P0 | plan · foundation | Backlog | 2.0.0 |
-| S02-e | [#438](ISSUES-AUDIT.md#issue-438) | P1 | plan · partial | Backlog | — |
-| S02-e | [#439](ISSUES-AUDIT.md#issue-439) | P1 | plan · foundation | Backlog | — |
+| S02-e | [#46](ISSUES-AUDIT.md#issue-46) | P0 | plan · partial | Backlog | 2.0.0 |
+| S02-h | [#438](ISSUES-AUDIT.md#issue-438) | P1 | plan · partial | Backlog | — |
+| S02-h | [#439](ISSUES-AUDIT.md#issue-439) | P1 | plan · foundation | Backlog | — |
 
 ## S03
 
@@ -57,6 +58,7 @@ Kontrakty wartości, danych, layoutu i platform.
 | S03-d | [#191](ISSUES-AUDIT.md#issue-191) | P2 | plan · foundation | Backlog | 2.0.0 |
 | S03-e | [#177](ISSUES-AUDIT.md#issue-177) | P1 | plan · foundation | Backlog | 2.0.0 |
 | S03-e | [#178](ISSUES-AUDIT.md#issue-178) | P1 | plan · foundation | Backlog | 2.0.0 |
+| S03-e | [#404](ISSUES-AUDIT.md#issue-404) | P1 | plan · foundation | Backlog | — |
 | S03-f | [#173](ISSUES-AUDIT.md#issue-173) | P2 | plan · foundation | Backlog | 2.0.0 |
 | S03-f | [#172](ISSUES-AUDIT.md#issue-172) | P3 | plan · foundation | Backlog | 2.0.0 |
 | S03-g | [#14](ISSUES-AUDIT.md#issue-14) | P1 | plan · foundation | Backlog | 2.0.0 |
@@ -176,22 +178,25 @@ Narzędzia, dostępność i kwalifikacja kompatybilności.
 | S07-e | [#43](ISSUES-AUDIT.md#issue-43) | P2 | plan · foundation | Backlog | 2.0.0 |
 | S07-f | [#486](ISSUES-AUDIT.md#issue-486) | P0 | plan · partial | Blocked | 2.0.0 |
 | S07-f | [#40](ISSUES-AUDIT.md#issue-40) | P0 | plan · partial | Blocked | 2.0.0 |
+| S07-g | [#555](ISSUES-AUDIT.md#issue-555) | P2 | plan · partial | Backlog | — |
 
 ## S08
 
-Akceleracja opcjonalna i wizualizacja.
+Wizualizacja danych i diagramy.
 
 | Zadanie | Issue | Priorytet | Stan audytu | GitHub Project | Target version |
 | --- | --- | --- | --- | --- | --- |
-| S08-a | [#46](ISSUES-AUDIT.md#issue-46) | P1 | plan · partial | Backlog | 2.0.0 |
-| S08-b | [#188](ISSUES-AUDIT.md#issue-188) | P1 | plan · foundation | Backlog | 2.0.0 |
+| S08-a | [#188](ISSUES-AUDIT.md#issue-188) | P1 | plan · foundation | Backlog | 2.0.0 |
 | S08-b | [#16](ISSUES-AUDIT.md#issue-16) | P2 | plan · foundation | Backlog | 2.0.0 |
-| S08-c | [#281](ISSUES-AUDIT.md#issue-281) | P3 | plan · foundation | Backlog | 2.0.0 |
-| S08-c | [#296](ISSUES-AUDIT.md#issue-296) | P3 | plan · foundation | Backlog | — |
-| S08-c | [#297](ISSUES-AUDIT.md#issue-297) | P3 | plan · foundation | Backlog | — |
+| S08-d | [#281](ISSUES-AUDIT.md#issue-281) | P3 | plan · foundation | Backlog | 2.0.0 |
+| S08-d | [#296](ISSUES-AUDIT.md#issue-296) | P3 | plan · foundation | Backlog | — |
+| S08-d | [#297](ISSUES-AUDIT.md#issue-297) | P3 | plan · foundation | Backlog | — |
 
 ## S09
 
-Kwalifikacja i decyzja wydawnicza.
+Zbiorcza kwalifikacja Androida i decyzja wydawnicza.
 
-Każde issue w planie posiada udokumentowaną dyspozycję i dowód dla wersji. Integracja z master i publikacja po osobnych zgodach.
+| Zadanie | Issue | Priorytet | Stan audytu | GitHub Project | Target version |
+| --- | --- | --- | --- | --- | --- |
+| S09-a | [#537](ISSUES-AUDIT.md#issue-537) | P1 | plan · partial | Backlog | — |
+| S09-a | [#538](ISSUES-AUDIT.md#issue-538) | P1 | plan · partial | Backlog | — |

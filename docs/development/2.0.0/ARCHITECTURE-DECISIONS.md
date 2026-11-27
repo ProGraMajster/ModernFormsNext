@@ -1,6 +1,6 @@
 # Decyzje architektoniczne ModernFormsNext 2.0.0
 
-Status wszystkich propozycji D01–D12 to **do przeglądu**. Obowiązujące
+Kierunek planu jest zatwierdzony do integracji po zaliczeniu CI. Decyzje o konkretnych API i wariantach wdrożenia pozostają do przeglądu. Obowiązujące
 kontrakty są udokumentowane w [architekturze](../../architecture.md),
 [ADR](../../architecture/README.md) i [AGENTS.md](../../../AGENTS.md).
 Zakres issue i kolejność są w [MASTER-PLAN.md](MASTER-PLAN.md).
@@ -50,12 +50,15 @@ Zakres issue i kolejność są w [MASTER-PLAN.md](MASTER-PLAN.md).
   GLES i Vulkan pod kątem lifecycle oraz realnego urządzenia. Metal ma sens
   wraz z backendem Apple. Linux, macOS, iOS i WebGL nie są wspieranymi
   runtime'ami bieżącego frameworka.
-- **Rekomendacja.** #46 najpierw określi neutralny capability i reason ze
-  wspólną semantyką „requested/active”. Jeden ograniczony backend za
-  opt-in i działający path CPU. Wybór API po pomiarze draw/present,
-  resize/context loss, pamięci GPU, DPI i interop z NativeViewHost. Same
-  nazwy Vulkan/Metal w issue nie zwiększają zakresu 2.0.0. Software
-  pozostaje możliwy do kwalifikacji niezależnie. [Istniejący software backend](../../architecture/rendering-backends.md) ·
+- **Rekomendacja.** GPU jest głównym celem 2.0.0. Po bazie software 4.x
+  #46 wykona ograniczone prototypy Windows Direct3D, ANGLE, OpenGL i Vulkan
+  oraz Android GLES/Vulkan, równolegle z pomiarem #338. Wybór backendów po
+  pomiarze draw/present, resize/context loss, pamięci GPU, sterownika,
+  pakietów i NativeViewHost. Jeden zaakceptowany backend na raz przy
+  wspieranym software fallback. Całkowite no-go wymaga dowodów i zgody.
+  [ANGLE](https://chromium.googlesource.com/angle/angle/+/HEAD/README.md) ·
+  [DXGI](https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-1-3-improvements) ·
+  [Android frame pacing](https://developer.android.com/games/sdk/frame-pacing) · [Istniejący software backend](../../architecture/rendering-backends.md) ·
   [#46](https://github.com/ProGraMajster/ModernFormsNext/issues/46)
 
 ## D04. Reguły wartości i rozstrzyganie selektorów
@@ -71,7 +74,9 @@ Zakres issue i kolejność są w [MASTER-PLAN.md](MASTER-PLAN.md).
   właściwości, resetem i zmianą rodzica. #177/#178 stosują ten resolver,
   z selektywnym rematch i jednym źródłem `VisualState`. #174 wykorzystuje
   istniejący `PropertyStore` bez kosztu per control, gdy metadanych nie ma.
-  #404 może parsować ograniczony CSS do tych samych reguł. `ControlTemplate`
+  #404 po #194, #177 i #178 w S03-e parsuje ograniczony CSS do tych
+  samych reguł. Zakres pierwszego eksperymentu obejmuje selektory,
+  zmienne i warunki, bez HTML DOM i bez niezależnej kaskady. `ControlTemplate`
   (#180) ma inną własność, wymaga osobnej decyzji. #340 i #189 współdzielą
   normalną transakcję layoutu, a geometryczne przejścia pozostają na
   schedulerze. [ThemeManager ADR](../../architecture/decisions/ADR-Theme-System.md) ·
@@ -180,8 +185,11 @@ Zakres issue i kolejność są w [MASTER-PLAN.md](MASTER-PLAN.md).
   identyfikacja elementu. Dzielić obliczenia, zakresy, ownership, a11y
   i focus rules. Kolekcje, panel, dokument i workflow zachowują własne,
   różne semantyki. #235 rozszerza viewport obrazu bez zmiany roli PictureBox.
-  #296 i #297 pozostają niezależne od dużych modułów. #16 jawnie rozdziela
-  chart, diagram i ewentualne 3D. Zakres #16 wymaga decyzji właściciela.
+  #296 i #297 pozostają niezależne od dużych modułów. W #16 wspólne
+  dane i skale poprzedzają Line/Area, Bar/Column i Pie/Donut. Funkcje
+  interakcji, motywy, animacja, dostępność i duże serie należą do etapu
+  wykresów. Diagramy z łącznikami, zaawansowane widoki i eksport zachowują
+  zakres. Podział pomiędzy wersje wymaga decyzji właściciela.
   [Zasady repozytorium](../../../AGENTS.md) ·
   [Różnica zakresu #16](https://github.com/ProGraMajster/ModernFormsNext/issues/16)
 
@@ -189,9 +197,10 @@ Zakres issue i kolejność są w [MASTER-PLAN.md](MASTER-PLAN.md).
 
 - **Rekomendacja.** Krytyczne i publiczne deklaracje ustalić przed
   implementacją, a każdy eksperyment kończyć zapisem wyniku i decyzją
-  rozstrzygającą. #46 może zakończyć 2.0 dokumentowanym no-go dla GPU,
-  #40 prywatną kwalifikacją bez publicznej aktywacji, a #44 aktualną
-  macierzą bez nieobsługiwanych targetów, jeśli właściciel zaakceptuje
-  te dyspozycje. Pełny zakres każdego issue pozostaje widoczny.
+  rozstrzygającą. #46 wymaga kwalifikacji zaakceptowanych
+  backendów. Całkowite no-go jest wyjątkiem wymagającym dowodów i zgody.
+  #40 może pozostać przy prywatnej kwalifikacji, a #44 przy aktualnej
+  macierzy bez nieobsługiwanych targetów. Android pozostaje Experimental
+  do pełnej fizycznej macierzy i decyzji właściciela. Pełny zakres każdego issue pozostaje widoczny.
   [Ryzyka i warunki stop](RISK-REGISTER.md) ·
   [Kontrakt aktualizacji](MASTER-PLAN.md#utrzymanie-planu)

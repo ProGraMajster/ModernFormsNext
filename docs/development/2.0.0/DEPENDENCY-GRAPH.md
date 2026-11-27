@@ -3,21 +3,21 @@
 Strzałka prowadzi od warunku do pracy, która z niego korzysta. Pokazano
 wszystkie twarde krawędzie issue i wymagane bramy. Miękkie krawędzie
 są w audycie i JSON, aby wykresy pozostały czytelne.
-Twardy graf ma 105 krawędzi między issue
-oraz 11 bram. Sprawdzenie topologiczne nie wykryło cyklu.
+Twardy graf ma 109 krawędzi między issue
+oraz 15 bram. Sprawdzenie topologiczne nie wykryło cyklu.
 
 ## Etapy i równoległe ścieżki
 
 ```mermaid
 flowchart LR
   S01["S01 · .NET i VSTest ✓"]
-  S02["S02 · Pomiary i render"]
+  S02["S02 · Pomiary, software i GPU"]
   S03["S03 · Wartości, dane i layout"]
   S04["S04 · Input, viewport i grid"]
   S05["S05 · Progress i widoki"]
   S06["S06 · Kontrolki i aplikacje"]
   S07["S07 · Designer i narzędzia"]
-  S08["S08 · GPU i wizualizacja"]
+  S08["S08 · Wizualizacja i diagramy"]
   S09["S09 · Kwalifikacja"]
   S01 --> S02
   S01 --> S03
@@ -44,11 +44,11 @@ flowchart LR
 Wykres dotyczy kwalifikacji całych etapów. Niezależne PR mogą rozpocząć
 się po spełnieniu warunków własnego issue i bramy.
 
-## Ścieżka krytyczna techniczna
+## Ścieżki krytyczne techniczne
 
-Ścieżki łączą się w #454. Kolejność przedstawia warunki techniczne.
-Zakres przyjęty przez właściciela i dostępność sprzętu mogą zmienić
-bramy oraz kolejność.
+Ścieżki software i scroll łączą się w #454. GPU oraz Android są
+odrębnymi warunkami wydania. Stan Experimental zmienia się po pełnej
+macierzy i po akceptacji właściciela.
 
 ```mermaid
 flowchart LR
@@ -86,11 +86,17 @@ flowchart LR
 ```
 
 Pozostałe ważne odnogi rewalidują właściwości, progres i wykonywanie
-w Designerze. Właściwy zakres #46, #40 i #44 wymaga decyzji.
+w Designerze. Wybór pierwszych backendów GPU nastąpi po prototypach,
+a pełne no-go wymaga dowodów technicznych i decyzji właściciela.
 
 - [#194](ISSUES-AUDIT.md#issue-194) → `style-precedence` → [#177](ISSUES-AUDIT.md#issue-177) → [#178](ISSUES-AUDIT.md#issue-178).
 - [#212](ISSUES-AUDIT.md#issue-212) → [#206](ISSUES-AUDIT.md#issue-206) → [#207](ISSUES-AUDIT.md#issue-207) → [#215](ISSUES-AUDIT.md#issue-215) → [#224](ISSUES-AUDIT.md#issue-224) → [#227](ISSUES-AUDIT.md#issue-227) → [#222](ISSUES-AUDIT.md#issue-222).
 - [#44](ISSUES-AUDIT.md#issue-44) → `designer-support-matrix` → [#486](ISSUES-AUDIT.md#issue-486) → [#40](ISSUES-AUDIT.md#issue-40).
+- `software-4x` → `gpu-prototypes` → `gpu-selection` → [#46](ISSUES-AUDIT.md#issue-46) → `gpu-qualified` → `release-qualification`.
+- `software-4x` → `pacing-contract` → `gpu-selection` → [#46](ISSUES-AUDIT.md#issue-46) → `gpu-qualified` → `android-qualification` → `release-qualification`.
+- [#194](ISSUES-AUDIT.md#issue-194) → [#177](ISSUES-AUDIT.md#issue-177) → [#178](ISSUES-AUDIT.md#issue-178) → [#404](ISSUES-AUDIT.md#issue-404).
+- [#538](ISSUES-AUDIT.md#issue-538) → `android-qualification` → `release-qualification`.
+- [#537](ISSUES-AUDIT.md#issue-537) → `android-qualification` → `release-qualification`.
 
 ## Jak rozstrzygamy pozorne cykle
 
@@ -105,8 +111,9 @@ w Designerze. Właściwy zakres #46, #40 i #44 wymaga decyzji.
 - #61 i #364 mogą wymieniać deskryptory przez read-only seam, a publiczna
   edycja pozostaje osobnym rozstrzygnięciem. #403 korzysta z DevTools
   i używa istniejącego AccessibleObject.
-- CSS i ControlTemplate pozostają poza milestone jako niezależne prace.
-  #419 czeka na bazowy pomiar, a pełny #114 może rozwijać się dalej.
+- CSS #404 pozostaje bez milestone, ale plan obejmuje go po #194,
+  #177 i #178. ControlTemplate jest osobny. #419 czeka na bazowy pomiar,
+  podczas gdy pełny #114 może rozwijać się dalej.
 
 ## Usunięte cykle planowania
 
@@ -125,14 +132,23 @@ wdrożenia. Poniżej ich rozstrzygnięcie.
 
 ```mermaid
 flowchart LR
+  G_android_qualification["Zbiorcza kwalifikacja Androida"]
   G_baseline_perf["Bazowy pomiar software 3.x"]
   G_designer_support_matrix["Macierz IDE, OS, SDK i typów hosta"]
+  G_gpu_prototypes["Wczesne prototypy GPU"]
+  G_gpu_qualified["Kwalifikacja zaakceptowanego zakresu GPU"]
+  G_gpu_selection["Wybór backendów i kontraktu prezentacji"]
   G_grid_view_contract["Wspólny kontrakt geometryczny i tożsamość wiersza"]
+  I109["#109"]
   I194["#194"]
   I223["#223"]
+  I402["#402"]
   I419["#419"]
   I44["#44"]
   I454["#454"]
+  I46["#46"]
+  I537["#537"]
+  I538["#538"]
   G_pacing_contract["Pomiar prezentacji i backpressure"]
   G_progress_effects["Prymitywy fazy i clip efektów"]
   G_release_qualification["Kandydat 2.0.0 do decyzji właściciela"]
@@ -141,15 +157,28 @@ flowchart LR
   G_software_4x["Kwalifikacja migracji software"]
   G_stage1_integrated["Zgodność .NET i VSTest"]
   G_style_precedence["Macierz wartości i invalidacji"]
+  G_android_qualification --> G_release_qualification
   G_baseline_perf --> G_software_4x
   G_designer_support_matrix --> G_release_qualification
+  G_gpu_prototypes --> G_gpu_selection
+  G_gpu_qualified --> G_android_qualification
+  G_gpu_qualified --> G_release_qualification
+  G_gpu_selection --> G_gpu_qualified
+  I109 --> G_android_qualification
   I194 --> G_style_precedence
   I223 --> G_progress_effects
+  I402 --> G_android_qualification
   I419 --> G_software_4x
   I44 --> G_designer_support_matrix
   I454 --> G_scroll_qualified
+  I46 --> G_gpu_qualified
+  I537 --> G_android_qualification
+  I538 --> G_android_qualification
+  G_pacing_contract --> G_gpu_selection
   G_pacing_contract --> G_scroll_qualified
+  G_scroll_qualified --> G_android_qualification
   G_scroll_qualified --> G_release_qualification
+  G_software_4x --> G_gpu_prototypes
   G_software_4x --> G_pacing_contract
   G_software_4x --> G_release_qualification
   G_stage1_integrated --> G_baseline_perf
@@ -171,7 +200,11 @@ flowchart LR
 | `progress-effects` | [#223](ISSUES-AUDIT.md#issue-223) | Potwierdzić prymityw niezależny od konkretnego renderera przed wspólnym shimmer/arc. Statyczny skeleton ma własne wejście. |
 | `designer-support-matrix` | `stage1-integrated`, [#44](ISSUES-AUDIT.md#issue-44) | Jawna granica zwykłego data VSIX i kwalifikacji wykonywalnego podglądu, osobne dowody TFM i instalacji. |
 | `scroll-qualified` | `pacing-contract`, [#454](ISSUES-AUDIT.md#issue-454) | Raport Windows i Android pod wersjonowanymi warunkami, deklaracja tylko zmierzonych kombinacji. |
-| `release-qualification` | `software-4x`, `scroll-qualified`, `style-precedence`, `designer-support-matrix` | Każda przyjęta funkcja i odstępstwo ma jawną dyspozycję. Ścisłe CI i osobna zgoda na integrację finalną i publikację. |
+| `release-qualification` | `software-4x`, `scroll-qualified`, `style-precedence`, `designer-support-matrix`, `gpu-qualified`, `android-qualification` | Każda przyjęta funkcja i odstępstwo ma jawną dyspozycję. Ścisłe CI i osobna zgoda na integrację finalną i publikację. Jeżeli Android pozostaje Experimental, wymagany jest raport z brakami i zaakceptowany zakres wydania. Stabilny Android wymaga pełnej macierzy. |
+| `gpu-prototypes` | `software-4x` | Porównanie Windows Direct3D/ANGLE/OpenGL/Vulkan i Android GLES/Vulkan. Kryteria: dostępność, zasoby native/RID, sterownik, lifecycle, i ślad. Metal i inne platformy jako przyszłe rozszerzenie. |
+| `gpu-selection` | `gpu-prototypes`, `pacing-contract` | Właściciel akceptuje zestaw backendów albo uzasadniony wyjątek. Aktualny UI-thread jest bazą. Osobny render thread jest warunkowy. |
+| `gpu-qualified` | `gpu-selection`, [#46](ISSUES-AUDIT.md#issue-46) | Sprzętowe wyniki i bezpieczny software fallback, dokładna deklaracja wspieranych kombinacji. Całkowite no-go z dowodami i zgodą właściciela stanowi udokumentowany wyjątek, a nie automatyczne spełnienie. |
+| `android-qualification` | `scroll-qualified`, `gpu-qualified`, [#537](ISSUES-AUDIT.md#issue-537), [#538](ISSUES-AUDIT.md#issue-538), [#109](ISSUES-AUDIT.md#issue-109), [#402](ISSUES-AUDIT.md#issue-402) | Dowody Android z urządzeń i zgodnego APK, obejmujące każdą pozycję macierzy. Zmiana Experimental wyłącznie po zatwierdzeniu zakresu i dowodów przez właściciela. Przy brakach nadal Experimental. |
 
 Brama `progress-effects` obejmuje animowaną część #234.
 Statyczny placeholder ma własny, niezależny zakres.
@@ -195,7 +228,7 @@ flowchart TB
 
 Zależności historyczne są zamknięte.
 
-### S02 · Pomiary i stabilna ścieżka renderowania
+### S02 · Bazowe pomiary, migracja software i akceleracja GPU
 
 ```mermaid
 flowchart TB
@@ -214,17 +247,23 @@ flowchart TB
     I338["#338 (Rendering) Evaluate dedicated render thread and frame…"]
   end
   subgraph W_S02_e[S02-e]
+    I46["#46 GPU Accelerated support like Avalonia.OpenGL,Avalonia.Vulkan…"]
+  end
+  subgraph W_S02_h[S02-h]
     I438["#438 (Rendering) Add scoped bulk UI mutation with layout and…"]
     I439["#439 (Windowing) Add optional deferred first reveal after initial…"]
   end
   G_baseline_perf["Bazowy pomiar software 3.x"]
+  G_gpu_selection["Wybór backendów i kontraktu prezentacji"]
   I435["#435"]
   I436["#436"]
   G_software_4x["Kwalifikacja migracji software"]
   G_baseline_perf --> I419
   G_baseline_perf --> I438
   G_baseline_perf --> I439
+  G_gpu_selection --> I46
   I419 --> I338
+  I419 --> I46
   I435 --> I337
   I435 --> I419
   I435 --> I439
@@ -235,7 +274,7 @@ flowchart TB
   G_software_4x --> I338
 ```
 
-Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.
+Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.
 
 ### S03 · Kontrakty wartości, danych, layoutu i platform
 
@@ -260,6 +299,7 @@ flowchart TB
   subgraph W_S03_e[S03-e]
     I177["#177 Add style classes and selector-based style matching"]
     I178["#178 Add pseudo-state selectors integrated with existing Visual…"]
+    I404["#404 (Styling) Investigate optional CSS-compatible stylesheet…"]
   end
   subgraph W_S03_f[S03-f]
     I173["#173 Add extensible Behavior<T> attachment system"]
@@ -285,6 +325,8 @@ flowchart TB
   G_style_precedence["Macierz wartości i invalidacji"]
   I175 --> I176
   I177 --> I178
+  I177 --> I404
+  I178 --> I404
   I179 --> I172
   I179 --> I191
   I183 --> I309
@@ -293,6 +335,7 @@ flowchart TB
   I194 --> I177
   I194 --> I179
   I194 --> I340
+  I194 --> I404
   I309 --> I437
   I335 --> I175
   I435 --> I437
@@ -575,12 +618,16 @@ flowchart TB
     I486["#486 Qualify the Designer LPAC policy before enabling executable…"]
     I40["#40 Add safe design-time execution and control isolation"]
   end
+  subgraph W_S07_g[S07-g]
+    I555["#555 (Designer) Qualify C# 15 syntax in the standard data Designer"]
+  end
   G_designer_support_matrix["Macierz IDE, OS, SDK i typów hosta"]
   I435["#435"]
   G_designer_support_matrix --> I40
   G_designer_support_matrix --> I486
   I435 --> I336
   I435 --> I44
+  I435 --> I555
   I44 --> I486
   I440 --> I43
   I486 --> I40
@@ -589,27 +636,34 @@ flowchart TB
 
 Standardowy Designer, dostępność i kompatybilność mają niezależne ścieżki. Dowody bezpieczeństwa poprzedzają włączanie wykonania.
 
-### S08 · Akceleracja opcjonalna i wizualizacja
+### S08 · Wizualizacja danych i diagramy
 
 ```mermaid
 flowchart TB
   subgraph W_S08_a[S08-a]
-    I46["#46 GPU Accelerated support like Avalonia.OpenGL,Avalonia.Vulkan…"]
+    I188["#188 Add reusable custom drawing surface API"]
   end
   subgraph W_S08_b[S08-b]
-    I188["#188 Add reusable custom drawing surface API"]
     I16["#16 Add charts, diagrams and data visualization"]
   end
-  subgraph W_S08_c[S08-c]
+  subgraph W_S08_d[S08-d]
     I281["#281 (CurveEditor) Add interactive 2D curve/transfer-function…"]
     I296["#296 (CalendarHeatmap) Add GitHub-style daily activity heatmap…"]
     I297["#297 (TimelineScrubber) Add reusable seekable timeline with…"]
   end
-  I419["#419"]
-  G_software_4x["Kwalifikacja migracji software"]
   I188 --> I16
-  I419 --> I46
-  G_software_4x --> I46
 ```
 
-CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.
+Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.
+
+### S09 · Zbiorcza kwalifikacja Androida i decyzja wydawnicza
+
+```mermaid
+flowchart TB
+  subgraph W_S09_a[S09-a]
+    I537["#537 Qualify CJK IMEs, candidate placement and additional…"]
+    I538["#538 Qualify Android high refresh and extended physical-device…"]
+  end
+```
+
+Sprzętowe stanowiska mogą pracować równolegle na jednym identyfikatorze kandydata.

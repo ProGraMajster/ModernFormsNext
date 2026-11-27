@@ -1,6 +1,6 @@
 # Plan realizacji ModernFormsNext 2.0.0
 
-**Propozycja do przeglądu.** Baza `origin/develop/2.0.0` to
+**Plan po przeglądzie właściciela PR #556.** Baza `origin/develop/2.0.0` to
 `86688a649776bc969b6c69d4c06d6aee8410d607`. Stan danych z 27 listopada
 2026. Stabilny `origin/master` wskazuje `7c8e25c4955b3a1cfedae5c7355e076735f7bd9d`
 i tag `v1.12.1`. Stage 1 jest zintegrowany w kolejności #554 → #553.
@@ -29,7 +29,7 @@ rozstrzygnięcia. S03-a może przygotowywać macierz wartości równolegle.
 
 - **Rendering.** Używamy działającego `WindowBase → IWindowRenderSurface →
   IRenderFrame`. Najpierw porównywalny pomiar, potem zgodność 4.x na CPU,
-  a następnie oddzielna ocena VSync/backpressure i jednego wariantu GPU.
+  a następnie równoległe prototypy GPU i ocena VSync/backpressure.
   Aktualne software i wszystkie istniejące renderery pozostają punktem
   odniesienia dla wybranego sprzętu i zmian damage/typografii.
   [Software backend](../../architecture/rendering-backends.md)
@@ -64,14 +64,14 @@ zależności issue lub bramy. Etap S09 rozlicza zakres zatwierdzony przez właś
 | Etap | Temat | Issue | Stan |
 | --- | --- | ---: | --- |
 | [S01](#s01) | Zgodność .NET i selektywna walidacja | 2 | ukończony |
-| [S02](#s02) | Pomiary i stabilna ścieżka renderowania | 8 | propozycja |
-| [S03](#s03) | Kontrakty wartości, danych, layoutu i platform | 19 | propozycja |
+| [S02](#s02) | Bazowe pomiary, migracja software i akceleracja GPU | 9 | propozycja |
+| [S03](#s03) | Kontrakty wartości, danych, layoutu i platform | 20 | propozycja |
 | [S04](#s04) | Input, przewijanie, integracje i duże dane | 20 | propozycja |
 | [S05](#s05) | Model postępu i kontrolki progresu | 29 | propozycja |
 | [S06](#s06) | Kompozycja aplikacji, dokumenty i kontrolki | 21 | propozycja |
-| [S07](#s07) | Narzędzia, dostępność i kwalifikacja kompatybilności | 12 | propozycja |
-| [S08](#s08) | Akceleracja opcjonalna i wizualizacja | 6 | propozycja |
-| [S09](#s09) | Kwalifikacja i decyzja wydawnicza | 0 | propozycja |
+| [S07](#s07) | Narzędzia, dostępność i kwalifikacja kompatybilności | 13 | propozycja |
+| [S08](#s08) | Wizualizacja danych i diagramy | 5 | propozycja |
+| [S09](#s09) | Zbiorcza kwalifikacja Androida i decyzja wydawnicza | 2 | propozycja |
 
 [Statusy i numery](STAGE-TRACKER.md) · [Bramy i graf](DEPENDENCY-GRAPH.md)
 
@@ -93,13 +93,13 @@ zależności issue lub bramy. Etap S09 rozlicza zakres zatwierdzony przez właś
 
 ### S02
 
-**Pomiary i stabilna ścieżka renderowania.** Zmierzyć bazę 3.x i zakwalifikować niezależną migrację software do SkiaSharp 4.x.
+**Bazowe pomiary, migracja software i akceleracja GPU.** Zmierz SkiaSharp 3.x, zakwalifikuj ścieżkę software po migracji, następnie oceń i dostarcz zaakceptowany zakres GPU dla Windows i Androida.
 
-- Pozwala porównać regresję biblioteki, pacing i późniejsze GPU z tym samym workloadem. TestHost i profiler już działają.
-- Oczekiwany stan. Powtarzalny harness PerformanceLab, jedna ścieżka CPU, udokumentowana decyzja o czasie i wątku prezentacji, osobne opt-in layout/reveal.
-- Kryteria akceptacji. Porównywalne artefakty 3.x i 4.x, konsument, assets, typografia, DPI i funkcjonująca ścieżka Designer. Nie zmieniać GPU wraz z pakietem.
-- Warunki wyjścia i blokady. Przejście po baseline-perf i software-4x dla prac zależnych. Pacing-contract wymagany do finalnej kwalifikacji scroll. Brak urządzenia/drivera blokuje tylko odpowiednią deklarację.
-- Praca równoległa. Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.
+- Spójna baza oddziela zmianę biblioteki, efekt synchronizacji i efekt GPU. Wczesne prototypy umożliwiają wybór ścieżki przed szeroką integracją.
+- Oczekiwany stan. Powtarzalny harness, wspierane software i fallback, wspólny kontrakt prezentacji, wybrane adaptery GPU oraz jawne możliwości i powody fallbacku.
+- Kryteria akceptacji. Porównania 3.x/4.x software, prototypy i decyzja o backendach, osobne implementacje wybranych ścieżek oraz pomiar i stabilność na sprzęcie Windows/Android.
+- Warunki wyjścia i blokady. Bazowy pomiar poprzedza #419. Po 4.x mogą równolegle powstać prototypy GPU i pomiar #338. Integracja po wyborze właściciela. Wydanie wymaga kwalifikacji zaakceptowanego zakresu GPU albo technicznie uzasadnionego wyjątku zatwierdzonego przez właściciela.
+- Praca równoległa. Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.
 - Kwalifikacja etapu korzysta z S01. [Plan testów](TESTING-STRATEGY.md#macierz-etapów)
 
 | Wyodrębniona praca | Zgłoszenia |
@@ -107,15 +107,18 @@ zależności issue lub bramy. Etap S09 rozlicza zakres zatwierdzony przez właś
 | S02-a · Minimalny PerformanceLab i uzupełnienie pomiarów | [#114](ISSUES-AUDIT.md#issue-114), [#58](ISSUES-AUDIT.md#issue-58) |
 | S02-b · Brakujące scenariusze istniejącego TestHost | [#64](ISSUES-AUDIT.md#issue-64) |
 | S02-c · Korpus tekstu i osobna migracja SkiaSharp software | [#337](ISSUES-AUDIT.md#issue-337), [#419](ISSUES-AUDIT.md#issue-419) |
-| S02-d · Raport pacing i ewentualny osobny prototyp | [#338](ISSUES-AUDIT.md#issue-338) |
-| S02-e · Oddzielne PR coalescing i pierwszego reveal | [#438](ISSUES-AUDIT.md#issue-438), [#439](ISSUES-AUDIT.md#issue-439) |
+| S02-d · Pomiar prezentacji, frame pacing/VSync i weryfikacja potrzeby render thread | [#338](ISSUES-AUDIT.md#issue-338) |
+| S02-e · Wczesne porównanie i ograniczone prototypy GPU po software 4.x | [#46](ISSUES-AUDIT.md#issue-46) |
+| S02-f · Wybór i implementacja backendów GPU, oddzielne PR dla Windows i Androida | — |
+| S02-g · Kwalifikacja GPU, kompatybilność i software fallback | — |
+| S02-h · Oddzielne PR coalescing i pierwszego reveal | [#438](ISSUES-AUDIT.md#issue-438), [#439](ISSUES-AUDIT.md#issue-439) |
 
 ### S03
 
 **Kontrakty wartości, danych, layoutu i platform.** Uzgodnić wspólną kolejność wartości, binding i tryb dostępności usług przed rozbudową konsumentów.
 
 - Local/style/resource/pseudo-state/animation, recycling i platform results są współdzielone przez wiele rodzin.
-- Oczekiwany stan. Macierz precedence, adaptery typed/async, warstwa selector/template bez nowego silnika, arkusz możliwości i progi layout. Runtime .NET 10 pozostaje obowiązkowy.
+- Oczekiwany stan. Macierz precedence, adaptery typed/async, warstwa selector/template bez nowego silnika, arkusz możliwości i progi layout. Runtime .NET 10 pozostaje obowiązkowy. Ograniczony parser CSS może zasilać ten sam resolver.
 - Kryteria akceptacji. Każdy PR zachowuje stary tryb i ma deterministyczną semantykę ownership, fallback, invalidacji i anulowania.
 - Warunki wyjścia i blokady. Pierwsze moduły mogą zacząć równolegle z S02. Uzgodnione API, krawędzie JSON i testy kontraktowe otwierają właściwych klientów.
 - Praca równoległa. Binding, wartości, layout i device facts mają osobne strumienie. Zmieniaj kanoniczny resolver w jednym PR na raz.
@@ -127,7 +130,7 @@ zależności issue lub bramy. Etap S09 rozlicza zakres zatwierdzony przez właś
 | S03-b · Baseline i szew bindingu, sukcesywnie typed i MultiBinding | [#335](ISSUES-AUDIT.md#issue-335), [#175](ISSUES-AUDIT.md#issue-175), [#176](ISSUES-AUDIT.md#issue-176) |
 | S03-c · Niezależny async source z anulowaniem | [#341](ISSUES-AUDIT.md#issue-341) |
 | S03-d · Fabryka DataTemplate, potem generator małych powtórzeń | [#179](ISSUES-AUDIT.md#issue-179), [#191](ISSUES-AUDIT.md#issue-191) |
-| S03-e · Klasy i selektory, później pseudostany | [#177](ISSUES-AUDIT.md#issue-177), [#178](ISSUES-AUDIT.md#issue-178) |
+| S03-e · Klasy, selektory, pseudostany i późniejszy parser CSS jako osobne PR | [#177](ISSUES-AUDIT.md#issue-177), [#178](ISSUES-AUDIT.md#issue-178), [#404](ISSUES-AUDIT.md#issue-404) |
 | S03-f · Osobne opcjonalne Behavior i deklaratywny prototyp | [#173](ISSUES-AUDIT.md#issue-173), [#172](ISSUES-AUDIT.md#issue-172) |
 | S03-g · Katalog lokalizacji nad DynamicResource | [#14](ISSUES-AUDIT.md#issue-14) |
 | S03-h · Fakty urządzenia, ADR dostępności, C# 15 spike | [#183](ISSUES-AUDIT.md#issue-183), [#309](ISSUES-AUDIT.md#issue-309), [#437](ISSUES-AUDIT.md#issue-437) |
@@ -224,38 +227,42 @@ zależności issue lub bramy. Etap S09 rozlicza zakres zatwierdzony przez właś
 | S07-d · Lokalny agent bridge i oddzielne deterministyczne replay | [#97](ISSUES-AUDIT.md#issue-97), [#410](ISSUES-AUDIT.md#issue-410) |
 | S07-e · Semantyczne .mfdesign operacje i oddzielny Hot Reload | [#440](ISSUES-AUDIT.md#issue-440), [#43](ISSUES-AUDIT.md#issue-43) |
 | S07-f · Kwalifikacja #486, potem decyzja o #40 | [#486](ISSUES-AUDIT.md#issue-486), [#40](ISSUES-AUDIT.md#issue-40) |
+| S07-g · Odrębna kwalifikacja parsera C# 15 w standardowym Designerze | [#555](ISSUES-AUDIT.md#issue-555) |
 
 ### S08
 
-**Akceleracja opcjonalna i wizualizacja.** Ocenić backendy GPU i dostarczać lekkie, przenośne widoki danych na wspólnych prymitywach.
+**Wizualizacja danych i diagramy.** Ustalić wspólny model i prymitywy, zbudować podstawowe wykresy, potem rozwinąć diagramy i zaawansowane wizualizacje.
 
-- GPU wymaga odrębnej własności surface/texture i sprzętu. Wykresy i geometryczne kontrolki mogą działać na CPU.
-- Oczekiwany stan. Software pozostaje referencyjnym fallbackiem. Wspólny DrawingView/coordinate model i opcjonalny moduł danych. Brak wymuszonej zależności backendu na Core.
-- Kryteria akceptacji. Bezpieczny fallback, brak przecieku napięcia między backendami, jawnie wspierane platformy; QA danych, memory i scenariusze uszkodzenia kontekstu gdy GPU zatwierdzone.
-- Warunki wyjścia i blokady. Zakres chart vs diagrams, sprzęt i wybrany backend wymagają decyzji. Brak GPU nie zatrzymuje software ani CPU visualizations według proponowanej polityki.
-- Praca równoległa. CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.
+- Wizualizacje ponownie użyją skal, geometrii i akcji. Działają także na ścieżce software, a GPU można kwalifikować osobno.
+- Oczekiwany stan. Cienki DrawingView, współdzielone dane i serie, opcjonalny pakiet wykresów oraz osobny zakres diagramów bez drugiej infrastruktury.
+- Kryteria akceptacji. Line, Area, Bar, Column, Pie i Donut, osie dla wykresów kartezjańskich, legenda, tooltip, zaznaczenie, animacja, motyw, dostępność, eksport i pomiar dużych zbiorów. Diagramy z prymitywami i łącznikami po fundamencie.
+- Warunki wyjścia i blokady. Warstwa danych i podstawy wykresów przed diagramami. Wszystkie kryteria #16 zachowane, ewentualny podział między wersje do decyzji właściciela.
+- Praca równoległa. Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.
 - Kwalifikacja etapu korzysta z S02, S03. [Plan testów](TESTING-STRATEGY.md#macierz-etapów)
 
 | Wyodrębniona praca | Zgłoszenia |
 | --- | --- |
-| S08-a · ADR i ograniczony pojedynczy backend GPU | [#46](ISSUES-AUDIT.md#issue-46) |
-| S08-b · Cienki DrawingView i opcjonalny chart vertical slice | [#188](ISSUES-AUDIT.md#issue-188), [#16](ISSUES-AUDIT.md#issue-16) |
-| S08-c · Trzy odrębne widoki danych i interakcji | [#281](ISSUES-AUDIT.md#issue-281), [#296](ISSUES-AUDIT.md#issue-296), [#297](ISSUES-AUDIT.md#issue-297) |
+| S08-a · Cienki DrawingView i wspólne prymitywy | [#188](ISSUES-AUDIT.md#issue-188) |
+| S08-b · Wspólny model danych i podstawowe wykresy, kolejne PR rodzin | [#16](ISSUES-AUDIT.md#issue-16) |
+| S08-c · Diagramy, łączniki i zaawansowane wizualizacje po podstawach | — |
+| S08-d · CurveEditor, CalendarHeatmap i TimelineScrubber jako osobne PR | [#281](ISSUES-AUDIT.md#issue-281), [#296](ISSUES-AUDIT.md#issue-296), [#297](ISSUES-AUDIT.md#issue-297) |
 
 ### S09
 
-**Kwalifikacja i decyzja wydawnicza.** Zamknąć zweryfikowany zakres 2.0.0 z kompletem dowodów i proponowanymi przeniesieniami do akceptacji.
+**Zbiorcza kwalifikacja Androida i decyzja wydawnicza.** Zebrać dowody stabilizacji Androida i zakwalifikować zatwierdzony zakres 2.0.0 na jednym kandydacie.
 
 - Stan etapów, Scope owner i finalny exact-head CI muszą być spójne.
 - Oczekiwany stan. Reprodukowalna macierz pakietów, szablonów, IDE i urządzeń, release notes oraz raport ryzyk i odstępstw.
-- Kryteria akceptacji. Wymagany CI, pakiety i migracja API potwierdzone, jawny go/no-go dla deklarowanych funkcji platformowych.
-- Warunki wyjścia i blokady. Każde issue w planie posiada udokumentowaną dyspozycję i dowód dla wersji. Integracja z master i publikacja po osobnych zgodach.
+- Kryteria akceptacji. Wymagane CI, matryca konsumentów i pakietów, zestaw Android z fizycznym input/IME/TalkBack i wybranym GPU, jawna decyzja o statusie Experimental.
+- Warunki wyjścia i blokady. Brak kompletnych dowodów utrzymuje Android Experimental. Zmiana statusu wymaga decyzji właściciela po kompletnym raporcie. Niewykonane GPU wymaga odrębnej zgody na technicznie uzasadniony wyjątek.
 - Praca równoległa. Sprzętowe stanowiska mogą pracować równolegle na jednym identyfikatorze kandydata.
 - Kwalifikacja etapu korzysta z S02, S03, S04, S05, S06, S07, S08. [Plan testów](TESTING-STRATEGY.md#macierz-etapów)
 
 | Wyodrębniona praca | Zgłoszenia |
 | --- | --- |
-| S09-a · Macierz release candidates, migration i finalny przegląd | — |
+| S09-a · Fizyczna matryca Android, CJK IME i wysokie odświeżanie | [#537](ISSUES-AUDIT.md#issue-537), [#538](ISSUES-AUDIT.md#issue-538) |
+| S09-b · Zbiorczy Android release gate oraz decyzja o statusie | — |
+| S09-c · Kwalifikacja pakietów, migracja i decyzja o wydaniu | — |
 
 ## Krytyczna kolejność i decyzje właściciela
 
@@ -264,17 +271,18 @@ bazowych pomiarów 3.x przez #419 i osobny kontrakt pomiaru prezentacji.
 Drugi prowadzi od #181 przez #408 i #453 do ruchu platformowego oraz
 #452 i #401. #449 zamyka zakres dowodowy. Ocena #338 może zakończyć się
 pozostawieniem renderowania na wątku UI. Kwalifikacja scroll na software
-jest niezależna od GPU. Kontrakty stylu, model progresu i macierz
-Designera mają własne bramy, które mogą zmienić ścieżkę krytyczną po
-decyzji o zakresie. [Graf](DEPENDENCY-GRAPH.md)
+może przebiegać równolegle z GPU. W gałęzi wydania #46 dostarcza główną
+funkcję 2.0.0. Prototypy GPU i pacing łączą się przed wyborem backendów.
+Zbiorcza macierz Androida łączy kwalifikację GPU i scroll z #537 i #538.
+To odrębne warunki wydania. [Graf](DEPENDENCY-GRAPH.md)
 
 Do zatwierdzenia są następujące decyzje i środowiska:
 
 - Zakres wspieranych OS/VS/SDK i TFM, deklaracje NativeAOT oraz
   stanowisko Windows z kompletnym SDK i C++.
 - Budżet po pomiarze na wybranym sprzęcie, w tym precision touchpad,
-  tryby 60–144 Hz, fizyczne urządzenia Android i warianty GPU. Wybór
-  między opt-in GPU w 2.0 a pozostawieniem wyniku jako prototypu.
+  tryby 60–144 Hz i fizyczne urządzenia Android. Wybór pierwszych
+  backendów GPU po prototypach. Całkowite no-go wymaga dowodów i zgody.
 - Macierz precedence, publiczny szew binding/template i definicja
   wspólnych scenariuszy scroll/grid/progress przed API konsumentów.
 - Zakres narzędzi wykonujących kod, macierz kwalifikacyjna i
@@ -312,3 +320,38 @@ w tym samym PR jego projekcje w Markdown.
 5. Zacznij kolejny etap z aktualnego `origin/develop/2.0.0`. Właściciel
    zatwierdza start S02, istotne zmiany zakresu oraz końcową integrację
    i publikację. [AGENTS.md](../../../AGENTS.md)
+
+## Dostarczenie GPU w S02
+
+| Podetap | Zakres |
+| --- | --- |
+| S02-a | Bazowe pomiary #114 na SkiaSharp 3.x, profiler #58 |
+| S02-c | Migracja #419 i potwierdzenie software 4.x |
+| S02-e | Ograniczone prototypy GPU Windows/Android, równolegle z S02-d |
+| S02-d | #338 mierzy prezentację, VSync i pacing. Render thread tylko po dowodach. |
+| S02-f | Po wyborze właściciela wąskie PR implementacji zaakceptowanych backendów |
+| S02-g | Kwalifikacja rzeczywistych backendów i zachowanie fallbacku software |
+
+## Etapy #16
+
+| Podetap | Zakres |
+| --- | --- |
+| S08-a | Wspólna geometria, DrawingView i granica opcjonalnego pakietu |
+| S08-b | Dane, serie, osie, Line/Area, Bar/Column, Pie/Donut w osobnych PR z legendą, tooltip, zaznaczaniem, motywami, animacją, dostępnością, dużymi zbiorami oraz testami |
+| S08-c | Diagramy, łączniki i zaawansowana wizualizacja oraz eksport. Podział wersji wymaga zgody właściciela. |
+
+## Brama zmiany statusu Androida
+
+Na tym etapie obowiązuje Experimental. Właściciel może zmienić status,
+gdy pełna macierz przejdzie na zatwierdzonych fizycznych konfiguracjach
+i tym samym kandydacie APK. Po każdym braku pozostaje jawna luka i status
+Experimental. Wydanie 2.0 z tym statusem wymaga uzgodnionego zakresu.
+
+| Obszar | Dowód | Powiązane |
+| --- | --- | --- |
+| Rendering i GPU | Software i wybrane GPU, fallback, Skia/RID, resize, DPI, resume i zmiana powierzchni | [#46](ISSUES-AUDIT.md#issue-46), [#419](ISSUES-AUDIT.md#issue-419), [#338](ISSUES-AUDIT.md#issue-338), [#538](ISSUES-AUDIT.md#issue-538) |
+| Wydajność, pamięć, odświeżanie | Co najmniej dwie różne fizyczne konfiguracje model/GPU/OS. 60 oraz aktywne 90/120 Hz na odpowiednim sprzęcie, p50/p95/p99, CPU, PSS, zasoby i soak z termiką. Compositor i scanout osobno. | [#58](ISSUES-AUDIT.md#issue-58), [#114](ISSUES-AUDIT.md#issue-114), [#454](ISSUES-AUDIT.md#issue-454), [#538](ISSUES-AUDIT.md#issue-538) |
+| Dotyk, gesty, scroll | Fizyczne wielodotykowe sekwencje, niezależne puszczenie i cancel. Nested ownership, fling i wirtualizacja. Oddzielić emulator i wstrzykiwane zdarzenia. | [#181](ISSUES-AUDIT.md#issue-181), [#449](ISSUES-AUDIT.md#issue-449), [#450](ISSUES-AUDIT.md#issue-450), [#453](ISSUES-AUDIT.md#issue-453), [#454](ISSUES-AUDIT.md#issue-454), [#538](ISSUES-AUDIT.md#issue-538) |
+| IME i obie klawiatury | Rzeczywisty Latin i CJK, kandydaci, focus, composition i cancel. Occlusion i show/hide, fizyczna klawiatura z modyfikatorami oraz stare API z nieznaną widocznością. | [#62](https://github.com/ProGraMajster/ModernFormsNext/issues/62), [#109](ISSUES-AUDIT.md#issue-109), [#131](https://github.com/ProGraMajster/ModernFormsNext/issues/131), [#402](ISSUES-AUDIT.md#issue-402), [#537](ISSUES-AUDIT.md#issue-537) |
+| Lifecycle i NativeViewHost | Activity recreate, background/foreground, Back i rozliczenie zwolnionych powierzchni, view, focus i callbacks. NativeViewHost sprawdzony na rzeczywistym widoku. | [#60](https://github.com/ProGraMajster/ModernFormsNext/issues/60), [#63](https://github.com/ProGraMajster/ModernFormsNext/issues/63), [#69](https://github.com/ProGraMajster/ModernFormsNext/issues/69), [#72](https://github.com/ProGraMajster/ModernFormsNext/issues/72), [#538](ISSUES-AUDIT.md#issue-538) |
+| Dostępność i status | Fizyczny TalkBack, focus/state/action, text, scroll i klawiatura. Zapisz hash APK, commit, Workload, OS/model/driver, Android API, wynik i ograniczenia. Stabilność wyłącznie po macierzy i zgodzie. | [#59](ISSUES-AUDIT.md#issue-59), [#69](https://github.com/ProGraMajster/ModernFormsNext/issues/69), [#454](ISSUES-AUDIT.md#issue-454), [#538](ISSUES-AUDIT.md#issue-538) |

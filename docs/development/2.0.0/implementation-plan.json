@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "language": "pl",
-  "status": "proposed-for-review",
+  "status": "owner-reviewed",
   "snapshotDate": "2026-11-27",
   "repository": "https://github.com/ProGraMajster/ModernFormsNext",
   "analysisRef": "origin/develop/2.0.0",
@@ -28,9 +28,16 @@
     "sourceRelationQueries": 146,
     "openPullRequestsAtSnapshot": 0,
     "declaredGitHubHardEdges": 0,
-    "proposedHardIssueEdges": 105,
-    "proposedSoftIssueEdges": 191,
-    "cyclesInHardGraph": 0
+    "proposedHardIssueEdges": 109,
+    "proposedSoftIssueEdges": 197,
+    "cyclesInHardGraph": 0,
+    "plannedIssues": 121,
+    "explicitlyPlannedWithoutMilestone": [
+      404,
+      537,
+      538,
+      555
+    ]
   },
   "projectAudit": {
     "url": "https://github.com/users/ProGraMajster/projects/3",
@@ -170,6 +177,12 @@
     ],
     "issuesOutsideProject": [
       2
+    ],
+    "proposedReconciliation": [
+      "Uzupełnić Target version 2.0.0 dla 40 kart po potwierdzeniu ich zakresu przez właściciela. Zachować Done #436 i listę rzeczywistych blokad.",
+      "Dla #249, #252, #253, #259, #260, #263 rozstrzygnąć pozycja po pozycji, czy dołączyć do milestone, czy skorygować etykietę do faktycznego zakresu. Propozycja: zachować jako follow-up poza 2.0 do osobnej decyzji.",
+      "Dla #16 zachować wszystkie kryteria. Po decyzji o chart/diagram usunąć niespójną etykietę lub zaplanować osobne pozycje wersji.",
+      "Uaktualnić opisy z Future i stare checkpointy. Zachować historię. Zmienić widok Current release na 2.0.0 lub dodać osobny widok 2.0.0 z kontrolą brakujących targetów."
     ]
   },
   "nextAction": {
@@ -180,7 +193,7 @@
       58
     ],
     "action": "Minimalny PerformanceLab i istniejący profiler na baseline 3.x.",
-    "status": "pending-owner-approval"
+    "status": "after-plan-integration"
   },
   "lastCompletedStage": "S01",
   "activeImplementationStage": null,
@@ -219,17 +232,17 @@
     },
     {
       "stageId": "S02",
-      "title": "Pomiary i stabilna ścieżka renderowania",
+      "title": "Bazowe pomiary, migracja software i akceleracja GPU",
       "status": "proposed",
       "stageQualificationPredecessors": [
         "S01"
       ],
-      "goal": "Zmierzyć bazę 3.x i zakwalifikować niezależną migrację software do SkiaSharp 4.x.",
-      "whyNow": "Pozwala porównać regresję biblioteki, pacing i późniejsze GPU z tym samym workloadem. TestHost i profiler już działają.",
-      "resultingArchitecture": "Powtarzalny harness PerformanceLab, jedna ścieżka CPU, udokumentowana decyzja o czasie i wątku prezentacji, osobne opt-in layout/reveal.",
-      "acceptance": "Porównywalne artefakty 3.x i 4.x, konsument, assets, typografia, DPI i funkcjonująca ścieżka Designer. Nie zmieniać GPU wraz z pakietem.",
-      "exitCriteriaAndBlockers": "Przejście po baseline-perf i software-4x dla prac zależnych. Pacing-contract wymagany do finalnej kwalifikacji scroll. Brak urządzenia/drivera blokuje tylko odpowiednią deklarację.",
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "goal": "Zmierz SkiaSharp 3.x, zakwalifikuj ścieżkę software po migracji, następnie oceń i dostarcz zaakceptowany zakres GPU dla Windows i Androida.",
+      "whyNow": "Spójna baza oddziela zmianę biblioteki, efekt synchronizacji i efekt GPU. Wczesne prototypy umożliwiają wybór ścieżki przed szeroką integracją.",
+      "resultingArchitecture": "Powtarzalny harness, wspierane software i fallback, wspólny kontrakt prezentacji, wybrane adaptery GPU oraz jawne możliwości i powody fallbacku.",
+      "acceptance": "Porównania 3.x/4.x software, prototypy i decyzja o backendach, osobne implementacje wybranych ścieżek oraz pomiar i stabilność na sprzęcie Windows/Android.",
+      "exitCriteriaAndBlockers": "Bazowy pomiar poprzedza #419. Po 4.x mogą równolegle powstać prototypy GPU i pomiar #338. Integracja po wyborze właściciela. Wydanie wymaga kwalifikacji zaakceptowanego zakresu GPU albo technicznie uzasadnionego wyjątku zatwierdzonego przez właściciela.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "waves": [
         {
           "waveId": "S02-a",
@@ -256,13 +269,30 @@
         },
         {
           "waveId": "S02-d",
-          "title": "Raport pacing i ewentualny osobny prototyp",
+          "title": "Pomiar prezentacji, frame pacing/VSync i weryfikacja potrzeby render thread",
           "issues": [
             338
           ]
         },
         {
           "waveId": "S02-e",
+          "title": "Wczesne porównanie i ograniczone prototypy GPU po software 4.x",
+          "issues": [
+            46
+          ]
+        },
+        {
+          "waveId": "S02-f",
+          "title": "Wybór i implementacja backendów GPU, oddzielne PR dla Windows i Androida",
+          "issues": []
+        },
+        {
+          "waveId": "S02-g",
+          "title": "Kwalifikacja GPU, kompatybilność i software fallback",
+          "issues": []
+        },
+        {
+          "waveId": "S02-h",
           "title": "Oddzielne PR coalescing i pierwszego reveal",
           "issues": [
             438,
@@ -277,6 +307,7 @@
         337,
         419,
         338,
+        46,
         438,
         439
       ]
@@ -290,7 +321,7 @@
       ],
       "goal": "Uzgodnić wspólną kolejność wartości, binding i tryb dostępności usług przed rozbudową konsumentów.",
       "whyNow": "Local/style/resource/pseudo-state/animation, recycling i platform results są współdzielone przez wiele rodzin.",
-      "resultingArchitecture": "Macierz precedence, adaptery typed/async, warstwa selector/template bez nowego silnika, arkusz możliwości i progi layout. Runtime .NET 10 pozostaje obowiązkowy.",
+      "resultingArchitecture": "Macierz precedence, adaptery typed/async, warstwa selector/template bez nowego silnika, arkusz możliwości i progi layout. Runtime .NET 10 pozostaje obowiązkowy. Ograniczony parser CSS może zasilać ten sam resolver.",
       "acceptance": "Każdy PR zachowuje stary tryb i ma deterministyczną semantykę ownership, fallback, invalidacji i anulowania.",
       "exitCriteriaAndBlockers": "Pierwsze moduły mogą zacząć równolegle z S02. Uzgodnione API, krawędzie JSON i testy kontraktowe otwierają właściwych klientów.",
       "parallelization": "Binding, wartości, layout i device facts mają osobne strumienie. Zmieniaj kanoniczny resolver w jednym PR na raz.",
@@ -329,10 +360,11 @@
         },
         {
           "waveId": "S03-e",
-          "title": "Klasy i selektory, później pseudostany",
+          "title": "Klasy, selektory, pseudostany i późniejszy parser CSS jako osobne PR",
           "issues": [
             177,
-            178
+            178,
+            404
           ]
         },
         {
@@ -386,6 +418,7 @@
         191,
         177,
         178,
+        404,
         173,
         172,
         14,
@@ -831,6 +864,13 @@
             486,
             40
           ]
+        },
+        {
+          "waveId": "S07-g",
+          "title": "Odrębna kwalifikacja parsera C# 15 w standardowym Designerze",
+          "issues": [
+            555
+          ]
         }
       ],
       "issueNumbers": [
@@ -845,42 +885,47 @@
         440,
         43,
         486,
-        40
+        40,
+        555
       ]
     },
     {
       "stageId": "S08",
-      "title": "Akceleracja opcjonalna i wizualizacja",
+      "title": "Wizualizacja danych i diagramy",
       "status": "proposed",
       "stageQualificationPredecessors": [
         "S02",
         "S03"
       ],
-      "goal": "Ocenić backendy GPU i dostarczać lekkie, przenośne widoki danych na wspólnych prymitywach.",
-      "whyNow": "GPU wymaga odrębnej własności surface/texture i sprzętu. Wykresy i geometryczne kontrolki mogą działać na CPU.",
-      "resultingArchitecture": "Software pozostaje referencyjnym fallbackiem. Wspólny DrawingView/coordinate model i opcjonalny moduł danych. Brak wymuszonej zależności backendu na Core.",
-      "acceptance": "Bezpieczny fallback, brak przecieku napięcia między backendami, jawnie wspierane platformy; QA danych, memory i scenariusze uszkodzenia kontekstu gdy GPU zatwierdzone.",
-      "exitCriteriaAndBlockers": "Zakres chart vs diagrams, sprzęt i wybrany backend wymagają decyzji. Brak GPU nie zatrzymuje software ani CPU visualizations według proponowanej polityki.",
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "goal": "Ustalić wspólny model i prymitywy, zbudować podstawowe wykresy, potem rozwinąć diagramy i zaawansowane wizualizacje.",
+      "whyNow": "Wizualizacje ponownie użyją skal, geometrii i akcji. Działają także na ścieżce software, a GPU można kwalifikować osobno.",
+      "resultingArchitecture": "Cienki DrawingView, współdzielone dane i serie, opcjonalny pakiet wykresów oraz osobny zakres diagramów bez drugiej infrastruktury.",
+      "acceptance": "Line, Area, Bar, Column, Pie i Donut, osie dla wykresów kartezjańskich, legenda, tooltip, zaznaczenie, animacja, motyw, dostępność, eksport i pomiar dużych zbiorów. Diagramy z prymitywami i łącznikami po fundamencie.",
+      "exitCriteriaAndBlockers": "Warstwa danych i podstawy wykresów przed diagramami. Wszystkie kryteria #16 zachowane, ewentualny podział między wersje do decyzji właściciela.",
+      "parallelization": "Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.",
       "waves": [
         {
           "waveId": "S08-a",
-          "title": "ADR i ograniczony pojedynczy backend GPU",
+          "title": "Cienki DrawingView i wspólne prymitywy",
           "issues": [
-            46
+            188
           ]
         },
         {
           "waveId": "S08-b",
-          "title": "Cienki DrawingView i opcjonalny chart vertical slice",
+          "title": "Wspólny model danych i podstawowe wykresy, kolejne PR rodzin",
           "issues": [
-            188,
             16
           ]
         },
         {
           "waveId": "S08-c",
-          "title": "Trzy odrębne widoki danych i interakcji",
+          "title": "Diagramy, łączniki i zaawansowane wizualizacje po podstawach",
+          "issues": []
+        },
+        {
+          "waveId": "S08-d",
+          "title": "CurveEditor, CalendarHeatmap i TimelineScrubber jako osobne PR",
           "issues": [
             281,
             296,
@@ -889,7 +934,6 @@
         }
       ],
       "issueNumbers": [
-        46,
         188,
         16,
         281,
@@ -899,7 +943,7 @@
     },
     {
       "stageId": "S09",
-      "title": "Kwalifikacja i decyzja wydawnicza",
+      "title": "Zbiorcza kwalifikacja Androida i decyzja wydawnicza",
       "status": "proposed",
       "stageQualificationPredecessors": [
         "S02",
@@ -910,20 +954,36 @@
         "S07",
         "S08"
       ],
-      "goal": "Zamknąć zweryfikowany zakres 2.0.0 z kompletem dowodów i proponowanymi przeniesieniami do akceptacji.",
+      "goal": "Zebrać dowody stabilizacji Androida i zakwalifikować zatwierdzony zakres 2.0.0 na jednym kandydacie.",
       "whyNow": "Stan etapów, Scope owner i finalny exact-head CI muszą być spójne.",
       "resultingArchitecture": "Reprodukowalna macierz pakietów, szablonów, IDE i urządzeń, release notes oraz raport ryzyk i odstępstw.",
-      "acceptance": "Wymagany CI, pakiety i migracja API potwierdzone, jawny go/no-go dla deklarowanych funkcji platformowych.",
-      "exitCriteriaAndBlockers": "Każde issue w planie posiada udokumentowaną dyspozycję i dowód dla wersji. Integracja z master i publikacja po osobnych zgodach.",
+      "acceptance": "Wymagane CI, matryca konsumentów i pakietów, zestaw Android z fizycznym input/IME/TalkBack i wybranym GPU, jawna decyzja o statusie Experimental.",
+      "exitCriteriaAndBlockers": "Brak kompletnych dowodów utrzymuje Android Experimental. Zmiana statusu wymaga decyzji właściciela po kompletnym raporcie. Niewykonane GPU wymaga odrębnej zgody na technicznie uzasadniony wyjątek.",
       "parallelization": "Sprzętowe stanowiska mogą pracować równolegle na jednym identyfikatorze kandydata.",
       "waves": [
         {
           "waveId": "S09-a",
-          "title": "Macierz release candidates, migration i finalny przegląd",
+          "title": "Fizyczna matryca Android, CJK IME i wysokie odświeżanie",
+          "issues": [
+            537,
+            538
+          ]
+        },
+        {
+          "waveId": "S09-b",
+          "title": "Zbiorczy Android release gate oraz decyzja o statusie",
+          "issues": []
+        },
+        {
+          "waveId": "S09-c",
+          "title": "Kwalifikacja pakietów, migracja i decyzja o wydaniu",
           "issues": []
         }
       ],
-      "issueNumbers": []
+      "issueNumbers": [
+        537,
+        538
+      ]
     }
   ],
   "gates": [
@@ -1069,10 +1129,77 @@
         "software-4x",
         "scroll-qualified",
         "style-precedence",
-        "designer-support-matrix"
+        "designer-support-matrix",
+        "gpu-qualified",
+        "android-qualification"
       ],
       "issueOwners": [],
-      "acceptance": "Każda przyjęta funkcja i odstępstwo ma jawną dyspozycję. Ścisłe CI i osobna zgoda na integrację finalną i publikację.",
+      "acceptance": "Każda przyjęta funkcja i odstępstwo ma jawną dyspozycję. Ścisłe CI i osobna zgoda na integrację finalną i publikację. Jeżeli Android pozostaje Experimental, wymagany jest raport z brakami i zaakceptowany zakres wydania. Stabilny Android wymaga pełnej macierzy.",
+      "status": "proposed"
+    },
+    {
+      "gateId": "gpu-prototypes",
+      "title": "Wczesne prototypy GPU",
+      "hardDependencies": [
+        "software-4x"
+      ],
+      "issueOwners": [
+        46
+      ],
+      "acceptance": "Porównanie Windows Direct3D/ANGLE/OpenGL/Vulkan i Android GLES/Vulkan. Kryteria: dostępność, zasoby native/RID, sterownik, lifecycle, i ślad. Metal i inne platformy jako przyszłe rozszerzenie.",
+      "status": "proposed"
+    },
+    {
+      "gateId": "gpu-selection",
+      "title": "Wybór backendów i kontraktu prezentacji",
+      "hardDependencies": [
+        "gpu-prototypes",
+        "pacing-contract"
+      ],
+      "issueOwners": [
+        46,
+        338
+      ],
+      "acceptance": "Właściciel akceptuje zestaw backendów albo uzasadniony wyjątek. Aktualny UI-thread jest bazą. Osobny render thread jest warunkowy.",
+      "status": "proposed"
+    },
+    {
+      "gateId": "gpu-qualified",
+      "title": "Kwalifikacja zaakceptowanego zakresu GPU",
+      "hardDependencies": [
+        "gpu-selection",
+        "issue:46"
+      ],
+      "issueOwners": [
+        46,
+        338
+      ],
+      "acceptance": "Sprzętowe wyniki i bezpieczny software fallback, dokładna deklaracja wspieranych kombinacji. Całkowite no-go z dowodami i zgodą właściciela stanowi udokumentowany wyjątek, a nie automatyczne spełnienie.",
+      "status": "proposed"
+    },
+    {
+      "gateId": "android-qualification",
+      "title": "Zbiorcza kwalifikacja Androida",
+      "hardDependencies": [
+        "scroll-qualified",
+        "gpu-qualified",
+        "issue:537",
+        "issue:538",
+        "issue:109",
+        "issue:402"
+      ],
+      "issueOwners": [
+        46,
+        59,
+        69,
+        72,
+        109,
+        402,
+        454,
+        537,
+        538
+      ],
+      "acceptance": "Dowody Android z urządzeń i zgodnego APK, obejmujące każdą pozycję macierzy. Zmiana Experimental wyłącznie po zatwierdzeniu zakresu i dowodów przez właściciela. Przy brakach nadal Experimental.",
       "status": "proposed"
     }
   ],
@@ -1129,9 +1256,42 @@
       "designer-support-matrix",
       "issue:486",
       "issue:40"
+    ],
+    [
+      "software-4x",
+      "gpu-prototypes",
+      "gpu-selection",
+      "issue:46",
+      "gpu-qualified",
+      "release-qualification"
+    ],
+    [
+      "software-4x",
+      "pacing-contract",
+      "gpu-selection",
+      "issue:46",
+      "gpu-qualified",
+      "android-qualification",
+      "release-qualification"
+    ],
+    [
+      "issue:194",
+      "issue:177",
+      "issue:178",
+      "issue:404"
+    ],
+    [
+      "issue:538",
+      "android-qualification",
+      "release-qualification"
+    ],
+    [
+      "issue:537",
+      "android-qualification",
+      "release-qualification"
     ]
   ],
-  "criticalPathMethod": "Ścieżki warunków technicznych. Bez zobowiązania terminów. Dwie gałęzie spotykają się w #454. Jeśli zmieni się przyjęty zakres wydania lub sprzęt, przeliczyć.",
+  "criticalPathMethod": "Ścieżki techniczne bez prognozy kalendarza. Pomiary software i ruch spotykają się w #454. GPU i Android mają osobne bramy charakteru wydania, które mogą stać się krytyczne.",
   "issues": [
     {
       "issueNumber": 14,
@@ -1219,7 +1379,8 @@
         233,
         283,
         296
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 16,
@@ -1231,10 +1392,10 @@
       "status": "proposed",
       "auditStatus": "foundation",
       "assessment": "pokrewny kod stanowi fundament, a docelowej funkcji lub dowodu jeszcze brakuje",
-      "proposedDisposition": "decision",
+      "proposedDisposition": "split",
       "estimatedComplexity": "XL",
       "implementationEvidence": "Shape/path, Brush, ThemeManager i scheduler już dostępne. Brak modułu wykresów i układu diagramów. Zgłoszenie ma równocześnie etykietę 2.0.0 i 2.2.0.",
-      "remainingWorkAndCompatibility": "Osobny pakiet i najmniejszy przekrój danych/osi/linii, potem serie i eksport. Diagramy i 3D jako osobny zakres po zgodzie właściciela. Uzgodnić etykiety i przewidywany scope 2.0.",
+      "remainingWorkAndCompatibility": "Wspólny model, dane, serie, skale i geometria. Kolejno Line/Area, Bar/Column i Pie/Donut. Legenda, tooltip, zaznaczanie, tematy, animacja, tekst i dojście klawiaturą. Następnie prymitywy diagramów, łączniki, zaawansowane wizualizacje i eksport. Zakres między wersjami uzgodni właściciel.",
       "hardDependencies": [
         188
       ],
@@ -1247,7 +1408,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "parallelization": "Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.",
       "sharedInfrastructure": [
         "RENDER",
         "ANIM",
@@ -1265,7 +1426,7 @@
         "Android Experimental"
       ],
       "requiresHardwareOrDedicatedEnvironment": false,
-      "testingScope": "Duże dane i decymacja, numeric/locale legends, keyboard/semantic, renderer threshold, package optional.",
+      "testingScope": "Osie i skale, zero/ujemne/brakujące dane, decymacja oraz czas/pamięć dużych serii, animacje z redukcją ruchu, tematy, dostępność, testy Windows/Android, demo, eksport i kompatybilność opcjonalnego pakietu.",
       "risks": {
         "regression": "wysoki",
         "publicApi": "addytywne opt-in",
@@ -1322,7 +1483,8 @@
       "softDependants": [
         281,
         296
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 20,
@@ -1415,7 +1577,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 21,
@@ -1503,7 +1666,8 @@
       },
       "softDependants": [
         256
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 40,
@@ -1620,7 +1784,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 43,
@@ -1719,7 +1884,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 44,
@@ -1814,8 +1980,10 @@
         "reviewedComments": []
       },
       "softDependants": [
-        40
-      ]
+        40,
+        555
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 45,
@@ -1896,33 +2064,35 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 46,
       "title": "GPU Accelerated support like Avalonia.OpenGL,Avalonia.Vulkan and more",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/46",
-      "stageId": "S08",
-      "waveId": "S08-a",
-      "priority": "P1",
+      "stageId": "S02",
+      "waveId": "S02-e",
+      "priority": "P0",
       "status": "proposed",
       "auditStatus": "partial",
       "assessment": "fragment zakresu obecny w kodzie lub w dowodach kwalifikacji, pozostały otwarte kryteria",
-      "proposedDisposition": "decision",
+      "proposedDisposition": "split",
       "estimatedComplexity": "XL",
       "implementationEvidence": "#170/#171 dostarczyły prywatne IRenderingBackend/IWindowRenderSurface/IRenderFrame i software fallback jako aktualną ścieżkę Auto. Brak GPU selection, context oraz platform capability guarantees.",
-      "remainingWorkAndCompatibility": "Po #419 ocenić jeden sprzętowy wariant na Windows, osobno Android GLES/Vulkan. ANGLE/D3D, OpenGL, Vulkan i Metal porównać w ADR po interop/support assets. Linux/macOS/iOS/WebGL poza aktywną matrycą. Zwykły release CPU może być niezależny.",
+      "remainingWorkAndCompatibility": "S02-e: po #419 ograniczone prototypy Direct3D, ANGLE, OpenGL i Vulkan na Windows oraz GLES/Vulkan na Androidzie. Równolegle #338 bada prezentację, pacing i VSync. S02-f: zaakceptowane backendy w osobnych PR. S02-g: sprzętowa kwalifikacja i CPU fallback. Całkowite no-go tylko za decyzją właściciela z dowodami.",
       "hardDependencies": [
         419
       ],
       "softDependencies": [
-        338,
         58
       ],
       "hardDependencyGates": [
-        "software-4x"
+        "gpu-selection"
       ],
-      "phaseGateScope": {},
+      "phaseGateScope": {
+        "gpu-selection": "obejmuje docelową implementację S02-f. Prototypy S02-e korzystają z software-4x i biegną równolegle z #338."
+      },
       "dependants": [],
       "conflicts": [
         {
@@ -1942,7 +2112,7 @@
           "strategy": "NativeViewHost odpowiada za geometrię, focus i lifecycle. GPU dokumentuje granice kompozycji."
         }
       ],
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "FRAME",
         "PERF",
@@ -1960,7 +2130,7 @@
         "Android Experimental"
       ],
       "requiresHardwareOrDedicatedEnvironment": true,
-      "testingScope": "Test warstwy fake, hardware fixed manifest i wiele driverów, resize/recreate/context loss, HiDPI/damage, NativeViewHost, wydajność i bez GPU w CI.",
+      "testingScope": "Potwierdzić aktywny backend, failover i przyczynę, resize/DPI, utratę kontekstu, zasoby i zgodność native views. Fizyczne ślady Windows/Android, driver/device matrix, separacja CPU, submission, GPU i prezentacji.",
       "risks": {
         "regression": "wysoki",
         "publicApi": "ryzyko zmiany zachowania lub ABI",
@@ -2026,7 +2196,10 @@
           "https://github.com/ProGraMajster/ModernFormsNext/issues/46#issuecomment-6000074430"
         ]
       },
-      "softDependants": []
+      "softDependants": [
+        538
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 57,
@@ -2130,7 +2303,8 @@
       "softDependants": [
         86,
         87
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 58,
@@ -2154,7 +2328,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "PERF",
         "FRAME"
@@ -2243,7 +2417,8 @@
         419,
         438,
         439
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 59,
@@ -2379,7 +2554,8 @@
         116,
         378,
         403
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 61,
@@ -2490,7 +2666,8 @@
       },
       "softDependants": [
         97
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 64,
@@ -2514,7 +2691,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "TEST",
         "POP",
@@ -2607,7 +2784,8 @@
         438,
         440,
         454
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 86,
@@ -2692,7 +2870,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 87,
@@ -2782,7 +2961,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 97,
@@ -2891,7 +3071,8 @@
       },
       "softDependants": [
         410
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 109,
@@ -2981,7 +3162,10 @@
           "https://github.com/ProGraMajster/ModernFormsNext/issues/109#issuecomment-7066955980"
         ]
       },
-      "softDependants": []
+      "softDependants": [
+        537
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 114,
@@ -3008,7 +3192,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "PERF",
         "TEST",
@@ -3082,7 +3266,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 116,
@@ -3187,7 +3372,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 172,
@@ -3277,7 +3463,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 173,
@@ -3352,7 +3539,8 @@
       },
       "softDependants": [
         172
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 174,
@@ -3445,7 +3633,8 @@
         189,
         191,
         283
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 175,
@@ -3536,7 +3725,8 @@
         172,
         179,
         341
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 176,
@@ -3617,7 +3807,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 177,
@@ -3644,7 +3835,8 @@
       ],
       "phaseGateScope": {},
       "dependants": [
-        178
+        178,
+        404
       ],
       "conflicts": [
         {
@@ -3717,7 +3909,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 178,
@@ -3743,7 +3936,9 @@
         "style-precedence"
       ],
       "phaseGateScope": {},
-      "dependants": [],
+      "dependants": [
+        404
+      ],
       "conflicts": [
         {
           "withIssues": [
@@ -3817,7 +4012,8 @@
       "softDependants": [
         277,
         278
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 179,
@@ -3935,7 +4131,8 @@
         284,
         353,
         354
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 181,
@@ -4054,7 +4251,8 @@
         378,
         410,
         449
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 182,
@@ -4140,7 +4338,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 183,
@@ -4230,14 +4429,15 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 188,
       "title": "Add reusable custom drawing surface API",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/188",
       "stageId": "S08",
-      "waveId": "S08-b",
+      "waveId": "S08-a",
       "priority": "P1",
       "status": "proposed",
       "auditStatus": "foundation",
@@ -4257,7 +4457,7 @@
         16
       ],
       "conflicts": [],
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "parallelization": "Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.",
       "sharedInfrastructure": [
         "RENDER",
         "INPUT",
@@ -4318,7 +4518,8 @@
         289,
         296,
         297
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 189,
@@ -4389,7 +4590,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 191,
@@ -4476,7 +4678,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 194,
@@ -4502,7 +4705,8 @@
         174,
         177,
         179,
-        340
+        340,
+        404
       ],
       "conflicts": [
         {
@@ -4594,7 +4798,8 @@
         288,
         364,
         440
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 206,
@@ -4689,7 +4894,8 @@
       "softDependants": [
         216,
         267
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 207,
@@ -4773,7 +4979,8 @@
       },
       "softDependants": [
         216
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 208,
@@ -4867,7 +5074,8 @@
       "softDependants": [
         209,
         214
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 209,
@@ -4954,7 +5162,8 @@
       "softDependants": [
         215,
         230
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 210,
@@ -5031,7 +5240,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 211,
@@ -5107,7 +5317,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 212,
@@ -5202,7 +5413,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 213,
@@ -5297,7 +5509,8 @@
       },
       "softDependants": [
         208
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 214,
@@ -5373,7 +5586,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 215,
@@ -5471,7 +5685,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 216,
@@ -5555,7 +5770,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 217,
@@ -5637,7 +5853,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 218,
@@ -5717,7 +5934,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 219,
@@ -5807,7 +6025,8 @@
       },
       "softDependants": [
         218
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 220,
@@ -5906,7 +6125,8 @@
       },
       "softDependants": [
         292
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 221,
@@ -5986,7 +6206,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 222,
@@ -6070,7 +6291,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 223,
@@ -6169,7 +6391,8 @@
       "softDependants": [
         116,
         220
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 224,
@@ -6261,7 +6484,8 @@
       },
       "softDependants": [
         226
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 225,
@@ -6357,7 +6581,8 @@
         226,
         234,
         292
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 226,
@@ -6447,7 +6672,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 227,
@@ -6539,7 +6765,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 228,
@@ -6618,7 +6845,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 229,
@@ -6709,7 +6937,8 @@
       "softDependants": [
         222,
         297
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 230,
@@ -6793,7 +7022,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 231,
@@ -6878,7 +7108,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 232,
@@ -6956,7 +7187,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 233,
@@ -7051,7 +7283,8 @@
       "softDependants": [
         218,
         254
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 234,
@@ -7165,7 +7398,8 @@
       "softDependants": [
         284,
         292
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 235,
@@ -7245,7 +7479,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 250,
@@ -7344,7 +7579,8 @@
       },
       "softDependants": [
         251
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 251,
@@ -7444,7 +7680,8 @@
       },
       "softDependants": [
         351
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 254,
@@ -7532,7 +7769,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 255,
@@ -7622,7 +7860,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 256,
@@ -7713,7 +7952,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 257,
@@ -7808,7 +8048,8 @@
       "softDependants": [
         21,
         254
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 267,
@@ -7890,7 +8131,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 277,
@@ -7979,7 +8221,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 278,
@@ -8053,7 +8296,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 279,
@@ -8154,7 +8398,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 280,
@@ -8239,14 +8484,15 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 281,
       "title": "[CurveEditor] Add interactive 2D curve/transfer-function editor with optional histogram",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/281",
       "stageId": "S08",
-      "waveId": "S08-c",
+      "waveId": "S08-d",
       "priority": "P3",
       "status": "proposed",
       "auditStatus": "foundation",
@@ -8265,7 +8511,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "parallelization": "Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.",
       "sharedInfrastructure": [
         "RENDER",
         "INPUT",
@@ -8314,7 +8560,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 282,
@@ -8402,7 +8649,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 283,
@@ -8493,7 +8741,8 @@
       "softDependants": [
         255,
         280
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 284,
@@ -8571,7 +8820,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 288,
@@ -8644,7 +8894,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 289,
@@ -8720,7 +8971,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 292,
@@ -8811,14 +9063,15 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 296,
       "title": "[CalendarHeatmap] Add GitHub-style daily activity heatmap control",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/296",
       "stageId": "S08",
-      "waveId": "S08-c",
+      "waveId": "S08-d",
       "priority": "P3",
       "status": "proposed",
       "auditStatus": "foundation",
@@ -8837,7 +9090,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "parallelization": "Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.",
       "sharedInfrastructure": [
         "RENDER",
         "THEME",
@@ -8891,14 +9144,15 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 297,
       "title": "[TimelineScrubber] Add reusable seekable timeline with markers and range selection",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/297",
       "stageId": "S08",
-      "waveId": "S08-c",
+      "waveId": "S08-d",
       "priority": "P3",
       "status": "proposed",
       "auditStatus": "foundation",
@@ -8925,7 +9179,7 @@
           "strategy": "Wspólna konwersja czasu przy różnych kontraktach odczytu i seek."
         }
       ],
-      "parallelization": "CPU rysowanie i modele danych są niezależne od GPU. Platformowe spiki GPU po ustaleniu fallbacku.",
+      "parallelization": "Po kontrakcie danych powstają oddzielne renderery rodzin wykresów. CPU i hardware GPU kwalifikujemy niezależnie.",
       "sharedInfrastructure": [
         "NUM",
         "RENDER",
@@ -8978,7 +9232,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 308,
@@ -9057,7 +9312,8 @@
       "softDependants": [
         21,
         87
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 309,
@@ -9150,7 +9406,8 @@
         20,
         57,
         182
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 335,
@@ -9249,7 +9506,8 @@
       "softDependants": [
         341,
         364
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 336,
@@ -9332,7 +9590,8 @@
         175,
         335,
         437
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 337,
@@ -9358,7 +9617,7 @@
       "phaseGateScope": {},
       "dependants": [],
       "conflicts": [],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "TEXT",
         "RENDER",
@@ -9418,8 +9677,10 @@
         207,
         235,
         280,
-        419
-      ]
+        419,
+        537
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 338,
@@ -9434,7 +9695,7 @@
       "proposedDisposition": "decision",
       "estimatedComplexity": "XL",
       "implementationEvidence": "IRenderFrame egzekwuje wątek, WindowBase maluje synchronicznie. Android ma Choreographer dla animacji. Brakuje kontraktu mierzącego prezentację i kolejkę.",
-      "remainingWorkAndCompatibility": "Najpierw instrumentacja i decyzja software-only. Porównać UI-thread pacing z przekazaniem niezmiennych danych, kolejką 1 i odrzucaniem starych klatek. Render thread tylko po dowodzie korzyści i izolacji canvas/owner.",
+      "remainingWorkAndCompatibility": "Po #419 porównać software UI-thread i bezpieczny handoff na tych samych scenariuszach. Równolegle z prototypami #46 zdefiniować observable present, VSync i backpressure. Render thread tylko po zmierzonej korzyści i bez naruszenia ownership.",
       "hardDependencies": [
         419
       ],
@@ -9458,7 +9719,7 @@
           "strategy": "Osobne opt-in policies i synchroniczny fallback."
         }
       ],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "FRAME",
         "PERF",
@@ -9519,14 +9780,15 @@
         "reviewedComments": []
       },
       "softDependants": [
-        46,
         408,
         439,
         450,
         451,
         452,
-        454
-      ]
+        454,
+        538
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 340,
@@ -9633,8 +9895,10 @@
         256,
         257,
         267,
-        282
-      ]
+        282,
+        404
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 341,
@@ -9741,7 +10005,8 @@
         213,
         233,
         354
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 351,
@@ -9832,7 +10097,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 353,
@@ -9930,7 +10196,8 @@
       },
       "softDependants": [
         87
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 354,
@@ -10034,7 +10301,8 @@
       "softDependants": [
         251,
         279
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 364,
@@ -10124,7 +10392,8 @@
       },
       "softDependants": [
         61
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 378,
@@ -10225,7 +10494,8 @@
         251,
         283,
         354
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 401,
@@ -10326,7 +10596,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 402,
@@ -10406,7 +10677,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 403,
@@ -10499,7 +10771,84 @@
       },
       "softDependants": [
         97
-      ]
+      ],
+      "scope": "milestone"
+    },
+    {
+      "issueNumber": 404,
+      "title": "[Styling] Investigate optional CSS-compatible stylesheet parser and cascade",
+      "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/404",
+      "scope": "related-without-milestone",
+      "stageId": "S03",
+      "waveId": "S03-e",
+      "priority": "P1",
+      "status": "proposed",
+      "auditStatus": "foundation",
+      "assessment": "powiązane z planem, bez przypisania do milestone",
+      "estimatedComplexity": "XL",
+      "proposedDisposition": "split",
+      "implementationEvidence": "ControlStyle, ThemeManager, DynamicResource i Visual States są gotowe. Wspólny selector/cascade pozostaje zakresem #194/#177/#178.",
+      "remainingWorkAndCompatibility": "Po fundamentach przygotować ograniczony parser z klasami/id/pseudostanami, zmiennymi i warunkami środowiska. Mapować na istniejące wartości i invalidację. Później diagnostyka, edytor, reload i jawny zakres rozszerzeń. Bez DOM.",
+      "hardDependencies": [
+        194,
+        177,
+        178
+      ],
+      "softDependencies": [
+        340
+      ],
+      "hardDependencyGates": [],
+      "phaseGateScope": {},
+      "parallelization": "Binding, wartości, layout i device facts mają osobne strumienie. Zmieniaj kanoniczny resolver w jednym PR na raz.",
+      "sharedInfrastructure": [
+        "THEME",
+        "RES",
+        "STATE",
+        "DES"
+      ],
+      "affectedComponents": [
+        "motywy, ControlStyle i platformowe preferencje",
+        "zakres zasobów i typowane wartości",
+        "PropertyStore, Visual States i style prezentacji",
+        "model .mfdesign, Roslyn, generator i persistence"
+      ],
+      "affectedPlatforms": [
+        "Windows",
+        "Android Experimental"
+      ],
+      "requiresHardwareOrDedicatedEnvironment": false,
+      "testingScope": "Porównanie resolvera dla code-first i CSS, reset/precedence, bounded parser, invalidacja przy resize/theme; Designer roundtrip i pomiar dużego drzewa.",
+      "risks": {
+        "regression": "wysoki",
+        "publicApi": "addytywne opt-in",
+        "performance": "wysoki"
+      },
+      "evidencePaths": [
+        "ModernFormsNext/ControlStyle.cs",
+        "ModernFormsNext/Control.Resources.cs",
+        "ModernFormsNext/Layout/PropertyStore.cs",
+        "ModernFormsNext.Designing/Serialization/DesignDocumentSerializer.cs"
+      ],
+      "confirmedHistoricalPullRequests": [],
+      "relatedIssueNumbers": [],
+      "conflicts": [],
+      "github": {
+        "state": "open",
+        "stateReason": null,
+        "milestoneNumber": null,
+        "title": "[Styling] Investigate optional CSS-compatible stylesheet parser and cascade",
+        "labels": [],
+        "projectStatus": "Backlog",
+        "projectTargetVersion": null,
+        "parent": null,
+        "subIssues": [],
+        "recordedBlockedBy": [],
+        "referencedPullRequests": [],
+        "linkedPullRequests": [],
+        "reviewedComments": []
+      },
+      "dependants": [],
+      "softDependants": []
     },
     {
       "issueNumber": 408,
@@ -10603,7 +10952,8 @@
       "softDependants": [
         449,
         452
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 410,
@@ -10695,7 +11045,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 419,
@@ -10727,7 +11078,7 @@
         338
       ],
       "conflicts": [],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "SDK",
         "FRAME",
@@ -10795,7 +11146,8 @@
       "softDependants": [
         188,
         438
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 435,
@@ -10821,7 +11173,8 @@
         337,
         419,
         437,
-        439
+        439,
+        555
       ],
       "conflicts": [],
       "parallelization": "Zależności historyczne są zamknięte.",
@@ -10885,7 +11238,8 @@
       "softDependants": [
         183,
         436
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 436,
@@ -10971,7 +11325,8 @@
           "https://github.com/ProGraMajster/ModernFormsNext/issues/436#issuecomment-7223784032"
         ]
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 437,
@@ -11053,14 +11408,15 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 438,
       "title": "[Rendering] Add scoped bulk UI mutation with layout and painting coalescing",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/438",
       "stageId": "S02",
-      "waveId": "S02-e",
+      "waveId": "S02-h",
       "priority": "P1",
       "status": "proposed",
       "auditStatus": "partial",
@@ -11093,7 +11449,7 @@
           "strategy": "Osobne opt-in policies i synchroniczny fallback."
         }
       ],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "LAY",
         "FRAME",
@@ -11158,14 +11514,15 @@
         43,
         250,
         340
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 439,
       "title": "[Windowing] Add optional deferred first reveal after initial layout and theming",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/439",
       "stageId": "S02",
-      "waveId": "S02-e",
+      "waveId": "S02-h",
       "priority": "P1",
       "status": "proposed",
       "auditStatus": "foundation",
@@ -11197,7 +11554,7 @@
           "strategy": "Osobne opt-in policies i synchroniczny fallback."
         }
       ],
-      "parallelization": "Kod renderera i wspólny profiler integruj sekwencyjnie. Pomiar i scenariusze TestHost mogą powstawać równolegle.",
+      "parallelization": "Na bazie 4.x można niezależnie badać backendy i pacing na wspólnym scenariuszu. Kontrakt UI thread, powierzchni i fallbacku integruj sekwencyjnie.",
       "sharedInfrastructure": [
         "WIN",
         "FRAME",
@@ -11255,7 +11612,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 440,
@@ -11351,7 +11709,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 449,
@@ -11470,7 +11829,8 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [],
+      "scope": "milestone"
     },
     {
       "issueNumber": 450,
@@ -11573,7 +11933,8 @@
       },
       "softDependants": [
         401
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 451,
@@ -11675,7 +12036,8 @@
       },
       "softDependants": [
         401
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 452,
@@ -11781,7 +12143,8 @@
       },
       "softDependants": [
         402
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 453,
@@ -11894,7 +12257,8 @@
         250,
         353,
         402
-      ]
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 454,
@@ -11993,7 +12357,10 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
-      "softDependants": []
+      "softDependants": [
+        538
+      ],
+      "scope": "milestone"
     },
     {
       "issueNumber": 486,
@@ -12096,6 +12463,231 @@
         "linkedPullRequests": [],
         "reviewedComments": []
       },
+      "softDependants": [],
+      "scope": "milestone"
+    },
+    {
+      "issueNumber": 537,
+      "title": "Qualify CJK IMEs, candidate placement and additional keyboard layouts",
+      "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/537",
+      "scope": "related-without-milestone",
+      "stageId": "S09",
+      "waveId": "S09-a",
+      "priority": "P1",
+      "status": "proposed",
+      "auditStatus": "partial",
+      "assessment": "powiązane z planem, bez przypisania do milestone",
+      "estimatedComplexity": "M",
+      "proposedDisposition": "qualification",
+      "implementationEvidence": "Istnieją Windows IMM32/HWND, testy InputConnection i realny Gboard Latin na NX769J. Brak dowodu dla CJK na obu platformach.",
+      "remainingWorkAndCompatibility": "Osobno CJK kompozycja, kandydaci, commit/cancel, focus, caret i DPI. Dodatkowy layout Windows. Android hardware shortcuts pokrywa #109.",
+      "hardDependencies": [],
+      "softDependencies": [
+        109,
+        337
+      ],
+      "hardDependencyGates": [],
+      "phaseGateScope": {},
+      "parallelization": "Sprzętowe stanowiska mogą pracować równolegle na jednym identyfikatorze kandydata.",
+      "sharedInfrastructure": [
+        "IME",
+        "INPUT",
+        "DOC"
+      ],
+      "affectedComponents": [
+        "wspólna kompozycja tekstu i backendy",
+        "kanoniczny routing pointer/wheel i backendy",
+        "portable rich text, Markdown i layout dokumentu"
+      ],
+      "affectedPlatforms": [
+        "Windows",
+        "Android Experimental"
+      ],
+      "requiresHardwareOrDedicatedEnvironment": true,
+      "testingScope": "Windows i Android z fizycznym systemem i wybraną implementacją CJK IME. TextBox, RichTextBox i MarkdownEditor. Zapisać urządzenie/OS/IME i wynik z ograniczeniami.",
+      "risks": {
+        "regression": "wysoki",
+        "publicApi": "wewnętrzne lub kwalifikacja",
+        "performance": "średni"
+      },
+      "evidencePaths": [
+        "ModernFormsNext/WindowBase.TextInput.cs",
+        "ModernFormsNext/SkiaControlSurface.cs",
+        "ModernFormsNext/RichTextBox.cs"
+      ],
+      "confirmedHistoricalPullRequests": [
+        539
+      ],
+      "relatedIssueNumbers": [
+        109,
+        131,
+        133
+      ],
+      "conflicts": [],
+      "github": {
+        "state": "open",
+        "stateReason": null,
+        "milestoneNumber": null,
+        "title": "Qualify CJK IMEs, candidate placement and additional keyboard layouts",
+        "labels": [],
+        "projectStatus": "Backlog",
+        "projectTargetVersion": null,
+        "parent": null,
+        "subIssues": [],
+        "recordedBlockedBy": [],
+        "referencedPullRequests": [],
+        "linkedPullRequests": [],
+        "reviewedComments": []
+      },
+      "dependants": [],
+      "softDependants": []
+    },
+    {
+      "issueNumber": 538,
+      "title": "Qualify Android high refresh and extended physical-device behavior",
+      "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/538",
+      "scope": "related-without-milestone",
+      "stageId": "S09",
+      "waveId": "S09-a",
+      "priority": "P1",
+      "status": "proposed",
+      "auditStatus": "partial",
+      "assessment": "powiązane z planem, bez przypisania do milestone",
+      "estimatedComplexity": "L",
+      "proposedDisposition": "qualification",
+      "implementationEvidence": "NX769J przeszedł wcześniejszą próbę 90 s i 36 cykli rekreacji. Dwie próby wykazały aktywne 60 Hz mimo wybrania trybu 120 Hz. Dotychczasowe MotionEvent były wstrzykiwane.",
+      "remainingWorkAndCompatibility": "Rzeczywiste 90 i 120 Hz podczas ruchu, drugi model/OS, wielodotyk z fizycznych palców i soak lifecycle/pamięci/temperatury. Powiązać ślady z #454 i backendem GPU.",
+      "hardDependencies": [],
+      "softDependencies": [
+        454,
+        46,
+        338
+      ],
+      "hardDependencyGates": [],
+      "phaseGateScope": {},
+      "parallelization": "Sprzętowe stanowiska mogą pracować równolegle na jednym identyfikatorze kandydata.",
+      "sharedInfrastructure": [
+        "PERF",
+        "INPUT",
+        "FRAME",
+        "SERV"
+      ],
+      "affectedComponents": [
+        "profilowanie i scenariusze wydajności",
+        "kanoniczny routing pointer/wheel i backendy",
+        "software backend, zakreślona klatka i prezentacja",
+        "registry, lifecycle, WindowKit i uprawnienia"
+      ],
+      "affectedPlatforms": [
+        "Windows",
+        "Android Experimental"
+      ],
+      "requiresHardwareOrDedicatedEnvironment": true,
+      "testingScope": "Fizyczne urządzenia, aktywny refresh, frame intervals i CPU paint, PSS, zasilanie, termika i zwalnianie zasobów. Emulator i input syntetyczny raportować oddzielnie.",
+      "risks": {
+        "regression": "wysoki",
+        "publicApi": "wewnętrzne lub kwalifikacja",
+        "performance": "wysoki"
+      },
+      "evidencePaths": [
+        "ModernFormsNext/Diagnostics/PerformanceProfiler.cs",
+        "ModernFormsNext/SkiaControlSurface.cs",
+        "ModernFormsNext/Rendering/IRenderFrame.cs",
+        "ModernFormsNext.WindowKit/Screens.cs"
+      ],
+      "confirmedHistoricalPullRequests": [
+        539
+      ],
+      "relatedIssueNumbers": [
+        133
+      ],
+      "conflicts": [],
+      "github": {
+        "state": "open",
+        "stateReason": null,
+        "milestoneNumber": null,
+        "title": "Qualify Android high refresh and extended physical-device behavior",
+        "labels": [],
+        "projectStatus": "Backlog",
+        "projectTargetVersion": null,
+        "parent": null,
+        "subIssues": [],
+        "recordedBlockedBy": [],
+        "referencedPullRequests": [],
+        "linkedPullRequests": [],
+        "reviewedComments": []
+      },
+      "dependants": [],
+      "softDependants": []
+    },
+    {
+      "issueNumber": 555,
+      "title": "[Designer] Qualify C# 15 syntax in the standard data Designer",
+      "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/555",
+      "scope": "related-without-milestone",
+      "stageId": "S07",
+      "waveId": "S07-g",
+      "priority": "P2",
+      "status": "proposed",
+      "auditStatus": "partial",
+      "assessment": "powiązane z planem, bez przypisania do milestone",
+      "estimatedComplexity": "L",
+      "proposedDisposition": "qualification",
+      "implementationEvidence": "SDK 11 obsłużył przykład union, Roslyn 4.14.0 w standardowym Designerze odrzucił go również w Preview.",
+      "remainingWorkAndCompatibility": "Ocenić kompatybilną wersję Roslyn i chronione ścieżki reverse sync, event binding i generowania. Kwalifikować niezależnie od #336 i #486.",
+      "hardDependencies": [
+        435
+      ],
+      "softDependencies": [
+        44
+      ],
+      "hardDependencyGates": [],
+      "phaseGateScope": {},
+      "parallelization": "Standardowy Designer, dostępność i kompatybilność mają niezależne ścieżki. Dowody bezpieczeństwa poprzedzają włączanie wykonania.",
+      "sharedInfrastructure": [
+        "DES",
+        "SDK"
+      ],
+      "affectedComponents": [
+        "model .mfdesign, Roslyn, generator i persistence",
+        "SDK, TFM, NuGet i CI"
+      ],
+      "affectedPlatforms": [
+        "Windows",
+        "tooling/CI/.NET"
+      ],
+      "requiresHardwareOrDedicatedEnvironment": true,
+      "testingScope": "Projekt .NET 10 i 11, Roslyn, read/rewrite w Integrated i Separate, jasna diagnostyka i zachowane źródło.",
+      "risks": {
+        "regression": "wysoki",
+        "publicApi": "wewnętrzne lub kwalifikacja",
+        "performance": "średni"
+      },
+      "evidencePaths": [
+        "ModernFormsNext.Designing/Serialization/DesignDocumentSerializer.cs",
+        "global.json"
+      ],
+      "confirmedHistoricalPullRequests": [],
+      "relatedIssueNumbers": [
+        435
+      ],
+      "conflicts": [],
+      "github": {
+        "state": "open",
+        "stateReason": null,
+        "milestoneNumber": null,
+        "title": "[Designer] Qualify C# 15 syntax in the standard data Designer",
+        "labels": [],
+        "projectStatus": "Backlog",
+        "projectTargetVersion": null,
+        "parent": null,
+        "subIssues": [],
+        "recordedBlockedBy": [],
+        "referencedPullRequests": [],
+        "linkedPullRequests": [],
+        "reviewedComments": []
+      },
+      "dependants": [],
       "softDependants": []
     }
   ],
@@ -12678,14 +13270,6 @@
       "note": "Ogólna kotwica wobec dynamicznej treści. ItemsControl posiada lokalny anchor pod scope tego kodu."
     },
     {
-      "issueNumber": 404,
-      "title": "[Styling] Investigate optional CSS-compatible stylesheet parser and cascade",
-      "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/404",
-      "status": "open",
-      "stateReason": null,
-      "note": "Eksperyment składni CSS. Rozstrzyganie przez jeden silnik #194/#177/#178."
-    },
-    {
       "issueNumber": 456,
       "title": "[Controls] Add general-purpose ContentStatePresenter for Content, Loading, Empty and Error",
       "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/456",
@@ -12788,14 +13372,6 @@
       "status": "open",
       "stateReason": null,
       "note": "Intermittent Designer snapshot cleanup. Zachować exact head i niezależny dowód przy CI."
-    },
-    {
-      "issueNumber": 555,
-      "title": "[Designer] Qualify C# 15 syntax in the standard data Designer",
-      "url": "https://github.com/ProGraMajster/ModernFormsNext/issues/555",
-      "status": "open",
-      "stateReason": null,
-      "note": "Otwarte bez milestone. Parser Roslyn 4.14.0 nie przyjął union. Oddzielne od #44/#437/#486."
     }
   ],
   "proposedGaps": [
@@ -12887,7 +13463,7 @@
     }
   ],
   "decisions": {
-    "status": "proposed",
+    "status": "owner-direction-accepted-implementation-decisions-pending",
     "path": "ARCHITECTURE-DECISIONS.md",
     "ownerApprovalRequired": true
   },
@@ -12942,6 +13518,12 @@
       "analysisCommit": "86688a649776bc969b6c69d4c06d6aee8410d607",
       "change": "Initial evidence-based plan after Stage 1",
       "approval": "pending"
+    },
+    {
+      "snapshotDate": "2026-11-27",
+      "analysisCommit": "86688a649776bc969b6c69d4c06d6aee8410d607",
+      "change": "Owner review of PR #556: GPU priority and delivery, CSS, Android gate, chart phases and Designer boundaries.",
+      "approval": "approved to merge after required CI and start S02-a only"
     }
   ],
   "verificationHistory": [],
@@ -12983,6 +13565,8 @@
       "issue:436",
       "issue:440",
       "issue:45",
+      "issue:537",
+      "issue:538",
       "issue:57",
       "issue:59",
       "issue:61",
@@ -13013,6 +13597,7 @@
       "issue:408",
       "issue:43",
       "issue:44",
+      "issue:555",
       "issue:58",
       "issue:64",
       "scroll-anchor-policy"
@@ -13060,6 +13645,7 @@
       "software-4x"
     ],
     [
+      "gpu-prototypes",
       "issue:178",
       "issue:210",
       "issue:218",
@@ -13074,21 +13660,143 @@
       "issue:338",
       "issue:40",
       "issue:401",
-      "issue:46",
       "pacing-contract"
     ],
     [
+      "gpu-selection",
       "issue:211",
       "issue:227",
+      "issue:404",
       "issue:454"
     ],
     [
       "issue:222",
+      "issue:46",
       "scroll-qualified"
     ],
     [
-      "issue:449",
+      "gpu-qualified",
+      "issue:449"
+    ],
+    [
+      "android-qualification"
+    ],
+    [
       "release-qualification"
     ]
-  ]
+  ],
+  "approval": {
+    "plan": "merge-authorized-after-required-ci",
+    "nextScope": "S02-a only after integration",
+    "implementationMerge": "requires owner approval",
+    "scopeSource": "Owner review of PR #556"
+  },
+  "workstreams": {
+    "gpu": [
+      {
+        "waveId": "S02-a",
+        "goal": "Bazowe pomiary #114 na SkiaSharp 3.x, profiler #58"
+      },
+      {
+        "waveId": "S02-c",
+        "goal": "Migracja #419 i potwierdzenie software 4.x"
+      },
+      {
+        "waveId": "S02-e",
+        "goal": "Ograniczone prototypy GPU Windows/Android, równolegle z S02-d"
+      },
+      {
+        "waveId": "S02-d",
+        "goal": "#338 mierzy prezentację, VSync i pacing. Render thread tylko po dowodach."
+      },
+      {
+        "waveId": "S02-f",
+        "goal": "Po wyborze właściciela wąskie PR implementacji zaakceptowanych backendów"
+      },
+      {
+        "waveId": "S02-g",
+        "goal": "Kwalifikacja rzeczywistych backendów i zachowanie fallbacku software"
+      }
+    ],
+    "charts": [
+      {
+        "waveId": "S08-a",
+        "goal": "Wspólna geometria, DrawingView i granica opcjonalnego pakietu"
+      },
+      {
+        "waveId": "S08-b",
+        "goal": "Dane, serie, osie, Line/Area, Bar/Column, Pie/Donut w osobnych PR z legendą, tooltip, zaznaczaniem, motywami, animacją, dostępnością, dużymi zbiorami oraz testami"
+      },
+      {
+        "waveId": "S08-c",
+        "goal": "Diagramy, łączniki i zaawansowana wizualizacja oraz eksport. Podział wersji wymaga zgody właściciela."
+      }
+    ],
+    "android": [
+      {
+        "area": "Rendering i GPU",
+        "evidence": "Software i wybrane GPU, fallback, Skia/RID, resize, DPI, resume i zmiana powierzchni",
+        "issues": [
+          46,
+          419,
+          338,
+          538
+        ]
+      },
+      {
+        "area": "Wydajność, pamięć, odświeżanie",
+        "evidence": "Co najmniej dwie różne fizyczne konfiguracje model/GPU/OS. 60 oraz aktywne 90/120 Hz na odpowiednim sprzęcie, p50/p95/p99, CPU, PSS, zasoby i soak z termiką. Compositor i scanout osobno.",
+        "issues": [
+          58,
+          114,
+          454,
+          538
+        ]
+      },
+      {
+        "area": "Dotyk, gesty, scroll",
+        "evidence": "Fizyczne wielodotykowe sekwencje, niezależne puszczenie i cancel. Nested ownership, fling i wirtualizacja. Oddzielić emulator i wstrzykiwane zdarzenia.",
+        "issues": [
+          181,
+          449,
+          450,
+          453,
+          454,
+          538
+        ]
+      },
+      {
+        "area": "IME i obie klawiatury",
+        "evidence": "Rzeczywisty Latin i CJK, kandydaci, focus, composition i cancel. Occlusion i show/hide, fizyczna klawiatura z modyfikatorami oraz stare API z nieznaną widocznością.",
+        "issues": [
+          62,
+          109,
+          131,
+          402,
+          537
+        ]
+      },
+      {
+        "area": "Lifecycle i NativeViewHost",
+        "evidence": "Activity recreate, background/foreground, Back i rozliczenie zwolnionych powierzchni, view, focus i callbacks. NativeViewHost sprawdzony na rzeczywistym widoku.",
+        "issues": [
+          60,
+          63,
+          69,
+          72,
+          538
+        ]
+      },
+      {
+        "area": "Dostępność i status",
+        "evidence": "Fizyczny TalkBack, focus/state/action, text, scroll i klawiatura. Zapisz hash APK, commit, Workload, OS/model/driver, Android API, wynik i ograniczenia. Stabilność wyłącznie po macierzy i zgodzie.",
+        "issues": [
+          59,
+          69,
+          454,
+          538
+        ]
+      }
+    ]
+  }
 }
