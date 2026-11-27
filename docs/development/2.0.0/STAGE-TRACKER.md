@@ -1,14 +1,14 @@
 # Status etapów ModernFormsNext 2.0.0
 
-Ostatni ukończony etap to S01. Właściciel zatwierdził uruchomienie
-wyłącznie **S02-a** po integracji PR #556 z wymaganym zielonym CI.
-Celem jest minimalny PerformanceLab #114 korzystający z profilera #58.
+Ostatni zamknięty etap to S01. **S02-a jest gotowe do przeglądu** po
+integracji planu #556 i wykonaniu prób Windows. S02-b czeka na osobną zgodę.
+[Raport i pomiary](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) · [PR S02-a](@@PR@@)
 [Plan główny](MASTER-PLAN.md) · [Dane planu](implementation-plan.json)
 
 | Etap | Stan | Issue ukończone / wszystkie |
 | --- | --- | ---: |
 | [S01](#s01) | ukończony | 2 / 2 |
-| [S02](#s02) | proponowany | 0 / 9 |
+| [S02](#s02) | w toku, S02-a do przeglądu | 0 / 9 |
 | [S03](#s03) | proponowany | 0 / 20 |
 | [S04](#s04) | proponowany | 0 / 20 |
 | [S05](#s05) | proponowany | 0 / 29 |
@@ -32,7 +32,7 @@ Bazowe pomiary, migracja software i akceleracja GPU.
 
 | Zadanie | Issue | Priorytet | Stan audytu | GitHub Project | Target version |
 | --- | --- | --- | --- | --- | --- |
-| S02-a | [#114](ISSUES-AUDIT.md#issue-114) | P0 | plan · foundation | Backlog | 2.0.0 |
+| S02-a | [#114](ISSUES-AUDIT.md#issue-114) | P0 | plan · partial | Backlog | 2.0.0 |
 | S02-a | [#58](ISSUES-AUDIT.md#issue-58) | P0 | plan · partial | Backlog | 2.0.0 |
 | S02-b | [#64](ISSUES-AUDIT.md#issue-64) | P0 | plan · partial | Backlog | 2.0.0 |
 | S02-c | [#337](ISSUES-AUDIT.md#issue-337) | P1 | plan · partial | Backlog | 2.0.0 |
