@@ -225,4 +225,4 @@ a ponowna kwalifikacja renderowania tekstu do #561.
 
 [Archiwum danych S02-d](evidence/performance-s02-d-frame-pacing.zip) ·
 [Rejestr pomiarów](performance-benchmarks.json#s02dFramePacing) ·
-[PR S02-d](https://github.com/ProGraMajster/ModernFormsNext/pulls?q=is%3Apr+head%3Awork%2F2.0-stage-s02-d-frame-pacing).
+[PR #562](https://github.com/ProGraMajster/ModernFormsNext/pull/562).
