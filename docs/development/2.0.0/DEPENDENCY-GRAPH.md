@@ -191,7 +191,7 @@ flowchart LR
 | Brama | Warunek | Dowód |
 | --- | --- | --- |
 | `stage1-integrated` | baza | Merged, wymagane CI i konsumenci .NET 10/11, Designer w rzeczywistym projekcie. |
-| `baseline-perf` | `stage1-integrated` | Pierwszy mały PR z fixture, metadanymi i porównawczym schematem wyników. Pełny PerformanceLab rozwija się dalej. |
+| `baseline-perf` | `stage1-integrated` | Spełniona dla Windows software 3.x po integracji PR #557. Metadane i wersjonowane dane są w [raporcie S02-a](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md). Pełny PerformanceLab rozwija się dalej. |
 | `software-4x` | `baseline-perf`, [#419](ISSUES-AUDIT.md#issue-419) | Porównanie 3.x/4.x, NuGet/RID, toolchain, runtime i Designer przy niezmienionym rodzaju renderera. |
 | `pacing-contract` | `software-4x` | Przyjęta metoda rozdzielenia tick, paint i present oraz decyzja UI-thread vs eksperyment. Własny render thread wymaga dowodu korzyści. |
 | `style-precedence` | [#194](ISSUES-AUDIT.md#issue-194) | Udokumentowane rozstrzygnięcie efektywnej wartości i zakres repaint/layout przed rozbudową selektorów. |

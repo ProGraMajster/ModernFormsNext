@@ -8,7 +8,7 @@ i 1 zbiorcze. Status częściowy oznacza konkretny zrealizowany
 element zakresu, potwierdzony w źródłach lub wcześniejszych dowodach.
 Plan zawiera również cztery powiązane zgłoszenia bez milestone: #404,
  #537, #538 i #555. Ich status i liczby milestone są odrębne.
-Bazowa klasyfikacja powyżej pozostaje migawką. W PR S02-a jest 35 częściowych i 79 z fundamentem. Pierwszy przekrój #114 w S02-a
+Bazowa klasyfikacja powyżej pozostaje migawką. Po integracji S02-a jest 35 częściowych i 79 z fundamentem. Pierwszy przekrój #114 w S02-a
 jest odnotowany razem z [raportem](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md).
 
 Pobrano wszystkie strony REST zawierające 410 issue
@@ -124,7 +124,7 @@ Pozostałe GAP w pierwszej kolejności należą do wskazanych istniejących issu
 **[Add dedicated PerformanceLab benchmark and stress-test application](https://github.com/ProGraMajster/ModernFormsNext/issues/114)**
 
 - **S02 / S02-a · P0 · XL** · partial · podzielić na kolejne wąskie PR-y · milestone.
-- **Stan kodu.** ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Pierwszy przekrój PerformanceLab działa w S02-a na Windows. [Raport](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md)
+- **Stan kodu.** ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Pierwszy przekrój PerformanceLab jest zintegrowany na Windows wraz z bazą SkiaSharp 3.119.2. [Raport](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md)
 - **Dalszy zakres.** Najpierw cienki harness eksportujący wersjonowane pomiary dla identycznych scenariuszy 3.x i 4.x. Rozbudowa stresu 1k/10k/50k, scrolling, długie sesje i Android w kolejnych PR. Bez drugiego profilera.
 - **Twarde** [#436](ISSUES-AUDIT.md#issue-436) · **Bramy** — · **Miękkie** [#58](ISSUES-AUDIT.md#issue-58), [#64](ISSUES-AUDIT.md#issue-64) · **Odbiorcy twarde / miękkie** — / —.
 - **Ryzyko regresji** średni · **Wpływ na API** wewnętrzne lub kwalifikacja · **Wpływ wydajnościowy** niski · **Platformy** Windows, Android Experimental.
@@ -153,8 +153,8 @@ Pozostałe GAP w pierwszej kolejności należą do wskazanych istniejących issu
 **[Add headless TestHost and application UI testing infrastructure](https://github.com/ProGraMajster/ModernFormsNext/issues/64)**
 
 - **S02 / S02-b · P0 · M** · partial · uzupełnić potwierdzone braki · milestone.
-- **Stan kodu.** ModernFormsTestHost, kontrolowany dispatcher/clock, input i IME, snapshoty Skia, okna modalne, testowa usługa schowka i testy AppShell są w repo.
-- **Dalszy zakres.** Doprecyzować gotowość konkretnych scenariuszy dotyku/drag i publikację pakietu na obu runtime. Pokrywać konsumentów istniejącym hostem. Symulacja nie stanowi dowodu OS.
+- **Stan kodu.** Istniejący host ma dispatcher, clock, kompozycję tekstu, raster, modal, popup i kontrolowane usługi. S02-b dodaje symulację dotyku kanonicznym adapterem, diagnostykę popup, regresje AppShell/CollectionView i kwalifikację konsumentów pakietu. [Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md)
+- **Dalszy zakres.** Rozszerzenie pokrycia gestów po [#181](#issue-181), drag-and-drop po [#57](#issue-57) i [#308](#issue-308), natywna macierz i ewentualne dalsze przykłady użytkownika. Issue pozostaje otwarte.
 - **Twarde** [#436](ISSUES-AUDIT.md#issue-436) · **Bramy** — · **Miękkie** — · **Odbiorcy twarde / miękkie** — / [#59](ISSUES-AUDIT.md#issue-59), [#97](ISSUES-AUDIT.md#issue-97), [#114](ISSUES-AUDIT.md#issue-114), [#181](ISSUES-AUDIT.md#issue-181), [#182](ISSUES-AUDIT.md#issue-182), [#338](ISSUES-AUDIT.md#issue-338), [#403](ISSUES-AUDIT.md#issue-403), [#410](ISSUES-AUDIT.md#issue-410), [#438](ISSUES-AUDIT.md#issue-438), [#440](ISSUES-AUDIT.md#issue-440), [#454](ISSUES-AUDIT.md#issue-454).
 - **Ryzyko regresji** średni · **Wpływ na API** wewnętrzne lub kwalifikacja · **Wpływ wydajnościowy** niski · **Platformy** Windows, tooling/CI/.NET.
 - **Testy.** Deterministyczny lifecycle, touch/cancel, listy i nawigacja plus smoke świeżego pakietu.

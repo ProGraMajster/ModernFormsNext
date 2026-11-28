@@ -70,6 +70,12 @@ Hidden/disabled controls are never directly invoked by the helper.
   use production pointer paths. Point overloads use logical window-client pixels including managed
   chrome; negative/outside points are useful for capture tests. Wheel deltas retain existing
   framework units. Left, middle and right buttons are supported; unsupported buttons fail explicitly.
+- `Touch(pointerId, action, location)` runs the shared Android window-surface path for
+  contact down, move, up, and per-contact cancel. Coordinates are logical window-client pixels.
+  Reuse the same contact ID for its sequence. A canceled ID can be reused for a new contact.
+  Hit testing, capture, tap and existing touch scrolling use the production implementation.
+  This is deterministic simulation of shared behavior. Physical touch and system delivery need
+  device integration tests. Native drag-and-drop requires its platform contract.
 - `KeyDown`, `KeyUp` and `PressKey` use existing framework `Keys` and explicit modifier flags.
   The supported key set is the existing WindowKit-to-framework mapper. Unsupported keys fail
   before dispatch. A key-down does not guess the character produced by a keyboard layout.
@@ -89,6 +95,8 @@ A convenience `PressKey` releases a consumed key even if an application command 
 `Click` cancels capture through the production capture-loss path, without inventing a successful
 click after a failed press. Primary and cleanup failures are both reported when necessary.
 Low-level Down/Up methods remain separate operations for gesture and repeat tests.
+`LoseCapture` retires outstanding mouse presses. A late release of a retired press
+does not raise a click or complete a drag.
 
 No helper implicitly advances time. Consecutive clicks within the controlled production interval
 can count as double clicks; advance `host.Clock` to test the exclusive 500 ms boundary. Native
@@ -321,9 +329,11 @@ state assertions when font variability matters.
 ## Diagnostics and cleanup
 
 `GetDiagnostics` includes detached trees, pending queue/invalidation counts, active animations,
-focused control names, captured dispatcher exceptions and bounded recent input kinds. Input history
-is capped at 64 entries per window and excludes key values and committed text. Explicit screenshots
-may contain application data; callers decide when and where to save them.
+focused control names, captured dispatcher exceptions and bounded recent input kinds. `Dump()`
+also includes each live popup's visibility, viewport, scale, focus, invalidations, recent input
+kinds, and detached tree. Input history is capped at 64 entries per input target and excludes key
+values and committed text. The diagnostics capture does not render a screenshot. Explicit
+screenshots may contain application data. Callers decide when and where to save them.
 
 Closing a TestWindowHost authoritatively cleans up its owned tree, even if a normal Form close is
 canceled or throws. Host disposal closes all windows, cancels owned scheduler work, restores the
@@ -339,15 +349,31 @@ and the scoped lifecycle facade fail after disposal; their subscriptions and cap
 references are revoked. Detached tree/image/lifecycle diagnostics remain usable under their own
 ownership rules. Create a new host rather than reuse controls or a facade from an expired scope.
 
-## Phase 1 boundaries
+## Candidate package smoke
 
-Phase 1 was merged in PR #93 and must not be reimplemented. The current continuation adds input,
-clock, rendering and existing-contract service integration on that foundation. The lifecycle
-continuation (#63) adds shared phase/activation/restoration and real application lifetime tests.
-Future touch/drag helpers, navigation (#12) and shared virtualization (#55) coverage require their
-production contracts. Shared modal/popup behavior is testable; this package
-does not emulate OS foreground behavior, IME services, platform accessibility, GPU or native view
-hosting.
+The [package-only consumer](../../scripts/tests/fixtures/TestHostPackageConsumer/Program.cs)
+runs layout, mouse capture loss, simulated touch, focus and text, controlled animation time,
+off-screen raster and cleanup through public API. Run it once with each SDK from a local candidate
+feed containing `ModernFormsNext.Testing`, `ModernFormsNext`, `ModernFormsNext.WindowKit`, and
+`ModernFormsNext.WindowKit.Backend` from the same build.
+
+```powershell
+./scripts/Test-TestHostPackageConsumer.ps1 -PackageDirectory ./artifacts/packages -OutputDirectory ./artifacts/testhost-net10 -RuntimeMajor 10
+./scripts/Test-TestHostPackageConsumer.ps1 -PackageDirectory ./artifacts/packages -OutputDirectory ./artifacts/testhost-net11 -RuntimeMajor 11
+```
+
+Use a fresh output directory per runtime. The script records the resolved candidate package
+hashes and the actually loaded CLR and native Skia version.
+
+## Validation boundaries
+
+TestHost reuses the original host from PR #93 and the shared lifecycle work from #63. Shared
+navigation, including Page/AppShell, can host an actual CollectionView and test logical
+selection, recycled focus, source replacement and cleanup. Existing touch primitives and
+mouse capture run deterministically. Further unified gestures (#181), native drag-and-drop
+(#308) and platform-specific features need their own contract coverage. Shared modal and popup
+behavior is testable. OS foreground behavior, system IME services, platform accessibility
+bridges, GPU and actual native view hosting require separate validation.
 
 Windows native HWND/UIA/automation tests, Android emulator checks, physical-device validation,
 TalkBack, and manual Visual Studio/visual assessment remain separate evidence. See the

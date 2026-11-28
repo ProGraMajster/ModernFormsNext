@@ -193,13 +193,12 @@
   },
   "nextAction": {
     "stageId": "S02",
-    "waveId": "S02-a",
+    "waveId": "S02-b",
     "issueNumbers": [
-      114,
-      58
+      64
     ],
-    "action": "Przejrzeć S02-a w PR. S02-b wymaga osobnej zgody.",
-    "status": "awaiting-s02-a-review"
+    "action": "Przejrzeć PR S02-b. S02-c wymaga osobnej zgody.",
+    "status": "awaiting-s02-b-review"
   },
   "lastCompletedStage": "S01",
   "activeImplementationStage": "S02",
@@ -257,7 +256,7 @@
             114,
             58
           ],
-          "status": "ready-for-review"
+          "status": "integrated"
         },
         {
           "waveId": "S02-b",
@@ -265,7 +264,7 @@
           "issues": [
             64
           ],
-          "status": "awaits-owner-approval"
+          "status": "ready-for-review"
         },
         {
           "waveId": "S02-c",
@@ -273,7 +272,8 @@
           "issues": [
             337,
             419
-          ]
+          ],
+          "status": "awaits-owner-approval"
         },
         {
           "waveId": "S02-d",
@@ -1017,7 +1017,20 @@
         114
       ],
       "acceptance": "Pierwszy mały PR z fixture, metadanymi i porównawczym schematem wyników. Pełny PerformanceLab rozwija się dalej.",
-      "status": "proposed"
+      "status": "done",
+      "evidence": {
+        "scope": "Windows x64, SkiaSharp 3.119.2, Software/Skia Raster",
+        "mergeCommit": "6dc3b14b69d853e798ee01daefbe683efe79a56a",
+        "measuredCommit": "5ee4218fcb05b08e621915552fe64ef0d5aa2629",
+        "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md",
+        "archive": "evidence/performance-baseline-windows-5ee4218.zip",
+        "archiveSha256": "ac8b46f1800787a7b775dd4e4db8b45f153fdeabf43dab6a66257daf18ed1a9b",
+        "unrecordedEnvironment": [
+          "GPU driver version",
+          "monitor identity and full display mode",
+          "active power profile"
+        ]
+      }
     },
     {
       "gateId": "software-4x",
@@ -2690,13 +2703,13 @@
       "stageId": "S02",
       "waveId": "S02-b",
       "priority": "P0",
-      "status": "proposed",
+      "status": "in-review",
       "auditStatus": "partial",
-      "assessment": "fragment zakresu obecny w kodzie lub w dowodach kwalifikacji, pozostały otwarte kryteria",
+      "assessment": "S02-b gotowy do przeglądu. Issue pozostaje otwarte dla późniejszych kontraktów dotyku i transferu oraz pełniejszych dowodów.",
       "proposedDisposition": "remaining",
       "estimatedComplexity": "M",
-      "implementationEvidence": "ModernFormsTestHost, kontrolowany dispatcher/clock, input i IME, snapshoty Skia, okna modalne, testowa usługa schowka i testy AppShell są w repo.",
-      "remainingWorkAndCompatibility": "Doprecyzować gotowość konkretnych scenariuszy dotyku/drag i publikację pakietu na obu runtime. Pokrywać konsumentów istniejącym hostem. Symulacja nie stanowi dowodu OS.",
+      "implementationEvidence": "Istniejący host ma dispatcher, clock, kompozycję tekstu, raster, modal, popup i kontrolowane usługi. S02-b dostarcza kanoniczną symulację touch/cancel, diagnostykę popup i pokrycie AppShell/CollectionView, z dwoma konsumentami pakietu.",
+      "remainingWorkAndCompatibility": "Pokrycie rozszerzonych gestów zależy od #181. Transfer danych i natywne drag-and-drop zależą od #57 i #308. Rzeczywiste urządzenia, OS i pełniejsze scenariusze pozostają osobną kwalifikacją. Dodano wyłącznie publiczne TestInput.Touch.",
       "hardDependencies": [
         436
       ],
@@ -2721,28 +2734,34 @@
         "tooling/CI/.NET"
       ],
       "requiresHardwareOrDedicatedEnvironment": false,
-      "testingScope": "Deterministyczny lifecycle, touch/cancel, listy i nawigacja plus smoke świeżego pakietu.",
+      "testingScope": "Selektywne TestHost i Win32 HWND, testy pikselowe przy zmianie zasobów i motywu, AppShell/CollectionView, izolowani konsumenci .NET 10 i 11 z lokalnego feedu oraz ApiCompat.",
       "risks": {
         "regression": "średni",
-        "publicApi": "wewnętrzne lub kwalifikacja",
+        "publicApi": "additive TestInput.Touch, ApiCompat z 1.12.1",
         "performance": "niski"
       },
       "evidencePaths": [
         "scripts/Invoke-SelectiveTests.ps1",
         "ModernFormsNext/PopupWindow.cs",
-        "ModernFormsNext/ItemsControl.Layout.cs"
+        "ModernFormsNext/ItemsControl.Layout.cs",
+        "ModernFormsNext.Testing/TestInput.cs",
+        "scripts/Test-TestHostPackageConsumer.ps1",
+        "docs/development/2.0.0/MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md"
       ],
       "confirmedHistoricalPullRequests": [
         93,
         96
       ],
       "relatedIssueNumbers": [
+        57,
         83,
         97,
         114,
         116,
         160,
+        181,
         182,
+        308,
         332,
         403,
         410,
@@ -3188,12 +3207,12 @@
       "stageId": "S02",
       "waveId": "S02-a",
       "priority": "P0",
-      "status": "in-review",
+      "status": "in-progress",
       "auditStatus": "partial",
-      "assessment": "Pierwszy przekrój Windows jest w PR S02-a. Główne issue pozostaje otwarte.",
+      "assessment": "Pierwszy przekrój Windows S02-a zintegrowany, z zachowaną bazą 3.119.2. Główne issue pozostaje otwarte.",
       "proposedDisposition": "split",
       "estimatedComplexity": "XL",
-      "implementationEvidence": "ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Pierwszy przekrój PerformanceLab działa w S02-a na Windows.",
+      "implementationEvidence": "PerformanceLab na Windows używa istniejącego PerformanceProfiler. Osiem pomiarów o znanej rewizji, źródła i sumy kontrolne zapisano w raporcie S02-a.",
       "remainingWorkAndCompatibility": "Najpierw cienki harness eksportujący wersjonowane pomiary dla identycznych scenariuszy 3.x i 4.x. Rozbudowa stresu 1k/10k/50k, scrolling, długie sesje i Android w kolejnych PR. Bez drugiego profilera.",
       "hardDependencies": [
         436
@@ -13543,6 +13562,12 @@
       "analysisCommit": "86688a649776bc969b6c69d4c06d6aee8410d607",
       "change": "Owner review of PR #556: GPU priority and delivery, CSS, Android gate, chart phases and Designer boundaries.",
       "approval": "approved to merge after required CI and start S02-a only"
+    },
+    {
+      "snapshotDate": "2026-11-28",
+      "analysisCommit": "6dc3b14b69d853e798ee01daefbe683efe79a56a",
+      "change": "Integracja S02-a, zachowanie oddzielnych liczników i danych bazowych, uzupełnienie TestHosta S02-b.",
+      "approval": "S02-a merged after required CI. S02-b authorized for implementation and review. S02-c awaits owner approval."
     }
   ],
   "verificationHistory": [
@@ -13565,6 +13590,31 @@
       },
       "passedTests": 35,
       "rawEvidenceDirectory": "artifacts/stage2-a/windows-x64-5ee4218/",
+      "status": "integrated",
+      "verifiedHead": "feeee7b2913fbee0e3c1f7f4a6cd9406d4672434",
+      "mergeCommit": "6dc3b14b69d853e798ee01daefbe683efe79a56a",
+      "requiredCheck": "https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46058440564/job/140706590486",
+      "requiredCheckResult": "success",
+      "evidenceArchive": "evidence/performance-baseline-windows-5ee4218.zip",
+      "evidenceArchiveSha256": "ac8b46f1800787a7b775dd4e4db8b45f153fdeabf43dab6a66257daf18ed1a9b"
+    },
+    {
+      "stageId": "S02",
+      "waveId": "S02-b",
+      "codeCommit": "e3726d9be60a5a76d277c7bc09ad2a020b744c4a",
+      "consumerFixtureCommit": "add5651ebf55771401dbeee71af9e2917bb2d240",
+      "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/558",
+      "report": "MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md",
+      "localScope": "windows-release-selective-headless-hwnd-and-local-packages",
+      "selectedTestHostPassed": 511,
+      "selectedWindowsPassed": 10,
+      "packageConsumerResults": {
+        "net10.0": ".NET 10.0.15 PASS",
+        "net11.0": ".NET 11.0.0 PASS"
+      },
+      "packageSha256": "7155a561607d98b47094a6805870ed6d2a74124e9d419b344dc1f8970e7208f5",
+      "apiCompatBaseline": "ModernFormsNext.Testing 1.12.1",
+      "apiCompatResult": "success",
       "status": "ready-for-review"
     }
   ],
@@ -13727,10 +13777,11 @@
     ]
   ],
   "approval": {
-    "plan": "merge-authorized-after-required-ci",
-    "nextScope": "S02-a only after integration",
-    "implementationMerge": "requires owner approval",
-    "scopeSource": "Owner review of PR #556"
+    "plan": "merged",
+    "nextScope": "S02-b implementation and review",
+    "implementationMerge": "S02-a merged with owner approval. S02-b merge requires separate owner approval.",
+    "scopeSource": "Owner approval for S02-a integration and S02-b TestHost",
+    "nextWaveApproval": "S02-c awaits separate owner approval"
   },
   "workstreams": {
     "gpu": [
@@ -13842,9 +13893,9 @@
   },
   "currentCheckpoint": {
     "stageId": "S02",
-    "waveId": "S02-a",
+    "waveId": "S02-b",
     "status": "ready-for-review",
-    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/557",
-    "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md"
+    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/558",
+    "report": "MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md"
   }
 }

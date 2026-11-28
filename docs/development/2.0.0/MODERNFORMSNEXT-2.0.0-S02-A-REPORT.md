@@ -1,8 +1,10 @@
 # ModernFormsNext 2.0.0 — raport S02-a
 
-**Gotowy do przeglądu.** PerformanceLab wykonuje dwa wersjonowane scenariusze
-Windows na SkiaSharp 3.x. Etap jest częścią #114 i korzysta z profilera #58.
-Integracja implementacji z develop wymaga decyzji właściciela.
+**Zintegrowany z `develop/2.0.0`.** PerformanceLab wykonuje dwa wersjonowane
+scenariusze Windows na SkiaSharp 3.x. PR #557 został scalony jako
+`6dc3b14b69d853e798ee01daefbe683efe79a56a` po wymaganym `build`
+dla `feeee7b2913fbee0e3c1f7f4a6cd9406d4672434`. Etap jest częścią #114
+i korzysta z profilera #58.
 [PR implementacyjny](https://github.com/ProGraMajster/ModernFormsNext/pull/557) · [Wymagane CI](https://github.com/ProGraMajster/ModernFormsNext/pull/557/checks)
 
 ## Master Plan
@@ -83,20 +85,36 @@ ekstremalnych percentyli startu z tej małej próby.
 | scroll-02 | 3,561 / 5,399 / 11,244 | 26,082 / 32,631 / 36,409 | 1109,375 | 32,240,176 | 107,25 / 65,20 |
 | scroll-03 | 3,576 / 5,352 / 9,879 | 30,564 / 33,017 / 40,880 | 1765,625 | 32,194,848 | 107,23 / 65,15 |
 
-Każdy scroll wykonał 120 zmian położenia, 120 ukończonych native paint oraz
-119 porównywalnych interwałów. Pozycja przeszła z 0 do 6 720 logicznych px.
+W każdej próbie zarejestrowano 120 aktualizacji viewportu, 120 ukończonych
+callbacków native paint i 119 porównywalnych interwałów. Równość liczników
+jest obserwacją tych prób. Harness czeka na paint po rozgrzewce i po ostatniej
+aktualizacji. Przyszłe łączenie aktualizacji może zmienić liczbę callbacków.
+Licznik fizycznej prezentacji jest niedostępny. Pozycja przeszła z 0 do 6 720
+logicznych px.
 W każdej próbie było 27 żywych kontenerów na końcu i 240 ponownych użyć
 w pomiarze. Mediany layoutu w próbach to 0,157–0,175 ms,
 renderowania 3,261–3,346 ms, a GDI 0,165–0,203 ms.
 Mediana alokacji managed na UI thread wyniosła 238 968 B na klatkę w każdej
-próbie. Są to dane odniesienia do dalszej analizy, bez norm wydajności.
+próbie. Mediana interwału callbacków wyniosła około 26–31 ms przy żądaniu
+16 ms. Obie obserwacje są danymi odniesienia, bez progu regresji albo dowodu
+wycieku.
 
 ## Surowe dowody i kontrola
 
-Lokalne dowody są w `artifacts/stage2-a/windows-x64-5ee4218/`. Każdy katalog próby ma `results.json`
-i `report.md`. Zachowano `identity.json`, `baseline-summary.json`, dzienniki
-poleceń oraz `selective-tests/summary.json` i TRX. SHA-256 surowego JSON
-pozwala powiązać dane z poniższymi wierszami.
+[Archiwum danych Windows 3.119.2](evidence/performance-baseline-windows-5ee4218.zip) zawiera osiem
+oryginalnych par `results.json` i `report.md`, `identity.json` oraz
+`baseline-summary.json`. SHA-256 ZIP to
+`ac8b46f1800787a7b775dd4e4db8b45f153fdeabf43dab6a66257daf18ed1a9b`.
+Po scaleniu sprawdzono bajty wszystkich prób względem tabeli i zgodność
+rewizji z każdym surowym zapisem. Katalog lokalny
+`artifacts/stage2-a/windows-x64-5ee4218/` dodatkowo zawiera logi oraz TRX.
+Kod pomiaru jest dostępny pod [rewizją 5ee4218](https://github.com/ProGraMajster/ModernFormsNext/tree/5ee4218fcb05b08e621915552fe64ef0d5aa2629/samples/ModernFormsNext.PerformanceLab).
+
+Zachowane metadane pozwalają porównać adapter, raportowane Hz, DPI, sesję,
+OS, CPU, pamięć, CLR i Skia. W tej serii nie zebrano wersji sterownika GPU,
+tożsamości i pełnego trybu monitora ani aktywnego profilu zasilania.
+Przy kolejnej kontrolowanej parze pomiarów zapisz je dla obu konfiguracji
+i oznacz różnice warunków. Historyczne pola mają status nieznany.
 
 | Próba | SHA-256 results.json |
 | --- | --- |
@@ -126,8 +144,7 @@ otwarte. Ten etap zużywa istniejące obserwacje bez zmiany implementacji
 profilera. [#114](https://github.com/ProGraMajster/ModernFormsNext/issues/114) ·
 [#58](https://github.com/ProGraMajster/ModernFormsNext/issues/58)
 
-Tracker oznacza S02-a jako gotowe do przeglądu w PR. Następny rekomendowany
-podetap po decyzji właściciela to **S02-b**, brakujące scenariusze w
-istniejącym TestHost. S02-c zachowa bieżące obciążenia jako bazę dla
-oddzielnej migracji SkiaSharp. [Tracker](STAGE-TRACKER.md) ·
+Tracker oznacza S02-a jako zintegrowany. Brama `baseline-perf` jest
+spełniona dla pierwszego porównywalnego punktu odniesienia na Windows.
+Właściciel zatwierdził **S02-b**. S02-c wymaga osobnej zgody. [Tracker](STAGE-TRACKER.md) ·
 [Instrukcje PerformanceLab](../../../samples/ModernFormsNext.PerformanceLab/README.md)

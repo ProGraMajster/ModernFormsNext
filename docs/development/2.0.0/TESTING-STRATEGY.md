@@ -57,6 +57,16 @@ i istotna część środowiska są rzeczywiście niezmienione.
 | S08 | Serie, skale i prymitywy, Line/Area, Bar/Column, Pie/Donut, decymacja, dostępność, pakiet i pamięć. Diagramy, łączniki i eksport osobno. | Windows i fizyczny Android. Obsługa klawiatury i dotyku, tematy, tooltip i animacja. Pomiar dużych serii na software oraz GPU w deklarowanej konfiguracji. |
 | S09 | Jeden kandydat i pełna kwalifikacja NuGet/VSIX/template, build/security/migration. Android APK hash i zgodny software/GPU. | Fizyczny Android #537 i #538, dotyk/scroll #454, keyboard #109/#402, lifecycle, NativeViewHost, TalkBack. Do zmiany statusu potrzebna pełna matryca i zgoda. |
 
+## Regresje S02-b
+
+Konsument `ModernFormsNext.Testing` odtwarza wspólne zachowanie kontrolki na
+rzeczywistym CLR .NET 10 i 11. Pakiety pochodzą z lokalnego feedu tego samego
+kandydata. Zmiana zasobu i motywu jest porównywana z pełnym repaintem w tym
+samym środowisku bez nowych tolerancji pikseli. Symulacja touch korzysta z
+produkcyjnego adaptera, a test komunikatów Win32 używa rzeczywistego HWND.
+Fizyczne urządzenia, IME oraz natywne DnD zachowują odrębne kryteria.
+[Dowody S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md) · [Instrukcja konsumenta](../../testing/testhost.md#candidate-package-smoke)
+
 ## Porównania wydajności
 
 Ustal bazę i scenariusze przed migracją #419. Mierz cold i warm oddzielnie:

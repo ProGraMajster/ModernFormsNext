@@ -170,6 +170,37 @@ public sealed class PartialRedrawPixelTests
         CheckMutation(root, window, surface, () => group.Visible = false);
     }
 
+    [Theory]
+    [InlineData(1d)]
+    [InlineData(1.25d)]
+    [InlineData(2d)]
+    public void ThemeAndDynamicCaptionRepaintInsideClippedViewport(double scale)
+    {
+        using var host = ModernFormsTestHost.Create();
+        var immediate = new ThemeApplyOptions { Transition = new ThemeTransitionOptions { Enabled = false } };
+        Assert.True(ThemeManager.Current.Apply(BuiltInThemes.Light, immediate).Success);
+        var root = new ColorPanel(SKColors.Navy);
+        var viewport = root.Controls.Add(new ColorPanel(SKColors.Beige) { Bounds = new(20, 20, 130, 64) });
+        const string key = "S02B.Caption";
+        viewport.Resources[key] = "Before";
+        var caption = viewport.Controls.Add(new Label { Bounds = new(4, 4, 190, 26) });
+        caption.SetResourceReference(nameof(Label.Text), key);
+        viewport.Controls.Add(new Button { Text = "Save", Bounds = new(40, 32, 140, 30) });
+        var window = host.Show(root, new TestViewport(240, 120, scale));
+        using var surface = new PersistentSurface(window);
+        surface.PaintFull();
+        byte[] initial = surface.Bitmap.Bytes;
+
+        CheckMutation(root, window, surface, () => viewport.Resources[key] = "Zażółć 123");
+        Assert.Equal("Zażółć 123", caption.Text);
+        byte[] updated = surface.Bitmap.Bytes;
+        Assert.False(initial.AsSpan().SequenceEqual(updated));
+        CheckMutation(root, window, surface, () => Assert.True(ThemeManager.Current.Apply(BuiltInThemes.Dark, immediate).Success));
+        Assert.False(updated.AsSpan().SequenceEqual(surface.Bitmap.Bytes));
+        Assert.Equal(new Rectangle(4, 4, 190, 26), caption.Bounds);
+        Assert.Equal(SKColors.Navy, surface.Bitmap.GetPixel((int)(155 * scale), (int)(65 * scale)));
+    }
+
     private static void CheckMutation(Control root, TestWindowHost window, PersistentSurface surface, Action change)
     {
         window.Backend.ConsumePendingInvalidations();

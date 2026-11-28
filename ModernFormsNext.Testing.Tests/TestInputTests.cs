@@ -163,15 +163,96 @@ public sealed class TestInputTests
         var root = new Panel();
         var button = root.Controls.Add(new Button { Bounds = new Rectangle(10, 10, 100, 40) });
         host.Show(root);
+        int calls = 0;
+        button.Click += (_, _) => calls++;
         host.Input.PointerDown(new Point(20, 20));
         Assert.True(button.Capture);
         host.Input.Move(new Point(5000, 5000));
         host.Input.LoseCapture();
+        host.Input.PointerUp(new Point(20, 20));
         Assert.False(button.Capture);
-        int calls = 0;
-        button.Click += (_, _) => calls++;
+        Assert.Equal(0, calls);
         host.Input.Click(button);
         Assert.Equal(1, calls);
+    }
+
+    [Theory]
+    [InlineData(1d)]
+    [InlineData(1.25d)]
+    [InlineData(2d)]
+    public void HostedTouchCancelRetiresOnlyItsContactAndIgnoresLateRelease(double scale)
+    {
+        using var host = ModernFormsTestHost.Create();
+        var root = new Panel();
+        var first = root.Controls.Add(new Button { Bounds = new(20, 20, 90, 40) });
+        var second = root.Controls.Add(new Button { Bounds = new(140, 20, 90, 40) });
+        var window = host.Show(root, new TestViewport(280, 120, scale));
+        int firstClicks = 0, secondClicks = 0;
+        first.Click += (_, _) => firstClicks++;
+        second.Click += (_, _) => secondClicks++;
+        var left = new Point(65, 40);
+        var right = new Point(185, 40);
+
+        window.Input.Touch(3, ControlSurfacePointerAction.Down, left);
+        window.Input.Touch(9, ControlSurfacePointerAction.Down, right);
+        Assert.True(first.Capture);
+        Assert.True(second.Capture);
+        Assert.Same(second, window.FocusedControl);
+        window.Input.Touch(3, ControlSurfacePointerAction.Cancel, left);
+        window.Input.Touch(3, ControlSurfacePointerAction.Up, left);
+
+        Assert.False(first.Capture);
+        Assert.True(second.Capture);
+        Assert.Equal(0, firstClicks);
+        window.Input.Touch(9, ControlSurfacePointerAction.Up, right);
+        Assert.Equal(1, secondClicks);
+        Assert.False(second.Capture);
+        window.Input.Touch(3, ControlSurfacePointerAction.Down, left);
+        window.Input.Touch(3, ControlSurfacePointerAction.Up, left);
+        Assert.Equal(1, firstClicks);
+        Assert.Equal(TimeSpan.Zero, host.Clock.CurrentTime);
+        Assert.Equal(new[] { "TouchDown", "TouchDown", "TouchCancel", "TouchUp", "TouchUp", "TouchDown", "TouchUp" },
+            window.Input.RecentEvents);
+    }
+
+    [Theory]
+    [InlineData(1d)]
+    [InlineData(1.5d)]
+    public void CancelDuringHostedTouchScrollKeepsCommittedOffsetAndReleasesCapture(double scale)
+    {
+        using var host = ModernFormsTestHost.Create();
+        var scroll = new ScrollableControl { AutoScroll = true };
+        var button = scroll.Controls.Add(new Button { Bounds = new(10, 12, 140, 64) });
+        scroll.Controls.Add(new Label { Bounds = new(10, 600, 80, 24) });
+        var window = host.Show(scroll, new TestViewport(260, 180, scale));
+        int clicks = 0;
+        button.Click += (_, _) => clicks++;
+
+        window.Input.Touch(5, ControlSurfacePointerAction.Down, new(30, 55));
+        window.Input.Touch(5, ControlSurfacePointerAction.Move, new(30, 17));
+        Assert.True(scroll.Capture);
+        Assert.False(button.Capture);
+        int offset = scroll.VerticalScrollProperties.Value;
+        Assert.True(offset > 0);
+
+        window.Input.Touch(5, ControlSurfacePointerAction.Cancel, new(30, 17));
+        window.Input.Touch(5, ControlSurfacePointerAction.Move, new(30, 3));
+        window.Input.Touch(5, ControlSurfacePointerAction.Up, new(30, 3));
+        Assert.Equal(offset, scroll.VerticalScrollProperties.Value);
+        Assert.False(scroll.Capture);
+        Assert.Equal(0, clicks);
+    }
+
+    [Fact]
+    public void InvalidTouchTransitionsFailBeforeDispatchAndLeaveNoHistory()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var window = host.Show(new Panel());
+        Assert.Throws<ArgumentOutOfRangeException>("pointerId", () =>
+            window.Input.Touch(-1, ControlSurfacePointerAction.Down, Point.Empty));
+        Assert.Throws<ArgumentOutOfRangeException>("action", () =>
+            window.Input.Touch(0, (ControlSurfacePointerAction)(-1), Point.Empty));
+        Assert.Empty(window.Input.RecentEvents);
     }
 
     [Fact]

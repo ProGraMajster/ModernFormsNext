@@ -23,7 +23,8 @@ Run all host/UI operations and disposal on the creating thread; serialize tests 
 The host opens no native window and never accesses the OS clipboard. Off-screen snapshots are
 caller-owned and depend on the actual font/rendering environment. Native IME, Android Activity
 recreation, OS activation/popup behavior, accessibility and device behavior still require separate
-integration tests. Navigation/virtualization testing follows their future production contracts.
+integration tests. Use `window.Input.Touch` for shared touch routing and per-contact cancellation.
+Production Page/AppShell and CollectionView behavior can be exercised inside the same host.
 
 `ShowDialog` uses real Form modality and exposes its result task. `ActivePopup`/`Popups` provide
 input and snapshots for real control popups. Native foreground rules are separate from these

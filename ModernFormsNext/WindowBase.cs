@@ -381,20 +381,24 @@ namespace ModernFormsNext
         /// </remarks>
         public event EventHandler? MinimumSizeChanged;
 
-        // A rejected down (including validation cancellation) must not become a click on up.
+        // A rejected or canceled press must not become a click on a late release.
         private MouseButtons rejectedPointerButtons;
+        private MouseButtons pendingPointerButtons;
 
         private bool ConsumeRejectedPointerUp(MouseButtons button)
         {
             bool rejected = (rejectedPointerButtons & button) != 0;
             rejectedPointerButtons &= ~button;
+            pendingPointerButtons &= ~button;
             return rejected;
         }
 
         private void RoutePointerDown(MouseEventArgs e)
         {
+            pendingPointerButtons |= e.Button;
             rejectedPointerButtons |= e.Button;
-            if (adapter.RaiseMouseDown(e)) rejectedPointerButtons &= ~e.Button;
+            if (adapter.RaiseMouseDown(e) && (pendingPointerButtons & e.Button) != 0)
+                rejectedPointerButtons &= ~e.Button;
         }
 
         private void OnInput (RawInputEventArgs e)
@@ -420,6 +424,9 @@ namespace ModernFormsNext
                     case RawPointerEventType.CaptureLost:
                         // Platform capture loss replaces the missing mouse-up transition. Route it
                         // to the logical capture owner so a control can resolve its own gesture.
+                        // Retire the buttons first so cleanup callbacks can start a fresh press.
+                        rejectedPointerButtons |= pendingPointerButtons;
+                        pendingPointerButtons = MouseButtons.None;
                         adapter.CancelCapturedPointerInteractionsInSubtree();
                         break;
                     case RawPointerEventType.LeftButtonDown:
