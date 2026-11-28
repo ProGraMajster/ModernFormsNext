@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "metricPolicy": "Compare like-for-like software, hardware/display/driver, runtime, versions and workload. Callback and submission durations do not measure screen presentation.",
+  "stableSource": {
+    "tag": "v1.12.1",
+    "commit": "7c8e25c4955b3a1cfedae5c7355e076735f7bd9d",
+    "qualification": "published NuGet-only consumer"
+  },
+  "historicalDevelopmentBaseline": {
+    "stage": "S02-a",
+    "commit": "5ee4218fcb05b08e621915552fe64ef0d5aa2629",
+    "archive": "evidence/performance-baseline-windows-5ee4218.zip",
+    "sha256": "ac8b46f1800787a7b775dd4e4db8b45f153fdeabf43dab6a66257daf18ed1a9b"
+  },
+  "software3xSeries": {
+    "archive": "evidence/performance-s02-c1-3x.zip",
+    "archiveSha256": "9ed013b2942eb0df612a35a181262f071f85a7b53427768abe0a95612daf4b3b",
+    "developmentCommit": "ad10f5ae155b299ff0ed2f9047586a5b519d1846",
+    "windows": [
+      {
+        "id": "windows-v1.12.1",
+        "startMs": [
+          344.0642,
+          324.91935,
+          333.0392,
+          357.1377,
+          327.42060000000004
+        ],
+        "startMedianMs": 333.0392,
+        "postFirstMedianMs": 330.22990000000004,
+        "scroll": [
+          [
+            6.6865,
+            26.3139,
+            240216
+          ],
+          [
+            6.8013,
+            30.694,
+            239064
+          ],
+          [
+            6.5199,
+            26.5401,
+            239640
+          ]
+        ]
+      },
+      {
+        "id": "windows-before",
+        "startMs": [
+          346.063,
+          336.88505,
+          332.29205,
+          322.8216,
+          315.76514999999995
+        ],
+        "startMedianMs": 332.29205,
+        "postFirstMedianMs": 327.556825,
+        "scroll": [
+          [
+            5.5314,
+            30.6547,
+            238968
+          ],
+          [
+            5.5961,
+            29.8799,
+            239064
+          ],
+          [
+            5.7349,
+            30.4387,
+            238968
+          ]
+        ]
+      }
+    ],
+    "android": {
+      "android-emulator-before": [
+        {
+          "firstObservedPaintMs": 1300.7978,
+          "callbacks": 122,
+          "cpuMs": 11988,
+          "display": {
+            "PhysicalWidth": 1080,
+            "PhysicalHeight": 2400,
+            "RefreshRate": 60.000004
+          },
+          "manAlloc": 61172040,
+          "pssKiB": 169359,
+          "paintP95Ms": 64.8122
+        },
+        {
+          "firstObservedPaintMs": 1202.1767,
+          "callbacks": 122,
+          "cpuMs": 12128,
+          "display": {
+            "PhysicalWidth": 1080,
+            "PhysicalHeight": 2400,
+            "RefreshRate": 60.000004
+          },
+          "manAlloc": 61175832,
+          "pssKiB": 169669,
+          "paintP95Ms": 66.9215
+        },
+        {
+          "firstObservedPaintMs": 1201.4646,
+          "callbacks": 122,
+          "cpuMs": 11685,
+          "display": {
+            "PhysicalWidth": 1080,
+            "PhysicalHeight": 2400,
+            "RefreshRate": 60.000004
+          },
+          "manAlloc": 61169664,
+          "pssKiB": 169635,
+          "paintP95Ms": 65.7244
+        }
+      ]
+    },
+    "workloads": [
+      "flow-96-controls-v1",
+      "collection-100k-fixed-56px-v1",
+      "android-text-collection-v1",
+      "multilingual-text-v1"
+    ],
+    "startupPolicy": "Fresh application processes. The first trial and subsequent trials remain distinct. OS cold caches not qualified."
+  },
+  "futureCheckpoints": [
+    "S02-c software 4.x",
+    "Frame Pacing and VSync",
+    "GPU on the same framework",
+    "layout and rendering",
+    "Smooth Scrolling",
+    "virtualization",
+    "CLR 10 versus 11",
+    "2.0.0 release"
+  ]
+}

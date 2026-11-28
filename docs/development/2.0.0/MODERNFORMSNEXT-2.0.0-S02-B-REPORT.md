@@ -1,7 +1,9 @@
 # ModernFormsNext 2.0.0 — raport S02-b
 
-**Gotowy do przeglądu.** S02-b rozszerza istniejący TestHost przed
-kwalifikacją migracji SkiaSharp. Zmiany są skierowane do `develop/2.0.0`.
+**Zintegrowany z `develop/2.0.0`.** PR #558 scalono jako
+`ad10f5ae155b299ff0ed2f9047586a5b519d1846` po sukcesie wymaganego
+`build` dla `d43abbad7074f803969bdc5c777c0a58b6f5cd06`. S02-b rozszerzył
+istniejący TestHost przed kwalifikacją migracji SkiaSharp.
 [#64](https://github.com/ProGraMajster/ModernFormsNext/issues/64) · [PR #558](https://github.com/ProGraMajster/ModernFormsNext/pull/558) · [Wymagane CI](https://github.com/ProGraMajster/ModernFormsNext/pull/558/checks)
 
 ## Integracja S02-a i baza 3.x
@@ -95,6 +97,6 @@ właściwych dowodów poza TestHostem.
 Obowiązują również osobne kryteria platformowe. Zachowano milestones
 i zakres wydania.
 
-Master Plan oznacza S02-a jako zintegrowany, S02-b jako gotowy do
-przeglądu i S02-c jako oczekujący na zgodę właściciela.
+Master Plan oznacza S02-a i S02-b jako zintegrowane. Właściciel
+zatwierdził S02-c.
 [Master Plan](MASTER-PLAN.md) · [Dane kanoniczne](implementation-plan.json) · [Tracker](STAGE-TRACKER.md)

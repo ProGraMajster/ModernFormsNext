@@ -69,7 +69,13 @@ Fizyczne urządzenia, IME oraz natywne DnD zachowują odrębne kryteria.
 
 ## Porównania wydajności
 
-Ustal bazę i scenariusze przed migracją #419. Mierz cold i warm oddzielnie:
+Ustal bazę i scenariusze przed migracją #419. Porównuj dokładne
+`v1.12.1` z finalnym 2.0.0. Osobne serie dokumentują SkiaSharp 3.x/4.x,
+software/GPU oraz .NET 10/11 na równoważnym środowisku. Rejestr zachowuje
+surowe dane, sumy, wszystkie niezależne próby i dokładne rewizje.
+[Program i rejestr pomiarów](PERFORMANCE-BENCHMARKS.md)
+
+Mierz cold i warm oddzielnie. Rozróżniaj:
 startup, first window i first presented frame, layout, raster, czas do
 prezentacji, p50/p95/p99, dropped/stale frames, idle/active CPU, pamięć
 i alokacje. Testy 1k/10k/50k kontrolek mają różne zakresy i nie są jedną

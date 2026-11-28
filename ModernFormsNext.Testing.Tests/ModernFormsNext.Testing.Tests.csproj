@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ModernFormsNext.Testing\ModernFormsNext.Testing.csproj" />
+    <Compile Include="../scripts/tests/fixtures/SkiaQualification/TextCorpus.cs" Link="TextCorpus.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\BindingNavigatorCertification.cs" Link="BindingNavigatorCertification.cs" />
     <Compile Include="..\samples\ModernFormsNext.CrossPlatform.Sample\ToolTipCertification.cs" Link="ToolTipCertification.cs" />
   </ItemGroup>
