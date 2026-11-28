@@ -298,7 +298,9 @@
           "title": "Pomiar prezentacji, frame pacing/VSync i weryfikacja potrzeby render thread",
           "issues": [
             338
-          ]
+          ],
+          "status": "prototype-evaluated-review-pending",
+          "report": "MODERNFORMSNEXT-2.0.0-S02-D-REPORT.md"
         },
         {
           "waveId": "S02-e",
@@ -1077,7 +1079,9 @@
         114
       ],
       "acceptance": "Przyjęta metoda rozdzielenia tick, paint i present oraz decyzja UI-thread vs eksperyment. Własny render thread wymaga dowodu korzyści.",
-      "status": "proposed"
+      "status": "partial-evidence",
+      "latestEvidence": "performance-benchmarks.json#s02dFramePacing",
+      "decision": "Keep UI-thread rendering and the current default scheduling. The measured cap reduced invalidation calls but increased native paints while scrolling. Correlated Android compositor data is available. Windows GDI compositor attribution and physical scanout remain open."
     },
     {
       "gateId": "style-precedence",
@@ -13802,8 +13806,8 @@
   ],
   "approval": {
     "plan": "merged",
-    "nextScope": "Integrate S02-c after exact-head CI, then begin S02-d under #338",
-    "implementationMerge": "S02-b and S02-c1 integrated. The owner authorized PR #560 integration into develop/2.0.0 once required checks pass.",
+    "nextScope": "Review S02-d prototype and #338 measurement gaps. Owner approval is required before integration.",
+    "implementationMerge": "S02-c integrated in #560 as e366302dd27ba160f44d208c64e858cdd15fe516. Conditional development acceptance does not qualify final release. S02-d remains in a separate draft PR.",
     "scopeSource": "Owner acceptance of S02-b and SkiaSharp migration request",
     "nextWaveApproval": "S02-d approved for investigation and bounded prototype under #338. S02-e awaits separate approval."
   },
@@ -13917,10 +13921,9 @@
   },
   "currentCheckpoint": {
     "stageId": "S02",
-    "waveId": "S02-c",
-    "substep": "S02-c3",
-    "status": "accepted-for-development",
-    "report": "MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md"
+    "waveId": "S02-d",
+    "status": "prototype-evaluated-review-pending",
+    "report": "MODERNFORMSNEXT-2.0.0-S02-D-REPORT.md"
   },
   "performanceBenchmarkProgram": {
     "policy": "PERFORMANCE-BENCHMARKS.md",
