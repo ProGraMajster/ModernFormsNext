@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime;
+using ModernFormsNext.Rendering;
 using ModernFormsNext.Diagnostics;
 using UiTimer = ModernFormsNext.Timer;
 
@@ -13,7 +15,9 @@ internal sealed class BenchmarkRun(
     ProcessSample initial,
     long enteredMain,
     long recorderStartLower,
-    long recorderStartUpper)
+    long recorderStartUpper,
+    string? pacingMode,
+    int warmupMs)
 {
     private readonly UiTimer timer = new();
     private LabWindow window = null!;
@@ -25,7 +29,40 @@ internal sealed class BenchmarkRun(
     private ProcessSample? measuredStart;
     private TimeSpan? measuredStartOffset;
 
+    private LabFramePacing? pacing;
+    private FrameRequestCounts measuredRequests;
+    private SyntheticInputObservation? syntheticInput;
+    private int workloadUpdates;
+    private long warmupStarted, lastJitCheck;
+    private TimeSpan lastJit, measuredJit;
+    private bool observedQuietJit;
+    private double warmupJitDeltaMs;
+
+    internal Form Window => window;
+    internal PerformanceProfiler Profiler => profiler;
     internal int PaintPasses => window.PaintPasses;
+
+    internal bool CanStartMeasuredWork
+    {
+        get
+        {
+            if (warmupMs == 0) return true;
+            long now = Stopwatch.GetTimestamp();
+            if (Stopwatch.GetElapsedTime(lastJitCheck, now).TotalMilliseconds >= 500)
+            {
+                var count = JitInfo.GetCompilationTime();
+                warmupJitDeltaMs = (count - lastJit).TotalMilliseconds;
+                observedQuietJit = warmupJitDeltaMs <= 5;
+                lastJit = count;
+                lastJitCheck = now;
+            }
+            double elapsed = Stopwatch.GetElapsedTime(warmupStarted, now).TotalMilliseconds;
+            return elapsed >= warmupMs && observedQuietJit || elapsed >= warmupMs + 6000;
+        }
+    }
+
+    internal void SetWorkloadUpdates(int count) => workloadUpdates = count;
+    internal void SetSyntheticInput(SyntheticInputObservation? observation) => syntheticInput = observation;
 
     internal BenchmarkResult Execute()
     {
@@ -37,6 +74,8 @@ internal sealed class BenchmarkRun(
         })
         {
             window.Controls.Add(scenario.CreateContent());
+            using var experiment = pacingMode is null ? null : new LabFramePacing(window, pacingMode == "refresh");
+            pacing = experiment;
             window.Shown += (_, _) =>
             {
                 shownAt = Stopwatch.GetTimestamp();
@@ -65,7 +104,12 @@ internal sealed class BenchmarkRun(
     /// <summary>Starts the timed phase after setup and warmup have finished.</summary>
     internal void BeginMeasurement()
     {
-        measuredStartOffset = profiler.Capture().Elapsed;
+        measuredStartOffset = pacing is null ? profiler.Capture().Elapsed : profiler.ReadElapsedMark();
+        if (pacing is { } probe)
+        {
+            measuredRequests = probe.Counts;
+            measuredJit = JitInfo.GetCompilationTime();
+        }
         measuredStart = ProcessSample.Capture(process);
     }
 
@@ -83,7 +127,7 @@ internal sealed class BenchmarkRun(
                 && frame.Started >= offset).ToArray()
             : [firstFrame];
 
-        if (frames.Length == 0 || frames.Any(frame => !frame.Completed))
+        if ((frames.Length == 0 && !scenario.AllowsEmptyMeasurement) || frames.Any(frame => !frame.Completed))
             throw new InvalidOperationException("The workload has missing or incomplete render callbacks.");
         if (scroll is not null && (frames.Length < 2 ||
             frames.Any(frame => frame.RenderInfo.Scale != firstFrame.RenderInfo.Scale ||
@@ -102,11 +146,28 @@ internal sealed class BenchmarkRun(
             firstFrame.Sequence);
         var processWindow = ProcessObservation.Compare(measuredStart ?? initial, measuredEnd);
         var environment = WindowsEnvironment.Read(window.PlatformHandle.Handle);
+        var pacingObservation = pacing is not { } probe ? null : new PacingObservation(
+            pacingMode!, probe.DisplayModeHz, probe.Counts.Since(measuredRequests),
+            scroll?.Steps ?? workloadUpdates, warmupMs, observedQuietJit, warmupJitDeltaMs,
+            (JitInfo.GetCompilationTime() - measuredJit).TotalMilliseconds,
+            syntheticInput, MatchCompletedPaints(syntheticInput, frames));
         result = new(1, scenario.Id, scenario.WorkloadVersion, DateTimeOffset.UtcNow, environment,
-            startup, processWindow, FrameSummary.Create(frames, measuredStartOffset is not null), scroll,
-            measuredStartOffset?.TotalMilliseconds, frames.Select(frame => frame.Sequence).ToArray(), snapshot);
+            startup, processWindow, FrameSummary.Create(frames, measuredStartOffset is not null, firstFrame.RenderInfo), scroll,
+            measuredStartOffset?.TotalMilliseconds, frames.Select(frame => frame.Sequence).ToArray(), snapshot)
+            { Pacing = pacingObservation };
 
         window.Close();
+    }
+
+    private static Distribution? MatchCompletedPaints(SyntheticInputObservation? input, PerformanceFrameMetrics[] frames)
+    {
+        if (input is null) return null;
+        var samples = from sample in input.Samples
+                      let frame = frames.FirstOrDefault(frame =>
+                          frame.Started <= sample.DrewAt && sample.DrewAt <= frame.Started + frame.Duration)
+                      where frame.Completed
+                      select (frame.Started + frame.Duration - sample.PostedAt).TotalMilliseconds;
+        return Distribution.From(samples);
     }
 
     private static bool IsWindowFrame(PerformanceFrameMetrics frame)
@@ -122,7 +183,11 @@ internal sealed class BenchmarkRun(
             && frame.RenderInfo is { PixelWidth: > 0, PixelHeight: > 0, ActiveBackend: not null }
             && frame.Work.ControlsRepainted > 0 && frame.Work.RenderTime > TimeSpan.Zero);
         if (firstFrame.Completed)
+        {
+            warmupStarted = lastJitCheck = Stopwatch.GetTimestamp();
+            if (warmupMs > 0) lastJit = JitInfo.GetCompilationTime();
             scenario.Begin(this);
+        }
     }
 
     private void OnTick(object? sender, EventArgs e)

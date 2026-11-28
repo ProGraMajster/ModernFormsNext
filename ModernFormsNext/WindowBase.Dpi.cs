@@ -42,6 +42,7 @@ public abstract partial class WindowBase
         var change = new DpiChangedEventArgs(dpiScaling, scale);
         dpiScaling = scale;
         dpiChange = change;
+        experimentalFramePacer?.RetireDamage();
         using var batch = Application.BeginVisualInvalidationBatch();
         List<Exception> failures = [];
         // Keep processing still-current descendants and final layout after an observer failure.

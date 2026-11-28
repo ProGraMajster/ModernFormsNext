@@ -73,3 +73,32 @@ version before comparing them with a saved baseline.
   revisiting this baseline for SkiaSharp 4.x or GPU.
 
 [Windows display-device counters](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdevicecaps)
+
+## S02-d experiments
+
+The same executable can run the existing immediate scheduling path and an
+optional UI-thread cap on native invalidation requests. Launch each mode in a
+fresh process with a different output directory.
+
+```powershell
+dotnet run -c Release --project samples/ModernFormsNext.PerformanceLab -- --scenario pacing-tree --pacing reference --output artifacts/pacing-tree-reference
+dotnet run -c Release --project samples/ModernFormsNext.PerformanceLab -- --scenario pacing-tree --pacing refresh --output artifacts/pacing-tree-refresh
+dotnet run -c Release --project samples/ModernFormsNext.PerformanceLab -- --scenario virtualized-scroll --pacing refresh --warmup-ms 5000 --output artifacts/pacing-scroll-warm
+```
+
+Use `pacing-idle`, `pacing-tree`, `pacing-animation`, `pacing-resize` or
+`pacing-input` for the additional workloads. `reference` forwards immediately
+with the same request counters as `refresh`. If the monitor mode is unavailable,
+the experiment forwards immediately. The native paint callback remains the
+renderer entry point.
+
+`--warmup-ms` adds lower-bound warmup time with the workload running. The
+runner records whether a window of at least 500 ms had at most 5 ms of added
+compilation time before measurement. It stops extending warmup after another
+6 seconds and includes observed JIT time during the measured window.
+
+Synthetic input uses a posted pointer message to the owned lab HWND and
+correlates it with the application handler and completed native paint.
+The recorded presentation and scanout availability fields describe the
+limits of this Windows path. Counts of merged damage and retired backing
+regions describe requests at the application boundary.

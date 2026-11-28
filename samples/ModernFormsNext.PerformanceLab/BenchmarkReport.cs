@@ -76,9 +76,19 @@ internal static class BenchmarkReport
         Line("Layout wall time, ms", result.Frames.LayoutWallMs);
         Line("Framework render wall time, ms", result.Frames.FrameworkRenderWallMs);
         Line("Callback interval, ms", result.Frames.CallbackIntervalMs);
+        Line("Input dispatch wall time in observed interval, ms", result.Frames.InputDispatchWallMs);
         Line("Native framebuffer submission wall time, ms", result.Frames.SubmissionWallMs);
         Line("Managed UI-thread allocation, B", result.Frames.ManagedUiAllocationBytes);
         Line("GPU execution, ms", result.Frames.GpuExecutionMs);
+
+        if (result.Pacing is { } pacing)
+        {
+            Line("Synthetic pointer posted to handler, ms", pacing.SyntheticQueueToHandlerMs);
+            Line("Synthetic pointer posted to completed native paint, ms", pacing.InputToCompletedNativePaintMs);
+            report.AppendLine()
+                .AppendLine($"Pacing: {pacing.Mode}; updates {pacing.WorkloadUpdates}, native invalidation requests {pacing.Requests.Signals}, merged damage requests {pacing.Requests.Merged}.")
+                .AppendLine($"Warmup requested: {pacing.MinimumWarmupMs} ms. Quiet JIT sample: {pacing.ObservedQuietJit}. JIT time during measurement: {Number(pacing.MeasuredJitMs)} ms.");
+        }
 
         if (result.Scroll is { } scroll)
         {

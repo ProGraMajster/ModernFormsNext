@@ -9,6 +9,7 @@ internal abstract class BenchmarkScenario
     internal abstract string WorkloadVersion { get; }
     internal abstract Control CreateContent();
     internal abstract void Begin(BenchmarkRun run);
+    internal virtual bool AllowsEmptyMeasurement => false;
 }
 
 internal sealed class StartupScenario : BenchmarkScenario
@@ -88,7 +89,7 @@ internal sealed class VirtualizedScrollScenario : BenchmarkScenario
         void WarmUp()
         {
             scroll.Value += StepPixels;
-            if (++warmup != WarmupSteps)
+            if (++warmup < WarmupSteps || !run.CanStartMeasuredWork)
                 return;
 
             resetPaint = run.PaintPasses;
@@ -125,7 +126,7 @@ internal sealed class VirtualizedScrollScenario : BenchmarkScenario
                 final.ReusedContainerCount <= initial.ReusedContainerCount)
                 throw new InvalidOperationException("Expected movement and bounded container recycling were not observed.");
 
-            run.Complete(new(ItemCount, ItemHeight, CacheItems, WarmupSteps, MeasuredSteps,
+            run.Complete(new(ItemCount, ItemHeight, CacheItems, warmup, MeasuredSteps,
                 StepPixels, StepIntervalMilliseconds, startPosition, scroll.Value, initial, final));
         }
     }

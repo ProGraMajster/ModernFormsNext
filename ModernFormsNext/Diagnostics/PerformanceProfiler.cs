@@ -132,6 +132,13 @@ public sealed partial class PerformanceProfiler : IDisposable, IPlatformPerforma
         return new(this, BeginActivity(activity, null));
     }
 
+    /// <summary>Reads a lightweight correlation mark in the same monotonic epoch as retained frames.</summary>
+    internal TimeSpan ReadElapsedMark()
+    {
+        VerifyAccess();
+        return ToTime(Math.Max(lastTimestamp, timestamp()) - started);
+    }
+
     /// <summary>Copies the current bounded data, without enumerating controls or invoking application callbacks.</summary>
     /// <returns>An immutable snapshot safe to read on another thread.</returns>
     public PerformanceSnapshot Capture()

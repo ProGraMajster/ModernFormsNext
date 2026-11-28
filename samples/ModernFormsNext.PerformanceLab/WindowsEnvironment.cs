@@ -18,9 +18,7 @@ internal static class WindowsEnvironment
 {
     internal static LabEnvironment Read(nint window)
     {
-        var monitor = MonitorFromWindow(window, 2); // MONITOR_DEFAULTTONEAREST
-        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        string? device = monitor != 0 && GetMonitorInfo(monitor, ref info) ? info.DeviceName : null;
+        string? device = ReadMonitorDevice(window);
         uint dpi = GetDpiForWindow(window);
         var memory = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
 
@@ -61,6 +59,15 @@ internal static class WindowsEnvironment
             if (string.Equals(details.DeviceName, device, StringComparison.OrdinalIgnoreCase))
                 return details.Description;
         }
+    }
+
+    internal static int? ReadRefreshForWindow(nint window) => ReadRefresh(ReadMonitorDevice(window));
+
+    private static string? ReadMonitorDevice(nint window)
+    {
+        var monitor = MonitorFromWindow(window, 2); // MONITOR_DEFAULTTONEAREST
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        return monitor != 0 && GetMonitorInfo(monitor, ref info) ? info.DeviceName : null;
     }
 
     private static int? ReadRefresh(string? device)

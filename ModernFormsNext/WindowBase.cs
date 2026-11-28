@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Linq;
 using ModernFormsNext.WindowKit;
@@ -307,7 +307,40 @@ namespace ModernFormsNext
         /// </remarks>
         public void Invalidate () => Application.RequestVisualInvalidation (this);
 
+        private FrameRequestPacer? experimentalFramePacer;
         private Rect? pendingDamage;
+
+        /// <summary>Attaches the optional PerformanceLab probe on the owning UI thread.</summary>
+        internal FrameRequestPacer AttachFrameRequestPacer(Func<TimeSpan> now, Action<TimeSpan?> setWake)
+        {
+            ObjectDisposedException.ThrowIf(backendClosed || InputBindingsClosed, this);
+            if (experimentalFramePacer is not null)
+                throw new InvalidOperationException("A frame request pacing probe is already attached.");
+            var pacer = new FrameRequestPacer(now, setWake, damage =>
+            {
+                if (backendClosed || InputBindingsClosed || !Visible) return;
+                damage = damage.Intersect(new Rect(window.ClientSize));
+                if (damage.Width > 0 && damage.Height > 0) window.Invalidate(damage);
+            });
+            experimentalFramePacer = pacer;
+            SyncFramePacingVisibility();
+            return pacer;
+        }
+
+        internal void SyncFramePacingVisibility() =>
+            experimentalFramePacer?.SetActive(Visible && this is not Form { WindowState: FormWindowState.Minimized });
+
+        private void ReleaseFramePacer()
+        {
+            if (experimentalFramePacer is { } pacer) DetachFrameRequestPacer(pacer);
+        }
+
+        internal void DetachFrameRequestPacer(FrameRequestPacer pacer)
+        {
+            if (!ReferenceEquals(experimentalFramePacer, pacer)) return;
+            experimentalFramePacer = null;
+            pacer.Dispose();
+        }
         private bool pendingFullDamage;
 
         internal void AccumulateDamage (Rect? rectangle)
@@ -329,7 +362,11 @@ namespace ModernFormsNext
             pendingFullDamage = false;
             if (backendClosed) return;
             damage = damage.Intersect (new Rect (window.ClientSize));
-            if (damage.Width > 0 && damage.Height > 0) window.Invalidate (damage);
+            if (damage.Width <= 0 || damage.Height <= 0) return;
+            if (experimentalFramePacer is { } pacer)
+                pacer.Request(damage);
+            else
+                window.Invalidate(damage);
         }
 
         internal void RefreshThemeVisuals (EventArgs e)
@@ -660,6 +697,7 @@ namespace ModernFormsNext
         {
             if (Visible == value) return false;
             Visible = value;
+            SyncFramePacingVisibility();
             return true;
         }
 

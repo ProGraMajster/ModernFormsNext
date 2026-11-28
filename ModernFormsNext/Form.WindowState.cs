@@ -52,6 +52,7 @@ public partial class Form
             WindowState != current || notifiedWindowState == current) return;
         var args = new WindowStateChangedEventArgs(notifiedWindowState, current);
         notifiedWindowState = current;
+        SyncFramePacingVisibility();
         windowStateNotificationVersion++;
         OnWindowStateChanged(args);
     }
