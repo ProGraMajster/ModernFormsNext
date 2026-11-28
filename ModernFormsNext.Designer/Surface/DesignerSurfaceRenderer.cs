@@ -226,7 +226,7 @@ internal sealed class DesignerSurfaceRenderer : IDisposable
                 ? state.ExecutablePreview?.GetRaster(node, bounds.Width, bounds.Height, previewPaintArgs.Scaling)
                 : null;
             if (bitmap is not null)
-                surfacePaintArgs.Canvas.DrawBitmap(bitmap, bounds.ToSKRect());
+                surfacePaintArgs.Canvas.DrawBitmap(bitmap, bounds.ToSKRect(), new SKSamplingOptions(SKFilterMode.Nearest));
             else if (!TryDrawEmbeddedPreview(
                 surfacePaintArgs,
                 previewPaintArgs,

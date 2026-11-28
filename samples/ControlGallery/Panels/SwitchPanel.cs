@@ -232,7 +232,7 @@ namespace ControlGallery.Panels
             using var canvas = new SKCanvas(bitmap);
             canvas.Clear(SKColors.Transparent);
 
-            using var bolt = new SKPath();
+            using var bolt = new SKPathBuilder();
             bolt.MoveTo(18, 2);
             bolt.LineTo(8, 18);
             bolt.LineTo(16, 18);
@@ -248,7 +248,8 @@ namespace ControlGallery.Panels
                 IsStroke = false
             };
 
-            canvas.DrawPath(bolt, paint);
+            using var iconPath = bolt.Detach();
+            canvas.DrawPath(iconPath, paint);
 
             paint.Color = accent;
             canvas.DrawCircle(24, 8, 3, paint);
@@ -263,7 +264,7 @@ namespace ControlGallery.Panels
             using var canvas = new SKCanvas(bitmap);
             canvas.Clear(SKColors.Transparent);
 
-            using var leaf = new SKPath();
+            using var leaf = new SKPathBuilder();
             leaf.MoveTo(5, 18);
             leaf.CubicTo(9, 5, 23, 4, 28, 8);
             leaf.CubicTo(28, 22, 17, 28, 5, 18);
@@ -276,7 +277,8 @@ namespace ControlGallery.Panels
                 IsStroke = false
             };
 
-            canvas.DrawPath(leaf, paint);
+            using var iconPath = leaf.Detach();
+            canvas.DrawPath(iconPath, paint);
 
             paint.Color = accent;
             paint.IsStroke = true;

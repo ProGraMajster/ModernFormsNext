@@ -16,21 +16,25 @@ Designera. Źródła frameworka używają SDK 10. Android jest Experimental.
 **S02-a zintegrowany.** Minimalny PerformanceLab #114 korzysta z profilera
 #58. **S02-b zintegrowany** przez PR #558, z pokryciem TestHosta dla
 symulowanego dotyku, diagnostyki i wirtualizacji w nawigacji.
-Właściciel zatwierdził S02-c. Korpus i baza 3.x poprzedzają osobny PR
-SkiaSharp 4.x. Porównania wydania wykorzystują dokładny `v1.12.1`.
-[Program pomiarów](PERFORMANCE-BENCHMARKS.md)
-[PR S02-a](https://github.com/ProGraMajster/ModernFormsNext/pull/557) ·
-[Raport pomiarów](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) · [Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md).
-Utrwalić workload i pomiar SkiaSharp 3.x, żeby osobny PR #419 mógł dać
-wiarygodne porównanie 4.x i wykryć zmianę w pakietach, DPI, tekście oraz
-prezentacji. Pierwszy PR powinien zawierać cienki harness, metadane i dwa
-reprezentatywne scenariusze, na przykład pierwszy pełny paint/render
-oraz przewijanie listy z wieloma logicznymi elementami. Pomiary należy
-uruchomić dla równoważnych warunków. Pełny PerformanceLab, GPU,
-render thread, nowe kontrolki i zmiana pakietów mają własne późniejsze
-rozstrzygnięcia. S03-a może przygotowywać macierz wartości równolegle.
-[Profilowanie](../../performance-diagnostics.md) ·
-[Szczegóły testów](TESTING-STRATEGY.md)
+**S02-c1 zintegrowany** jako b9026d6 przez PR #559. Porównania wydania
+wykorzystują dokładny v1.12.1, natomiast archiwum S02-a zachowuje
+historyczne wyniki gałęzi 2.0. Migrację software i porównanie 3.x/4.x
+zawiera PR #560. Przeplatana sesja bez gry nie potwierdziła wzrostu p99.
+Diagnostyka zawęziła dłuższy pierwszy paint w Windows do pierwszego
+użycia glifów. Wcześniejszego wzrostu CPU przewijania w tej skali nie
+odtworzono. 28 listopada 2026 właściciel zaakceptował software-4x
+do integracji z `develop/2.0.0` w trybie GO WITH KNOWN PERFORMANCE
+REGRESSIONS. Wyjątek obejmuje koszt pierwszego rysowania tekstu w
+Windows. Zgłoszenie [#561](https://github.com/ProGraMajster/ModernFormsNext/issues/561)
+śledzi ponowną ocenę przed publikacją. Android pozostaje Experimental.
+Funkcjonalna kwalifikacja software obejmuje opisane środowiska. Fizyczne
+strony Android 16 KiB i końcowa akceptacja wydania pozostają otwarte.
+Właściciel zaakceptował zastąpienie `ToSKFilterQuality()` przez
+`ToSKSamplingOptions()`.
+[Program pomiarów](PERFORMANCE-BENCHMARKS.md) ·
+[Raport S02-a](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) ·
+[Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md) ·
+[Raport S02-c](MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md)
 
 ## Stan architektury i powody kolejności
 

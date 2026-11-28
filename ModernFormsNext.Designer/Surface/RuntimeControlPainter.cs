@@ -66,7 +66,7 @@ internal static class RuntimeControlPainter
             canvas.Flush();
             diagnostics = AnalyzeBitmap(bitmap);
 
-            target.Canvas.DrawBitmap(bitmap, destination.Left, destination.Top);
+            target.Canvas.DrawBitmap(bitmap, destination.Left, destination.Top, new SKSamplingOptions(SKFilterMode.Nearest));
             return true;
         }
         catch (Exception ex)

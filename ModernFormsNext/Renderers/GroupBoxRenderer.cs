@@ -200,14 +200,13 @@ namespace ModernFormsNext.Renderers
 
         private static SKPath CreateFramePath(SKRect frame, float radius)
         {
-            var path = new SKPath();
-
+            using var path = new SKPathBuilder();
             if (radius > 0)
                 path.AddRoundRect(frame, radius, radius);
             else
                 path.AddRect(frame);
 
-            return path;
+            return path.Detach();
         }
 
         private static void DrawFrameRect(GroupBox control, SKCanvas canvas, SKRect frame, SKPaint paint, PaintEventArgs? e)

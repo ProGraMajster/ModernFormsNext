@@ -114,13 +114,14 @@ namespace ModernFormsNext.Renderers
                     break;
                 case ToolTipIcon.Warning:
                     fill.Color = owner.ResolveIconBackColor(icon);
-                    using (var path = new SKPath())
+                    using (var path = new SKPathBuilder())
                     {
                         path.MoveTo(rect.MidX, rect.Top);
                         path.LineTo(rect.Right, rect.Bottom);
                         path.LineTo(rect.Left, rect.Bottom);
                         path.Close();
-                        canvas.DrawPath(path, fill);
+                        using var glyph = path.Detach();
+                        canvas.DrawPath(glyph, fill);
                     }
                     canvas.DrawText("!", rect.MidX, rect.Bottom - (bounds.Height * 0.16f), SKTextAlign.Center, textFont, textPaint);
                     break;

@@ -11,6 +11,20 @@ ModernFormsNext follows semantic versioning. Git tags use a `v` prefix, while Nu
 - A new app's first Designer save can regenerate its starter initialization and fields from the saved design.
   The Designer continues to require review when the generated file contains user edits.
 
+### Breaking changes for 2.0.0
+
+- The move to SkiaSharp 4 replaces WindowKit's `ToSKFilterQuality()` with
+  `ToSKSamplingOptions()`. Update and rebuild applications and plugins that
+  call the old method. The [2.0.0 migration guide](docs/migrations/1.12.1-to-2.0.0.md)
+  lists the interpolation mapping and shows how to pass explicit sampling when drawing.
+
+### Known performance limitations for 2.0.0
+
+- Windows software rendering can take longer to complete the first paint
+  when text initializes the native glyph path. The S02-c investigation
+  documents the affected workloads and environment.
+  [S02-c investigation](docs/development/2.0.0/MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md#ukierunkowana-diagnostyka-windows).
+
 ## [1.12.1] — 2026-11-26
 
 ### Fixes

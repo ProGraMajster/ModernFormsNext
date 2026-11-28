@@ -198,7 +198,7 @@
       337,
       419
     ],
-    "action": "Zachować bazę 3.x przed migracją i porównać ją na tych samych urządzeniach.",
+    "action": "Przegląd PR #560, różnic wydajności i ograniczeń kwalifikacji przed decyzją o integracji.",
     "status": "in-progress"
   },
   "lastCompletedStage": "S01",
@@ -278,14 +278,17 @@
           "substeps": [
             {
               "id": "S02-c1",
+              "status": "integrated",
               "scope": "Audyt typografii, wersjonowany korpus i baza software 3.x"
             },
             {
               "id": "S02-c2",
+              "status": "in-review",
               "scope": "Stabilna migracja SkiaSharp 4.x na software"
             },
             {
               "id": "S02-c3",
+              "status": "accepted-for-development",
               "scope": "Porównanie pomiarów i kwalifikacja platform oraz konsumentów"
             }
           ]
@@ -1059,7 +1062,9 @@
         337
       ],
       "acceptance": "Porównanie 3.x/4.x, NuGet/RID, toolchain, runtime i Designer przy niezmienionym rodzaju renderera.",
-      "status": "proposed"
+      "status": "conditionally-accepted-for-development",
+      "latestEvidence": "performance-benchmarks.json#targetedSoftware4xInvestigation",
+      "decision": "Owner accepted GO WITH KNOWN PERFORMANCE REGRESSIONS on 2026-11-28 for develop/2.0.0 only. #561 tracks Windows first-use glyph cost for final release review. Android remains Experimental; physical ARM64 evidence covers 4 KiB pages. Final release qualification remains open."
     },
     {
       "gateId": "pacing-contract",
@@ -13797,10 +13802,10 @@
   ],
   "approval": {
     "plan": "merged",
-    "nextScope": "S02-c1, S02-c2 and S02-c3",
-    "implementationMerge": "S02-b integrated. Baseline-only S02-c1 is authorized after CI. S02-c2 requires owner review.",
+    "nextScope": "Integrate S02-c after exact-head CI, then begin S02-d under #338",
+    "implementationMerge": "S02-b and S02-c1 integrated. The owner authorized PR #560 integration into develop/2.0.0 once required checks pass.",
     "scopeSource": "Owner acceptance of S02-b and SkiaSharp migration request",
-    "nextWaveApproval": "S02-d and S02-e await separate approval"
+    "nextWaveApproval": "S02-d approved for investigation and bounded prototype under #338. S02-e awaits separate approval."
   },
   "workstreams": {
     "gpu": [
@@ -13913,8 +13918,8 @@
   "currentCheckpoint": {
     "stageId": "S02",
     "waveId": "S02-c",
-    "substep": "S02-c1",
-    "status": "in-progress",
+    "substep": "S02-c3",
+    "status": "accepted-for-development",
     "report": "MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md"
   },
   "performanceBenchmarkProgram": {

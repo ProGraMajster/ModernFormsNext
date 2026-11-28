@@ -38,8 +38,9 @@ namespace ModernFormsNext
                 canvas.Clear (SKColors.Transparent);
 
                 if (radius > 0) {
-                    using var path = new SKPath ();
-                    path.AddRoundRect (backgroundBounds, radius, radius);
+                    using var builder = new SKPathBuilder ();
+                    builder.AddRoundRect (backgroundBounds, radius, radius);
+                    using var path = builder.Detach ();
 
                     canvas.Save ();
                     canvas.ClipPath (path, SKClipOperation.Intersect, true);
@@ -236,15 +237,14 @@ namespace ModernFormsNext
         /// <summary>
         /// Draws a bitmap.
         /// </summary>
-#pragma warning disable CS0618 // DrawBitmap still consumes sampling through SKPaint in this SkiaSharp API.
         public static void DrawBitmap (this SKCanvas canvas, SKBitmap bitmap, Rectangle rect, bool disabled = false)
         {
-            using var paint = new SKPaint { FilterQuality = SKFilterQuality.High };
+            using var paint = new SKPaint();
 
             if (disabled)
                 paint.ColorFilter = disabled_matrix;
 
-            canvas.DrawBitmap (bitmap, rect.ToSKRect (), paint);
+            canvas.DrawBitmap (bitmap, rect.ToSKRect (), new SKSamplingOptions (SKCubicResampler.Mitchell), paint);
         }
 
         /// <summary>
@@ -252,14 +252,13 @@ namespace ModernFormsNext
         /// </summary>
         public static void DrawBitmap (this SKCanvas canvas, SKBitmap bitmap, float x, float y, bool disabled = false)
         {
-            using var paint = new SKPaint { FilterQuality = SKFilterQuality.High };
+            using var paint = new SKPaint();
 
             if (disabled)
                 paint.ColorFilter = disabled_matrix;
 
-            canvas.DrawBitmap (bitmap, x, y, paint);
+            canvas.DrawBitmap (bitmap, x, y, new SKSamplingOptions (SKCubicResampler.Mitchell), paint);
         }
-#pragma warning restore CS0618
 
         /// <summary>
         /// Draws a control's border.

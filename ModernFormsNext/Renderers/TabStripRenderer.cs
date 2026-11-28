@@ -56,7 +56,7 @@ namespace ModernFormsNext.Renderers
             if (item.Icon != null && item.DisplayMode != TabDisplayMode.TextOnly) {
                 var iconSize = e.LogicalToDeviceUnits (16);
                 item.IconBounds = new Rectangle (left, centerY - iconSize / 2, iconSize, iconSize);
-                e.Canvas.DrawImage (item.Icon, item.IconBounds.ToSKRect());
+                e.Canvas.DrawImage (item.Icon, item.IconBounds.ToSKRect(), new SKSamplingOptions (SKFilterMode.Nearest));
                 left += iconSize + e.LogicalToDeviceUnits (8);
             } else {
                 item.IconBounds = Rectangle.Empty;

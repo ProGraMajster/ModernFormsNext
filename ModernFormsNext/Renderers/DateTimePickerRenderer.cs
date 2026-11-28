@@ -79,12 +79,13 @@ namespace ModernFormsNext.Renderers
             float midY = rect.MidY + 1;
             float bottom = rect.Bottom - 4;
 
-            using var path = new SKPath ();
+            using var path = new SKPathBuilder ();
             path.MoveTo (left, midY);
             path.LineTo (midX, bottom);
             path.LineTo (right, top);
 
-            canvas.DrawPath (path, checkPaint);
+            using var glyph = path.Detach ();
+            canvas.DrawPath (glyph, checkPaint);
         }
 
         /// <summary>
@@ -143,20 +144,22 @@ namespace ModernFormsNext.Renderers
                 Color = GetForegroundColor (control)
             };
 
-            using (var up = new SKPath ()) {
+            using (var up = new SKPathBuilder ()) {
                 up.MoveTo (rect.MidX, midY - 5);
                 up.LineTo (rect.Left + ArrowInset, midY - 1);
                 up.LineTo (rect.Right - ArrowInset, midY - 1);
                 up.Close ();
-                canvas.DrawPath (up, glyphPaint);
+                using var glyph = up.Detach ();
+                canvas.DrawPath (glyph, glyphPaint);
             }
 
-            using (var down = new SKPath ()) {
+            using (var down = new SKPathBuilder ()) {
                 down.MoveTo (rect.Left + ArrowInset, midY + 1);
                 down.LineTo (rect.Right - ArrowInset, midY + 1);
                 down.LineTo (rect.MidX, midY + 5);
                 down.Close ();
-                canvas.DrawPath (down, glyphPaint);
+                using var glyph = down.Detach ();
+                canvas.DrawPath (glyph, glyphPaint);
             }
         }
 
@@ -174,13 +177,14 @@ namespace ModernFormsNext.Renderers
                 Color = GetForegroundColor (control)
             };
 
-            using var path = new SKPath ();
+            using var path = new SKPathBuilder ();
             path.MoveTo (rect.MidX - 4, rect.MidY - 1);
             path.LineTo (rect.MidX + 4, rect.MidY - 1);
             path.LineTo (rect.MidX, rect.MidY + 4);
             path.Close ();
 
-            canvas.DrawPath (path, glyphPaint);
+            using var glyph = path.Detach ();
+            canvas.DrawPath (glyph, glyphPaint);
         }
 
         /// <summary>

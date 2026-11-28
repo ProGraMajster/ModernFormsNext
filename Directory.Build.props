@@ -2,6 +2,9 @@
 	<Import Project="build\BuildVariants.props" />
 	<PropertyGroup>
 		<ModernFormsNextPackageVersion>1.12.1</ModernFormsNextPackageVersion>
+		<!-- Match the managed wrappers with their corresponding native release lines. -->
+		<SkiaSharpPackageVersion>4.158.0</SkiaSharpPackageVersion>
+		<HarfBuzzSharpPackageVersion>15.0.0</HarfBuzzSharpPackageVersion>
 		<ModernFormsNextVisualStudioExtensionVersion>1.12.1</ModernFormsNextVisualStudioExtensionVersion>
 		<!-- Compatible patches retain the library assembly identity of the minor release. -->
 		<ModernFormsNextAssemblyVersion>1.12.0.0</ModernFormsNextAssemblyVersion>

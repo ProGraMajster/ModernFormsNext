@@ -277,7 +277,7 @@ namespace ModernFormsNext
                 var destinationRect = new SKRect(destination.Left, destination.Top, destination.Right, destination.Bottom);
 
                 e.Canvas.DrawRect(destination.Left + 4, destination.Top + 4, destination.Width, destination.Height, shadowPaint);
-                e.Canvas.DrawBitmap(page.Bitmap, destinationRect, bitmapPaint);
+                e.Canvas.DrawBitmap(page.Bitmap, destinationRect, new SKSamplingOptions(SKFilterMode.Nearest), bitmapPaint);
                 e.Canvas.DrawRect(destinationRect, pageBorderPaint);
             }
         }

@@ -316,7 +316,7 @@ public partial class Control
                 DrawShadow(canvas, 0, 0);
             }
             finally { canvas.Restore(); }
-            canvas.DrawBitmap(buffer, new SKRect(drawX, drawY, drawX + drawWidth, drawY + drawHeight));
+            canvas.DrawBitmap(buffer, new SKRect(drawX, drawY, drawX + drawWidth, drawY + drawHeight), new SKSamplingOptions(SKFilterMode.Nearest));
             return;
         }
 
@@ -340,9 +340,9 @@ public partial class Control
         }
         finally { canvas.Restore(); }
         if (hasPresentationTransform)
-            canvas.DrawBitmap(buffer, new SKRect(0f, 0f, drawWidth, drawHeight), paint);
+            canvas.DrawBitmap(buffer, new SKRect(0f, 0f, drawWidth, drawHeight), new SKSamplingOptions(SKFilterMode.Nearest), paint);
         else
-            canvas.DrawBitmap(buffer, 0f, 0f, paint);
+            canvas.DrawBitmap(buffer, 0f, 0f, new SKSamplingOptions(SKFilterMode.Nearest), paint);
         canvas.Restore();
     }
 

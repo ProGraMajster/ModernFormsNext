@@ -29,7 +29,11 @@
 	<!-- External -->
 	<ItemGroup>
 		<PackageReference Include="Markdig" Version="1.3.2" />
-		<PackageReference Include="Topten.RichTextKit" Version="0.4.167" />
+		<PackageReference Include="Topten.RichTextKit" Version="0.6.175" />
+		<!-- RichTextKit's minimum versions predate this release. Keep its shaping wrapper
+		     on the same Skia line and pair managed HarfBuzz with the Linux native assets. -->
+		<PackageReference Include="SkiaSharp.HarfBuzz" Version="$(SkiaSharpPackageVersion)" />
+		<PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="$(HarfBuzzSharpPackageVersion)" />
 	</ItemGroup>
 
 	<!-- Internal projects -->

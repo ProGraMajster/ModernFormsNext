@@ -105,7 +105,7 @@ namespace ModernFormsNext.Renderers
             var glyph_x = bounds.Right - glyph_size - 8;
             var glyph_y = bounds.Top + (bounds.Height - glyph_size) / 2;
 
-            using var path = new SKPath();
+            using var path = new SKPathBuilder();
 
             if (sortOrder == SortOrder.Ascending)
             {
@@ -123,7 +123,8 @@ namespace ModernFormsNext.Renderers
             }
 
             using var paint = new SKPaint { Color = color, IsAntialias = true };
-            e.Canvas.DrawPath(path, paint);
+            using var glyph = path.Detach();
+            e.Canvas.DrawPath(glyph, paint);
         }
 
         /// <summary>
@@ -228,14 +229,15 @@ namespace ModernFormsNext.Renderers
                 var tri_x = bounds.Left + (bounds.Width - tri_size) / 2;
                 var tri_y = bounds.Top + (bounds.Height - tri_size) / 2;
 
-                using var path = new SKPath();
+                using var path = new SKPathBuilder();
                 path.MoveTo(tri_x, tri_y);
                 path.LineTo(tri_x + tri_size, tri_y + tri_size / 2);
                 path.LineTo(tri_x, tri_y + tri_size);
                 path.Close();
 
                 using var paint = new SKPaint { Color = Theme.ForegroundColor, IsAntialias = true };
-                e.Canvas.DrawPath(path, paint);
+                using var glyph = path.Detach();
+                e.Canvas.DrawPath(glyph, paint);
             }
         }
 

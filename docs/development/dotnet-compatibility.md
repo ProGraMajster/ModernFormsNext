@@ -84,11 +84,11 @@ runtime scenarios are recorded separately.
 
 | Project | TFM | Dependencies and platform | .NET 10 and .NET 11 validation |
 | --- | --- | --- | --- |
-| ModernFormsNext | 10, 10W | WindowKit, Backend, Windows backend on 10W, Markdig 1.3.2, RichTextKit 0.4.167 | 10 LTS. Verified 11 Windows and bounded neutral probes. Test NuGet selection, startup and UI. |
-| ModernFormsNext.WindowKit | 10 | Backend, SkiaSharp 3.119.2 and Linux native assets, System.Drawing.Common 10.0.10 | 10 API floor. Transitive 11 assets exercised in Windows and Android probes. Test native resolution per RID. |
+| ModernFormsNext | 10, 10W | WindowKit, Backend, Windows backend on 10W, Markdig 1.3.2, RichTextKit 0.6.175, SkiaSharp.HarfBuzz 4.158.0 i HarfBuzzSharp 15.0.0 | 10 LTS. Verified 11 Windows and bounded neutral probes. Test NuGet selection, startup and UI. |
+| ModernFormsNext.WindowKit | 10 | Backend, SkiaSharp 4.158.0 and Linux native assets, System.Drawing.Common 10.0.10 | 10 API floor. Transitive 11 assets exercised in Windows and Android probes. Test native resolution per RID. |
 | ModernFormsNext.WindowKit.Backend | 10 | Shared backend infrastructure | 10 API floor. Transitive 11 Windows and Android probes. |
 | ModernFormsNext.WindowKit.Backend.Windows | 10 | WindowKit, Backend, SkiaSharp, System.Drawing.Common, Win32 | Windows only despite neutral TFM. Package launch and focused native tests on 10 and 11 x64. |
-| ModernFormsNext.WindowKit.Backend.Android | 10, 10A | WindowKit, Backend, Android bindings on 10A, SkiaSharp.Views 3.119.2, System.Formats.Nrbf 10.0.10 | Experimental API 23 on SDK 10. API 24+ consumer probe on 11. Check APK and touch, IME and lifecycle on device. |
+| ModernFormsNext.WindowKit.Backend.Android | 10, 10A | WindowKit, Backend, Android bindings on 10A, SkiaSharp.Views 4.158.0, System.Formats.Nrbf 10.0.10 | Experimental API 23 on SDK 10. API 24+ consumer probe on 11. Check APK and touch, IME and lifecycle on device. |
 | ModernFormsNext.Designing | 10 | Design document schema, no direct package dependencies | 10 SDK and portable APIs. 11 compatibility by TFM. Exercise JSON and round trip. |
 | ModernFormsNext.CodeGeneration | 10 | Designing, Roslyn C# 4.14.0 | 10 SDK and portable APIs. 11 compatibility by TFM. Exercise generated C# compilation. |
 | ModernFormsNext.Designer | 10W | Core, Designing, CodeGeneration, Roslyn | Standard 10 Windows Designer graph. Retain host-bound tests and IDE checks. |
@@ -120,7 +120,7 @@ runtime scenarios are recorded separately.
 | ControlGallery | 10W | Core and Windows backend | Windows manual visual checks on 10; targeted 11 checks use package consumer/native test host. |
 | Explore | 10 | Core and explicit Windows backend | Windows sample on 10. Runtime 11 execution unqualified. |
 | ModernFormsNext.Android.SmokeTest | 10A | Android backend | Experimental SDK 10 device smoke. Matching 11 probe used CrossPlatform.Sample. |
-| ModernFormsNext.CrossPlatform.Sample | 10W, 10A | Core, Android backend, Android HarfBuzzSharp 14.2.1.1 | 10 baseline. Independent NuGet-only Android 11 APK probe. |
+| ModernFormsNext.CrossPlatform.Sample | 10W, 10A | Core, Android backend, Android HarfBuzzSharp 15.0.0 | 10 baseline. Independent NuGet-only Android 11 APK probe. |
 | ModernFormsNext.DemoApp | 10W | Core | Default 10 template reference. Test generated 11 variant separately. |
 | ModernFormsNext.DesignerPlayground | 10W | Core, Designer | 10 Windows tooling sample. Test standard Designer workflows. |
 | Outlaw | 10 | Core and explicit Windows backend | Windows sample on 10. Runtime 11 execution unqualified. |

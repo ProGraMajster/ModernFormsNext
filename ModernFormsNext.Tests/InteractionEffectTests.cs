@@ -36,9 +36,10 @@ public sealed class InteractionEffectTests
         Assert.Equal(1, ripple.ActiveRippleCount);
         SKColor center = bitmap.GetPixel(10, 10);
         Assert.Equal(50, center.Alpha);
-        Assert.InRange(center.Red, (byte)14, (byte)20);
-        Assert.InRange(center.Green, (byte)34, (byte)40);
-        Assert.InRange(center.Blue, (byte)54, (byte)60);
+        // The center is fully covered, so Skia 4 stores the source-over-transparent
+        // color as premultiplied bytes. GetPixel converts those bytes back to straight color.
+        var expectedCenter = SKPMColor.UnPreMultiply(SKPMColor.PreMultiply(new SKColor(20, 40, 60, 50)));
+        Assert.Equal(expectedCenter, center);
         Assert.Equal(0, bitmap.GetPixel(99, 49).Alpha);
         Assert.Equal(0, bitmap.GetPixel(0, 0).Alpha);
 

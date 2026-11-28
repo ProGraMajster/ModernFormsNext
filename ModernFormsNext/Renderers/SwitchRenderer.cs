@@ -262,8 +262,9 @@ namespace ModernFormsNext.Renderers
                 return;
             }
 
-            using var path = new SKPath();
-            path.AddRoundRect(bounds, radius, radius);
+            using var builder = new SKPathBuilder();
+            builder.AddRoundRect(bounds, radius, radius);
+            using var path = builder.Detach();
 
             canvas.Save();
             canvas.ClipPath(path, SKClipOperation.Intersect, true);
@@ -558,7 +559,7 @@ namespace ModernFormsNext.Renderers
         {
             var size = Math.Min(rect.Width, rect.Height);
 
-            using var path = new SKPath {
+            using var path = new SKPathBuilder {
                 FillType = SKPathFillType.EvenOdd
             };
 
@@ -571,7 +572,8 @@ namespace ModernFormsNext.Renderers
                 IsStroke = false
             };
 
-            canvas.DrawPath(path, paint);
+            using var glyph = path.Detach();
+            canvas.DrawPath(glyph, paint);
         }
     }
 }
