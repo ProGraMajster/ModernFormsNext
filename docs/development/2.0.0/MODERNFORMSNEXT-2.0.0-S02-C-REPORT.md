@@ -574,15 +574,19 @@ tego wpisu jako przyczyny wzrostu CPU lub do zmiany ArrayPool i GC.
 
 ### Rekomendacja integracji
 
-**GO WITH KNOWN PERFORMANCE REGRESSIONS — wymagana akceptacja właściciela.**
+**GO WITH KNOWN PERFORMANCE REGRESSIONS — akceptacja właściciela dla develop/2.0.0.**
 Zachowano oryginalny baseline, wcześniejszą kwalifikację, pomiary przy
 grze oraz nowe surowe dane. Runda nie dostarczyła bezpiecznej poprawki
 produkcyjnej. Wyczyszczenie tytułu było próbą izolującą ścieżkę, więc
 nie zmienia interfejsu produktu. Pogorszenie kosztu pierwszego paint jest
 powtarzalne i dotyczy badanego stosu Windows software. Funkcjonalna
 kwalifikacja migracji, w tym Designer i fizyczny Android, zachowuje
-wcześniejszą proweniencję. Rekomendacja wymaga decyzji właściciela i
-zaliczonego wymaganego CI dla nowej rewizji PR #560.
+wcześniejszą proweniencję. 28 listopada 2026 właściciel zaakceptował
+udokumentowany pierwszy paint Windows dla integracji po aktualnym CI
+PR #560. Decyzja o parametrach finalnego wydania pozostaje odrębna.
+[#561](https://github.com/ProGraMajster/ModernFormsNext/issues/561) śledzi
+ponowną ocenę przed publikacją. Android pozostaje Experimental, a dowód
+fizycznego ARM64 obejmuje strony 4 KiB.
 
 Dalszą optymalizację można ograniczyć do reproduktora pierwszego użycia
 glifów w natywnym Skia/DirectWrite. Do ustalenia funkcji i cache potrzebne

@@ -1332,7 +1332,8 @@
   },
   "targetedSoftware4xInvestigation": {
     "recommendation": "GO WITH KNOWN PERFORMANCE REGRESSIONS",
-    "ownerAcceptance": "pending",
+    "ownerAcceptance": "2026-11-28: develop/2.0.0 integration only",
+    "releaseFollowUpIssue": 561,
     "productionChanges": false,
     "sourceCommits": {
       "3x": "34d7030b7f08d557266ad91867ff24845965ede8",

@@ -22,8 +22,13 @@ historyczne wyniki gałęzi 2.0. Migrację software i porównanie 3.x/4.x
 zawiera PR #560. Przeplatana sesja bez gry nie potwierdziła wzrostu p99.
 Diagnostyka zawęziła dłuższy pierwszy paint w Windows do pierwszego
 użycia glifów. Wcześniejszego wzrostu CPU przewijania w tej skali nie
-odtworzono. Rekomendacja software-4x to GO WITH KNOWN PERFORMANCE
-REGRESSIONS. Integracja wymaga akceptacji właściciela i aktualnego CI.
+odtworzono. 28 listopada 2026 właściciel zaakceptował software-4x
+do integracji z `develop/2.0.0` w trybie GO WITH KNOWN PERFORMANCE
+REGRESSIONS. Wyjątek obejmuje koszt pierwszego rysowania tekstu w
+Windows. Zgłoszenie [#561](https://github.com/ProGraMajster/ModernFormsNext/issues/561)
+śledzi ponowną ocenę przed publikacją. Android pozostaje Experimental.
+Funkcjonalna kwalifikacja software obejmuje opisane środowiska. Fizyczne
+strony Android 16 KiB i końcowa akceptacja wydania pozostają otwarte.
 Właściciel zaakceptował zastąpienie `ToSKFilterQuality()` przez
 `ToSKSamplingOptions()`.
 [Program pomiarów](PERFORMANCE-BENCHMARKS.md) ·

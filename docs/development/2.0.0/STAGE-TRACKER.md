@@ -4,10 +4,12 @@ Ostatni zamknięty etap to S01. **S02-a jest zintegrowany** i spełnia
 bramę `baseline-perf` dla Windows software 3.x. **S02-b jest zintegrowany**
 jako ad10f5a. **S02-c1 zintegrowany** jako b9026d6. S02-c2/c3
 w PR #560 dokumentuje migrację, porównanie i pozostałe blokady.
-Brama software-4x oczekuje na decyzję właściciela. Rekomendacja to GO
-WITH KNOWN PERFORMANCE REGRESSIONS z powodu kosztu pierwszego użycia
-glifów w Windows. Wcześniejszy wzrost CPU podczas przewijania i p99
-nie powtórzyły się w tej skali. Zgłoszenia #114, #58, #64,
+Bramę software-4x właściciel zaakceptował warunkowo dla
+`develop/2.0.0`. Koszt pierwszego użycia glifów w Windows podlega
+ponownej ocenie przed publikacją w [#561](https://github.com/ProGraMajster/ModernFormsNext/issues/561).
+Android pozostaje Experimental. Wynik fizycznego ARM64 dotyczy stron
+4 KiB. Wcześniejszy wzrost CPU podczas przewijania i p99 nie powtórzył
+się w tej skali. Zgłoszenia #114, #58, #64,
 #337 i #419 pozostają otwarte.
 [Raport S02-c](MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md) ·
 [PR #560](https://github.com/ProGraMajster/ModernFormsNext/pull/560)
