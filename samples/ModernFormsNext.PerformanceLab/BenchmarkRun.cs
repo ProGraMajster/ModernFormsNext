@@ -117,6 +117,7 @@ internal sealed class BenchmarkRun(
     {
         timer.Stop();
         var measuredEnd = ProcessSample.Capture(process);
+        var endingJit = pacing is null ? TimeSpan.Zero : JitInfo.GetCompilationTime();
         var snapshot = profiler.Capture();
         if (snapshot.DroppedFrames != 0 || snapshot.DroppedScopes != 0 ||
             snapshot.DroppedSources != 0 || snapshot.RecorderFailures != 0)
@@ -149,7 +150,7 @@ internal sealed class BenchmarkRun(
         var pacingObservation = pacing is not { } probe ? null : new PacingObservation(
             pacingMode!, probe.DisplayModeHz, probe.Counts.Since(measuredRequests),
             scroll?.Steps ?? workloadUpdates, warmupMs, observedQuietJit, warmupJitDeltaMs,
-            (JitInfo.GetCompilationTime() - measuredJit).TotalMilliseconds,
+            (endingJit - measuredJit).TotalMilliseconds,
             syntheticInput, MatchCompletedPaints(syntheticInput, frames));
         result = new(1, scenario.Id, scenario.WorkloadVersion, DateTimeOffset.UtcNow, environment,
             startup, processWindow, FrameSummary.Create(frames, measuredStartOffset is not null, firstFrame.RenderInfo), scroll,
