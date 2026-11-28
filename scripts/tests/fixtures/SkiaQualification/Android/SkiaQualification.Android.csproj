@@ -15,7 +15,7 @@
     <Compile Include="../TextCorpus.cs" Link="TextCorpus.cs" />
     <ProjectReference Include="../../../../../ModernFormsNext/ModernFormsNext.csproj" />
     <ProjectReference Include="../../../../../ModernFormsNext.WindowKit.Backend.Android/ModernFormsNext.WindowKit.Backend.Android.csproj" />
-    <!-- Match the 3.x sample's Android-specific HarfBuzz closure. -->
-    <PackageReference Include="HarfBuzzSharp" Version="14.2.1.1" />
+    <!-- Match the sample's Android-specific HarfBuzz closure. -->
+    <PackageReference Include="HarfBuzzSharp" Version="$(HarfBuzzSharpPackageVersion)" />
   </ItemGroup>
 </Project>

@@ -12,35 +12,11 @@ namespace ModernFormsNext.WindowKit.Skia
     /// </summary>
     public static class SkiaSharpExtensions
     {
-        /// <summary>
-        /// Converts a bitmap interpolation mode to a SkiaSharp filter quality value.
-        /// </summary>
-        /// <param name="interpolationMode">The interpolation mode to convert.</param>
-        /// <returns>The matching SkiaSharp filter quality.</returns>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// Thrown when <paramref name="interpolationMode"/> is not recognized.
-        /// </exception>
-#pragma warning disable CS0618 // Retained for source and binary compatibility with existing callers.
-        public static SKFilterQuality ToSKFilterQuality(this BitmapInterpolationMode interpolationMode)
-        {
-            switch (interpolationMode)
-            {
-                case BitmapInterpolationMode.Unspecified:
-                case BitmapInterpolationMode.LowQuality:
-                    return SKFilterQuality.Low;
-                case BitmapInterpolationMode.MediumQuality:
-                    return SKFilterQuality.Medium;
-                case BitmapInterpolationMode.HighQuality:
-                    return SKFilterQuality.High;
-                case BitmapInterpolationMode.None:
-                    return SKFilterQuality.None;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(interpolationMode), interpolationMode, null);
-            }
-        }
-#pragma warning restore CS0618
-
-        internal static SKSamplingOptions ToSKSamplingOptions(this BitmapInterpolationMode interpolationMode)
+        /// <summary>Converts a bitmap interpolation mode to explicit Skia sampling options.</summary>
+        /// <param name="interpolationMode">The requested nearest, linear, mipmapped, or cubic interpolation.</param>
+        /// <returns>Sampling options for Skia image, bitmap, or pixmap operations.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">The interpolation value is undefined.</exception>
+        public static SKSamplingOptions ToSKSamplingOptions(this BitmapInterpolationMode interpolationMode)
         {
             return interpolationMode switch
             {

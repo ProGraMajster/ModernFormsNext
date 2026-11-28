@@ -40,21 +40,21 @@ public partial class Control
         int bottom = Math.Min(buffer.Height, (int)Math.Ceiling(clip.Bottom - y) + 1);
         if (right <= left || bottom <= top) return;
         if (left == 0 && top == 0 && right == buffer.Width && bottom == buffer.Height) {
-            canvas.DrawBitmap(buffer, x, y);
+            canvas.DrawBitmap(buffer, x, y, new SKSamplingOptions(SKFilterMode.Nearest));
             return;
         }
 
-        // SkiaSharp 3 DrawBitmap creates an immutable SKImage from the mutable bitmap,
-        // copying its pixels BEFORE destination clipping. A full 5K ancestor would thus
+        // SkiaSharp DrawBitmap still creates an immutable SKImage from the mutable
+        // bitmap before applying the destination clip. A full 5K ancestor would thus
         // still be copied on every tiny hover. ExtractSubset shares the existing pixel ref;
         // DrawBitmap then makes its safe immutable copy of only this bounded source area.
         // Keep that copy semantics for borrowed/recording/GPU canvases: never lend a mutable
         // pixel pointer to an SKImage whose native lifetime might outlive this synchronous call.
         using var subset = new SKBitmap();
         if (buffer.ExtractSubset(subset, new SKRectI(left, top, right, bottom)))
-            canvas.DrawBitmap(subset, x + left, y + top);
+            canvas.DrawBitmap(subset, x + left, y + top, new SKSamplingOptions(SKFilterMode.Nearest));
         else
-            canvas.DrawBitmap(buffer, x, y);
+            canvas.DrawBitmap(buffer, x, y, new SKSamplingOptions(SKFilterMode.Nearest));
     }
 
     private bool HasPaintableDirtyChild()

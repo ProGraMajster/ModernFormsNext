@@ -53,8 +53,8 @@
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <ProjectReference Include="..\..\ModernFormsNext.WindowKit.Backend.Android\ModernFormsNext.WindowKit.Backend.Android.csproj" />
-    <!-- Override RichTextKit's legacy HarfBuzz runtime with Android 16-compatible native assets. -->
-    <PackageReference Include="HarfBuzzSharp" Version="14.2.1.1" />
+    <!-- Select the Android native closure used by the framework's shaping wrapper. -->
+    <PackageReference Include="HarfBuzzSharp" Version="$(HarfBuzzSharpPackageVersion)" />
     <Compile Remove="Platforms\Windows\**\*.cs" />
   </ItemGroup>
 

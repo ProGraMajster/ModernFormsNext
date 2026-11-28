@@ -90,9 +90,11 @@ public partial class Control
         var cutoutSize = new Size(ScaledWidth, ScaledHeight);
         if (shadowCutout is null || shadowCutoutSize != cutoutSize || shadowCutoutRadius != cutoutRadius)
         {
-            shadowCutout ??= new SKPath();
-            shadowCutout.Reset();
-            shadowCutout.AddRoundRect(new SKRect(0, 0, ScaledWidth, ScaledHeight), cutoutRadius, cutoutRadius);
+            using var builder = new SKPathBuilder();
+            builder.AddRoundRect(new SKRect(0, 0, ScaledWidth, ScaledHeight), cutoutRadius, cutoutRadius);
+            var replacement = builder.Detach();
+            shadowCutout?.Dispose();
+            shadowCutout = replacement;
             shadowCutoutSize = cutoutSize;
             shadowCutoutRadius = cutoutRadius;
         }

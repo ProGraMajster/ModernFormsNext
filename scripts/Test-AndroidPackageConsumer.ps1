@@ -18,10 +18,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+[xml]$properties = Get-Content (Join-Path $repositoryRoot 'Directory.Build.props') -Raw
 if ([string]::IsNullOrWhiteSpace($ExpectedVersion)) {
-    [xml]$properties = Get-Content (Join-Path $repositoryRoot 'Directory.Build.props') -Raw
     $ExpectedVersion = $properties.Project.PropertyGroup.ModernFormsNextPackageVersion
 }
+$skiaVersion = $properties.Project.PropertyGroup.SkiaSharpPackageVersion
+$harfBuzzVersion = $properties.Project.PropertyGroup.HarfBuzzSharpPackageVersion
 $feed = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $runRoot = Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) ([Guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($runRoot) | Out-Null
@@ -86,7 +88,7 @@ Write-ConsumerFile $android @"
     <PackageReference Include="ModernFormsNext" Version="$ExpectedVersion" />
     <PackageReference Include="ModernFormsNext.WindowKit.Backend.Android" Version="$ExpectedVersion" />
     <!-- Same Android-compatible shared-text native dependency as the existing sample. -->
-    <PackageReference Include="HarfBuzzSharp" Version="14.2.1.1" />
+    <PackageReference Include="HarfBuzzSharp" Version="$harfBuzzVersion" />
   </ItemGroup>
 </Project>
 "@
@@ -150,11 +152,11 @@ try {
         if ($assets.packageFolders.Count -ne 1 -or -not [IO.Path]::GetFullPath(@($assets.packageFolders.Keys)[0]).TrimEnd('\', '/').Equals($cache.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) { throw 'Consumer did not use the private package cache.' }
     }
     $androidAssets = Get-Content (Join-Path $runRoot 'android/obj/project.assets.json') -Raw | ConvertFrom-Json -AsHashtable
-    foreach ($dependency in @('SkiaSharp.Views/3.119.2', 'System.Formats.Nrbf/10.0.10')) {
+    foreach ($dependency in @("SkiaSharp.Views/$skiaVersion", 'System.Formats.Nrbf/10.0.10')) {
         if (-not $androidAssets.libraries.ContainsKey($dependency)) { throw "Missing Android dependency $dependency" }
     }
     $neutralAssets = Get-Content (Join-Path $runRoot 'neutral/obj/project.assets.json') -Raw | ConvertFrom-Json -AsHashtable
-    if ($neutralAssets.libraries.ContainsKey('SkiaSharp.Views/3.119.2') -or $neutralAssets.libraries.ContainsKey('System.Formats.Nrbf/10.0.10')) { throw 'Android-only dependencies leaked into the neutral consumer.' }
+    if ($neutralAssets.libraries.ContainsKey("SkiaSharp.Views/$skiaVersion") -or $neutralAssets.libraries.ContainsKey('System.Formats.Nrbf/10.0.10')) { throw 'Android-only dependencies leaked into the neutral consumer.' }
 
     $manifestPath = Join-Path $runRoot 'android/obj/Release/net10.0-android/android-arm64/android/AndroidManifest.xml'
     [xml]$manifest = Get-Content $manifestPath -Raw

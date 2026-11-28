@@ -56,49 +56,55 @@ internal static class SkiaGeometryConverter
 
     private static SKPath CreatePrimitive(Geometry geometry)
     {
-        var path = new SKPath();
-        try
+        if (geometry is CombinedGeometry)
+            return new SKPath();
+
+        using var path = new SKPathBuilder();
+        switch (geometry)
         {
-            switch (geometry)
-            {
-                case LineGeometry line:
-                    path.MoveTo(line.StartPoint.X, line.StartPoint.Y);
-                    path.LineTo(line.EndPoint.X, line.EndPoint.Y);
-                    break;
+            case LineGeometry line:
+                path.MoveTo(line.StartPoint.X, line.StartPoint.Y);
+                path.LineTo(line.EndPoint.X, line.EndPoint.Y);
+                break;
 
-                case RectangleGeometry rectangle when rectangle.Rect.Width > 0f && rectangle.Rect.Height > 0f:
-                    path.AddRect(ToSkiaRect(rectangle.Rect));
-                    break;
+            case RectangleGeometry rectangle when rectangle.Rect.Width > 0f && rectangle.Rect.Height > 0f:
+                path.AddRect(ToSkiaRect(rectangle.Rect));
+                break;
 
-                case EllipseGeometry ellipse when ellipse.Rect.Width > 0f && ellipse.Rect.Height > 0f:
-                    path.AddOval(ToSkiaRect(ellipse.Rect));
-                    break;
+            case EllipseGeometry ellipse when ellipse.Rect.Width > 0f && ellipse.Rect.Height > 0f:
+                path.AddOval(ToSkiaRect(ellipse.Rect));
+                break;
 
-                case PathGeometry pathGeometry:
-                    AppendPathGeometry(path, pathGeometry);
-                    break;
-            }
-
-            return path;
+            case PathGeometry pathGeometry:
+                AppendPathGeometry(path, pathGeometry);
+                break;
         }
-        catch { path.Dispose(); throw; }
+
+        return path.Detach();
     }
 
     private sealed class ConversionFrame : IDisposable
     {
         private readonly Geometry geometry;
         private int childIndex;
+        private SKPathBuilder? groupBuilder;
+        private SKPath? path;
         private SKPath? first;
         private SKPath? second;
 
         internal ConversionFrame(Geometry geometry)
         {
             this.geometry = geometry;
-            Path = CreatePrimitive(geometry);
             if (geometry is GeometryGroup group)
-                Path.FillType = group.FillRule == GeometryFillRule.EvenOdd ? SKPathFillType.EvenOdd : SKPathFillType.Winding;
+            {
+                groupBuilder = new SKPathBuilder
+                {
+                    FillType = group.FillRule == GeometryFillRule.EvenOdd ? SKPathFillType.EvenOdd : SKPathFillType.Winding
+                };
+            }
+            else path = CreatePrimitive(geometry);
         }
-        internal SKPath Path { get; }
+        internal SKPath Path => path!;
         internal Geometry? NextChild()
         {
             if (geometry is GeometryGroup group)
@@ -115,12 +121,20 @@ internal static class SkiaGeometryConverter
         }
         internal void Accept(SKPath child)
         {
-            if (geometry is GeometryGroup) Path.AddPath(child);
+            if (groupBuilder is not null) groupBuilder.AddPath(child);
             else if (childIndex == 1) first = new SKPath(child);
             else second = new SKPath(child);
         }
         internal void Complete()
         {
+            if (groupBuilder is not null)
+            {
+                // Transfer the completed contour to the same owned SKPath used by transforms,
+                // boolean operations and the caller. The builder no longer owns its points.
+                path = groupBuilder.Detach();
+                groupBuilder.Dispose();
+                groupBuilder = null;
+            }
             if (geometry is CombinedGeometry combined)
             {
                 using SKPath left = first ?? new SKPath();
@@ -139,7 +153,7 @@ internal static class SkiaGeometryConverter
             if (!geometry.Transform.IsIdentity) Path.Transform(ToSkiaMatrix(geometry.Transform));
             RequireFinite(Path);
         }
-        public void Dispose() { Path.Dispose(); first?.Dispose(); second?.Dispose(); }
+        public void Dispose() { groupBuilder?.Dispose(); path?.Dispose(); first?.Dispose(); second?.Dispose(); }
     }
 
     private static void RequireFinite(SKPath path)
@@ -174,7 +188,7 @@ internal static class SkiaGeometryConverter
     private static SKRect ToSkiaRect(RectangleF rectangle)
         => new(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
 
-    private static void AppendPathGeometry(SKPath path, PathGeometry geometry)
+    private static void AppendPathGeometry(SKPathBuilder path, PathGeometry geometry)
     {
         path.FillType = geometry.FillRule == GeometryFillRule.EvenOdd
             ? SKPathFillType.EvenOdd
@@ -182,13 +196,15 @@ internal static class SkiaGeometryConverter
 
         foreach (PathFigure figure in geometry.Figures)
         {
-            path.MoveTo(figure.StartPoint.X, figure.StartPoint.Y);
+            PointF current = figure.StartPoint;
+            path.MoveTo(current.X, current.Y);
             foreach (PathSegment segment in figure.Segments)
             {
                 switch (segment)
                 {
                     case LineSegment line:
                         path.LineTo(line.Point.X, line.Point.Y);
+                        current = line.Point;
                         break;
                     case QuadraticBezierSegment quadratic:
                         path.QuadTo(
@@ -196,6 +212,7 @@ internal static class SkiaGeometryConverter
                             quadratic.ControlPoint.Y,
                             quadratic.Point.X,
                             quadratic.Point.Y);
+                        current = quadratic.Point;
                         break;
                     case BezierSegment cubic:
                         path.CubicTo(
@@ -205,11 +222,12 @@ internal static class SkiaGeometryConverter
                             cubic.ControlPoint2.Y,
                             cubic.Point.X,
                             cubic.Point.Y);
+                        current = cubic.Point;
                         break;
                     case ArcSegment arc:
                         // Endpoint arcs omit coincident endpoints and use a line for a zero radius.
                         // Skia performs the required uniform radius correction for the remaining case.
-                        if (path.LastPoint == new SKPoint(arc.Point.X, arc.Point.Y)) break;
+                        if (current == arc.Point) break;
                         if (arc.Size.Width == 0 || arc.Size.Height == 0)
                             path.LineTo(arc.Point.X, arc.Point.Y);
                         else
@@ -217,6 +235,7 @@ internal static class SkiaGeometryConverter
                                 arc.IsLargeArc ? SKPathArcSize.Large : SKPathArcSize.Small,
                                 arc.SweepDirection == SweepDirection.Clockwise ? SKPathDirection.Clockwise : SKPathDirection.CounterClockwise,
                                 arc.Point.X, arc.Point.Y);
+                        current = arc.Point;
                         break;
                 }
             }

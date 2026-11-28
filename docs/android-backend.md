@@ -34,7 +34,7 @@ source-only project's SDK default assembly version with `ModernFormsNextAssembly
 The Android target retains minimum API 23. NuGet may normalize the asset folder to
 `net10.0-android36.0`; 36 is the compile-time platform version, not the minimum device API.
 Both dependency groups retain matching-version WindowKit and Backend packages. Only the Android
-group adds `SkiaSharp.Views` 3.119.2 and `System.Formats.Nrbf` 10.0.10. Native assets flow through
+group adds `SkiaSharp.Views` 4.158.0 and `System.Formats.Nrbf` 10.0.10. Native assets flow through
 those dependencies rather than copied third-party DLLs in this package.
 
 The library manifest contributes narrow `<queries>` intents for SAF documents/directories,

@@ -357,7 +357,8 @@ public sealed class AndroidActivityHost : IDisposable, IAndroidWindowHost
             Window.Paint?.Invoke(new Rect(Window.ClientSize));
             if (Current && Framebuffer.Bitmap is { } bitmap)
             {
-                e.Canvas.DrawBitmap(bitmap, new SKRect(0, 0, (float)(bitmap.Width / e.Density), (float)(bitmap.Height / e.Density)));
+                e.Canvas.DrawBitmap(bitmap, new SKRect(0, 0, (float)(bitmap.Width / e.Density), (float)(bitmap.Height / e.Density)),
+                    new SKSamplingOptions(SKFilterMode.Nearest));
                 Window.PaintCount++;
             }
         }

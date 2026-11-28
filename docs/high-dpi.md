@@ -80,8 +80,8 @@ their own cached image; unchanged ancestors can recompose the damaged area.
 Overlapping siblings preserve paint order. Transform changes may use a larger
 refresh to preserve correctness.
 
-SkiaSharp 3 converts a mutable bitmap to an immutable image when DrawBitmap is
-called, before destination clipping. The ordinary composition path therefore
+SkiaSharp 3.119.2 and 4.158.0 create an immutable image in `DrawBitmap`
+before destination clipping. The ordinary composition path therefore
 extracts a bounded bitmap subset before that safe copy. It does not lend mutable
 pixel storage to an image with an uncontrolled native lifetime.
 

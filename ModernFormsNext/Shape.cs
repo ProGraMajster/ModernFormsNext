@@ -348,8 +348,7 @@ public abstract class Shape : Control
             return cachedStrokeHitPath;
         }
 
-        cachedStrokeHitPath?.Dispose();
-        cachedStrokeHitPath = new SKPath();
+        using var builder = new SKPathBuilder();
         using var paint = new SKPaint { IsAntialias = true };
         SkiaShapeRenderer.ConfigureStroke(
             paint,
@@ -357,7 +356,10 @@ public abstract class Shape : Control
             StrokeLineCap,
             StrokeLineJoin,
             MiterLimit);
-        paint.GetFillPath(path, cachedStrokeHitPath);
+        paint.GetFillPath(path, builder);
+        var replacement = builder.Detach();
+        cachedStrokeHitPath?.Dispose();
+        cachedStrokeHitPath = replacement;
         cachedHitStrokeWidth = hitStrokeWidth;
         cachedHitLineCap = StrokeLineCap;
         cachedHitLineJoin = StrokeLineJoin;

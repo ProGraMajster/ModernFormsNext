@@ -132,7 +132,7 @@ namespace ModernFormsNext
             e.Canvas.DrawRectangle(front, color);
 
             // Draw "back" "window"
-            using var path = new SKPath();
+            using var path = new SKPathBuilder();
 
             path.MoveTo(back.Left, front.Top);
             path.LineTo(back.Left, back.Top);
@@ -140,7 +140,8 @@ namespace ModernFormsNext
             path.LineTo(back.Right, back.Bottom);
             path.LineTo(front.Right, back.Bottom);
 
-            e.Canvas.DrawPath(path, color);
+            using var outline = path.Detach();
+            e.Canvas.DrawPath(outline, color);
         }
 
 
