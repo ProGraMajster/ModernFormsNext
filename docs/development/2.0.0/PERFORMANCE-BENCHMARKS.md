@@ -32,6 +32,9 @@ niezależne jednostki. Bez śladu wiarygodnej prezentacji nie wyliczamy
 wyświetlonego FPS ani opóźnienia wejście–obraz. Emulatory i sprzęt
 fizyczny mają osobne wiersze. Różnica monitorów, DPI, drivera, obciążenia
 lub trybu zasilania wymaga powtórzenia albo ograniczenia wniosku.
+Do pomiaru kwalifikacyjnego zapewnij czas bez konkurencyjnych gier,
+kompilacji i emulatorów na tym samym hoście. Dane z wykrytym
+obciążeniem tła zachowuj, podając przedział i źródło informacji.
 
 ## Punkty kontrolne
 
