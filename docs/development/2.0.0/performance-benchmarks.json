@@ -139,7 +139,7 @@
   ],
   "software4xSeries": {
     "archive": "evidence/performance-s02-c-4x.zip",
-    "sha256": "c6cb2c561e7cf81f8ebde923d8ec62236648f3b86e86c3e09f2b6dc99c1188f6",
+    "sha256": "edb44d59ee31b453c45d99cb0ee130b09a3239ef0443e33a55b2608e370e00f4",
     "windowsInitial4x": {
       "startupMs": [
         424.0471,
@@ -718,10 +718,95 @@
       }
     ],
     "androidEmulator36": null,
-    "androidEmulator36Net11": null,
+    "androidEmulator36Net11": [
+      {
+        "firstObservedPaintMs": 1478.0821,
+        "measureMs": 14088.0613,
+        "callbacks": 122,
+        "paintMs": {
+          "p50": 65.2253,
+          "p95": 132.1972,
+          "p99": 172.6347
+        },
+        "intervalMs": {
+          "p50": 90.0895,
+          "p95": 177.8675,
+          "p99": 202.4062
+        },
+        "managedBytes": 41289536,
+        "cpuMs": 9031,
+        "workingSetBytes": 475602944,
+        "pssKiB": 354425,
+        "runtime": ".NET 11.0.0",
+        "nativeSkia": "158.0",
+        "source": "1.0.0",
+        "gc": [
+          1,
+          0,
+          0
+        ]
+      }
+    ],
     "androidArm64Api36Before": null,
     "androidArm64Api36After": null,
-    "android16KEmulator": null,
+    "android16KBaseline": [
+      {
+        "firstObservedPaintMs": 1930.5477,
+        "measureMs": 16949.5763,
+        "callbacks": 121,
+        "paintMs": {
+          "p50": 60.2963,
+          "p95": 119.1735,
+          "p99": 267.2108
+        },
+        "intervalMs": {
+          "p50": 110.3307,
+          "p95": 211.1319,
+          "p99": 463.6745
+        },
+        "managedBytes": 64262360,
+        "cpuMs": 9574,
+        "workingSetBytes": 307294208,
+        "pssKiB": 186946,
+        "runtime": ".NET 10.0.15",
+        "nativeSkia": "119.0",
+        "source": "1.0.0+ad10f5ae155b299ff0ed2f9047586a5b519d1846",
+        "gc": [
+          14,
+          0,
+          0
+        ]
+      }
+    ],
+    "android16KEmulator": [
+      {
+        "firstObservedPaintMs": 1955.2482,
+        "measureMs": 18188.9027,
+        "callbacks": 123,
+        "paintMs": {
+          "p50": 62.5906,
+          "p95": 129.9987,
+          "p99": 269.2471
+        },
+        "intervalMs": {
+          "p50": 118.3451,
+          "p95": 242.0179,
+          "p99": 458.2589
+        },
+        "managedBytes": 47614792,
+        "cpuMs": 10330,
+        "workingSetBytes": 328261632,
+        "pssKiB": 193486,
+        "runtime": ".NET 10.0.15",
+        "nativeSkia": "158.0",
+        "source": "1.0.0+9beaa38ba02fec471e0ee4d19f6c71986381758f",
+        "gc": [
+          10,
+          0,
+          0
+        ]
+      }
+    ],
     "androidEmulator34Conditions": "Runtime compatibility evidence. Host also had unrelated foreground workload during this window."
   }
 }

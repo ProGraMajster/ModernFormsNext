@@ -219,6 +219,7 @@ prób w zapisanych granicach.
 | Konsument .NET 11 | Debug ARM64 i x64 oraz Release APK/AAB ARM64, CoreCLR z ReadyToRun i trimmingiem, min API 24, target z workloadu 37.2.29. |
 | ABI / strony 16 KB | Analiza ELF czterech ABI pakietów Skia i HarfBuzz wykazała wyrównanie 16 KB. Release APK ARM64 .NET 10 i .NET 11 oraz testowane Debug APK .NET 11 przeszły zipalign. Weryfikacja pakietu i próba systemu ze stronami 16 KB są oddzielnymi dowodami. |
 | Emulator API 34 x64, 4 KB | Baza i kandydat ukończyły po trzy procesy, 120 aktualizacji viewportu i 122 callbacki. Kandydat 9beaa38 załadował Skia 158.0 i wyrenderował korpus. |
+| Emulator Android 16 API 36 x64, 16 KB | Odczyt PAGE_SIZE 16384. .NET 10.0.15 i .NET 11.0.0 załadowały Skia 158.0 i ukończyły po 120 aktualizacji. APK .NET 10 pochodzi z 9beaa38. APK konsumenta .NET 11 używa lokalnych paczek 00ef1bc. Obie próby są kwalifikacją uruchomienia. |
 | Urządzenie Android 16 ARM64, 4 KB | ADB potwierdził model, API, architekturę i SHA-256 zainstalowanego fixture 3.x. Próba nie oddała wyników przy zablokowanym ekranie, a kolejna instalacja wymagała potwierdzenia. Brak serii urządzenia i runtime ARM64 kandydata. |
 
 Na emulatorze p95 callbacku w 3.x wyniósł 64,81–66,92 ms. W 4.x
@@ -226,7 +227,11 @@ wyniósł 58,26–88,82 ms, podczas pracy hosta w oknie z obciążeniem
 tła. Próby potwierdzają działanie obu wersji. Porównanie czasu
 emulatora ma status diagnostyczny. Dane źródłowe zawierają
 osobno CPU, PSS, alokacje i znaczniki GC. Rzeczywista prezentacja
-i pobór energii pozostają do odrębnych sesji.
+i pobór energii pozostają do odrębnych sesji. W obu obrazach API 34
+sekwencja flagi z ZWJ pokazuje oddzielny symbol flagi i brakujący
+glif. Na tym samym obrazie API 36/16 KB obie wersje pokazują częściowo
+zasłonięty początek korpusu pod paskiem okna. Zjawisko występuje
+już w bazie 3.x.
 
 Przygotowanie konsumenta .NET 11 wykazało, że cache umieszczony w
 katalogu projektu trafiał do globów zasobów. Przeniesienie cache
@@ -235,9 +240,12 @@ z konfiguracją ReadyToRun pobrał właściwe zależności. Oba
 problemy dotyczyły przygotowania izolowanej próby.
 
 Testy zarządzane Android obejmują reduktor lifecycle, sesje
-wejścia, zdarzenia ruchu i cykl życia powierzchni. Kwalifikacja
-natywnego hosta widoku, zmiany orientacji i wejścia na fizycznym
-Androidzie pozostaje otwarta. Backend ma status Experimental.
+wejścia, zdarzenia ruchu i cykl życia powierzchni. Istniejąca próba
+NativeView na Release APK z Mono AOT (9beaa38) uzyskała 47/47
+na emulatorze Android 16/16 KB. Sprawdziła rzeczywiste widoki,
+klip, fokus, syntetyczne wejście, klawiaturę, zmianę konfiguracji,
+odtworzenie Activity, wznowienie i zwolnienie widoków. Próby
+fizycznego ARM64 pozostają otwarte. Backend ma status Experimental.
 [Metodyka sprawdzania stron 16 KB](https://developer.android.com/guide/practices/page-sizes)
 
 ## Windows, pakiety i Designer
@@ -275,10 +283,14 @@ Jego pierwszą porażkę z 6872 B zachowano w logu CI. Po zmianie
 testu ripple selektywny przebieg Release zakończył się wynikiem
 43/43, w tym dla alokacji wirtualizacji i profilera. TestHost
 137/137, Windows 170/170, Android 52/52 i Designer 372/372.
+Dodatkowa kompilacja i ten sam selektywny filtr Core na 3.x oraz
+4.x dały po 229/229, w tym po 0 B w obu testach. Awarii z
+pełnego przebiegu nie odtworzono w tym porównaniu.
 
 **NO-GO dla software-4x.** Przegląd obejmuje kolejną czystą parę
 Windows, ograniczenia Androida i Designera oraz decyzję właściciela
-o zmianie publicznego API. Pomiary przy grze i niestabilne czasy
+o zmianie publicznego API. Uruchomienie Androida 16 na stronach
+16 KB potwierdzono na x64 emulatorze. Pomiary przy grze i niestabilne czasy
 emulatora nie dają podstaw do przypisania poprawy lub regresji
 samemu SkiaSharp. Status wymaganej kontroli dla aktualnego commita
 publikuje karta Checks PR #560.
