@@ -8,6 +8,8 @@ i 1 zbiorcze. Status częściowy oznacza konkretny zrealizowany
 element zakresu, potwierdzony w źródłach lub wcześniejszych dowodach.
 Plan zawiera również cztery powiązane zgłoszenia bez milestone: #404,
  #537, #538 i #555. Ich status i liczby milestone są odrębne.
+Bazowa klasyfikacja powyżej pozostaje migawką. W PR S02-a jest 35 częściowych i 79 z fundamentem. Pierwszy przekrój #114 w S02-a
+jest odnotowany razem z [raportem](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md).
 
 Pobrano wszystkie strony REST zawierające 410 issue
 i 144 PR repozytorium oraz wszystkie
@@ -121,8 +123,8 @@ Pozostałe GAP w pierwszej kolejności należą do wskazanych istniejących issu
 
 **[Add dedicated PerformanceLab benchmark and stress-test application](https://github.com/ProGraMajster/ModernFormsNext/issues/114)**
 
-- **S02 / S02-a · P0 · XL** · foundation · podzielić na kolejne wąskie PR-y · milestone.
-- **Stan kodu.** ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Brak osobnej aplikacji PerformanceLab.
+- **S02 / S02-a · P0 · XL** · partial · podzielić na kolejne wąskie PR-y · milestone.
+- **Stan kodu.** ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Pierwszy przekrój PerformanceLab działa w S02-a na Windows. [Raport](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md)
 - **Dalszy zakres.** Najpierw cienki harness eksportujący wersjonowane pomiary dla identycznych scenariuszy 3.x i 4.x. Rozbudowa stresu 1k/10k/50k, scrolling, długie sesje i Android w kolejnych PR. Bez drugiego profilera.
 - **Twarde** [#436](ISSUES-AUDIT.md#issue-436) · **Bramy** — · **Miękkie** [#58](ISSUES-AUDIT.md#issue-58), [#64](ISSUES-AUDIT.md#issue-64) · **Odbiorcy twarde / miękkie** — / —.
 - **Ryzyko regresji** średni · **Wpływ na API** wewnętrzne lub kwalifikacja · **Wpływ wydajnościowy** niski · **Platformy** Windows, Android Experimental.

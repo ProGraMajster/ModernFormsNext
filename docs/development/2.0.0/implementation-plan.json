@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "language": "pl",
-  "status": "owner-reviewed",
+  "status": "integrated",
   "snapshotDate": "2026-11-27",
   "repository": "https://github.com/ProGraMajster/ModernFormsNext",
   "analysisRef": "origin/develop/2.0.0",
@@ -19,8 +19,8 @@
     "projectItems": 550,
     "officialIssues": 117,
     "auditStatusCounts": {
-      "foundation": 80,
-      "partial": 34,
+      "foundation": 79,
+      "partial": 35,
       "done": 2,
       "tracking": 1
     },
@@ -37,7 +37,13 @@
       537,
       538,
       555
-    ]
+    ],
+    "sourceSnapshotAuditStatusCounts": {
+      "foundation": 80,
+      "partial": 34,
+      "done": 2,
+      "tracking": 1
+    }
   },
   "projectAudit": {
     "url": "https://github.com/users/ProGraMajster/projects/3",
@@ -192,11 +198,11 @@
       114,
       58
     ],
-    "action": "Minimalny PerformanceLab i istniejący profiler na baseline 3.x.",
-    "status": "after-plan-integration"
+    "action": "Przejrzeć S02-a w PR. S02-b wymaga osobnej zgody.",
+    "status": "awaiting-s02-a-review"
   },
   "lastCompletedStage": "S01",
-  "activeImplementationStage": null,
+  "activeImplementationStage": "S02",
   "stages": [
     {
       "stageId": "S01",
@@ -233,7 +239,7 @@
     {
       "stageId": "S02",
       "title": "Bazowe pomiary, migracja software i akceleracja GPU",
-      "status": "proposed",
+      "status": "in-progress",
       "stageQualificationPredecessors": [
         "S01"
       ],
@@ -250,14 +256,16 @@
           "issues": [
             114,
             58
-          ]
+          ],
+          "status": "ready-for-review"
         },
         {
           "waveId": "S02-b",
           "title": "Brakujące scenariusze istniejącego TestHost",
           "issues": [
             64
-          ]
+          ],
+          "status": "awaits-owner-approval"
         },
         {
           "waveId": "S02-c",
@@ -2418,7 +2426,13 @@
         438,
         439
       ],
-      "scope": "milestone"
+      "scope": "milestone",
+      "verificationCheckpoint": {
+        "waveId": "S02-a",
+        "codeCommit": "5ee4218fcb05b08e621915552fe64ef0d5aa2629",
+        "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md",
+        "role": "existing recorder reused"
+      }
     },
     {
       "issueNumber": 59,
@@ -3174,12 +3188,12 @@
       "stageId": "S02",
       "waveId": "S02-a",
       "priority": "P0",
-      "status": "proposed",
-      "auditStatus": "foundation",
-      "assessment": "pokrewny kod stanowi fundament, a docelowej funkcji lub dowodu jeszcze brakuje",
+      "status": "in-review",
+      "auditStatus": "partial",
+      "assessment": "Pierwszy przekrój Windows jest w PR S02-a. Główne issue pozostaje otwarte.",
       "proposedDisposition": "split",
       "estimatedComplexity": "XL",
-      "implementationEvidence": "ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Brak osobnej aplikacji PerformanceLab.",
+      "implementationEvidence": "ControlGallery i skrypty mają kontrolowane scenariusze, a PerformanceProfiler mierzy rzeczywiste fazy i alokacje. Pierwszy przekrój PerformanceLab działa w S02-a na Windows.",
       "remainingWorkAndCompatibility": "Najpierw cienki harness eksportujący wersjonowane pomiary dla identycznych scenariuszy 3.x i 4.x. Rozbudowa stresu 1k/10k/50k, scrolling, długie sesje i Android w kolejnych PR. Bez drugiego profilera.",
       "hardDependencies": [
         436
@@ -3267,7 +3281,12 @@
         "reviewedComments": []
       },
       "softDependants": [],
-      "scope": "milestone"
+      "scope": "milestone",
+      "verificationCheckpoint": {
+        "waveId": "S02-a",
+        "codeCommit": "5ee4218fcb05b08e621915552fe64ef0d5aa2629",
+        "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md"
+      }
     },
     {
       "issueNumber": 116,
@@ -13526,7 +13545,29 @@
       "approval": "approved to merge after required CI and start S02-a only"
     }
   ],
-  "verificationHistory": [],
+  "verificationHistory": [
+    {
+      "stageId": "S02",
+      "planMerge": "994d0959f0cabfef641bb1dc398478cd6b7fb6a6",
+      "requiredCheck": "https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46055365703/job/140696480590",
+      "result": "success"
+    },
+    {
+      "stageId": "S02",
+      "waveId": "S02-a",
+      "codeCommit": "5ee4218fcb05b08e621915552fe64ef0d5aa2629",
+      "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/557",
+      "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md",
+      "localScope": "windows-x64-release-baseline-and-selective-tests",
+      "scenarioRuns": {
+        "startup": 5,
+        "virtualized-scroll": 3
+      },
+      "passedTests": 35,
+      "rawEvidenceDirectory": "artifacts/stage2-a/windows-x64-5ee4218/",
+      "status": "ready-for-review"
+    }
+  ],
   "dependencyTopologicalLayers": [
     [
       "issue:109",
@@ -13798,5 +13839,12 @@
         ]
       }
     ]
+  },
+  "currentCheckpoint": {
+    "stageId": "S02",
+    "waveId": "S02-a",
+    "status": "ready-for-review",
+    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/557",
+    "report": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md"
   }
 }
