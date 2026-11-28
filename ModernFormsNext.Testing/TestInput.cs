@@ -1,6 +1,7 @@
 using System.Drawing;
 using ModernFormsNext.WindowKit.Input;
 using ModernFormsNext.WindowKit.Input.Raw;
+using ModernFormsNext.WindowKit.Platform;
 using RawPoint = ModernFormsNext.WindowKit.Point;
 
 namespace ModernFormsNext.Testing;
@@ -11,7 +12,7 @@ namespace ModernFormsNext.Testing;
 /// complete window, including managed chrome. Control overloads translate the current presentation
 /// geometry, then use ordinary hit testing: another control can intercept an obscured target.
 /// Key events do not invent characters; use <see cref="TextInput"/> for committed text. Native IME,
-/// OS activation, hardware layouts, touch gestures and drag-and-drop require their own integration tests.
+/// OS activation, hardware layouts, physical touch and native drag-and-drop require their own integration tests.
 /// </remarks>
 /// <example>
 /// <code>
@@ -149,6 +150,30 @@ public sealed partial class TestInput
             new RawPoint(location.X, location.Y), new WindowKit.Vector(delta.X, delta.Y), rawModifiers), "Wheel");
     }
 
+    /// <summary>Delivers one simulated touch transition through the production window-surface input adapter.</summary>
+    /// <param name="pointerId">A nonnegative identifier kept stable from contact down through up or cancellation.</param>
+    /// <param name="action">The contact transition to deliver.</param>
+    /// <param name="location">The point in logical window-client pixels, including managed chrome.</param>
+    /// <remarks>
+    /// Uses the same shared surface hit testing, capture, tap and scrolling route as the Android host.
+    /// A cancel affects only the identified contact. Time does not advance and no OS event is injected.
+    /// Windows mouse input and native device delivery have their own routes and integration tests.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The identifier is negative or the transition is undefined.</exception>
+    public void Touch(int pointerId, ControlSurfacePointerAction action, Point location)
+    {
+        VerifyAccess();
+        ArgumentOutOfRangeException.ThrowIfNegative(pointerId);
+        if (!Enum.IsDefined(action))
+            throw new ArgumentOutOfRangeException(nameof(action));
+        if (!window.CanReceiveInput)
+            return;
+
+        RecordEvent("Touch" + action);
+        IWindowSurfaceInput surface = window.HostedWindow.adapter;
+        surface.Pointer(pointerId, (WindowSurfacePointerAction)action, new RawPoint(location.X, location.Y));
+    }
+
     /// <summary>Reports pointer capture loss through the same path used by a native backend.</summary>
     public void LoseCapture()
     {
@@ -274,9 +299,14 @@ public sealed partial class TestInput
     private void Send(RawInputEventArgs input, string kind)
     {
         if (!window.CanReceiveInput) return;
+        RecordEvent(kind);
+        window.Backend.Input?.Invoke(input);
+    }
+
+    private void RecordEvent(string kind)
+    {
         if (recentEvents.Count == HistoryLimit) recentEvents.Dequeue();
         recentEvents.Enqueue(kind);
-        window.Backend.Input?.Invoke(input);
     }
 
     private void VerifyControl(Control control)

@@ -277,7 +277,9 @@ public sealed class ModernFormsTestHost : IDisposable
             windows.Where(window => !window.IsClosed).Select(window => window.CaptureTree()),
             Dispatcher.UnhandledExceptions,
             windows.Where(window => !window.IsClosed).Select(window => window.FocusedControl?.Name ?? string.Empty),
-            windows.Where(window => !window.IsClosed).SelectMany(window => window.Input.RecentEvents)));
+            windows.Where(window => !window.IsClosed).SelectMany(window => window.Input.RecentEvents),
+            windows.Where(window => !window.IsClosed)
+                .SelectMany(window => window.Backend.LivePopups.Select(popup => popup.DescribeForDiagnostics(window.HostedForm.Name)))));
     }
 
     /// <summary>Closes every hosted window while keeping the host available for another test tree.</summary>

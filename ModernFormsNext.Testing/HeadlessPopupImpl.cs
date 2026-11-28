@@ -33,6 +33,19 @@ internal sealed class HeadlessPopupImpl : IPopupImpl, IPopupPresentation
     internal TestPopupHost GetTestHost(TestWindowHost parent)
         => testHost ??= new TestPopupHost(parent, this);
 
+    internal string DescribeForDiagnostics(string ownerName)
+    {
+        var popup = HostedPopup!;
+        var header = FormattableString.Invariant(
+            $"Popup Owner={ownerName}; Visible={popup.Visible && State.IsShown}; Viewport={ClientSize.Width}x{ClientSize.Height}; Scale={RenderScaling}");
+        // An uninspected popup has no recorded input. Diagnostics do not create a host
+        // handle, install a clock callback, or render a snapshot.
+        var recent = testHost?.Input.RecentEvents ?? Array.Empty<string>();
+        return header + $"; FocusedControl={popup.adapter.SelectedControl?.Name}; PendingInvalidations={State.PendingInvalidationCount}; " +
+            $"RecentInput={string.Join(",", recent)}" + Environment.NewLine +
+            ControlTreeSnapshotCapture.Capture(popup.adapter, RenderScaling).Dump();
+    }
+
     public IPopupPositioner? PopupPositioner { get; private set; }
     public Size ClientSize => State.ClientSize;
     public Size? FrameSize => State.FrameSize;

@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using ModernFormsNext.WindowKit.Backend.Windows.Win32;
 using Xunit;
+using static ModernFormsNext.WindowKit.Backend.Windows.Win32.Interop.UnmanagedMethods;
 
 namespace ModernFormsNext.WindowKit.Backend.Windows.Tests;
 
@@ -53,6 +54,40 @@ public sealed class TopLevelWindowInteractionTests
 
         Assert.Equal(IntPtr.Zero, GetCapture());
     }
+
+    [Fact]
+    public void CancelModeRetiresCapturedPressBeforeLateRelease()
+    {
+        using var form = new Form { UseSystemDecorations = true, ClientSize = new(300, 200) };
+        var button = form.Controls.Add(new Button { Dock = DockStyle.Fill });
+        int clicks = 0;
+        button.Click += (_, _) => clicks++;
+        form.Show();
+        try
+        {
+            nint hwnd = form.PlatformHandle.Handle;
+            nint point = (64 << 16) | 64;
+            // Deliver window messages directly. This exercises the HWND backend without
+            // moving the hardware cursor or injecting system-wide mouse events.
+            SendMessage(hwnd, (uint)WindowsMessage.WM_LBUTTONDOWN, 1, point);
+            Assert.Equal(hwnd, GetCapture());
+            Assert.True(button.Capture);
+            SendMessage(hwnd, (uint)WindowsMessage.WM_CANCELMODE, 0, 0);
+            Assert.Equal(nint.Zero, GetCapture());
+            Assert.False(button.Capture);
+
+            SendMessage(hwnd, (uint)WindowsMessage.WM_LBUTTONUP, 0, point);
+            Assert.Equal(0, clicks);
+            SendMessage(hwnd, (uint)WindowsMessage.WM_LBUTTONDOWN, 1, point);
+            SendMessage(hwnd, (uint)WindowsMessage.WM_LBUTTONUP, 0, point);
+            Assert.Equal(1, clicks);
+            Assert.Equal(nint.Zero, GetCapture());
+        }
+        finally { form.Close(); }
+    }
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int index);

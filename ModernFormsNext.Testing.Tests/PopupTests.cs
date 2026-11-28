@@ -131,6 +131,36 @@ public sealed class PopupTests
     }
 
     [Fact]
+    public void FailureDumpRetainsPopupGeometryFocusAndInputKindsAfterClosing()
+    {
+        using var host = ModernFormsTestHost.Create();
+        var form = new Form { Name = "Owner", UseSystemDecorations = true };
+        var window = host.Show(form, new TestViewport(300, 240, 1.25));
+        var canonical = new PopupWindow(form) { Size = new Size(180, 60) };
+        var editor = canonical.Controls.Add(new TextBox { Name = "PopupEditor", Dock = DockStyle.Fill });
+        canonical.Show(form.PointToScreen(new Point(30, 30)));
+        var popup = Assert.IsType<TestPopupHost>(window.ActivePopup);
+        popup.LayoutUntilStable();
+        host.Dispatcher.Post(() => { });
+        Assert.True(popup.Input.Focus(editor));
+        popup.Input.TextInput("private typed value");
+
+        TestHostDiagnostics diagnostic = host.GetDiagnostics();
+        Assert.Single(diagnostic.ControlTrees);
+        Assert.Equal(1, diagnostic.PendingDispatcherWorkCount);
+        window.Close();
+
+        string dump = diagnostic.Dump();
+        Assert.Contains("Popup Owner=Owner; Visible=True", dump, StringComparison.Ordinal);
+        Assert.Contains("Scale=1.25", dump, StringComparison.Ordinal);
+        Assert.Contains("FocusedControl=PopupEditor", dump, StringComparison.Ordinal);
+        Assert.Contains("RecentInput=TextInput", dump, StringComparison.Ordinal);
+        Assert.Contains("TextBox PopupEditor [", dump, StringComparison.Ordinal);
+        Assert.DoesNotContain("private typed value", dump, StringComparison.Ordinal);
+        Assert.DoesNotContain("Popup Owner=", host.GetDiagnostics().Dump(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ParentCleanupClosesUndiscoveredPopupsAndContinuesAfterThrowingClosedCallback()
     {
         using var host = ModernFormsTestHost.Create();

@@ -33,6 +33,63 @@ public sealed partial class AppShellTests
         document.Dispose();
     }
 
+    [Fact]
+    public void VirtualizedCollectionRetainsSelectionAcrossNavigationAndReleasesOldSourceRows()
+    {
+        using var f = new ShellFixture(neutral: false);
+        var window = f.Window!;
+        var values = Enumerable.Range(0, 100_000).Select(index => $"Row {index}").ToArray();
+        var view = new CollectionView { Dock = DockStyle.Fill, ItemSize = new(120, 24), ItemsSource = values };
+        var collection = new ContentPage { Title = "Collection", Content = view };
+        using var detail = NewPage("detail");
+        f.Shell.Routes.Register("collection", _ => collection);
+        f.Shell.Routes.Register("detail", _ => detail);
+        Assert.True(Complete(f.Shell.GoToAsync("/collection", animated: false)));
+
+        window.LayoutUntilStable();
+        var firstRow = Assert.IsAssignableFrom<Control>(view.GetItemContainer(0));
+        Assert.True(window.Input.Focus(firstRow));
+        Assert.True(window.Input.PressKey(Keys.End));
+        int last = values.Length - 1;
+        var selectedRow = Assert.IsAssignableFrom<Control>(view.GetItemContainer(last));
+        Assert.Equal(values[last], view.SelectedItem);
+        Assert.Same(selectedRow, window.FocusedControl);
+
+        view.ScrollToItem(0);
+        Assert.Same(view, window.FocusedControl);
+        view.ScrollToItem(last);
+        Assert.Equal(last, view.SelectedIndex);
+        Assert.Same(view.GetItemContainer(last), window.FocusedControl);
+        Assert.InRange(view.GetVirtualizationSnapshot().RealizedContainerCount, 1, 32);
+        Assert.True(view.GetVirtualizationSnapshot().ReusedContainerCount > 0);
+
+        Assert.True(Complete(f.Shell.GoToAsync("/detail", animated: false)));
+        Assert.Same(detail.Content, window.FocusedControl);
+        Assert.Same(detail, Complete(f.Shell.GoBackAsync(animated: false)));
+        Assert.Equal(last, view.SelectedIndex);
+        Assert.Same(view.GetItemContainer(last), window.FocusedControl);
+
+        Control[] oldRows = view.Controls.Cast<Control>().ToArray();
+        Assert.NotEmpty(oldRows);
+        var retired = new HashSet<Control>();
+        foreach (var row in oldRows)
+            row.Disposed += (_, _) => Assert.True(retired.Add(row));
+        view.ItemsSource = new[] { "New source" };
+        window.LayoutUntilStable();
+        Assert.Equal(-1, view.SelectedIndex);
+        Assert.True(retired.SetEquals(oldRows));
+        Assert.True(window.FocusedControl is null || !oldRows.Contains(window.FocusedControl));
+        var newRow = Assert.IsAssignableFrom<Control>(view.GetItemContainer(0));
+        Assert.Equal("New source", newRow.Text);
+        int viewDisposals = 0, rowDisposals = 0;
+        view.Disposed += (_, _) => viewDisposals++;
+        newRow.Disposed += (_, _) => rowDisposals++;
+        window.Close();
+        Assert.Equal(1, viewDisposals);
+        Assert.Equal(1, rowDisposals);
+        Assert.Empty(f.Host.Dispatcher.UnhandledExceptions);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -8,6 +8,7 @@ public sealed class TestHostDiagnostics
 {
     private readonly ReadOnlyCollection<ControlTreeSnapshot> controlTrees;
     private readonly ReadOnlyCollection<Exception> dispatcherExceptions;
+    private readonly string[] popupDetails;
 
     internal TestHostDiagnostics(
         int hostedWindowCount,
@@ -17,7 +18,8 @@ public sealed class TestHostDiagnostics
         IEnumerable<ControlTreeSnapshot> controlTrees,
         IEnumerable<Exception> dispatcherExceptions,
         IEnumerable<string> focusedControlNames,
-        IEnumerable<string> recentInputEvents)
+        IEnumerable<string> recentInputEvents,
+        IEnumerable<string> popupDetails)
     {
         HostedWindowCount = hostedWindowCount;
         PendingDispatcherWorkCount = pendingDispatcherWorkCount;
@@ -27,6 +29,7 @@ public sealed class TestHostDiagnostics
         this.dispatcherExceptions = Array.AsReadOnly(dispatcherExceptions.ToArray());
         FocusedControlNames = Array.AsReadOnly(focusedControlNames.ToArray());
         RecentInputEvents = Array.AsReadOnly(recentInputEvents.ToArray());
+        this.popupDetails = popupDetails.ToArray();
     }
 
     /// <summary>Gets the number of windows still owned by the host.</summary>
@@ -55,7 +58,7 @@ public sealed class TestHostDiagnostics
     /// <remarks>Key values and committed text are deliberately excluded.</remarks>
     public IReadOnlyList<string> RecentInputEvents { get; }
 
-    /// <summary>Returns a readable diagnostic report including every captured tree.</summary>
+    /// <summary>Returns a readable report including top-level trees and live popups with their input and layout state.</summary>
     /// <returns>The complete host diagnostic dump.</returns>
     public string Dump()
     {
@@ -71,6 +74,12 @@ public sealed class TestHostDiagnostics
         {
             builder.AppendLine();
             builder.Append(tree.Dump());
+        }
+
+        foreach (string popup in popupDetails)
+        {
+            builder.AppendLine();
+            builder.Append(popup);
         }
 
         return builder.ToString();
