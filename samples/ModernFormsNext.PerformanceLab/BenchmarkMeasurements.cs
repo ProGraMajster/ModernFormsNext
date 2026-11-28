@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ModernFormsNext.Diagnostics;
+using ModernFormsNext.Rendering;
 
 namespace ModernFormsNext.PerformanceLab;
 
@@ -17,6 +18,8 @@ internal sealed record BenchmarkResult(
     long[] MeasuredFrameSequences,
     PerformanceSnapshot Recorder)
 {
+    public PacingObservation? Pacing { get; init; }
+
     public IReadOnlyDictionary<string, string> UnavailableMeasurements
     {
         get
@@ -24,7 +27,9 @@ internal sealed record BenchmarkResult(
             var observations = new Dictionary<string, string>
             {
                 ["isolatedRasterTime"] = "The framework render category includes software drawing and composition.",
-                ["physicalScanout"] = "Native paint and display-mode refresh do not observe physical scanout."
+                ["physicalScanout"] = "Native paint and display-mode refresh do not observe physical scanout.",
+                ["droppedDisplayedFrames"] = "Neither merged damage nor a native callback counts dropped display frames.",
+                ["physicalInputLatency"] = "The lab can time a synthetic application message, not a physical input device."
             };
             if (Frames.GpuExecutionMs is null)
                 observations["gpuExecution"] = "The selected renderer did not report GPU execution time.";
@@ -35,6 +40,15 @@ internal sealed record BenchmarkResult(
             return observations;
         }
     }
+}
+
+internal sealed record PacingObservation(
+    string Mode, int? DisplayModeHz, FrameRequestCounts Requests, int WorkloadUpdates,
+    int MinimumWarmupMs, bool ObservedQuietJit, double LastWarmupJitDeltaMs, double MeasuredJitMs,
+    SyntheticInputObservation? SyntheticInput, Distribution? InputToCompletedNativePaintMs)
+{
+    public Distribution? SyntheticQueueToHandlerMs => SyntheticInput is { } input
+        ? Distribution.From(input.Samples.Select(item => (item.HandledAt - item.PostedAt).TotalMilliseconds)) : null;
 }
 
 internal sealed record StartupObservation(
@@ -100,13 +114,14 @@ internal sealed record FrameSummary(
     Distribution? LayoutWallMs,
     Distribution? FrameworkRenderWallMs,
     Distribution? CallbackIntervalMs,
+    Distribution? InputDispatchWallMs,
     Distribution? SubmissionWallMs,
     Distribution? ManagedUiAllocationBytes,
     Distribution? GpuExecutionMs,
     bool PresentationTimestampAvailable)
 {
-    internal static FrameSummary Create(PerformanceFrameMetrics[] frames, bool isMeasuredWindow)
-        => new(frames.Length, frames[0].RenderInfo,
+    internal static FrameSummary Create(PerformanceFrameMetrics[] frames, bool isMeasuredWindow, PerformanceRenderInfo firstPaintInfo)
+        => new(frames.Length, frames.Length > 0 ? frames[0].RenderInfo : firstPaintInfo,
             Distribution.From(frames.Select(frame => frame.Duration.TotalMilliseconds)),
             Distribution.From(frames.Select(frame =>
                 (frame.ThreadWorkSincePreviousFrame.LayoutTime + frame.Work.LayoutTime).TotalMilliseconds)),
@@ -115,6 +130,9 @@ internal sealed record FrameSummary(
             Distribution.From(frames.Skip(isMeasuredWindow ? 1 : 0)
                 .Where(frame => frame.Interval.HasValue)
                 .Select(frame => frame.Interval!.Value.TotalMilliseconds)),
+            Distribution.From(frames.Where(frame =>
+                    frame.ThreadWorkSincePreviousFrame.InputEvents + frame.Work.InputEvents > 0)
+                .Select(frame => (frame.ThreadWorkSincePreviousFrame.InputTime + frame.Work.InputTime).TotalMilliseconds)),
             Distribution.From(frames.Where(frame => frame.RenderInfo.PresentationCpuTime.HasValue)
                 .Select(frame => frame.RenderInfo.PresentationCpuTime!.Value.TotalMilliseconds)),
             Distribution.From(frames.Where(frame => frame.AllocatedBytes.HasValue)

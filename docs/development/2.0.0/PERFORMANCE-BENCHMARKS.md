@@ -62,6 +62,19 @@ bo obejmują dane całego systemu.
 [Raport S02-c](MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md#ukierunkowana-diagnostyka-windows) ·
 [Archiwum diagnostyczne](evidence/performance-s02-c-targeted.zip).
 
+## S02-d — planowanie na UI i prezentacja
+
+Porównanie używa zintegrowanego software 4.x. Tryby PerformanceLab
+`reference` i `refresh` mają te same liczniki żądań oraz identyczne
+workloady. Zebrano po trzy przeplatane pary dla każdego wariantu,
+w tym osobny scroll po uspokojeniu JIT. Coalescing zmniejszył
+liczbę natywnych invalidations. Przy scroll zwiększył liczbę
+native paint na tę samą liczbę aktualizacji. Każdy etap zachowuje
+własną proweniencję. Prezentacja Windows dla GDI jest niedostępna.
+Fizyczny Android ma osobny pomiar tokenów SurfaceFlingera.
+[Raport S02-d](MODERNFORMSNEXT-2.0.0-S02-D-REPORT.md) ·
+[Dane i sumy](evidence/performance-s02-d-frame-pacing.zip).
+
 ## Punkty kontrolne
 
 | Porównanie | Obciążenia i metryki |

@@ -109,6 +109,9 @@ public abstract partial class WindowBase
         geometrySize = size;
         geometryLocation = location;
         geometryClientSize = clientSize;
+        // Retire queued coordinates from the old backing before publishing resize observers.
+        if ((resized || clientResized) && experimentalFramePacer?.RetireDamage() == true)
+            Invalidate();
         if (!resized && !moved && !clientResized) return;
 
         long version = ++geometryVersion;

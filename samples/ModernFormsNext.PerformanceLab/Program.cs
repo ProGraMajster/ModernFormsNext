@@ -7,7 +7,7 @@ namespace ModernFormsNext.PerformanceLab;
 
 internal static class Program
 {
-    private const string Usage = "Usage: ModernFormsNext.PerformanceLab --scenario startup|virtualized-scroll --output <new directory> [--backend software|auto]";
+    private const string Usage = "Usage: ModernFormsNext.PerformanceLab --scenario startup|virtualized-scroll|pacing-idle|pacing-tree|pacing-animation|pacing-resize|pacing-input --output <new directory> [--backend software|auto] [--pacing reference|refresh] [--warmup-ms 0..8000]";
 
     [STAThread]
     private static int Main(string[] args)
@@ -29,7 +29,7 @@ internal static class Program
 
             var profilerOptions = new PerformanceProfilerOptions
             {
-                FrameCapacity = 512,
+                FrameCapacity = options.WarmupMs > 0 ? 2048 : 512,
                 TrackAllocations = true,
                 TrackGarbageCollections = true
             };
@@ -39,7 +39,7 @@ internal static class Program
             using var profiler = PerformanceProfiler.Start(profilerOptions);
             long recorderStartUpper = Stopwatch.GetTimestamp();
             var run = new BenchmarkRun(options.Scenario, profiler, process, initial,
-                enteredMain, recorderStartLower, recorderStartUpper);
+                enteredMain, recorderStartLower, recorderStartUpper, options.Pacing, options.WarmupMs);
             var result = run.Execute();
             BenchmarkReport.Save(options.Output, result);
             Console.WriteLine($"Recorded {result.Scenario} in {options.Output}");
@@ -64,7 +64,7 @@ internal static class Program
         for (int index = 0; index < args.Length; index += 2)
         {
             string key = args[index];
-            if (key is not ("--scenario" or "--output" or "--backend") || index + 1 >= args.Length ||
+            if (key is not ("--scenario" or "--output" or "--backend" or "--pacing" or "--warmup-ms") || index + 1 >= args.Length ||
                 string.IsNullOrWhiteSpace(args[index + 1]) || !arguments.TryAdd(key, args[index + 1]))
                 throw new ArgumentException($"Invalid or repeated option: {key}");
         }
@@ -73,6 +73,11 @@ internal static class Program
         {
             "startup" => new StartupScenario(),
             "virtualized-scroll" => new VirtualizedScrollScenario(),
+            "pacing-idle" => new PacingScenario(PacingWorkload.Idle),
+            "pacing-tree" => new PacingScenario(PacingWorkload.Tree),
+            "pacing-animation" => new PacingScenario(PacingWorkload.Animation),
+            "pacing-resize" => new PacingScenario(PacingWorkload.Resize),
+            "pacing-input" => new PacingScenario(PacingWorkload.Input),
             _ => throw new ArgumentException("Choose one supported scenario.")
         };
         var backend = arguments.GetValueOrDefault("--backend", "software") switch
@@ -88,8 +93,18 @@ internal static class Program
         if (Directory.Exists(output) || File.Exists(output))
             throw new ArgumentException("The results path already exists.");
 
-        return new(scenario, backend, output);
+        string? pacing = arguments.GetValueOrDefault("--pacing");
+        if (pacing is not (null or "reference" or "refresh"))
+            throw new ArgumentException("Choose reference or refresh pacing.");
+        if (scenario is PacingScenario && pacing is null) pacing = "reference";
+        string? warmup = arguments.GetValueOrDefault("--warmup-ms");
+        int warmupMs = 0;
+        if (warmup is not null &&
+            (!int.TryParse(warmup, System.Globalization.CultureInfo.InvariantCulture, out warmupMs) ||
+             warmupMs is < 0 or > 8000 || pacing is null || scenario is StartupScenario || scenario.AllowsEmptyMeasurement))
+            throw new ArgumentException("A warmup of up to 8000 ms requires a working pacing scenario.");
+        return new(scenario, backend, output, pacing, warmupMs);
     }
 
-    private sealed record LabOptions(BenchmarkScenario Scenario, RenderingBackend Backend, string Output);
+    private sealed record LabOptions(BenchmarkScenario Scenario, RenderingBackend Backend, string Output, string? Pacing, int WarmupMs);
 }

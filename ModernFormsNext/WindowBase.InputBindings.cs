@@ -64,6 +64,7 @@ public abstract partial class WindowBase
                 // can reenter Show/Select and resume its otherwise suspended focus scope.
                 Cleanup(ReleaseInputBindings);
                 Cleanup(() => adapter?.FindExistingFocusScope()?.SetSuspended(true));
+                Cleanup(ReleaseFramePacer);
                 Cleanup(DetachInsetsProvider);
                 Cleanup(() => renderSurface?.Dispose());
                 if (failures?.Count == 1)

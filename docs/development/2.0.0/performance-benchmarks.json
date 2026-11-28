@@ -1411,5 +1411,168 @@
     },
     "archive": "evidence/performance-s02-c-targeted.zip",
     "sha256": "4a9eedcf3371cc8ce53f42db65208badc5a41cfa1a4904345701b6e771c46d81"
+  },
+  "s02dFramePacing": {
+    "baselineCommit": "e366302dd27ba160f44d208c64e858cdd15fe516",
+    "prototypeCommit": "2c79f2a0bc25a16dd4b9daec4ce57d7db9040a48",
+    "predecessorPr": 560,
+    "issue": 338,
+    "glyphFollowUp": 561,
+    "qualification": "Windows reference vs opt-in UI-thread frame request cap + physical Android baseline",
+    "windowsCompositorPresentation": "unavailable for this GDI window",
+    "physicalScanout": "unavailable on both platforms",
+    "tests": [
+      {
+        "Status": "Passed",
+        "Passed": 73,
+        "Failed": 0,
+        "Skipped": 0,
+        "OtherReported": 0,
+        "testProject": "ModernFormsNext.Testing.Tests.csproj",
+        "filter": "FullyQualifiedName~FrameRequestPacerTests|FullyQualifiedName~DpiChangedTests|FullyQualifiedName~ApplicationLifecycleFacadeTests|FullyQualifiedName~NativeViewHostTests",
+        "trxSha256": [
+          "515155f4320ff1186dfe42cfd4a3b0aa1142a7b49d98dadd666e8614b6ec7a1c"
+        ]
+      },
+      {
+        "Status": "Passed",
+        "Passed": 64,
+        "Failed": 0,
+        "Skipped": 0,
+        "OtherReported": 0,
+        "testProject": "ModernFormsNext.Tests.csproj",
+        "filter": "FullyQualifiedName~PerformanceProfilerTests|FullyQualifiedName~WindowRenderingDamageTests|FullyQualifiedName~AnimationSchedulerTests|FullyQualifiedName~RenderingBackendTests",
+        "trxSha256": [
+          "1b35abe787c86f3983ac23bca03b6328bac623054165f18338f89a9879a36839"
+        ]
+      },
+      {
+        "Status": "Passed",
+        "Passed": 141,
+        "Failed": 0,
+        "Skipped": 0,
+        "OtherReported": 0,
+        "testProject": "ModernFormsNext.WindowKit.Backend.Windows.Tests.csproj",
+        "filter": "FullyQualifiedName~WindowsFramebufferDamageTests|FullyQualifiedName~WindowsNativeDpiChangedTests",
+        "trxSha256": [
+          "bc6dbf48fb9f3a633fc6cb4d596d8752d34416080dbc79d71a3eb651bf8cefee"
+        ]
+      }
+    ],
+    "archive": "evidence/performance-s02-d-frame-pacing.zip",
+    "sha256": "b09466e6d7131b4960bef510ae53bf0fff38d65fbcc38f11d1de50a842e374ec",
+    "windowsTestCount": 42,
+    "windows": {
+      "pacing-idle/0ms": {
+        "reference": {
+          "processCpuMs": 0,
+          "nativePaints": 0,
+          "nativeInvalidations": 0,
+          "measuredJitMs": 9.112
+        },
+        "refresh": {
+          "processCpuMs": 31.25,
+          "nativePaints": 1,
+          "nativeInvalidations": 0,
+          "measuredJitMs": 8.915
+        }
+      },
+      "virtualized-scroll/0ms": {
+        "refresh": {
+          "processCpuMs": 1140.625,
+          "nativePaints": 175,
+          "nativeInvalidations": 177,
+          "measuredJitMs": 701.162
+        },
+        "reference": {
+          "processCpuMs": 1109.375,
+          "nativePaints": 120,
+          "nativeInvalidations": 7675,
+          "measuredJitMs": 698.379
+        }
+      },
+      "pacing-animation/0ms": {
+        "reference": {
+          "processCpuMs": 453.125,
+          "nativePaints": 96,
+          "nativeInvalidations": 96,
+          "measuredJitMs": 277.009
+        },
+        "refresh": {
+          "processCpuMs": 250,
+          "nativePaints": 96,
+          "nativeInvalidations": 96,
+          "measuredJitMs": 276.423
+        }
+      },
+      "pacing-tree/0ms": {
+        "refresh": {
+          "processCpuMs": 671.875,
+          "nativePaints": 104,
+          "nativeInvalidations": 104,
+          "measuredJitMs": 491.081
+        },
+        "reference": {
+          "processCpuMs": 593.75,
+          "nativePaints": 96,
+          "nativeInvalidations": 4608,
+          "measuredJitMs": 449.614
+        }
+      },
+      "pacing-resize/0ms": {
+        "reference": {
+          "processCpuMs": 1015.625,
+          "nativePaints": 96,
+          "nativeInvalidations": 1632,
+          "measuredJitMs": 612.06
+        },
+        "refresh": {
+          "processCpuMs": 906.25,
+          "nativePaints": 109,
+          "nativeInvalidations": 205,
+          "measuredJitMs": 627.595
+        }
+      },
+      "pacing-input/0ms": {
+        "refresh": {
+          "processCpuMs": 406.25,
+          "nativePaints": 96,
+          "nativeInvalidations": 96,
+          "measuredJitMs": 284.346
+        },
+        "reference": {
+          "processCpuMs": 281.25,
+          "nativePaints": 96,
+          "nativeInvalidations": 96,
+          "measuredJitMs": 280.483
+        }
+      },
+      "virtualized-scroll/5000ms": {
+        "reference": {
+          "processCpuMs": 281.25,
+          "nativePaints": 120,
+          "nativeInvalidations": 7675,
+          "measuredJitMs": 3.712
+        },
+        "refresh": {
+          "processCpuMs": 343.75,
+          "nativePaints": 185,
+          "nativeInvalidations": 185,
+          "measuredJitMs": 3.246
+        }
+      }
+    },
+    "android": {
+      "qualification": "single physical Android baseline; Windows experimental gate not active",
+      "matchedSurfaceAndDisplayAndGfxTokens": 115,
+      "displayPresentIntervalMs": {
+        "p50": 33.1525,
+        "p95": 49.732812,
+        "p99": 66.304791
+      },
+      "surfacePresentTypes": {
+        "Late Present": 121
+      }
+    }
   }
 }

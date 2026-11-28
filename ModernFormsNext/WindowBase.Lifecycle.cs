@@ -70,6 +70,7 @@ public abstract partial class WindowBase
             try { action(); }
             catch (Exception exception) { failures.Add(exception); }
         }
+        Cleanup(ReleaseFramePacer);
         Cleanup(DetachInsetsProvider);
         Cleanup(renderSurface.Dispose);
         Cleanup(adapter.DisposeSurfaceInput);

@@ -2,8 +2,11 @@
 
 Ostatni zamknięty etap to S01. **S02-a jest zintegrowany** i spełnia
 bramę `baseline-perf` dla Windows software 3.x. **S02-b jest zintegrowany**
-jako ad10f5a. **S02-c1 zintegrowany** jako b9026d6. S02-c2/c3
-w PR #560 dokumentuje migrację, porównanie i pozostałe blokady.
+jako ad10f5a. **S02-c jest zintegrowany** jako `e366302` przez
+PR #560. **S02-d** wysłano do przeglądu w osobnym szkicu. Domyślnie
+obowiązuje renderowanie na UI i istniejące planowanie. Limiter
+izoluje hipotezę i nie kwalifikuje domyślnego pacing.
+[Raport S02-d](MODERNFORMSNEXT-2.0.0-S02-D-REPORT.md).
 Bramę software-4x właściciel zaakceptował warunkowo dla
 `develop/2.0.0`. Koszt pierwszego użycia glifów w Windows podlega
 ponownej ocenie przed publikacją w [#561](https://github.com/ProGraMajster/ModernFormsNext/issues/561).

@@ -19,7 +19,8 @@ symulowanego dotyku, diagnostyki i wirtualizacji w nawigacji.
 **S02-c1 zintegrowany** jako b9026d6 przez PR #559. Porównania wydania
 wykorzystują dokładny v1.12.1, natomiast archiwum S02-a zachowuje
 historyczne wyniki gałęzi 2.0. Migrację software i porównanie 3.x/4.x
-zawiera PR #560. Przeplatana sesja bez gry nie potwierdziła wzrostu p99.
+zintegrowano w PR #560 jako `e366302`. Przeplatana sesja bez gry
+nie potwierdziła wzrostu p99.
 Diagnostyka zawęziła dłuższy pierwszy paint w Windows do pierwszego
 użycia glifów. Wcześniejszego wzrostu CPU przewijania w tej skali nie
 odtworzono. 28 listopada 2026 właściciel zaakceptował software-4x
@@ -31,6 +32,13 @@ Funkcjonalna kwalifikacja software obejmuje opisane środowiska. Fizyczne
 strony Android 16 KiB i końcowa akceptacja wydania pozostają otwarte.
 Właściciel zaakceptował zastąpienie `ToSKFilterQuality()` przez
 `ToSKSamplingOptions()`.
+
+S02-d porównał planowanie na UI w #338. Ogranicznik zredukował
+wywołania Win32, a podczas rozgrzanego przewijania zwiększył
+liczbę native paint. Pozostawiamy obecną ścieżkę domyślną i
+kontrakt własności UI. Następne porównanie wymaga korelacji
+Windows z prezentacją. Na Androidzie zmierzono tokeny SurfaceFlingera.
+[Raport S02-d](MODERNFORMSNEXT-2.0.0-S02-D-REPORT.md) ·
 [Program pomiarów](PERFORMANCE-BENCHMARKS.md) ·
 [Raport S02-a](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) ·
 [Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md) ·
