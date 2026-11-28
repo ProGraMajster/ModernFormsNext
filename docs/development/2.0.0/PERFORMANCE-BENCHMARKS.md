@@ -36,6 +36,32 @@ Do pomiaru kwalifikacyjnego zapewnij czas bez konkurencyjnych gier,
 kompilacji i emulatorów na tym samym hoście. Dane z wykrytym
 obciążeniem tła zachowuj, podając przedział i źródło informacji.
 
+## Wynik sesji S02-c
+
+Czysta przeplatana sesja porównała dwa stosy zależności w tym samym
+workloadzie i runtime. Nie potwierdziła wzrostu p99 ze wcześniejszych
+prób, które obejmowały grę w trybie Borderless Fullscreen. Powtórzyła
+spadek alokacji UI i wykazała dłuższy czas do pierwszego pełnego paint
+oraz wyższy CPU procesu na Windows. Osobna seria ARM64 na NX769J
+potwierdziła spadek managed allocations i większy PSS. Są to wyniki
+konkretnych wersji i warunków, bez przypisania samemu SkiaSharp.
+[Raport](MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md) ·
+[Surowe próby i metadane](evidence/performance-s02-c-final.zip)
+
+### Diagnostyka Windows po kwalifikacji S02-c
+
+Powtórne pomiary wskazały większy koszt pierwszego użycia glifów w ścieżce
+tytułu na Windows. Pusty tytuł wyrównał czas pierwszego paint bez
+zmiany dekoracji. ETW zidentyfikował UI i wątek tiered JIT jako dwa
+główne źródła CPU podczas przewijania. Wzrost CPU był w nowych parach
+mniejszy i zmienny, a wcześniejszy pomiar zachowano. Scenariusze
+izolujące i ślady mają osobną pozycję `targetedSoftware4xInvestigation`
+w rejestrze. Zachowujemy surowe próby, ich sumy oraz wyciągi ETW obejmujące
+wyłącznie aplikację. Surowe pliki ETL pozostają w lokalnych artefaktach,
+bo obejmują dane całego systemu.
+[Raport S02-c](MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md#ukierunkowana-diagnostyka-windows) ·
+[Archiwum diagnostyczne](evidence/performance-s02-c-targeted.zip).
+
 ## Punkty kontrolne
 
 | Porównanie | Obciążenia i metryki |

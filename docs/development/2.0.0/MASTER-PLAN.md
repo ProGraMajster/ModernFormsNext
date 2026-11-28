@@ -19,8 +19,13 @@ symulowanego dotyku, diagnostyki i wirtualizacji w nawigacji.
 **S02-c1 zintegrowany** jako b9026d6 przez PR #559. Porównania wydania
 wykorzystują dokładny v1.12.1, natomiast archiwum S02-a zachowuje
 historyczne wyniki gałęzi 2.0. Migrację software i porównanie 3.x/4.x
-zawiera PR #560. Brama software-4x oczekuje na decyzję po przeglądzie
-regresji p99, kompatybilności i ograniczeń kwalifikacji.
+zawiera PR #560. Przeplatana sesja bez gry nie potwierdziła wzrostu p99.
+Diagnostyka zawęziła dłuższy pierwszy paint w Windows do pierwszego
+użycia glifów. Wcześniejszego wzrostu CPU przewijania w tej skali nie
+odtworzono. Rekomendacja software-4x to GO WITH KNOWN PERFORMANCE
+REGRESSIONS. Integracja wymaga akceptacji właściciela i aktualnego CI.
+Właściciel zaakceptował zastąpienie `ToSKFilterQuality()` przez
+`ToSKSamplingOptions()`.
 [Program pomiarów](PERFORMANCE-BENCHMARKS.md) ·
 [Raport S02-a](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) ·
 [Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md) ·

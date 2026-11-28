@@ -162,7 +162,7 @@ reprezentatywny korpus 3.x i 4.x. Test IME obejmuje model kompozycji
 i anulowanie. Różne fizyczne klawiatury i nakładki systemowe wymagają
 dalszej kwalifikacji w obrębie #337.
 
-## Windows. Porównanie wydajności 3.x i 4.x
+## Windows. Wcześniejsze porównania diagnostyczne
 
 Ponowne pomiary obejmują te same pięć świeżych procesów dla rozruchu
 i trzy niezależne procesy dla przewijania. Obie wersje działały na
@@ -172,7 +172,7 @@ w kolejności 4.x → 3.x. Baza 3.x ma te same źródła frameworka i
 PerformanceLab co ad10f5a, na którym powstała pierwsza seria.
 Poniższe percentyle przewijania są medianami z trzech prób po 120
 zmierzonych callbacków. Właściciel potwierdził działanie gry podczas
-powtórki 16:08:15–16:08:48. Dlatego ta para dokumentuje działanie
+powtórki 16:08:15–16:08:48. Tryb gry to Borderless Fullscreen. Dlatego ta para dokumentuje działanie
 przy konkurencyjnym obciążeniu hosta i nie kwalifikuje wyniku
 wydajności migracji.
 
@@ -287,9 +287,9 @@ Dodatkowa kompilacja i ten sam selektywny filtr Core na 3.x oraz
 4.x dały po 229/229, w tym po 0 B w obu testach. Awarii z
 pełnego przebiegu nie odtworzono w tym porównaniu.
 
-**NO-GO dla software-4x.** Przegląd obejmuje kolejną czystą parę
-Windows, ograniczenia Androida i Designera oraz decyzję właściciela
-o zmianie publicznego API. Uruchomienie Androida 16 na stronach
+**Ocena po poprzedniej rundzie: NO-GO dla software-4x.** Brakowało czystej pary
+Windows, dowodów z fizycznego Androida i pełnego cyklu w Designerze
+oraz decyzji właściciela o zmianie publicznego API. Uruchomienie Androida 16 na stronach
 16 KB potwierdzono na x64 emulatorze. Pomiary przy grze i niestabilne czasy
 emulatora nie dają podstaw do przypisania poprawy lub regresji
 samemu SkiaSharp. Status wymaganej kontroli dla aktualnego commita
@@ -299,3 +299,295 @@ publikuje karta Checks PR #560.
 [Kontrole bieżącego PR](https://github.com/ProGraMajster/ModernFormsNext/pull/560/checks) ·
 [Rejestr i sumy dowodów](performance-benchmarks.json) ·
 [Archiwum kwalifikacji](evidence/performance-s02-c-4x.zip)
+
+## Końcowa sesja Windows bez gry
+
+Po potwierdzeniu przez właściciela uruchomiono przeplataną serię 3.x/4.x
+oraz 4.x/3.x. Każdy wariant wykorzystał tę samą wersję źródeł PerformanceLab,
+pięć procesów startup (`flow-96-controls-v1`) i trzy procesy
+virtualized-scroll (`collection-100k-fixed-56px-v1`). Porównanie
+obejmuje Skia 3.119.2, RichTextKit i HarfBuzz w konfiguracji rewizji
+34d7030 oraz stos Skia 4.158.0 z rewizji 9beaa38. Różnica produkcyjnych
+źródeł między 9beaa38 a c6dfe0d jest pusta. Każda próba przewijania
+obejmuje 120 zmierzonych klatek. Podane p50/p95/p99 to mediany
+percentyli z trzech prób, z rozkładami zapisanymi w archiwum.
+Dodatnia zmiana oznacza większą wartość po migracji.
+
+Sprzęt to i9-14900K, RTX 5090, sterownik 32.0.16.2140. Wspólne środowisko
+to .NET 10.0.15 x64, SDK 10.0.404, software raster, Acer VG271 P,
+1920×1080, 144 Hz, 96 DPI oraz plan Zrównoważony. Tryb wyświetlania
+i profil zasilania zgadzają się przed sesją i po niej. Próbkowane
+obciążenie CPU 3,9–9,2% z medianą 5,95%, GPU 0–32% z medianą 2%.
+Temperatura GPU 46,08–49,58°C. Brak dostępnego bezpośredniego
+odczytu temperatury pakietu CPU. W tle zarejestrowano zwykłą pracę
+DWM, usług systemowych i oprogramowania monitorującego. Właściciel
+potwierdził brak gry w tej sesji oraz grę Borderless Fullscreen
+w poprzedniej rundzie. Wcześniejsze serie zachowano
+jako diagnostyczne. Oficjalna seria wydania v1.12.1 i archiwum S02-a
+mają osobną proweniencję.
+
+| Metryka Windows | 3.x | 4.x | Zmiana |
+| --- | ---: | ---: | ---: |
+| Main → pierwszy pełny paint [ms] | 229,74 | 259,40 | +12,91% |
+| CPU procesu podczas próby scroll [ms] | 968,75 | 1 250,00 | +29,03% |
+| Native paint p50 [ms] | 3,50 | 3,41 | −2,47% |
+| Native paint p95 [ms] | 5,89 | 5,60 | −4,92% |
+| Native paint p99 [ms] | 9,42 | 9,24 | −1,88% |
+| Render frameworka p99 [ms] | 9,15 | 8,99 | −1,75% |
+| Layout p95 [ms] | 0,446 | 0,448 | +0,47% |
+| Przekazanie bufora p95 [ms] | 0,287 | 0,269 | −6,25% |
+| Odstęp callbacku p50 [ms] | 29,27 | 29,61 | +1,16% |
+| Alokacje zarządzane UI p50 [B] | 238 968 | 191 744 | −19,76% |
+| Alokacje zarządzane UI p99 [B] | 362 856 | 256 328 | −29,36% |
+
+Spadek alokacji wystąpił we wszystkich parach. Większy koszt CPU
+i dłuższy czas do pierwszego paint są powtarzalnymi regresjami
+całego stosu w tej sesji. Zakres CPU 891–1125 ms dla 3.x nie pokrywa
+się z zakresem 1203–1422 ms dla 4.x. Zakres czasu do pierwszego paint
+228–235 ms nie pokrywa się z 255–266 ms. Wyniki startup obejmują
+inicjalizację aplikacji i bibliotek oraz JIT w świeżym procesie.
+Brak resetu cache systemu. Pomiar CPU jest czasem całego procesu.
+
+Zakres native paint p99 wyniósł 7,47–10,54 ms na 3.x i 5,61–10,40 ms
+na 4.x. Różnica median mieści się w rozrzucie. Diagnostyczne
+wzrosty native paint p99 z 7,98 do 17,28 ms i renderu frameworka p99
+z 7,53 do 16,66 ms nie zostały potwierdzone. Liczniki w zmierzonych klatkach dały 2/2/0 oraz 4/1/0
+zbiórek Gen0/1/2 w trzech próbach. Gen0 pokrył się z 1/6
+najwolniejszych klatek w 3.x i 3/6 w 4.x. Te liczniki ustalają współwystępowanie. Ustalenie przyczyny
+wymagałoby pomiaru pauz na tej samej osi czasu. Dwie osobne próbki EventPipe zebrano przed doprecyzowaniem
+zakresu. Są zarejestrowane poza serią kwalifikacyjną. Porównywalnych
+atrybucji czasu pauz, alokacji natywnych ani kosztu osobnych operacji
+SKPathBuilder, SKPath, bitmap, shaping i cache nie wyprowadzono z tych prób.
+Kosztów SkiaSharp, RichTextKit i HarfBuzz nie rozdzielano w workloadzie.
+Dalsza diagnostyka p99 i poprawki renderera nie były uzasadnione.
+
+## Fizyczny Android 16 ARM64
+
+NX769J, API 36, arm64-v8a, rzeczywiste strony 4096 B, ekran
+1116×2480 przy 60 Hz i 480 dpi. ADB był autoryzowany, a ekran
+odblokowany. Hash zainstalowanego APK był zgodny przed próbami każdej
+wersji. Trzy świeże procesy 3.x (ad10f5a) i trzy 4.x (9beaa38)
+wykonały po 120 aktualizacji i po 122 callbacki w software na
+.NET 10.0.15. Załadowane wersje natywne to odpowiednio 119.0 i
+158.0. Liczniki Gen0 na proces to 13 i 9 bez Gen1/Gen2.
+Wynik urządzenia ma osobny zakres od emulatora x64/16 KB.
+
+| Metryka Android, mediana z trzech prób | 3.x | 4.x | Zmiana |
+| --- | ---: | ---: | ---: |
+| Pierwszy zaobserwowany paint [ms] | 643,45 | 639,86 | −0,56% |
+| p95 callbacku Android [ms] | 28,63 | 24,52 | −14,36% |
+| CPU procesu [ms] | 6 210 | 6 061 | −2,40% |
+| Całkowite alokacje zarządzane [B] | 59 621 984 | 43 347 032 | −27,30% |
+| PSS [KiB] | 279 327 | 287 968 | +3,09% |
+
+Android potwierdza mniejsze alokacje i większy PSS we wszystkich
+próbach. Zakresy p95 przecinają się, więc zmiana mediany z jednego
+urządzenia nie ustala ogólnej przewagi czasowej. Callback nie mierzy
+opóźnienia prezentacji. Android nadal jest Experimental.
+
+Dotyk, klawiatura ekranowa i NativeViewHost przeszły instrumentację
+Android na NX769J w izolowanym APK Release ARM64 z Mono AOT.
+Zaliczone 47 asercji objęło przewijanie i przycinanie rodzimego
+widoku, obrót do poziomu i odtworzenie Activity, przejście
+w tło, powrót i zwolnienie widoków. Odrębna aplikacja kontrolna Debug
+załadowała Skia 158.0, zweryfikowała obie barwy źródłowe po
+zapisie i dekodowaniu PNG, a zrzut ekranu potwierdził obie barwy
+w kontrolce PictureBox. Ekran harnessu na obu stosach utrwala
+tekst łącznie z fallbackiem w zakresie jego scenariusza.
+Sumy zainstalowanych APK i raporty urządzenia są w archiwum.
+
+## Ukierunkowana kontrola regresji
+
+VSTest uruchomił 3/3 testy bez ponownej kompilacji i bez pełnej lokalnej
+regresji. Testy profilera i wirtualizacji utrzymały kontrakt 0 B.
+Zachowano wcześniejsze odczyty 8088 B i 6872 B. Test ripple niezależnie
+ustawia kolor wejściowy RGBA (20, 40, 60, 50) dla połowy animacji.
+Pełne pokrycie na przezroczystym tle daje wartości premultiplikowane
+około (4, 8, 12, 50). Po odwróceniu kwantyzacji kanał G może mieć 41.
+Test porównuje pełny kolor wynikający z operacji premultiplikacji
+po stronie Skia, kontroluje osobno alfa, klip i pokrycie po zmianie
+rozmiaru. Oczekiwanie nie odczytuje wyniku rysowania i nie korzysta
+z tolerancji piksela.
+
+Właściciel zaakceptował zmianę publicznego kontraktu. Changelog 2.0.0
+i instrukcja opisują mapowanie wszystkich trybów, skutki źródłowe
+i binarne, przykład przed i po oraz konieczność przebudowy.
+[Przewodnik migracji](../../migrations/1.12.1-to-2.0.0.md)
+
+## Visual Studio Designer i projekt .NET 11
+
+Visual Studio 18.12.12405.243 uruchomiono z prywatnym profilem
+z VSIX kandydata z `9beaa38`. Projekt testowy kierowany na
+`net11.0-windows` korzystał z lokalnych pakietów tej samej
+rewizji z `SkiaSharp 4.158.0`. Pozostawiono wyłączony wykonywalny
+podgląd projektu. Funkcje edytora działały z właściwym hostem
+Visual Studio, a aplikację sprawdzono jako niezależny proces
+z załadowanymi CLR 11 i natywnym Skia.
+
+| Kontrola | Integrated | Separate |
+| --- | --- | --- |
+| Otwarcie projektu i `.mfdesign` | Host jako okno potomne IDE | Host jako własne okno najwyższego poziomu |
+| Kontrolki, wielojęzyczny tekst, emoji, obraz, gradient | Sprawdzone na powierzchni Designera | Sprawdzone na powierzchni Designera |
+| Zaznaczenie, edycja Text, kod, zapis i ponowne otwarcie | `Integrated` zapisany w modelu i C# | `Separate` zapisany w modelu i C# |
+| Uruchomienie zmienionej aplikacji i poprawne zamknięcie | Potwierdzone | Potwierdzone |
+| Zamknięcie hosta, ponowne otwarcie z nowym procesem | Potwierdzone | Potwierdzone |
+
+Uruchomione aplikacje pokazały zapisane warianty przycisku, osadzony
+PNG, gradient i cień. Dowód cienia dotyczy działającego formularza.
+Na zrzutach edytora widoczny jest gradient, a obszar poza
+prostokątem kontrolki nie potwierdza tam efektu cienia. Pierwsze
+podejście do zapisu z niespójnym modelem i kodem kontrolnym
+odrzucił mechanizm ochrony źródła. Dane próbki zsynchronizowano
+generatorem z prawidłowym hashem. W tej samej próbce poprawiono
+logiczną nazwę osadzonego PNG, aby odpowiadała ścieżce
+`Assets/Embedded/SkiaQualification.png`. Kwalifikacja nie wymagała
+zmian w kodzie produkcyjnym ani osłabienia walidacji.
+
+## Stan zgłoszeń i bramki
+
+| Pozycja | Stan |
+| --- | --- |
+| [#337 — fallback glifów, emoji i shaping](https://github.com/ProGraMajster/ModernFormsNext/issues/337) | Otwarte. Zbadane zestawy tekstu i platform dokumentuje raport. |
+| [#419 — migracja SkiaSharp 4.x](https://github.com/ProGraMajster/ModernFormsNext/issues/419) | Otwarte. Brama software-4x zatrzymuje integrację. |
+| [#114 — PerformanceLab](https://github.com/ProGraMajster/ModernFormsNext/issues/114) | Otwarte. Pary prób i metadane zasiliły program pomiarów. |
+| [#58 — diagnostyka wykonania](https://github.com/ProGraMajster/ModernFormsNext/issues/58) | Otwarte. Dostępne są liczniki, wyniki testów i osobne ślady diagnostyczne. |
+| [PR #560](https://github.com/ProGraMajster/ModernFormsNext/pull/560) | Otwarty Draft do `develop/2.0.0`. Wymagany [build](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46160207009/job/141025648898) zakończył się SUCCESS dla `c6dfe0d5a469500e6a3eaf58f331f38fbea18d8d`. |
+
+Wzrost p99 ze starszych prób nie powtórzył się, a spadek alokacji UI
+jest powtarzalny. Wszystkie odpowiednie pary Windows wykazały dłuższy
+czas do pierwszego pełnego paint i większy czas CPU procesu podczas
+przewijania. Przed integracją potrzebna jest decyzja właściciela
+w sprawie tych kosztów. Dostępne ślady nie izolują udziału
+SkiaSharp, RichTextKit oraz HarfBuzzSharp, więc nie uzasadniają
+zmian w rendererze. Osobną granicą dowodów pozostaje brak
+fizycznego Androida 16 KiB. Wcześniejszą serię z grą zachowano
+jako dowód diagnostyczny.
+
+[Surowe dane końcowe, sumy i kwalifikacja](evidence/performance-s02-c-final.zip) ·
+[Rejestr programu pomiarów](performance-benchmarks.json)
+
+**Wynik poprzedniej kwalifikacji S02-c — NO-GO.**
+
+
+## Ukierunkowana diagnostyka Windows
+
+Zbadano jednorazowo pierwszy paint i CPU przewijania. Pary wykonano w
+przeplatanej kolejności w osobnych procesach z .NET 10.0.15 x64, na tym
+samym Windows, ekranie 144 Hz/96 DPI oraz rendererze software. Mediana
+próbkowanego obciążenia hosta w pierwszej części wyniosła 5,55%.
+Wersjonowane scenariusze i wcześniejsze próby zachowano. Dodatkowe
+scenariusze porównują pary SkiaSharp 3.119.2/4.158.0, RichTextKit
+0.4.167/0.6.175 oraz HarfBuzzSharp 7.3.0.1/15.0.0. Biblioteki zachowują
+zgodne zestawy zależności. Próba bezpośredniego rysowania Skia omija
+RichTextKit i HarfBuzzSharp. Pomiary ETW pochodzą z oddzielnych procesów.
+
+### Pierwszy pełny paint
+
+Mediany z trzech nowych procesów na wersję i scenariusz.
+
+| Scenariusz | Pierwszy native paint 3.x [ms] | Pierwszy native paint 4.x [ms] |
+| --- | ---: | ---: |
+| Formularz z pustą zawartością | 45,70 | 66,32 |
+| 96 przycisków i etykiet bez treści tekstowej | 49,08 | 70,52 |
+| 24 etykiety z tekstem | 49,47 | 81,19 |
+| PNG i geometria | 47,98 | 69,11 |
+| Wersjonowany workload 96 kontrolek | 53,82 | 83,19 |
+
+Workload 96 kontrolek ponownie wydłużył pierwszy paint o około 29 ms.
+Czas Main → Shown wyniósł 167,38 → 164,95 ms, Main → pierwszy pełny
+native paint 229,86 → 256,27 ms, render frameworka 45,90 → 74,67 ms,
+a odnotowany layout 16,60 → 16,80 ms. Pusty formularz, scenariusz PNG
+i kontrolki bez tekstu nadal miały tekst na zarządzanym pasku tytułu.
+
+W osobnej kontroli pustego formularza samo wyczyszczenie tytułu
+zmniejszyło różnicę native paint z 44,42 → 64,13 ms przy tytule
+do 20,43 → 20,27 ms bez tytułu. Zachowano rozmiar formularza, dekoracje
+i kontrolki paska. Jądrowe próbki CPU ETW wskazały stos
+`FormTitleBarRenderer → Topten.RichTextKit.FontRun.Paint →
+SkiaSharp.SKCanvas.DrawText → DirectWrite`. Moduł `dwrite` był liściem
+w 1 → 13 próbkach pierwszego paint pustego formularza i w 0 → 17
+próbkach reprezentatywnego workloadu. To dwie profilowane pary.
+Przy tworzeniu shaperów w pustym formularzu 4.x była też pojedyncza
+próbka DirectWrite pod `SKFont.GetGlyphWidths`.
+
+SkiaSharp 4.x zwiększył koszt pierwszego użycia glifów natywnego
+fontu motywu Segoe UI Emoji. W izolacji bez RichTextKit i HarfBuzzSharp
+utworzenie pierwszego `SKTextBlob` z próbką tytułu wzrosło
+z 2,16 do 12,68 ms. Po rozgrzaniu obie mediany wyniosły 0,01 ms.
+W pełnym stosie z tym samym fontem pierwszy pomiar i shaping
+RichTextKit wyniósł 24,68 → 24,28 ms, a pierwsze `Paint` z `Flush`
+3,40 → 19,91 ms. Bezpośredni shaping HarfBuzz na Segoe UI trwał
+1,84 → 1,42 ms. Próby bezpośrednie obejmują koszty pierwszych wywołań
+zarządzanych i natywnych w każdym przedziale.
+
+W izolacji koszt ładowania Skia i odczytu wersji wyniósł
+1,94 → 1,71 ms, utworzenia `SKSurface` 6,28 → 2,16 ms, a pobrania
+canvas i pierwszego clear 2,45 → 2,47 ms. Pierwszy `SKPaint` kosztował
+0,16 → 2,30 ms, a przygotowanie ścieżki 0,11 → 0,28 ms. Czasy UI
+pomiędzy zdarzeniami początku JIT i załadowania kodu dla wszystkich
+zarejestrowanych modułów wzrosły o około 1 ms w obu profilowanych
+scenariuszach. Obejmują blisko 42–45 ms wspólnej pracy pierwszego
+paint i nie tłumaczą wielkości różnicy. Dane nie identyfikują
+konkretnego wewnętrznego cache, funkcji DirectWrite ani wszystkich
+alokacji natywnych. Przyczynę zawężono do ścieżki pierwszego użycia
+i rysowania glifów. Koszt pozostał w mierzonym przedziale.
+
+### CPU podczas przewijania
+
+Czas CPU badanego procesu wyniósł 953,13 / 1 000,00 / 1 187,50 ms w 3.x
+oraz 1 156,25 / 1 031,25 / 1 078,13 ms w 4.x. Różnice w parach wyniosły
++203,13, +31,25 i −109,38 ms. Nowa mediana to 1 000,00 → 1 078,13 ms.
+Zakresy zachodzą na siebie. Wcześniejsza seria 968,75 → 1 250,00 ms
+pozostaje w rejestrze. Wielkości jej wzrostu nie odtworzono.
+
+Natywne liczniki `GetThreadTimes` wskazały dwa pracujące wątki.
+W osobnej parze ETW były to UI oraz nazwany przez runtime
+`.NET Tiered Compilation Worker`. W oknie 120 mierzonych klatek
+UI miało 565 → 580 próbek CPU, a worker JIT 869 → 878. W workerze
+546 → 537 próbek miało liść `clrjit`. Na UI 190 → 199 próbek miało
+liść `libskiasharp`, a 166 → 167 liść w jądrze Windows. Stosy związane
+z rysowaniem, tekstem i obsługą dyspozytora występowały w obu wersjach.
+Nie zaobserwowano istotnej aktywności CPU ThreadPool ani finalizacji
+w tej parze. Oczekiwanie dyspozytora nie zużywa czasu CPU mierzonego
+jądrową próbką wykonywania. Próbki nie mierzą długości oczekiwania.
+Czas CPU procesu w samej profilowanej parze wyniósł
+1 218,75 → 1 234,38 ms. Ślad służy do rozpoznania wątków i obszarów
+pracy. Narzut profilera i pojedyncza para ograniczają wnioski o różnicy.
+[Metoda zbierania CPU przez Visual Studio](https://learn.microsoft.com/en-us/visualstudio/profiling/profile-apps-from-command-line).
+
+Wpis 35,77% w historycznym topN to metoda wygenerowana dla
+`System.Buffers.SharedArrayPool<ushort>`. Wywołuje `Trim()`
+z callbacku zarejestrowanego przy pierwszej inicjalizacji kubełków TLS.
+W pliku 4.x wystąpił jeden surowy stos `Type=External` na 1 850,
+z `Gen2GcCallback.Finalize` i `GC.RunFinalizers`, w jedynym odczycie
+tego wątku. Przy 740,097 ms mieścił się w zdarzeniach finalizacji
+738,882–740,156 ms po Gen0. Nazwa callbacku odzwierciedla cykl
+rejestracji. Jego pierwsze uruchomienie może nastąpić po wcześniejszej
+generacji. Przedział całej partii finalizacji trwał ok. 1,27 ms.
+Agregacja czasu między próbkami przypisała samotnemu stosowi
+nieproporcjonalną wagę, a ślad ETW pokazał tylko 1 → 2 próbki
+na finalizatorze w fazie przewijania. Brak podstaw do traktowania
+tego wpisu jako przyczyny wzrostu CPU lub do zmiany ArrayPool i GC.
+[Źródło SharedArrayPool w .NET 10](https://github.com/dotnet/runtime/blob/v10.0.5/src/libraries/System.Private.CoreLib/src/System/Buffers/SharedArrayPool.cs) ·
+[Źródło Gen2GcCallback](https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Gen2GcCallback.cs) ·
+[Metoda agregacji próbek EventPipe](https://github.com/microsoft/perfview/blob/main/src/TraceEvent/Computers/SampleProfilerThreadTimeComputer.cs).
+
+### Rekomendacja integracji
+
+**GO WITH KNOWN PERFORMANCE REGRESSIONS — wymagana akceptacja właściciela.**
+Zachowano oryginalny baseline, wcześniejszą kwalifikację, pomiary przy
+grze oraz nowe surowe dane. Runda nie dostarczyła bezpiecznej poprawki
+produkcyjnej. Wyczyszczenie tytułu było próbą izolującą ścieżkę, więc
+nie zmienia interfejsu produktu. Pogorszenie kosztu pierwszego paint jest
+powtarzalne i dotyczy badanego stosu Windows software. Funkcjonalna
+kwalifikacja migracji, w tym Designer i fizyczny Android, zachowuje
+wcześniejszą proweniencję. Rekomendacja wymaga decyzji właściciela i
+zaliczonego wymaganego CI dla nowej rewizji PR #560.
+
+Dalszą optymalizację można ograniczyć do reproduktora pierwszego użycia
+glifów w natywnym Skia/DirectWrite. Do ustalenia funkcji i cache potrzebne
+byłyby symbole natywne lub weryfikacja w kodzie dostawcy. Jeśli utrzyma
+się istotny koszt CPU po dłuższej pracy aplikacji, porównanie może osobno
+objąć okres aktywnego tiered JIT i osobny ustabilizowany przedział.
+[Archiwum sesji diagnostycznej](evidence/performance-s02-c-targeted.zip) ·
+[Rejestr pomiarów](performance-benchmarks.json).

@@ -24,6 +24,7 @@ zatwierdza właściciel na podstawie powtarzalnych prób.
 | R15 Brak wyników pozapodstawowej konfiguracji GPU | S02/S09 | W/W | Wczesne prototypy platformowe i oddzielna decyzja wyboru. Format śladu i kryteria w #114 i #338. Chroń wspierane software. | Całkowite no-go jedynie z dowodami i zgodą właściciela. Wydanie wymaga statusu zaakceptowanych backendów. |
 | R16 CSS buduje odrębne wartości lub nadmierny rematch | S03 | Ś/W | Ograniczony parser #404 po #194/#177/#178. Współdzielona kaskada i invalidacja, wydajność z dużym drzewem. | Niespójny resolved value, reset albo preferencje w porównaniu z code-first. |
 | R14 Trwały plan rozjeżdża się z decyzją, milestone i danymi CI | S02–S09 | W/Ś | JSON źródłem kolejności i dowodów, Markdown z tego samego zestawu danych. Audyt pola Target version i statusów po każdym etapie. | Rozbieżności scope wymagają decyzji właściciela przed zamrożeniem wersji. |
+| R17 Dłuższe pierwsze rysowanie tekstu na Windows software po 4.x | S02/S09 | W/Ś | Próby z tytułem i bez oraz profil ETW wskazują koszt pierwszego użycia glifów. Zachować domyślny font, wygląd i pełny pomiar. CPU przewijania zachować jako oddzielną, zmienną obserwację. | Integracja wymaga akceptacji właściciela i CI dla właściwej rewizji. Publiczna deklaracja wydajności wymaga końcowej kwalifikacji 2.0.0. |
 
 Wymagania sprzętowe obejmują zestawy Windows z odpowiednim odświeżaniem,
 precision touchpad i przynajmniej jeden wariant wysokiego DPI, fizyczny

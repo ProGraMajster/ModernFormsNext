@@ -125,7 +125,8 @@
       "android-text-collection-v1",
       "multilingual-text-v1"
     ],
-    "startupPolicy": "Fresh application processes. The first trial and subsequent trials remain distinct. OS cold caches not qualified."
+    "startupPolicy": "Fresh application processes. The first trial and subsequent trials remain distinct. OS cold caches not qualified.",
+    "previousWindowsComparisonStatus": "Diagnostic. The present qualification uses the new interleaved Windows session; the stable tag and development reference remain separate."
   },
   "futureCheckpoints": [
     "S02-c software 4.x",
@@ -302,7 +303,9 @@
       "commit": "00ef1bc6f48d840d2bf86c6ecb3046b7f1da220c",
       "nativeSkia": "158.0",
       "runtime": ".NET 10.0.15",
-      "hostBackgroundLoad": "Not instrumented for this earlier series."
+      "hostBackgroundLoad": "Not instrumented for this earlier series.",
+      "qualification": "diagnostic-only",
+      "backgroundLoadPolicy": "Earlier measurement round. Owner confirmed a borderless fullscreen game during the earlier tests. Use the interleaved Windows session to qualify p99."
     },
     "windowsRepeat3x": {
       "startupMs": [
@@ -467,7 +470,8 @@
       "nativeSkia": "119.0",
       "runtime": ".NET 10.0.15",
       "qualification": "diagnostic-only",
-      "hostBackgroundLoad": "Owner confirmed a game running during the 16:08:15–16:08:48 Europe/Warsaw comparison."
+      "hostBackgroundLoad": "Owner confirmed a game running during the 16:08:15–16:08:48 Europe/Warsaw comparison.",
+      "backgroundLoadPolicy": "Earlier measurement round. Owner confirmed a borderless fullscreen game during the earlier tests. Use the interleaved Windows session to qualify p99."
     },
     "windowsRepeat4x": {
       "startupMs": [
@@ -632,7 +636,8 @@
       "nativeSkia": "158.0",
       "runtime": ".NET 10.0.15",
       "qualification": "diagnostic-only",
-      "hostBackgroundLoad": "Owner confirmed a game running during the 16:08:15–16:08:48 Europe/Warsaw comparison."
+      "hostBackgroundLoad": "Owner confirmed a game running during the 16:08:15–16:08:48 Europe/Warsaw comparison.",
+      "backgroundLoadPolicy": "Earlier measurement round. Owner confirmed a borderless fullscreen game during the earlier tests. Use the interleaved Windows session to qualify p99."
     },
     "androidEmulator34": [
       {
@@ -808,5 +813,602 @@
       }
     ],
     "androidEmulator34Conditions": "Runtime compatibility evidence. Host also had unrelated foreground workload during this window."
+  },
+  "finalSoftware4xQualification": {
+    "qualification": "NO-GO",
+    "testedPrHead": "c6dfe0d5a469500e6a3eaf58f331f38fbea18d8d",
+    "telemetry": {
+      "hostCpuPercent": {
+        "min": 3.9,
+        "median": 5.95,
+        "max": 9.2
+      },
+      "gpuUtilizationPercent": {
+        "min": 0.0,
+        "median": 2.0,
+        "max": 32.0
+      },
+      "gpuTemperatureC": {
+        "min": 46.08,
+        "median": 48.065,
+        "max": 49.58
+      },
+      "cpuTemperature": null,
+      "overlap": "No game or competing benchmark. User confirmed previous runs had a borderless fullscreen game."
+    },
+    "windows": {
+      "3x": {
+        "commit": "34d7030b7f08d557266ad91867ff24845965ede8",
+        "firstPaintMs": {
+          "min": 227.88729999999998,
+          "median": 229.74195000000003,
+          "max": 235.00324999999998
+        },
+        "scroll": {
+          "nativePaintWallMs": {
+            "p50": {
+              "min": 3.0606,
+              "median": 3.4957,
+              "max": 3.5818
+            },
+            "p95": {
+              "min": 5.0093,
+              "median": 5.8883,
+              "max": 7.4139
+            },
+            "p99": {
+              "min": 7.4735,
+              "median": 9.4164,
+              "max": 10.5436
+            }
+          },
+          "frameworkRenderWallMs": {
+            "p50": {
+              "min": 2.8338,
+              "median": 3.2514,
+              "max": 3.3235
+            },
+            "p95": {
+              "min": 4.6893,
+              "median": 5.5992,
+              "max": 7.1361
+            },
+            "p99": {
+              "min": 7.0315,
+              "median": 9.1537,
+              "max": 10.1241
+            }
+          },
+          "layoutWallMs": {
+            "p50": {
+              "min": 0.1465,
+              "median": 0.1518,
+              "max": 0.1635
+            },
+            "p95": {
+              "min": 0.3869,
+              "median": 0.4455,
+              "max": 0.5171
+            },
+            "p99": {
+              "min": 0.6421,
+              "median": 0.7087,
+              "max": 0.7973
+            }
+          },
+          "submissionWallMs": {
+            "p50": {
+              "min": 0.1675,
+              "median": 0.1748,
+              "max": 0.1877
+            },
+            "p95": {
+              "min": 0.2568,
+              "median": 0.2866,
+              "max": 0.3514
+            },
+            "p99": {
+              "min": 0.3064,
+              "median": 0.5082,
+              "max": 0.5088
+            }
+          },
+          "callbackIntervalMs": {
+            "p50": {
+              "min": 29.224,
+              "median": 29.2723,
+              "max": 30.2497
+            },
+            "p95": {
+              "min": 34.7357,
+              "median": 34.983,
+              "max": 35.8315
+            },
+            "p99": {
+              "min": 36.1972,
+              "median": 45.8618,
+              "max": 46.7732
+            }
+          },
+          "managedUiAllocationBytes": {
+            "p50": {
+              "min": 238968,
+              "median": 238968,
+              "max": 238968
+            },
+            "p95": {
+              "min": 249432,
+              "median": 249432,
+              "max": 249432
+            },
+            "p99": {
+              "min": 362856,
+              "median": 362856,
+              "max": 362856
+            }
+          }
+        },
+        "scrollProcessCpuMs": {
+          "min": 890.625,
+          "median": 968.75,
+          "max": 1125
+        },
+        "scrollProcessPrivateBytes": {
+          "min": 67244032,
+          "median": 67256320,
+          "max": 69005312
+        },
+        "scrollProcessWorkingSetBytes": {
+          "min": 110579712,
+          "median": 110661632,
+          "max": 112463872
+        },
+        "sampledFrameGc": [
+          [
+            1,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            1,
+            0
+          ]
+        ]
+      },
+      "4x": {
+        "commit": "9beaa38ba02fec471e0ee4d19f6c71986381758f",
+        "firstPaintMs": {
+          "min": 255.2846,
+          "median": 259.39779999999996,
+          "max": 266.00834999999995
+        },
+        "scroll": {
+          "nativePaintWallMs": {
+            "p50": {
+              "min": 3.3296,
+              "median": 3.4093,
+              "max": 3.5146
+            },
+            "p95": {
+              "min": 4.8564,
+              "median": 5.5984,
+              "max": 6.0197
+            },
+            "p99": {
+              "min": 5.6056,
+              "median": 9.2397,
+              "max": 10.3951
+            }
+          },
+          "frameworkRenderWallMs": {
+            "p50": {
+              "min": 3.1341,
+              "median": 3.1817,
+              "max": 3.2544
+            },
+            "p95": {
+              "min": 4.5468,
+              "median": 5.2424,
+              "max": 5.7197
+            },
+            "p99": {
+              "min": 5.1768,
+              "median": 8.9938,
+              "max": 10.0704
+            }
+          },
+          "layoutWallMs": {
+            "p50": {
+              "min": 0.1514,
+              "median": 0.1576,
+              "max": 0.1652
+            },
+            "p95": {
+              "min": 0.2938,
+              "median": 0.4476,
+              "max": 0.497
+            },
+            "p99": {
+              "min": 0.3418,
+              "median": 0.6023,
+              "max": 1.0337
+            }
+          },
+          "submissionWallMs": {
+            "p50": {
+              "min": 0.1667,
+              "median": 0.169,
+              "max": 0.1845
+            },
+            "p95": {
+              "min": 0.2612,
+              "median": 0.2687,
+              "max": 0.3073
+            },
+            "p99": {
+              "min": 0.3236,
+              "median": 0.3762,
+              "max": 0.3904
+            }
+          },
+          "callbackIntervalMs": {
+            "p50": {
+              "min": 27.9044,
+              "median": 29.6124,
+              "max": 30.245
+            },
+            "p95": {
+              "min": 32.9491,
+              "median": 33.7692,
+              "max": 34.3505
+            },
+            "p99": {
+              "min": 34.584,
+              "median": 37.1077,
+              "max": 41.2964
+            }
+          },
+          "managedUiAllocationBytes": {
+            "p50": {
+              "min": 191744,
+              "median": 191744,
+              "max": 192416
+            },
+            "p95": {
+              "min": 202208,
+              "median": 202208,
+              "max": 202208
+            },
+            "p99": {
+              "min": 247160,
+              "median": 256328,
+              "max": 256328
+            }
+          }
+        },
+        "scrollProcessCpuMs": {
+          "min": 1203.125,
+          "median": 1250,
+          "max": 1421.875
+        },
+        "scrollProcessPrivateBytes": {
+          "min": 65912832,
+          "median": 65990656,
+          "max": 68141056
+        },
+        "scrollProcessWorkingSetBytes": {
+          "min": 109322240,
+          "median": 109334528,
+          "max": 111550464
+        },
+        "sampledFrameGc": [
+          [
+            2,
+            1,
+            0
+          ],
+          [
+            1,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "androidArm64": {
+      "3x": {
+        "sourceCommit": "ad10f5ae155b299ff0ed2f9047586a5b519d1846",
+        "installedApkSha256": "86AFABAADE322C861A3C4673AF84C088CF6DD75DF8099803B1C05267A354DA6C",
+        "runtime": ".NET 10.0.15",
+        "display": {
+          "PhysicalWidth": 1116,
+          "PhysicalHeight": 2480,
+          "RefreshRate": 60.000004
+        },
+        "firstObservedPaintMs": {
+          "min": 609.2801,
+          "median": 643.4459,
+          "max": 707.9679
+        },
+        "cpuMs": {
+          "min": 6199,
+          "median": 6210,
+          "max": 6470
+        },
+        "pssKiB": {
+          "min": 279289,
+          "median": 279327,
+          "max": 282528
+        },
+        "managedBytes": {
+          "min": 59621000,
+          "median": 59621984,
+          "max": 59623912
+        },
+        "callbackP95Ms": {
+          "min": 27.5911,
+          "median": 28.6256,
+          "max": 28.9934
+        },
+        "gc": [
+          [
+            13,
+            0,
+            0
+          ],
+          [
+            13,
+            0,
+            0
+          ],
+          [
+            13,
+            0,
+            0
+          ]
+        ]
+      },
+      "4x": {
+        "sourceCommit": "9beaa38ba02fec471e0ee4d19f6c71986381758f",
+        "installedApkSha256": "D1B97553B812679848A7B24F6473751658EC722DBAD1F80A5106200CBAF2E865",
+        "runtime": ".NET 10.0.15",
+        "display": {
+          "PhysicalWidth": 1116,
+          "PhysicalHeight": 2480,
+          "RefreshRate": 60.000004
+        },
+        "firstObservedPaintMs": {
+          "min": 632.9284,
+          "median": 639.8584,
+          "max": 671.2399
+        },
+        "cpuMs": {
+          "min": 6048,
+          "median": 6061,
+          "max": 6249
+        },
+        "pssKiB": {
+          "min": 287267,
+          "median": 287968,
+          "max": 288240
+        },
+        "managedBytes": {
+          "min": 43337144,
+          "median": 43347032,
+          "max": 43347320
+        },
+        "callbackP95Ms": {
+          "min": 24.2725,
+          "median": 24.5153,
+          "max": 27.7303
+        },
+        "gc": [
+          [
+            9,
+            0,
+            0
+          ],
+          [
+            9,
+            0,
+            0
+          ],
+          [
+            9,
+            0,
+            0
+          ]
+        ]
+      }
+    },
+    "diagnosticEventPipe": {
+      "3x": {
+        "sha256": "af4298d15ec188d7b2d78b62c272ff270dc47f264c698222a961edf39e39a5e9",
+        "bytes": 5735750
+      },
+      "4x": {
+        "sha256": "5abc6fc62fc520678a55ff3dacda9dede13d04ecc3eb3a814536ff15c204037e",
+        "bytes": 5456386
+      }
+    },
+    "nativeViewArm64": "passed-47",
+    "androidImageSmoke": {
+      "device": "NX769J",
+      "api": 36,
+      "supportedAbi": "arm64-v8a",
+      "package": "com.modernformsnext.skiaqualification.image",
+      "configuration": "Debug isolated source-project probe",
+      "nativeSkia": "158.0",
+      "apkSha256": "78B3624F914F08E8DF291BF19D128F2C4F218822853A47D0D61635A3159AA098",
+      "apkMatchesDevice": true,
+      "result": "passed",
+      "pngDecode": "both source pixels asserted by runtime",
+      "screenResolution": [
+        1116,
+        2480
+      ],
+      "screenshotColors": [
+        {
+          "rgb": [
+            240,
+            104,
+            42
+          ],
+          "count": 229120
+        },
+        {
+          "rgb": [
+            25,
+            185,
+            125
+          ],
+          "count": 67616
+        }
+      ]
+    },
+    "designer": {
+      "integrated": {
+        "snapshots": [
+          "saved",
+          "reopened",
+          "runtime"
+        ],
+        "runtime": {
+          "Status": "Passed",
+          "Target": "net11.0-windows",
+          "Runtime": "11,0,26,53018 @Commit: 297acf930fb0f5c07fd4e51d78e521b4ad2e5d1f",
+          "Text": "Integrated",
+          "NativeSkiaSha256": "47070A8BCED725065EC305C2ACF49393C6E665F04A2427C2DFE1B93C7760E19A",
+          "ModelSha": "CD5B01E20E4BEBA6DAA912877F4E3F7E6EC9CCD7CBB6EBEDED3FEC149ADD0EF4",
+          "CodeSha": "9DB73F0F0DB9E648B5CBCB2474D21017C6B1BB6EF1A0FAFDB10341094530253D",
+          "ExitCode": 0
+        }
+      },
+      "separate": {
+        "snapshots": [
+          "saved",
+          "reopened",
+          "runtime"
+        ],
+        "runtime": {
+          "Status": "Passed",
+          "Target": "net11.0-windows",
+          "Runtime": "11,0,26,53018 @Commit: 297acf930fb0f5c07fd4e51d78e521b4ad2e5d1f",
+          "Text": "Separate",
+          "NativeSkiaSha256": "47070A8BCED725065EC305C2ACF49393C6E665F04A2427C2DFE1B93C7760E19A",
+          "ModelSha": "678D8750BB1C17E1C6887DD88BEE94E030183ED3DA22130F88EEE6CD06C15B1A",
+          "CodeSha": "FAA738CDFE0C6267CCC1E20825556E573A1BE6347684B272370D503B18575836",
+          "ExitCode": 0
+        }
+      }
+    },
+    "focusedTests": [
+      {
+        "name": "ModernFormsNext.Tests.InteractionEffectTests.RippleStartsAtPointerAndRendersRadiusFadeAndRoundedClip",
+        "outcome": "Passed"
+      },
+      {
+        "name": "ModernFormsNext.Tests.PerformanceProfilerTests.RecordingOnlyHotPathDoesNotAllocateAfterSourceWarmup",
+        "outcome": "Passed"
+      },
+      {
+        "name": "ModernFormsNext.Tests.VirtualizationGeneratorTests.WarmedNormalScrollingAndStableRequestsAllocateNothing",
+        "outcome": "Passed"
+      }
+    ],
+    "archive": "evidence/performance-s02-c-final.zip",
+    "sha256": "b9d75dbba7e55aff86411c3f2480ef5238ae958fdd14848919ab9ac82c7841fc"
+  },
+  "targetedSoftware4xInvestigation": {
+    "recommendation": "GO WITH KNOWN PERFORMANCE REGRESSIONS",
+    "ownerAcceptance": "pending",
+    "productionChanges": false,
+    "sourceCommits": {
+      "3x": "34d7030b7f08d557266ad91867ff24845965ede8",
+      "4x": "9beaa38ba02fec471e0ee4d19f6c71986381758f"
+    },
+    "productionSourceEqualsPrReference": "c6dfe0d5a469500e6a3eaf58f331f38fbea18d8d",
+    "runtime": ".NET 10.0.15 x64",
+    "rendering": "Windows software",
+    "packageVersions": {
+      "3x": [
+        "HarfBuzzSharp/7.3.0.1",
+        "SkiaSharp/3.119.2",
+        "Topten.RichTextKit/0.4.167"
+      ],
+      "4x": [
+        "HarfBuzzSharp/15.0.0",
+        "SkiaSharp/4.158.0",
+        "Topten.RichTextKit/0.6.175"
+      ]
+    },
+    "startupFinding": "First-use text drawing with the managed window title. DirectWrite was on the kernel sampled stacks under SkiaSharp.SKCanvas.DrawText. Removing the title text eliminated the empty form differential, and a direct Skia glyph probe without RichTextKit or HarfBuzz reproduced part of the first-use cost.",
+    "scrollFinding": "The prior CPU increase was smaller and variable in the new matched pairs. ETW identified the two busy threads as UI and the CLR tiered compilation worker. The prior ArrayPool<UInt16> callback was one EventPipe observation during a short finalizer batch, not sustained CPU.",
+    "etwTraceSha256": {
+      "empty-3x": "82abd33bbcb23b2798a235af2838f9f8db4b4886fe5073c18188e6852f836c9d",
+      "empty-4x": "1c134899a3ccf9128ba15d4acb8af8a40e522321bdc78417c019c06766062bc6",
+      "startup-3x": "ec8cc3391df3b4e7b778fab7e562ae645547f47df048c10f6d51cebc02587f81",
+      "startup-4x": "4950b87e7ae4a6e692fabe9c6cb0590f75747313e925ecd6df99ba19818ad303",
+      "virtualized-scroll-3x": "32ac623e09338e714a57c8f3de2aad0b5886f3ebae38b543e2fb0a5d3865765e",
+      "virtualized-scroll-4x": "702023ce140fd701c18f5dbfaee58f6cbf88945e2e02dfac86e7271e111b31a9"
+    },
+    "olderEventPipeSamples": {
+      "3x": {
+        "samples": 1834,
+        "arrayPoolStackHits": 0
+      },
+      "4x": {
+        "samples": 1850,
+        "arrayPoolStackHits": 1
+      }
+    },
+    "scope": "Diagnostic mini-scenarios only. Original qualification baselines and histories retain their independent provenance.",
+    "windows": {
+      "startup": {
+        "3xMedian": {
+          "mainToShownMs": 167.3823,
+          "mainToFirstPaintMs": 229.86475,
+          "nativePaintMs": 53.8194,
+          "frameworkRenderMs": 45.8994,
+          "layoutMs": 16.5992
+        },
+        "4xMedian": {
+          "mainToShownMs": 164.9468,
+          "mainToFirstPaintMs": 256.2699,
+          "nativePaintMs": 83.1938,
+          "frameworkRenderMs": 74.665,
+          "layoutMs": 16.8015
+        }
+      },
+      "virtualized-scroll": {
+        "3xMedian": {
+          "processCpuMs": 1000,
+          "windowWallMs": 3187.8548,
+          "uiCpuMs": 390.625,
+          "otherThreadCpuMs": 609.375,
+          "nativePaintP99Ms": 5.0966
+        },
+        "4xMedian": {
+          "processCpuMs": 1078.125,
+          "windowWallMs": 3299.2288,
+          "uiCpuMs": 421.875,
+          "otherThreadCpuMs": 656.25,
+          "nativePaintP99Ms": 9.9879
+        }
+      }
+    },
+    "archive": "evidence/performance-s02-c-targeted.zip",
+    "sha256": "4a9eedcf3371cc8ce53f42db65208badc5a41cfa1a4904345701b6e771c46d81"
   }
 }

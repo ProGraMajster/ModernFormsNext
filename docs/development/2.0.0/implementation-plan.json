@@ -288,7 +288,7 @@
             },
             {
               "id": "S02-c3",
-              "status": "qualification-partial",
+              "status": "diagnosis-completed-owner-decision-pending",
               "scope": "Porównanie pomiarów i kwalifikacja platform oraz konsumentów"
             }
           ]
@@ -1062,7 +1062,9 @@
         337
       ],
       "acceptance": "Porównanie 3.x/4.x, NuGet/RID, toolchain, runtime i Designer przy niezmienionym rodzaju renderera.",
-      "status": "not-qualified"
+      "status": "not-qualified",
+      "latestEvidence": "performance-benchmarks.json#targetedSoftware4xInvestigation",
+      "decision": "GO WITH KNOWN PERFORMANCE REGRESSIONS recommended. Windows first-use glyph rendering adds first-paint time. The originally observed process CPU increase was smaller and variable in the follow-up. Owner acceptance and CI for the final revision are required."
     },
     {
       "gateId": "pacing-contract",
@@ -13800,7 +13802,7 @@
   ],
   "approval": {
     "plan": "merged",
-    "nextScope": "Review S02-c2/c3 qualification and resolve the remaining software-4x blockers",
+    "nextScope": "Owner review of S02-c and acceptance decision for the known Windows first-paint cost",
     "implementationMerge": "S02-b and S02-c1 integrated. S02-c2/c3 is draft PR #560 and requires owner review.",
     "scopeSource": "Owner acceptance of S02-b and SkiaSharp migration request",
     "nextWaveApproval": "S02-d and S02-e await separate approval"
@@ -13917,7 +13919,7 @@
     "stageId": "S02",
     "waveId": "S02-c",
     "substep": "S02-c3",
-    "status": "qualification-partial",
+    "status": "diagnosis-completed-owner-decision-pending",
     "report": "MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md"
   },
   "performanceBenchmarkProgram": {
