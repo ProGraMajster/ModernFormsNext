@@ -37,7 +37,7 @@ internal static class SkiaGeometryConverter
                 if (frames.Count == 1)
                 {
                     if (scale.Width != 1f || scale.Height != 1f)
-                        frame.Path.Transform(new SKMatrix(scale.Width, 0f, 0f, 0f, scale.Height, 0f, 0f, 0f, 1f));
+                        TransformAffine(frame.Path, new SKMatrix(scale.Width, 0f, 0f, 0f, scale.Height, 0f, 0f, 0f, 1f));
                     RequireFinite(frame.Path);
                     frames.Pop();
                     return frame.Path;
@@ -150,10 +150,20 @@ internal static class SkiaGeometryConverter
                 if (!left.Op(right, operation, Path))
                     throw new InvalidOperationException("The filled geometry combination could not be computed.");
             }
-            if (!geometry.Transform.IsIdentity) Path.Transform(ToSkiaMatrix(geometry.Transform));
+            if (!geometry.Transform.IsIdentity) TransformAffine(Path, ToSkiaMatrix(geometry.Transform));
             RequireFinite(Path);
         }
         public void Dispose() { groupBuilder?.Dispose(); path?.Dispose(); first?.Dispose(); second?.Dispose(); }
+    }
+
+    private static void TransformAffine(SKPath path, SKMatrix matrix)
+    {
+        int pointCount = path.PointCount;
+        path.Transform(in matrix);
+        // Skia 4 discards an overflowing contour during transformation. An affine
+        // transform keeps the path points, so detect the discarded contour before caching it.
+        if (path.PointCount != pointCount)
+            throw new ArgumentException("Geometry coordinates overflowed during conversion.");
     }
 
     private static void RequireFinite(SKPath path)
