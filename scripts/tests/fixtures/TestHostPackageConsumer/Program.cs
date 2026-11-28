@@ -10,7 +10,7 @@ Require(Environment.Version.Major == expectedRuntime, "The app is running on the
 Console.WriteLine($"Runtime={RuntimeInformation.FrameworkDescription}; NativeSkia={SkiaSharpVersion.Native}");
 
 using var host = ModernFormsTestHost.Create();
-var root = new Panel { BackColor = Color.Navy };
+var root = new Panel { BackColor = SKColors.Navy };
 var button = root.Controls.Add(new Button { Text = "Save", Bounds = new(10, 10, 100, 32) });
 var editor = root.Controls.Add(new TextBox { Bounds = new(10, 56, 110, 32) });
 var window = host.Show(root, new TestViewport(240, 120, 1.25));
