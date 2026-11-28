@@ -5,10 +5,16 @@
 S02-b został zintegrowany przez PR #558 jako
 `ad10f5ae155b299ff0ed2f9047586a5b519d1846` po wymaganym `build`
 dla `d43abbad7074f803969bdc5c777c0a58b6f5cd06`. Korpus i dowody 3.x
-stanowią S02-c1. S02-c2 dostarczy migrację software, a S02-c3 rozliczy
-różnice. #64, #58, #114, #337 i #419 pozostają otwarte.
+stanowią S02-c1. PR #559 zintegrowano jako
+b9026d6bf699c447bfd23d18c54169282ea0e90c po zielonym build dla
+34d7030b7f08d557266ad91867ff24845965ede8. Osobny PR #560 przedstawia
+migrację software oraz jej kwalifikację. #64, #58, #114, #337 i #419 pozostają otwarte.
 [PR #558](https://github.com/ProGraMajster/ModernFormsNext/pull/558) ·
-[Wymagane CI](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46149867583/job/140993991750)
+[Build S02-b](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46149867583/job/140993991750) ·
+[PR #559](https://github.com/ProGraMajster/ModernFormsNext/pull/559) ·
+[Build S02-c1](https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46155194152/job/141010196945) ·
+[PR #560](https://github.com/ProGraMajster/ModernFormsNext/pull/560) ·
+[Kontrole S02-c2/c3](https://github.com/ProGraMajster/ModernFormsNext/pull/560/checks)
 
 ## Rozpoznanie zależności i plan migracji
 
@@ -23,7 +29,7 @@ oddzielny identyfikator `SkiaSharp.Views.Android` zwrócił 404 w indeksie.
 [Zmiany API od v4.148](https://github.com/mono/SkiaSharp/blob/main/documentation/docfx/releases/4.148.0.md) ·
 [SkiaSharp.Views 4.158.0](https://www.nuget.org/packages/SkiaSharp.Views/4.158.0)
 
-| Warstwa | Baza 3.x | Kandydat do weryfikacji |
+| Warstwa | Baza 3.x | Kandydat 4.x |
 | --- | --- | --- |
 | SkiaSharp w WindowKit i Windows, Core pośrednio | 3.119.2 | 4.158.0, `net10.0` i właściwe assety Windows |
 | NativeAssets Win32, Linux, Android | 3.119.2 | 4.158.0. Pakiety Win32 x86/x64/ARM64, Linux w tym x64/ARM64/musl, Android ARM/ARM64/x86/x64. Linux do restore i pakowania. |
@@ -31,11 +37,12 @@ oddzielny identyfikator `SkiaSharp.Views.Android` zwrócił 404 w indeksie.
 | RichTextKit | 0.4.167, pakiet deklaruje starszy Skia/HarfBuzz | 0.6.175 deklaruje SkiaSharp i SkiaSharp.HarfBuzz od 4.153.1 |
 | SkiaSharp.HarfBuzz, HarfBuzzSharp | Zależności z RichTextKit, Android sample jawnie przypina HarfBuzzSharp 14.2.1.1 | SkiaSharp.HarfBuzz 4.158.0 deklaruje HarfBuzzSharp 15.0.0. Tę samą linię native trzeba sprawdzić osobno dla Linux/Windows/Android. |
 
-W v4 część starych elementów tekstowych `SKPaint` została usunięta
-z referencji lub stała się błędami kompilacji. Bazę sprawdzono na obecnej
-ścieżce software. Szczegółowy wynik porównania API, natywnych uchwytów,
-właścicieli bitmap, color space i obejścia częściowego paint zostanie
-dopisany po kompilacji i pomiarze kandydata.
+Skia 158.0 zostało rzeczywiście załadowane na Windows. Na Androidzie
+biblioteka Views i zasoby natywne wynikają z grafu platformy, a nie
+z deklaracji neutralnego TFM. Podstawowe pakiety nadal dostarczają
+kompilację .NET 10. Świeży Windows konsument używa tych samych paczek
+na CLR 10 lub 11. Próby Androida korzystają z .NET for Android
+36.1.118 lub 37.2.29 zależnie od SDK konsumenta.
 
 ## Audyt tekstu i korpus
 
@@ -96,10 +103,61 @@ pozycje są reprezentatywnym przekrojem, który można powtórzyć po
 zmianie zależności. Urządzenie ARM64 wymaga osobnej próby.
 Android zostaje Experimental.
 
-## Decyzja w S02-c1
+## Port renderera software
 
-**GO do eksperymentu migracyjnego, NO-GO dla bramy `software-4x`.**
-Dostępna jest niezależna baza na Windows i emulatorze Androida.
-Po migracji potrzebne są równoważne pomiary, pełne wymagane CI,
-build Debug/Release, zasoby pakietów, konsumenci .NET 10/11,
-zgodność API, Designer i odpowiednia kwalifikacja Androida.
+Próbkowanie zostało określone w wywołaniach rysujących. Zwykłe kopie
+buforów używają najbliższego piksela. Ścieżki używające wcześniej
+wysokiej jakości stosują filtr Mitchell, z zachowaniem filtra
+kolorów lub alfy w SKPaint. Ścieżki geometrii buduje SKPathBuilder.
+Detach przekazuje własność ścieżki, a Dispose zwalnia builder,
+ścieżkę tymczasową i zastąpione wpisy cache. Klasy renderujące zachowują
+istniejące zasady własności bitmap i uchwytów.
+
+Pierwszy przebieg wykrył regresję transformacji geometrii. Skia 4
+mogła zamienić przepełnioną ścieżkę na pustą i ominąć kontrolę
+skończoności. Kandydat wykrywa utratę punktów przy transformacji
+afinicznej i przywraca ArgumentException. Oryginalny test przechodzi
+w Debug i Release. Osobny test kontraktu profilera zachował wynik 0 B.
+Pierwszy rozszerzony przebieg zarejestrował 8088 B, więc zachowujemy
+oba wyniki.
+
+DrawBitmap w 4.158.0 nadal zamienia mutowalną bitmapę na obraz przed
+klipem. Zachowaliśmy ExtractSubset i ograniczoną, bezpieczną kopię
+na ścieżce software. Porównanie pikseli częściowego i pełnego
+renderu oraz rzeczywisty HWND przeszły testy. Próby zakresu
+100/125/150/200/225% obejmują bufor 5K/225% i maksymalizację.
+Rzeczywiste przejście OS z 96 do 216 DPI i z powrotem używa monitora
+FHD oraz wirtualnego wyjścia 5K. Osobny fizyczny panel 5K pozostaje
+poza zebranym materiałem.
+[Źródło wewnętrznej kopii w SkiaSharp 4.158.0](https://github.com/mono/SkiaSharp/blob/v4.158.0/binding/SkiaSharp/SKCanvas.cs)
+
+## Zmiana publicznego API
+
+SkiaSharp 4.x usunął typ SKFilterQuality z kontraktu kompilacji.
+WindowKit udostępnia ToSKSamplingOptions zamiast dawnego
+ToSKFilterQuality. ApiCompat zgłasza CP0002 względem publicznego
+WindowKit v1.12.1. Stare źródło zgłasza CS0117, a niezmieniona
+skompilowana aplikacja wywołująca dawną metodę zgłasza
+MissingMethodException. Nowe wywołanie przechodzi i ładuje Skia
+158.0. Osobny, niezmieniony binarnie konsument zwykłych API uruchomił
+się na tych samych bibliotekach kandydata.
+
+~~~csharp
+using ModernFormsNext.WindowKit.Media.Imaging;
+using ModernFormsNext.WindowKit.Skia;
+
+var sampling = BitmapInterpolationMode.HighQuality.ToSKSamplingOptions();
+canvas.DrawImage(image, destination, sampling);
+~~~
+
+## Wynik typografii
+
+W pięciu skalach i w ścieżce edytorów zachowano zmierzone metryki,
+kierunki runów, wybory fontów, glify i lokalizacje kursora.
+Różnice pikselowe w korpusie są skupione głównie w obszarach
+emoji. W próbce 100% różni się 2229 z 441600 pikseli. Oba warianty
+selektorów mogą nadal wyglądać kolorowo. Obraz kontrolny ze skalą
+150% zachował SHA-256 PNG w 24 odświeżeniach. Wizualnie sprawdzono
+reprezentatywny korpus 3.x i 4.x. Test IME obejmuje model kompozycji
+i anulowanie. Różne fizyczne klawiatury i nakładki systemowe wymagają
+dalszej kwalifikacji w obrębie #337.

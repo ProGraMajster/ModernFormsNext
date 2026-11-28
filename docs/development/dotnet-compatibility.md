@@ -84,7 +84,7 @@ runtime scenarios are recorded separately.
 
 | Project | TFM | Dependencies and platform | .NET 10 and .NET 11 validation |
 | --- | --- | --- | --- |
-| ModernFormsNext | 10, 10W | WindowKit, Backend, Windows backend on 10W, Markdig 1.3.2, RichTextKit 0.4.167 | 10 LTS. Verified 11 Windows and bounded neutral probes. Test NuGet selection, startup and UI. |
+| ModernFormsNext | 10, 10W | WindowKit, Backend, Windows backend on 10W, Markdig 1.3.2, RichTextKit 0.6.175, SkiaSharp.HarfBuzz 4.158.0 i HarfBuzzSharp 15.0.0 | 10 LTS. Verified 11 Windows and bounded neutral probes. Test NuGet selection, startup and UI. |
 | ModernFormsNext.WindowKit | 10 | Backend, SkiaSharp 4.158.0 and Linux native assets, System.Drawing.Common 10.0.10 | 10 API floor. Transitive 11 assets exercised in Windows and Android probes. Test native resolution per RID. |
 | ModernFormsNext.WindowKit.Backend | 10 | Shared backend infrastructure | 10 API floor. Transitive 11 Windows and Android probes. |
 | ModernFormsNext.WindowKit.Backend.Windows | 10 | WindowKit, Backend, SkiaSharp, System.Drawing.Common, Win32 | Windows only despite neutral TFM. Package launch and focused native tests on 10 and 11 x64. |
