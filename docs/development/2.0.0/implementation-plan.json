@@ -13603,7 +13603,7 @@
       "waveId": "S02-b",
       "codeCommit": "e3726d9be60a5a76d277c7bc09ad2a020b744c4a",
       "consumerFixtureCommit": "add5651ebf55771401dbeee71af9e2917bb2d240",
-      "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pulls?q=is%3Apr+head%3Awork%2F2.0-stage-s02-b-testhost",
+      "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/558",
       "report": "MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md",
       "localScope": "windows-release-selective-headless-hwnd-and-local-packages",
       "selectedTestHostPassed": 511,
@@ -13895,7 +13895,7 @@
     "stageId": "S02",
     "waveId": "S02-b",
     "status": "ready-for-review",
-    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pulls?q=is%3Apr+head%3Awork%2F2.0-stage-s02-b-testhost",
+    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/558",
     "report": "MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md"
   }
 }

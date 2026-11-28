@@ -2,7 +2,7 @@
 
 **Gotowy do przeglądu.** S02-b rozszerza istniejący TestHost przed
 kwalifikacją migracji SkiaSharp. Zmiany są skierowane do `develop/2.0.0`.
-[#64](https://github.com/ProGraMajster/ModernFormsNext/issues/64) · [PR S02-b](https://github.com/ProGraMajster/ModernFormsNext/pulls?q=is%3Apr+head%3Awork%2F2.0-stage-s02-b-testhost)
+[#64](https://github.com/ProGraMajster/ModernFormsNext/issues/64) · [PR #558](https://github.com/ProGraMajster/ModernFormsNext/pull/558) · [Wymagane CI](https://github.com/ProGraMajster/ModernFormsNext/pull/558/checks)
 
 ## Integracja S02-a i baza 3.x
 
