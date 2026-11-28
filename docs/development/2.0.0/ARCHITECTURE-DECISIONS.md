@@ -154,7 +154,10 @@ Zakres issue i kolejność są w [MASTER-PLAN.md](MASTER-PLAN.md).
 - **Stan.** AutomationSession ma snapshoty i dostępne operacje scoped
   runtime. Designer edytuje `.mfdesign` przez istniejące node IDs,
   serializer, validator i undo. TestHost już posiada kontrolowany timer
-  i iniekcję w ramach własnych okien.
+  i iniekcję w ramach własnych okien. S02-b używa produkcyjnego
+  `IWindowSurfaceInput` do symulowanych kontaktów dotykowych. Przechwycenie
+  i anulowanie mają jednego właściciela w istniejącym routingu. Testy
+  pakietowe, natywne HWND i kwalifikacja fizyczna mają własne dowody.
 - **Warianty.** Prywatne reimplementacje w każdym narzędziu albo ograniczone
   adaptery do tych kontraktów, z rozdzieleniem odczytu, edycji design-time,
   test replay i dostępu do live runtime.

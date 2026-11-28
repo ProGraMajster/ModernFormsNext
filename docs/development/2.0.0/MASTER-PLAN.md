@@ -11,10 +11,14 @@ Designera. Źródła frameworka używają SDK 10. Android jest Experimental.
 [PR #553](https://github.com/ProGraMajster/ModernFormsNext/pull/553) ·
 [Macierz](../dotnet-compatibility.md)
 
-## Pierwszy podetap po akceptacji
+## Stan wdrożenia
 
-**S02-a. Minimalny PerformanceLab #114 na istniejącym profilerze #58.**
-Gotowy do przeglądu w [PR S02-a](https://github.com/ProGraMajster/ModernFormsNext/pull/557). [Raport pomiarów](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md).
+**S02-a zintegrowany.** Minimalny PerformanceLab #114 korzysta z profilera
+#58. Zapisano bazę Windows software 3.x. **S02-b do przeglądu.** Istniejący
+TestHost otrzymał pokrycie symulowanego dotyku, diagnostyki i współpracy
+wirtualizacji z nawigacją. S02-c wymaga osobnej zgody.
+[PR S02-a](https://github.com/ProGraMajster/ModernFormsNext/pull/557) ·
+[Raport pomiarów](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) · [Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md).
 Utrwalić workload i pomiar SkiaSharp 3.x, żeby osobny PR #419 mógł dać
 wiarygodne porównanie 4.x i wykryć zmianę w pakietach, DPI, tekście oraz
 prezentacji. Pierwszy PR powinien zawierać cienki harness, metadane i dwa
@@ -65,7 +69,7 @@ zależności issue lub bramy. Etap S09 rozlicza zakres zatwierdzony przez właś
 | Etap | Temat | Issue | Stan |
 | --- | --- | ---: | --- |
 | [S01](#s01) | Zgodność .NET i selektywna walidacja | 2 | ukończony |
-| [S02](#s02) | Bazowe pomiary, migracja software i akceleracja GPU | 9 | S02-a do przeglądu |
+| [S02](#s02) | Bazowe pomiary, migracja software i akceleracja GPU | 9 | S02-a zintegrowany, S02-b do przeglądu |
 | [S03](#s03) | Kontrakty wartości, danych, layoutu i platform | 20 | propozycja |
 | [S04](#s04) | Input, przewijanie, integracje i duże dane | 20 | propozycja |
 | [S05](#s05) | Model postępu i kontrolki progresu | 29 | propozycja |
