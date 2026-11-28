@@ -193,12 +193,13 @@
   },
   "nextAction": {
     "stageId": "S02",
-    "waveId": "S02-b",
+    "waveId": "S02-c",
     "issueNumbers": [
-      64
+      337,
+      419
     ],
-    "action": "Przejrzeć PR S02-b. S02-c wymaga osobnej zgody.",
-    "status": "awaiting-s02-b-review"
+    "action": "Zachować bazę 3.x przed migracją i porównać ją na tych samych urządzeniach.",
+    "status": "in-progress"
   },
   "lastCompletedStage": "S01",
   "activeImplementationStage": "S02",
@@ -264,7 +265,7 @@
           "issues": [
             64
           ],
-          "status": "ready-for-review"
+          "status": "integrated"
         },
         {
           "waveId": "S02-c",
@@ -273,7 +274,21 @@
             337,
             419
           ],
-          "status": "awaits-owner-approval"
+          "status": "in-progress",
+          "substeps": [
+            {
+              "id": "S02-c1",
+              "scope": "Audyt typografii, wersjonowany korpus i baza software 3.x"
+            },
+            {
+              "id": "S02-c2",
+              "scope": "Stabilna migracja SkiaSharp 4.x na software"
+            },
+            {
+              "id": "S02-c3",
+              "scope": "Porównanie pomiarów i kwalifikacja platform oraz konsumentów"
+            }
+          ]
         },
         {
           "waveId": "S02-d",
@@ -2703,9 +2718,9 @@
       "stageId": "S02",
       "waveId": "S02-b",
       "priority": "P0",
-      "status": "in-review",
+      "status": "in-progress",
       "auditStatus": "partial",
-      "assessment": "S02-b gotowy do przeglądu. Issue pozostaje otwarte dla późniejszych kontraktów dotyku i transferu oraz pełniejszych dowodów.",
+      "assessment": "S02-b zintegrowany w PR #558. Issue pozostaje otwarte dla późniejszych kontraktów i kwalifikacji.",
       "proposedDisposition": "remaining",
       "estimatedComplexity": "M",
       "implementationEvidence": "Istniejący host ma dispatcher, clock, kompozycję tekstu, raster, modal, popup i kontrolowane usługi. S02-b dostarcza kanoniczną symulację touch/cancel, diagnostykę popup i pokrycie AppShell/CollectionView, z dwoma konsumentami pakietu.",
@@ -9638,7 +9653,7 @@
       "stageId": "S02",
       "waveId": "S02-c",
       "priority": "P1",
-      "status": "proposed",
+      "status": "in-progress",
       "auditStatus": "partial",
       "assessment": "fragment zakresu obecny w kodzie lub w dowodach kwalifikacji, pozostały otwarte kryteria",
       "proposedDisposition": "split",
@@ -11093,7 +11108,7 @@
       "stageId": "S02",
       "waveId": "S02-c",
       "priority": "P0",
-      "status": "proposed",
+      "status": "in-progress",
       "auditStatus": "foundation",
       "assessment": "pokrewny kod stanowi fundament, a docelowej funkcji lub dowodu jeszcze brakuje",
       "proposedDisposition": "split",
@@ -13615,7 +13630,11 @@
       "packageSha256": "7155a561607d98b47094a6805870ed6d2a74124e9d419b344dc1f8970e7208f5",
       "apiCompatBaseline": "ModernFormsNext.Testing 1.12.1",
       "apiCompatResult": "success",
-      "status": "ready-for-review"
+      "status": "integrated",
+      "verifiedHead": "d43abbad7074f803969bdc5c777c0a58b6f5cd06",
+      "mergeCommit": "ad10f5ae155b299ff0ed2f9047586a5b519d1846",
+      "requiredCheck": "https://github.com/ProGraMajster/ModernFormsNext/actions/runs/46149867583/job/140993991750",
+      "requiredCheckResult": "success"
     }
   ],
   "dependencyTopologicalLayers": [
@@ -13778,10 +13797,10 @@
   ],
   "approval": {
     "plan": "merged",
-    "nextScope": "S02-b implementation and review",
-    "implementationMerge": "S02-a merged with owner approval. S02-b merge requires separate owner approval.",
-    "scopeSource": "Owner approval for S02-a integration and S02-b TestHost",
-    "nextWaveApproval": "S02-c awaits separate owner approval"
+    "nextScope": "S02-c1, S02-c2 and S02-c3",
+    "implementationMerge": "S02-b integrated. Baseline-only S02-c1 is authorized after CI. S02-c2 requires owner review.",
+    "scopeSource": "Owner acceptance of S02-b and SkiaSharp migration request",
+    "nextWaveApproval": "S02-d and S02-e await separate approval"
   },
   "workstreams": {
     "gpu": [
@@ -13893,9 +13912,25 @@
   },
   "currentCheckpoint": {
     "stageId": "S02",
-    "waveId": "S02-b",
-    "status": "ready-for-review",
-    "implementationPullRequest": "https://github.com/ProGraMajster/ModernFormsNext/pull/558",
-    "report": "MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md"
+    "waveId": "S02-c",
+    "substep": "S02-c1",
+    "status": "in-progress",
+    "report": "MODERNFORMSNEXT-2.0.0-S02-C-REPORT.md"
+  },
+  "performanceBenchmarkProgram": {
+    "policy": "PERFORMANCE-BENCHMARKS.md",
+    "registry": "performance-benchmarks.json",
+    "stableTag": "v1.12.1",
+    "stableCommit": "7c8e25c4955b3a1cfedae5c7355e076735f7bd9d",
+    "historicalBaseline": "MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md",
+    "checkpoints": [
+      "SkiaSharp 4.x",
+      "Frame Pacing and VSync",
+      "GPU",
+      "layout and rendering",
+      "Smooth Scrolling",
+      "virtualization",
+      "2.0.0 release"
+    ]
   }
 }

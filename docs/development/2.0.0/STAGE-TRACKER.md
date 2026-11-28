@@ -1,15 +1,17 @@
 # Status etapów ModernFormsNext 2.0.0
 
 Ostatni zamknięty etap to S01. **S02-a jest zintegrowany** i spełnia
-bramę `baseline-perf` dla Windows software 3.x. **S02-b jest gotowy do
-przeglądu**. S02-c czeka na osobną zgodę. Issue #114, #58 i #64 pozostają otwarte.
+bramę `baseline-perf` dla Windows software 3.x. **S02-b jest zintegrowany**
+jako `ad10f5a`. S02-c1 zapisuje bazę 3.x i korpus. S02-c2 zmienia zależność,
+a S02-c3 porównuje wyniki i rozlicza kryteria. Issue #114, #58 i #64 pozostają otwarte.
+[Program pomiarów](PERFORMANCE-BENCHMARKS.md)
 [Raport S02-a](MODERNFORMSNEXT-2.0.0-S02-A-REPORT.md) · [PR S02-a](https://github.com/ProGraMajster/ModernFormsNext/pull/557) · [Raport S02-b](MODERNFORMSNEXT-2.0.0-S02-B-REPORT.md)
 [Plan główny](MASTER-PLAN.md) · [Dane planu](implementation-plan.json)
 
 | Etap | Stan | Issue ukończone / wszystkie |
 | --- | --- | ---: |
 | [S01](#s01) | ukończony | 2 / 2 |
-| [S02](#s02) | w toku, S02-b do przeglądu | 0 / 9 |
+| [S02](#s02) | w toku, S02-c | 0 / 9 |
 | [S03](#s03) | proponowany | 0 / 20 |
 | [S04](#s04) | proponowany | 0 / 20 |
 | [S05](#s05) | proponowany | 0 / 29 |
